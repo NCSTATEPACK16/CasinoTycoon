@@ -1,0 +1,71 @@
+import { eventBus } from '../EventBus';
+import { STARTING_CASH } from '../config';
+import { el, formatCash } from './dom';
+import type { PanelSpec, WindowManager } from './WindowManager';
+import { makeBuildPanel } from './panels/BuildPanel';
+import { makeFinancePanel } from './panels/FinancePanel';
+import { makeGuestsPanel } from './panels/GuestsPanel';
+import { makeStaffPanel } from './panels/StaffPanel';
+import { makeObjectivesPanel } from './panels/ObjectivesPanel';
+
+interface ToolbarButton {
+  id: string;
+  label: string;
+  icon: string;
+  make: () => PanelSpec;
+}
+
+const BUTTONS: ToolbarButton[] = [
+  { id: 'build', label: 'Build', icon: '🔨', make: makeBuildPanel },
+  { id: 'finance', label: 'Finance', icon: '💰', make: makeFinancePanel },
+  { id: 'guests', label: 'Guests', icon: '👥', make: makeGuestsPanel },
+  { id: 'staff', label: 'Staff', icon: '🔧', make: makeStaffPanel },
+  { id: 'objectives', label: 'Objectives', icon: '🎯', make: makeObjectivesPanel },
+];
+
+// Bottom toolbar: panel toggles on the left, cash + clock readouts on the right.
+export class Toolbar {
+  constructor(uiRoot: HTMLElement, windows: WindowManager) {
+    const bar = el('div', 'ui-toolbar bevel-raised');
+    uiRoot.appendChild(bar);
+
+    const group = el('div', 'tb-group');
+    bar.appendChild(group);
+    const buttons = new Map<string, HTMLButtonElement>();
+    for (const def of BUTTONS) {
+      const btn = el('button', 'tb-btn');
+      btn.appendChild(el('span', 'tb-icon', def.icon));
+      btn.appendChild(el('span', '', def.label));
+      btn.addEventListener('click', () => windows.toggle(def.id, def.make));
+      group.appendChild(btn);
+      buttons.set(def.id, btn);
+    }
+    windows.onChange((id, open) => buttons.get(id)?.classList.toggle('pressed', open));
+
+    bar.appendChild(el('div', 'tb-spacer'));
+
+    const cash = el('div', 'tb-readout tb-cash bevel-sunken');
+    const cashIcon = el('span', 'ro-icon', '💵');
+    const cashValue = el('span', '', formatCash(STARTING_CASH));
+    cash.append(cashIcon, cashValue);
+    bar.appendChild(cash);
+
+    const clock = el('div', 'tb-readout bevel-sunken');
+    const clockIcon = el('span', 'ro-icon', '🕗');
+    const clockValue = el('span', '', 'Day 1 · 12:00');
+    clock.append(clockIcon, clockValue);
+    bar.appendChild(clock);
+
+    eventBus.on('moneyChanged', ({ cash: total, delta }) => {
+      cashValue.textContent = formatCash(total);
+      const flash = delta >= 0 ? 'flash-up' : 'flash-down';
+      cash.classList.remove('flash-up', 'flash-down');
+      // Force a reflow so re-adding the class restarts the CSS animation.
+      void cash.offsetWidth;
+      cash.classList.add(flash);
+    });
+    eventBus.on('hourPassed', ({ hour, day }) => {
+      clockValue.textContent = `Day ${day} · ${String(hour).padStart(2, '0')}:00`;
+    });
+  }
+}

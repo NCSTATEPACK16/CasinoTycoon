@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.DS_Store
+*.local
+.env
+.netlify/
+
+# Local planning & Claude docs — intentionally not published
+PLAN.md
+InitialPlan.md
+CLAUDE.md
+.claude/
