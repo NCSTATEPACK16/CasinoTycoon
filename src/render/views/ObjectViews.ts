@@ -36,6 +36,9 @@ export class ObjectViews {
       for (const img of this.sprites.values()) img.destroy();
       this.sprites.clear();
     });
+    eventBus.on('worldLoaded', () => {
+      for (const po of gameState.allObjects()) this.spawn(po.id, po.defId, po.col, po.row, false);
+    });
   }
 
   spriteFor(id: string): Phaser.GameObjects.Image | undefined {
