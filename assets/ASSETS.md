@@ -7,11 +7,23 @@
 - Multi-tile objects declare a footprint (e.g. blackjack table 2×2) and are anchored at the origin cell.
 - All textures register through the atlas manifest (added in P1 as `src/render/atlas.ts`); game code references keys only — swapping art never touches logic.
 
+## Real object art (active — P9)
+
+Self-generated isometric pixel art, transparent PNGs, served from `public/sprites/` (same pattern as `public/audio/`) and preloaded in `BootScene`:
+
+| Texture key           | File                                 | Used by                  |
+| --------------------- | ------------------------------------ | ------------------------ |
+| `img-slot-machine`    | `public/sprites/slot-machine.png`    | `slot-machine` object    |
+| `img-blackjack-table` | `public/sprites/blackjack-table.png` | `blackjack-table` object |
+| `img-craps-table`     | `public/sprites/craps-table.png`     | `craps-table` object     |
+
+These replace the flat-shaded placeholder boxes for those three object types via `ObjectDef.displaySize` (explicit on-screen px size, since the source PNGs are captured at arbitrary export resolution, not pre-sized to the iso grid). Floor tiles, walls, toilet, food stall, plant, and all characters remain placeholders.
+
 ## Placeholder art (active)
 
 `src/render/placeholders.ts` generates every needed texture at runtime (flat-shaded iso diamonds and boxes). The game is fully playable with zero downloaded assets. Real art replaces placeholders key-by-key via the manifest.
 
-**Characters (P6):** guests and staff are now generated *pixel people* (12×18 logical px at 2× scale → 24×36 textures), not boxes — 6 guest outfit variants plus mechanic (hard hat) and janitor (bucket), each with an `-a`/`-b` walk frame pair. Keys: `char-guest-{0..5}-{a|b}`, `char-mechanic-{a|b}`, `char-janitor-{a|b}`.
+**Characters (P6):** guests and staff are now generated _pixel people_ (12×18 logical px at 2× scale → 24×36 textures), not boxes — 6 guest outfit variants plus mechanic (hard hat) and janitor (bucket), each with an `-a`/`-b` walk frame pair. Keys: `char-guest-{0..5}-{a|b}`, `char-mechanic-{a|b}`, `char-janitor-{a|b}`.
 
 ## Generating real character art (Gemini / any image model)
 
@@ -34,13 +46,13 @@ Downloaded 2026-07-19 from kenney.nl (all CC0), curated into `public/audio/` wit
 names; Vite serves them at `/audio/<key>.ogg` and `BootScene` preloads every key listed in
 `src/services/AudioService.ts` (`AUDIO_KEYS`).
 
-| Keys | Source pack | Original files |
-|---|---|---|
-| `sfx-chips-{1..3}`, `sfx-coin-{1,2}` | Casino Audio | chips-handle-1/3/5, chip-lay-1/2 |
-| `sfx-card-{1,2}`, `sfx-shuffle` | Casino Audio | card-slide-1, card-place-2, card-shuffle |
-| `sfx-dice-{1,2}` | Casino Audio | dice-throw-1, dice-shake-2 |
-| `sfx-jackpot`, `sfx-victory`, `sfx-failure` | Music Jingles | jingles_NES03, jingles_PIZZI07, jingles_NES10 |
-| `sfx-break`, `sfx-fixed` | Interface Sounds | error_005, confirmation_002 |
+| Keys                                                   | Source pack      | Original files                                                                                              |
+| ------------------------------------------------------ | ---------------- | ----------------------------------------------------------------------------------------------------------- |
+| `sfx-chips-{1..3}`, `sfx-coin-{1,2}`                   | Casino Audio     | chips-handle-1/3/5, chip-lay-1/2                                                                            |
+| `sfx-card-{1,2}`, `sfx-shuffle`                        | Casino Audio     | card-slide-1, card-place-2, card-shuffle                                                                    |
+| `sfx-dice-{1,2}`                                       | Casino Audio     | dice-throw-1, dice-shake-2                                                                                  |
+| `sfx-jackpot`, `sfx-victory`, `sfx-failure`            | Music Jingles    | jingles_NES03, jingles_PIZZI07, jingles_NES10                                                               |
+| `sfx-break`, `sfx-fixed`                               | Interface Sounds | error_005, confirmation_002                                                                                 |
 | `ui-click/open/close/error/place/sell/pluck/drop/hire` | Interface Sounds | click_001, maximize_004, minimize_004, error_001, drop_002, drop_003, pluck_001, drop_001, confirmation_001 |
 
 There is no CC0 casino ambiance loop worth shipping; instead the "music" bus plays a
@@ -50,13 +62,13 @@ looping it on the music bus.
 
 ## Recommended CC0 packs (manual download → drop into `assets/`)
 
-| Pack | Source | Use for |
-|---|---|---|
-| Kenney — Casino Pack | kenney.nl/assets/casino-pack | Cards, chips, slot symbols (reel icons, UI decoration) |
-| Kenney — Isometric Miniature packs (Library / Dungeon / Farm) | kenney.nl/assets | Floor styles, walls, decor to adapt |
-| Kenney — UI Pack (RPG expansion) | kenney.nl/assets/ui-pack | Beveled RCT-style window chrome, buttons |
-| Kenney — Interface Sounds + Casino Audio | kenney.nl/assets | UI clicks, chimes, jackpot stingers |
-| freesound.org (CC0 filter) | freesound.org | Casino ambiance loop |
+| Pack                                                          | Source                       | Use for                                                |
+| ------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------ |
+| Kenney — Casino Pack                                          | kenney.nl/assets/casino-pack | Cards, chips, slot symbols (reel icons, UI decoration) |
+| Kenney — Isometric Miniature packs (Library / Dungeon / Farm) | kenney.nl/assets             | Floor styles, walls, decor to adapt                    |
+| Kenney — UI Pack (RPG expansion)                              | kenney.nl/assets/ui-pack     | Beveled RCT-style window chrome, buttons               |
+| Kenney — Interface Sounds + Casino Audio                      | kenney.nl/assets             | UI clicks, chimes, jackpot stingers                    |
+| freesound.org (CC0 filter)                                    | freesound.org                | Casino ambiance loop                                   |
 
 **Known gaps** (no good free isometric source; placeholders stay until commissioned art):
 slot machine cabinets, blackjack tables, guest/staff character sprites in iso perspective.

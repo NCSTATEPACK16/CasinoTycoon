@@ -3,7 +3,7 @@ import type { CasinoWorldJSON } from '../sim/world';
 // Persistence for full-world snapshots. Interface is async so the P12
 // SupabaseSaveService can implement it unchanged; local remains the fallback.
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 export const MANUAL_SLOTS = ['slot-1', 'slot-2', 'slot-3'] as const;
 export const AUTOSAVE_SLOT = 'autosave';
 const ALL_SLOTS = [...MANUAL_SLOTS, AUTOSAVE_SLOT];

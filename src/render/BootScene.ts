@@ -11,6 +11,9 @@ export default class BootScene extends Phaser.Scene {
 
   preload() {
     for (const key of AUDIO_KEYS) this.load.audio(key, `audio/${key}.ogg`);
+    this.load.image('img-slot-machine', 'sprites/slot-machine.png');
+    this.load.image('img-blackjack-table', 'sprites/blackjack-table.png');
+    this.load.image('img-craps-table', 'sprites/craps-table.png');
   }
 
   create() {

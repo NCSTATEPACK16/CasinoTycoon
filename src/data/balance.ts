@@ -15,7 +15,6 @@ export const GUEST_BALANCE = {
   brokeWallet: 10,
   moveTicksPerTile: 2,
   serviceTicks: 20,
-  foodPrice: 8,
   happinessOnWin: 4,
   happinessOnLoss: -1,
   happinessOnService: 3,
@@ -82,6 +81,26 @@ export function blackjackExpectedRtp(): number {
   return BLACKJACK_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
 }
 
+// Craps: fast communal rounds, dice-flavored payout table, same 4-seat table shape as blackjack.
+export const CRAPS_BALANCE = {
+  costToPlay: 15,
+  wearPerPlay: 0.3,
+  playIntervalTicks: 6,
+  playsMin: 5,
+  playsMax: 12,
+  seats: 4,
+  payoutTable: [
+    { p: 0.35, multiplier: 2 }, // pass-line win
+    { p: 0.05, multiplier: 3 }, // hot roll
+    { p: 0.01, multiplier: 6 }, // rare proposition hit
+  ] as readonly PayoutOutcome[],
+} as const;
+
+/** Expected RTP implied by the craps payout table. */
+export function crapsExpectedRtp(): number {
+  return CRAPS_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+}
+
 // Staff: hourly wages come out of casino cash at each hour boundary.
 export const STAFF_BALANCE = {
   moveTicksPerTile: 2,
@@ -98,4 +117,13 @@ export const MESS_BALANCE = {
   maxDrainStacks: 3, // cap on how many messes stack their drain
   radius: 3, // Chebyshev tiles
   maxMesses: 40,
+} as const;
+
+// Food Stall menu pricing: player-tunable price band and the gouging threshold
+// that triggers a guest's "rip-off" reaction.
+export const FOOD_BALANCE = {
+  priceFloorFactor: 0.5,
+  priceCeilFactor: 6,
+  ripoffMultiplier: 3,
+  happinessOnRipoff: -6,
 } as const;

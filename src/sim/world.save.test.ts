@@ -12,6 +12,8 @@ function populatedWorld(): CasinoWorld {
   world.place('slot-machine', 5, 5);
   world.place('slot-machine', 7, 5);
   world.place('toilet', 10, 8);
+  const stallPo = world.place('food-stall', 12, 8)!;
+  world.foodStalls.get(stallPo.id)!.setPrice('burger', 6.5);
   world.hireStaff('mechanic');
   world.hireStaff('janitor');
   world.dropMess(3, 3, 'trash');

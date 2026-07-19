@@ -1,5 +1,5 @@
 import { eventBus } from '../../EventBus';
-import { GUEST_BALANCE, MESS_BALANCE } from '../../data/balance';
+import { FOOD_BALANCE, GUEST_BALANCE, MESS_BALANCE } from '../../data/balance';
 import { THOUGHTS } from '../../data/thoughts';
 import type { Cell } from '../grid/astar';
 import type { CasinoWorld } from '../world';
@@ -37,6 +37,7 @@ export class Guest extends Walker {
   private spinEveryTicks = 8; // from the machine's cadence at sit-down
   private serviceKind: 'toilet' | 'food-stall' | null = null;
   private serviceTimer = 0;
+  private foodStallId: string | null = null;
 
   constructor(id: string, wallet: number, start: Cell) {
     super(start);
@@ -86,11 +87,17 @@ export class Guest extends Walker {
       if (!def.when(ctx)) continue;
       const last = this.thoughtLast.get(def.id);
       if (last !== undefined && tick - last < def.cooldownTicks) continue;
-      this.thoughtLast.set(def.id, tick);
-      this.thoughts.push({ text: def.text, atTick: tick });
-      if (this.thoughts.length > MAX_THOUGHTS) this.thoughts.shift();
-      eventBus.emit('guestThought', { guestId: this.id, thoughtId: def.id, text: def.text });
+      this.recordThought(tick, def.id, def.text);
     }
+  }
+
+  /** Push a thought (subject to its own cooldown) — shared by polled THOUGHTS
+   * predicates and one-off event-triggered reactions like a rip-off purchase. */
+  private recordThought(tick: number, id: string, text: string): void {
+    this.thoughtLast.set(id, tick);
+    this.thoughts.push({ text, atTick: tick });
+    if (this.thoughts.length > MAX_THOUGHTS) this.thoughts.shift();
+    eventBus.emit('guestThought', { guestId: this.id, thoughtId: id, text });
   }
 
   protected onRouteLost(world: CasinoWorld): void {
@@ -101,6 +108,7 @@ export class Guest extends Walker {
     world.releaseMachines(this.id);
     this.machineId = null;
     this.serviceKind = null;
+    this.foodStallId = null;
     this.state = 'wander';
   }
 
@@ -141,11 +149,12 @@ export class Guest extends Walker {
         return;
       }
     }
-    if (this.needs.hunger < b.needThreshold && this.wallet >= b.foodPrice) {
-      const svc = world.findService('food-stall');
+    if (this.needs.hunger < b.needThreshold) {
+      const svc = world.findFoodStall(this.wallet);
       if (svc && this.goTo(world, svc.stand)) {
         this.state = 'service';
         this.serviceKind = 'food-stall';
+        this.foodStallId = svc.standId;
         this.serviceTimer = 0;
         return;
       }
@@ -212,14 +221,25 @@ export class Guest extends Walker {
     if (this.serviceTimer < b.serviceTicks) return;
     if (this.serviceKind === 'toilet') {
       this.needs.bladder = 100;
+      this.adjustHappiness(b.happinessOnService);
     } else if (this.serviceKind === 'food-stall') {
-      if (this.wallet >= b.foodPrice) {
-        this.wallet -= b.foodPrice;
-        world.payCasino(b.foodPrice);
+      const purchase = this.foodStallId ? world.buyFoodItem(this.foodStallId, this.wallet) : null;
+      if (purchase) {
+        this.wallet -= purchase.price;
+        this.needs.hunger = Math.min(100, this.needs.hunger + purchase.hungerSatisfaction);
+        if (purchase.ripoff) {
+          this.adjustHappiness(FOOD_BALANCE.happinessOnRipoff);
+          this.recordThought(
+            world.tickCount,
+            'ripoff',
+            'The prices at the food stall are a total rip-off!',
+          );
+        } else {
+          this.adjustHappiness(b.happinessOnService);
+        }
       }
-      this.needs.hunger = 100;
+      this.foodStallId = null;
     }
-    this.adjustHappiness(b.happinessOnService);
     this.serviceKind = null;
     this.evaluate(world);
   }

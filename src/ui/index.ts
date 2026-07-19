@@ -6,6 +6,7 @@ import { showScenarioSelect } from './ScenarioSelect';
 import { Ticker } from './Ticker';
 import { Toolbar } from './Toolbar';
 import { WindowManager, type PanelSpec } from './WindowManager';
+import { makeFoodStallPanel } from './panels/FoodStallPanel';
 import { makeMachineInspector } from './panels/MachineInspector';
 
 // Mounts the DOM UI overlay (toolbar, ticker, window layer) into #ui-root.
@@ -33,6 +34,10 @@ export function initUI(): void {
   // Clicking a machine in the world opens its inspector.
   eventBus.on('machineClicked', ({ machineId }) => {
     windows.open(`machine-${machineId}`, makeMachineInspector(machineId));
+  });
+  // Clicking a food stall in the world opens its menu.
+  eventBus.on('foodStallClicked', ({ standId }) => {
+    windows.open(`food-stall-${standId}`, makeFoodStallPanel(standId));
   });
   // A world reset invalidates any in-flight build tool.
   eventBus.on('worldReset', () => eventBus.emit('buildModeChanged', { mode: 'off' }));

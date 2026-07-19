@@ -16,6 +16,9 @@ export interface ObjectDef {
   upkeepPerDay: number;
   footprint: Footprint;
   spriteKey: string;
+  // On-screen size in px for real (non-placeholder) art, since source images
+  // are captured at arbitrary export resolution, not pre-sized to the iso grid.
+  displaySize?: { w: number; h: number };
   category: ObjectCategory;
 }
 
@@ -27,7 +30,8 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     cost: 500,
     upkeepPerDay: 20,
     footprint: { w: 1, h: 1 },
-    spriteKey: 'obj-slot-machine',
+    spriteKey: 'img-slot-machine',
+    displaySize: { w: 96, h: 130 },
     category: 'game',
   },
   {
@@ -37,7 +41,19 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     cost: 1200,
     upkeepPerDay: 50,
     footprint: { w: 2, h: 2 },
-    spriteKey: 'obj-blackjack-table',
+    spriteKey: 'img-blackjack-table',
+    displaySize: { w: 220, h: 150 },
+    category: 'game',
+  },
+  {
+    id: 'craps-table',
+    name: 'Craps Table',
+    icon: '🎲',
+    cost: 900,
+    upkeepPerDay: 35,
+    footprint: { w: 2, h: 2 },
+    spriteKey: 'img-craps-table',
+    displaySize: { w: 220, h: 130 },
     category: 'game',
   },
   {

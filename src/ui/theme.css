@@ -443,6 +443,39 @@ button.g-row.selected {
   gap: 6px;
 }
 
+/* ---------- food stall menu ---------- */
+
+.food-item {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.food-item-info {
+  display: flex;
+  justify-content: space-between;
+}
+
+.food-item-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.food-item-controls input[type='number'] {
+  width: 64px;
+  font-family: inherit;
+}
+
+.food-item-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--ink-dim);
+}
+
 /* ---------- sound settings ---------- */
 
 .p-slider {
