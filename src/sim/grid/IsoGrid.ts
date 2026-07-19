@@ -8,8 +8,8 @@ export interface IsoGridJSON {
 }
 
 export class IsoGrid {
-  readonly cols: number;
-  readonly rows: number;
+  cols: number;
+  rows: number;
   /** Occupant id per cell, null = empty. Index = row * cols + col. */
   private occupants: (string | null)[];
 
@@ -82,7 +82,8 @@ export class IsoGrid {
 
   /** In-place restore — the grid object itself stays aliased (mirrors clear()). */
   load(data: IsoGridJSON): void {
-    Object.assign(this, { cols: data.cols, rows: data.rows });
+    this.cols = data.cols;
+    this.rows = data.rows;
     this.occupants = [...data.occupants];
   }
 }

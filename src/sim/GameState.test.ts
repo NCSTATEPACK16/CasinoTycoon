@@ -55,5 +55,18 @@ describe('GameState', () => {
       expect(b.allObjects()).toEqual(a.allObjects());
       expect(b.newObjectId()).toBe(a.newObjectId()); // counters advanced identically
     });
+
+    it('removes stale objects not present in source', () => {
+      const source = new GameState();
+      source.cash = 500;
+      const sourceObjId = source.newObjectId();
+      source.addObject({ id: sourceObjId, defId: 'slot-machine', col: 1, row: 1 });
+      const target = new GameState();
+      const staleId = 'stale-obj-1';
+      target.addObject({ id: staleId, defId: 'plant', col: 5, row: 5 });
+      target.load(source.toJSON());
+      expect(target.getObject(staleId)).toBeUndefined();
+      expect(target.allObjects()).toEqual([{ id: sourceObjId, defId: 'slot-machine', col: 1, row: 1 }]);
+    });
   });
 });

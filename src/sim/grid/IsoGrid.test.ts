@@ -68,5 +68,17 @@ describe('IsoGrid', () => {
       expect(b.occupantAt(0, 0)).toBeNull();
       expect(b.toJSON()).toEqual(a.toJSON());
     });
+
+    it('changes dimensions and occupancy when loading from different source', () => {
+      const source = new IsoGrid(4, 3);
+      source.occupy('obj-1', 1, 1);
+      const target = new IsoGrid(2, 2);
+      const ref = target;
+      target.load(source.toJSON());
+      expect(target).toBe(ref);
+      expect(target.cols).toBe(4);
+      expect(target.rows).toBe(3);
+      expect(target.toJSON()).toEqual(source.toJSON());
+    });
   });
 });
