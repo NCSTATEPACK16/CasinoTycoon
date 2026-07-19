@@ -92,6 +92,11 @@ export class BuildController {
         .setDepth(DEPTH_GHOST)
         .setAlpha(GHOST_ALPHA)
         .setVisible(true);
+      // Real art isn't pre-sized to the iso grid like the procedural
+      // placeholders are — without this the ghost renders at native texture
+      // resolution (up to ~2800px) and swamps the screen while placing.
+      const size = def.displaySize ?? { w: this.ghost.width, h: this.ghost.height };
+      this.ghost.setDisplaySize(size.w, size.h);
       if (valid) this.ghost.clearTint();
       else this.ghost.setTint(INVALID_TINT);
       return;
