@@ -79,4 +79,10 @@ export class IsoGrid {
     grid.occupants = [...data.occupants];
     return grid;
   }
+
+  /** In-place restore — the grid object itself stays aliased (mirrors clear()). */
+  load(data: IsoGridJSON): void {
+    Object.assign(this, { cols: data.cols, rows: data.rows });
+    this.occupants = [...data.occupants];
+  }
 }

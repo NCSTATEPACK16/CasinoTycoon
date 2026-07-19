@@ -41,4 +41,19 @@ describe('GameState', () => {
     const restored = GameState.fromJSON(state.toJSON());
     expect(restored.newObjectId()).not.toBe(existing);
   });
+
+  describe('load (in-place restore)', () => {
+    it('restores cash, objects, and the id counter in place', () => {
+      const a = new GameState();
+      a.cash = 777;
+      a.addObject({ id: a.newObjectId(), defId: 'slot-machine', col: 2, row: 3 });
+      const b = new GameState();
+      const ref = b;
+      b.load(a.toJSON());
+      expect(b).toBe(ref);
+      expect(b.cash).toBe(777);
+      expect(b.allObjects()).toEqual(a.allObjects());
+      expect(b.newObjectId()).toBe(a.newObjectId()); // counters advanced identically
+    });
+  });
 });

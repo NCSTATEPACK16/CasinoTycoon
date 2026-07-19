@@ -59,4 +59,12 @@ export class GameState {
     for (const po of data.objects) state.addObject({ ...po });
     return state;
   }
+
+  /** In-place restore — wipes and refills so gameContext aliases stay valid. */
+  load(data: GameStateJSON): void {
+    this.cash = data.cash;
+    this.nextObjectIdNum = data.nextObjectId;
+    this.objects.clear();
+    for (const po of data.objects) this.addObject({ ...po });
+  }
 }
