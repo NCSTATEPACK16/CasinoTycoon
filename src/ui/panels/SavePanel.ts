@@ -33,10 +33,15 @@ export function makeSavePanel(): PanelSpec {
       if (slot !== AUTOSAVE_SLOT) {
         const save = el('button', 'p-tool', 'Save');
         save.addEventListener('click', () => {
-          void saveService.save(slot, world.toJSON()).then(() => {
-            eventBus.emit('tickerMessage', { text: `Game saved to ${slotLabel(slot)}.` });
-            void render();
-          });
+          void saveService
+            .save(slot, world.toJSON())
+            .then(() => {
+              eventBus.emit('tickerMessage', { text: `Game saved to ${slotLabel(slot)}.` });
+              void render();
+            })
+            .catch(() => {
+              eventBus.emit('tickerMessage', { text: 'Save failed!' });
+            });
         });
         btns.appendChild(save);
       }

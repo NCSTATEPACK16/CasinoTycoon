@@ -30,7 +30,7 @@ export interface GameEvents {
 
 type Handler<T> = (payload: T) => void;
 
-class TypedEventBus {
+export class TypedEventBus {
   private handlers = new Map<string, Set<Handler<unknown>>>();
 
   on<K extends keyof GameEvents>(event: K, fn: Handler<GameEvents[K]>): () => void {

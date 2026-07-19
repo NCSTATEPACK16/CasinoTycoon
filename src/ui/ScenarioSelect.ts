@@ -1,7 +1,7 @@
 import { CAMPAIGNS } from '../data/campaigns';
 import { world } from '../gameContext';
 import { el, formatCash } from './dom';
-import { saveService } from '../services/SaveService';
+import { AUTOSAVE_SLOT, saveService } from '../services/SaveService';
 import { leaderboard } from '../services/LeaderboardService';
 
 // Fullscreen scenario picker: shown at boot and again from the end cards.
@@ -61,7 +61,7 @@ export function showScenarioSelect(uiRoot: HTMLElement): void {
       el(
         'div',
         'sc-card-tagline',
-        `${latest.slot === 'autosave' ? 'Autosave' : `Slot ${latest.slot.slice(-1)}`} — Day ${latest.day} · ${formatCash(latest.cash)} · ${latest.scenarioName ?? 'Sandbox'}`,
+        `${latest.slot === AUTOSAVE_SLOT ? 'Autosave' : `Slot ${latest.slot.slice(-1)}`} — Day ${latest.day} · ${formatCash(latest.cash)} · ${latest.scenarioName ?? 'Sandbox'}`,
       ),
     );
     cont.addEventListener('click', () => {

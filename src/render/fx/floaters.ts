@@ -93,7 +93,7 @@ export function attachFx(scene: Phaser.Scene, views: ObjectViews): void {
     }
   });
 
-  eventBus.on('machineBroke', ({ machineId }) => {
+  const applyBrokenFx = (machineId: string): void => {
     views.spriteFor(machineId)?.setTint(0x8a8a8a);
     if (smokeTimers.has(machineId)) return;
     const timer = scene.time.addEvent({
@@ -105,7 +105,9 @@ export function attachFx(scene: Phaser.Scene, views: ObjectViews): void {
       },
     });
     smokeTimers.set(machineId, timer);
-  });
+  };
+
+  eventBus.on('machineBroke', ({ machineId }) => applyBrokenFx(machineId));
 
   eventBus.on('machineFixed', ({ machineId }) => {
     views.spriteFor(machineId)?.clearTint();
@@ -123,6 +125,15 @@ export function attachFx(scene: Phaser.Scene, views: ObjectViews): void {
   eventBus.on('worldReset', () => {
     for (const timer of smokeTimers.values()) timer.remove();
     smokeTimers.clear();
+  });
+
+  // A loaded save can restore machines already mid-breakdown; the sprites were
+  // just rebuilt fresh by ObjectViews' own worldLoaded handler (registered
+  // before attachFx runs, in WorldScene.create), so apply the tint+smoke now.
+  eventBus.on('worldLoaded', () => {
+    for (const machine of world.machines.values()) {
+      if (machine.broken) applyBrokenFx(machine.id);
+    }
   });
 }
 
