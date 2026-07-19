@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { world, worldGrid } from '../gameContext';
+import { audio } from '../services/AudioService';
 import type { Cell } from '../sim/grid/astar';
 import type { BuildController } from './BuildController';
 import type CameraController from './CameraController';
@@ -58,6 +59,7 @@ export class PincerController {
     this.carriedId = id;
     this.origin = { ...member.pos };
     this.camera.suppressed = true;
+    audio.play('ui-pluck', { volume: 0.7 });
     this.views.spriteFor(id)?.setScale(CARRY_SCALE);
     this.refresh(p);
   }
@@ -78,7 +80,11 @@ export class PincerController {
     if (!this.carriedId) return;
     const w = this.scene.cameras.main.getWorldPoint(p.x, p.y);
     const { col, row } = screenToGrid(w.x, w.y);
-    if (!world.dropStaff(this.carriedId, col, row)) this.returnToOrigin();
+    if (world.dropStaff(this.carriedId, col, row)) {
+      audio.play('ui-drop', { volume: 0.7 });
+    } else {
+      this.returnToOrigin();
+    }
     this.releaseSprite();
   }
 

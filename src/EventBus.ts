@@ -11,7 +11,7 @@ export interface GameEvents {
   buildModeChanged: { mode: 'off' | 'place' | 'bulldoze'; defId?: string };
   guestSpawned: { id: string };
   guestLeft: { id: string };
-  guestThought: { guestId: string; text: string };
+  guestThought: { guestId: string; thoughtId: string; text: string };
   machinePlayed: { machineId: string; guestId: string; wager: number; payout: number };
   machineBroke: { machineId: string };
   machineFixed: { machineId: string };

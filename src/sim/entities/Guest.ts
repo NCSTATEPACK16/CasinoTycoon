@@ -89,7 +89,7 @@ export class Guest extends Walker {
       this.thoughtLast.set(def.id, tick);
       this.thoughts.push({ text: def.text, atTick: tick });
       if (this.thoughts.length > MAX_THOUGHTS) this.thoughts.shift();
-      eventBus.emit('guestThought', { guestId: this.id, text: def.text });
+      eventBus.emit('guestThought', { guestId: this.id, thoughtId: def.id, text: def.text });
     }
   }
 

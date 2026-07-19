@@ -7,6 +7,7 @@ import { makeFinancePanel } from './panels/FinancePanel';
 import { makeGuestsPanel } from './panels/GuestsPanel';
 import { makeStaffPanel } from './panels/StaffPanel';
 import { makeObjectivesPanel } from './panels/ObjectivesPanel';
+import { makeSoundPanel } from './panels/SoundPanel';
 
 interface ToolbarButton {
   id: string;
@@ -21,6 +22,7 @@ const BUTTONS: ToolbarButton[] = [
   { id: 'guests', label: 'Guests', icon: '👥', make: makeGuestsPanel },
   { id: 'staff', label: 'Staff', icon: '🔧', make: makeStaffPanel },
   { id: 'objectives', label: 'Objectives', icon: '🎯', make: makeObjectivesPanel },
+  { id: 'sound', label: 'Sound', icon: '🔊', make: makeSoundPanel },
 ];
 
 // Bottom toolbar: panel toggles on the left, cash + clock readouts on the right.

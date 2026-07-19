@@ -7,11 +7,7 @@ import { initUI } from './ui';
 
 // Dev-only test affordance: Playwright drivers reach the sim through this.
 // Stripped from production builds by Vite's dead-code elimination.
-if (import.meta.env.DEV) {
-  (window as unknown as Record<string, unknown>).__casino = { world, eventBus };
-}
-
-new Phaser.Game({
+const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
   backgroundColor: '#14101c',
@@ -21,5 +17,9 @@ new Phaser.Game({
   },
   scene: [BootScene, WorldScene],
 });
+
+if (import.meta.env.DEV) {
+  (window as unknown as Record<string, unknown>).__casino = { world, eventBus, game };
+}
 
 initUI();
