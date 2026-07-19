@@ -16,6 +16,7 @@ export interface GameEvents {
   machineBroke: { machineId: string };
   machineFixed: { machineId: string };
   machineClicked: { machineId: string };
+  foodStallClicked: { standId: string };
   messCreated: { id: string; col: number; row: number; kind: string };
   messCleaned: { id: string };
   staffHired: { id: string; kind: string };

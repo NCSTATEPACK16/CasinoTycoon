@@ -25,9 +25,15 @@ describe('object catalog', () => {
     }
   });
 
-  it('follows the obj- sprite key contract', () => {
+  it('follows the sprite key contract (placeholder obj- or real img- art)', () => {
     for (const d of OBJECT_CATALOG) {
-      expect(d.spriteKey, d.id).toMatch(/^obj-/);
+      expect(d.spriteKey, d.id).toMatch(/^(obj|img)-/);
+    }
+  });
+
+  it('real-art entries declare a displaySize', () => {
+    for (const d of OBJECT_CATALOG) {
+      if (d.spriteKey.startsWith('img-')) expect(d.displaySize, d.id).toBeDefined();
     }
   });
 

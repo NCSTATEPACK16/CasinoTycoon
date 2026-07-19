@@ -50,10 +50,23 @@ export class ObjectViews {
     if (!def) return;
     const t = objectTransform(def, col, row);
     const img = this.scene.add.image(t.x, t.y, def.spriteKey).setOrigin(0.5, 1).setDepth(t.depth);
+    if (def.displaySize) img.setDisplaySize(def.displaySize.w, def.displaySize.h);
     this.sprites.set(id, img);
     if (animate) {
-      img.setScale(0.6);
-      this.scene.tweens.add({ targets: img, scale: 1, duration: 260, ease: 'Back.easeOut' });
+      // Bounce in toward whatever scale setDisplaySize established above (1 for
+      // placeholders, whose native texture size already matches, or the ratio
+      // setDisplaySize computed for real art) — never an absolute scale of 1,
+      // which would override displaySize and snap real art to native pixel size.
+      const targetScaleX = img.scaleX;
+      const targetScaleY = img.scaleY;
+      img.setScale(targetScaleX * 0.6, targetScaleY * 0.6);
+      this.scene.tweens.add({
+        targets: img,
+        scaleX: targetScaleX,
+        scaleY: targetScaleY,
+        duration: 260,
+        ease: 'Back.easeOut',
+      });
     }
   }
 

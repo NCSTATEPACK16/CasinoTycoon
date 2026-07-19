@@ -5,7 +5,10 @@ import type { CampaignDef } from '../data/campaigns';
 import { getObjectDef } from '../data/objects';
 import { canPlaceObject, placeObject, sellObject, type PlaceCheck } from './build';
 import { BlackjackTable } from './entities/machines/BlackjackTable';
+import { CrapsTable } from './entities/machines/CrapsTable';
+import { SeatedCasinoGame } from './entities/machines/SeatedCasinoGame';
 import { Guest } from './entities/Guest';
+import { FoodStall, type FoodStallJSON, type FoodPurchase } from './entities/FoodStall';
 import type { Mess, MessKind } from './entities/Mess';
 import { Staff, type StaffKind } from './entities/staff/Staff';
 import { Ledger, type LedgerJSON } from './economy';
@@ -65,6 +68,7 @@ export interface CasinoWorldJSON {
   grid: IsoGridJSON;
   tickCount: number;
   machines: MachineJSON[];
+  foodStalls: FoodStallJSON[];
   messes: MessJSON[];
   nextMessNum: number;
   staff: StaffJSON[];
@@ -79,6 +83,7 @@ export class CasinoWorld {
   grid: IsoGrid;
   rng: Rng;
   machines = new Map<string, CasinoGame>();
+  foodStalls = new Map<string, FoodStall>();
   guests = new Map<string, Guest>();
   messes = new Map<string, Mess>();
   staff = new Map<string, Staff>();
@@ -118,6 +123,7 @@ export class CasinoWorld {
     this.staff.clear();
     this.messes.clear();
     this.machines.clear();
+    this.foodStalls.clear();
     this.repairClaims.clear();
     this.grid.clear();
     this.state.reset(startingCash);
@@ -145,6 +151,8 @@ export class CasinoWorld {
     const po = placeObject(this.state, this.grid, defId, col, row);
     if (po && defId === 'slot-machine') this.machines.set(po.id, new SlotMachine(po.id));
     if (po && defId === 'blackjack-table') this.machines.set(po.id, new BlackjackTable(po.id));
+    if (po && defId === 'craps-table') this.machines.set(po.id, new CrapsTable(po.id));
+    if (po && defId === 'food-stall') this.foodStalls.set(po.id, new FoodStall(po.id));
     return po;
   }
 
@@ -157,6 +165,7 @@ export class CasinoWorld {
       this.machines.delete(objectId);
       this.repairClaims.delete(objectId);
     }
+    this.foodStalls.delete(objectId);
     return sellObject(this.state, this.grid, objectId);
   }
 
@@ -393,7 +402,7 @@ export class CasinoWorld {
       if (!machine.isAvailable || wallet < machine.costToPlay) continue;
       const po = this.state.getObject(machine.id);
       if (!po) continue;
-      if (machine instanceof BlackjackTable) {
+      if (machine instanceof SeatedCasinoGame) {
         // Seat indices align with the seat cells around the footprint.
         const cells = this.seatCellsFor(po);
         for (let seat = 0; seat < cells.length; seat++) {
@@ -453,7 +462,34 @@ export class CasinoWorld {
     eventBus.emit('moneyChanged', { cash: this.state.cash, delta: amount });
   }
 
-  findService(defId: 'toilet' | 'food-stall'): { stand: Cell } | null {
+  /** An operational food stall: has at least one unlocked item the wallet can afford. */
+  findFoodStall(wallet: number): { standId: string; stand: Cell } | null {
+    for (const po of this.state.allObjects()) {
+      if (po.defId !== 'food-stall') continue;
+      const stall = this.foodStalls.get(po.id);
+      if (!stall || !stall.pickAffordableItem(wallet, this.rng)) continue;
+      const stand = this.standTileFor(po);
+      if (!stand) continue;
+      return { standId: po.id, stand };
+    }
+    return null;
+  }
+
+  /** Buy a random unlocked, affordable item from the stall; null if nothing qualifies anymore. */
+  buyFoodItem(standId: string, wallet: number): FoodPurchase | null {
+    const stall = this.foodStalls.get(standId);
+    if (!stall) return null;
+    const purchase = stall.buy(wallet, this.rng);
+    if (!purchase) return null;
+    const net = purchase.price - purchase.baseCost;
+    this.state.cash += net;
+    this.ledger.addRevenue(purchase.price);
+    this.ledger.addExpense(purchase.baseCost);
+    eventBus.emit('moneyChanged', { cash: this.state.cash, delta: net });
+    return purchase;
+  }
+
+  findService(defId: 'toilet'): { stand: Cell } | null {
     for (const po of this.state.allObjects()) {
       if (po.defId !== defId) continue;
       const stand = this.standTileFor(po);
@@ -503,6 +539,7 @@ export class CasinoWorld {
         lifetimeProfit: m.lifetimeProfit,
         broken: m.broken,
       })),
+      foodStalls: [...this.foodStalls.values()].map((f) => f.toJSON()),
       messes: [...this.messes.values()].map((m) => ({
         id: m.id,
         kind: m.kind,
@@ -528,6 +565,7 @@ export class CasinoWorld {
     this.guests.clear();
     this.repairClaims.clear();
     this.machines.clear();
+    this.foodStalls.clear();
     this.messes.clear();
     this.staff.clear();
     this.state.load(data.state);
@@ -537,12 +575,15 @@ export class CasinoWorld {
       const machine =
         m.defId === 'blackjack-table'
           ? new BlackjackTable(m.id, m.costToPlay)
-          : new SlotMachine(m.id, m.costToPlay);
+          : m.defId === 'craps-table'
+            ? new CrapsTable(m.id, m.costToPlay)
+            : new SlotMachine(m.id, m.costToPlay);
       machine.reliability = m.reliability;
       machine.lifetimeProfit = m.lifetimeProfit;
       machine.broken = m.broken;
       this.machines.set(m.id, machine);
     }
+    for (const f of data.foodStalls) this.foodStalls.set(f.id, FoodStall.fromJSON(f));
     for (const m of data.messes) this.messes.set(m.id, { ...m, claimedBy: null });
     this.nextMessNum = data.nextMessNum;
     for (const s of data.staff)

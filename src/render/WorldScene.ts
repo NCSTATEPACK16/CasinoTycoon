@@ -65,7 +65,7 @@ export default class WorldScene extends Phaser.Scene {
     audio.init(this);
 
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => this.updateHover(p));
-    // Clicking a machine (outside build mode) opens its inspector window.
+    // Clicking a machine or food stall (outside build mode) opens its inspector window.
     this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
       if (this.buildController.active || this.cameraController.isDragging) return;
       if (this.pincer.carrying) return; // releasing a carried staffer, not a click
@@ -74,8 +74,11 @@ export default class WorldScene extends Phaser.Scene {
       const { col, row } = screenToGrid(w.x, w.y);
       if (!this.grid.inBounds(col, row)) return;
       const occupant = this.grid.occupantAt(col, row);
-      if (occupant && world.machines.has(occupant)) {
+      if (!occupant) return;
+      if (world.machines.has(occupant)) {
         eventBus.emit('machineClicked', { machineId: occupant });
+      } else if (world.foodStalls.has(occupant)) {
+        eventBus.emit('foodStallClicked', { standId: occupant });
       }
     });
 
