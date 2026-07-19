@@ -601,3 +601,16 @@ label.p-mute input {
   filter: grayscale(1);
   opacity: 0.5;
 }
+
+/* P9 — save/load window */
+.p-save-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 4px;
+}
+.p-save-row + .p-save-row { border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.p-save-label { font-weight: bold; }
+.p-save-meta { opacity: 0.75; font-size: 0.85em; }
+.p-save-btns { display: flex; gap: 4px; }
