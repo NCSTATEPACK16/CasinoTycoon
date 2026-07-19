@@ -40,4 +40,14 @@ describe('LocalLeaderboard', () => {
       'high-roller',
     ]);
   });
+
+  it('treats corrupt stored JSON as empty instead of throwing', async () => {
+    const store = new FakeStore();
+    store.setItem('casino-leaderboard-v1', '{not json');
+    const lb = new LocalLeaderboard(store);
+    expect(await lb.getAll()).toEqual([]);
+    expect(await lb.getBest('dusty-dime')).toBeNull();
+    await lb.record({ campaignId: 'dusty-dime', dailyProfit: 100, day: 1 }); // overwrites garbage
+    expect((await lb.getBest('dusty-dime'))!.bestDailyProfit).toBe(100);
+  });
 });
