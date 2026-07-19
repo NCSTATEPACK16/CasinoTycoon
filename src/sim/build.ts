@@ -6,7 +6,7 @@ import type { IsoGrid } from './grid/IsoGrid';
 
 // Placement/sale orchestration: validity, funds, occupancy, and domain events.
 
-export type PlaceFailure = 'unknown-object' | 'insufficient-funds' | 'blocked';
+export type PlaceFailure = 'unknown-object' | 'not-allowed' | 'insufficient-funds' | 'blocked';
 
 export type PlaceCheck = { ok: true } | { ok: false; reason: PlaceFailure };
 

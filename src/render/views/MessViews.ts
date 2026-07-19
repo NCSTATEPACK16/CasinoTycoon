@@ -15,6 +15,10 @@ export class MessViews {
     for (const m of world.messes.values()) this.spawn(m.id, m.col, m.row, m.kind);
     eventBus.on('messCreated', ({ id, col, row, kind }) => this.spawn(id, col, row, kind));
     eventBus.on('messCleaned', ({ id }) => this.despawn(id));
+    eventBus.on('worldReset', () => {
+      for (const img of this.sprites.values()) img.destroy();
+      this.sprites.clear();
+    });
   }
 
   private spawn(id: string, col: number, row: number, kind: string): void {

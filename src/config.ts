@@ -15,6 +15,8 @@ export const SIM_TICK_MS = 1000 / SIM_TICKS_PER_SECOND;
 // Game time: how many sim ticks make one in-game hour.
 export const TICKS_PER_HOUR = 50;
 export const HOURS_PER_DAY = 24;
+// The casino opens at noon on Day 1 (matches the toolbar's initial readout).
+export const START_HOUR = 12;
 
 // Sandbox starting bankroll; campaign scenarios override this (P7).
 export const STARTING_CASH = 2000;

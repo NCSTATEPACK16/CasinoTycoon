@@ -23,13 +23,3 @@ new Phaser.Game({
 });
 
 initUI();
-
-// P2 demo feed — replaced by real sim events from P4 onward.
-const demoNews = [
-  'Welcome to Casino Tycoon! The floor is yours.',
-  'Tip: drag windows by their title bar; click brings to front.',
-  'Construction crews arrive in P3 — get ready to build.',
-];
-demoNews.forEach((text, i) => {
-  window.setTimeout(() => eventBus.emit('tickerMessage', { text }), 1000 + i * 6500);
-});

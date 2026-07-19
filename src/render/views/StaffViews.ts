@@ -18,6 +18,10 @@ export class StaffViews {
       this.sprites.get(id)?.destroy();
       this.sprites.delete(id);
     });
+    eventBus.on('worldReset', () => {
+      for (const img of this.sprites.values()) img.destroy();
+      this.sprites.clear();
+    });
   }
 
   private spawn(id: string, kind: string): void {

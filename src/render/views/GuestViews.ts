@@ -27,6 +27,11 @@ export class GuestViews {
       this.sprites.delete(id);
       this.baseKeys.delete(id);
     });
+    eventBus.on('worldReset', () => {
+      for (const img of this.sprites.values()) img.destroy();
+      this.sprites.clear();
+      this.baseKeys.clear();
+    });
   }
 
   /** frameAlpha: fraction of the current sim tick already elapsed (0..1). */

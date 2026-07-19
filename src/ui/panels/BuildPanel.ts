@@ -1,6 +1,6 @@
 import { eventBus } from '../../EventBus';
 import { OBJECT_CATALOG } from '../../data/objects';
-import { gameState } from '../../gameContext';
+import { gameState, world } from '../../gameContext';
 import { el, formatCash } from '../dom';
 import type { PanelSpec } from '../WindowManager';
 
@@ -50,7 +50,11 @@ export function makeBuildPanel(): PanelSpec {
   };
   const affordability = (cash: number) => {
     for (const def of OBJECT_CATALOG) {
-      tiles.get(def.id)?.classList.toggle('disabled', def.cost > cash);
+      const allowed = world.isObjectAllowed(def.id);
+      const tile = tiles.get(def.id);
+      tile?.classList.toggle('disabled', !allowed || def.cost > cash);
+      tile?.classList.toggle('locked', !allowed);
+      if (tile) tile.title = allowed ? tile.title : `${def.name} — not available in this scenario`;
     }
   };
 
@@ -60,6 +64,7 @@ export function makeBuildPanel(): PanelSpec {
     sync();
   });
   const offMoney = eventBus.on('moneyChanged', ({ cash }) => affordability(cash));
+  const offReset = eventBus.on('worldReset', () => affordability(gameState.cash));
   affordability(gameState.cash);
 
   return {
@@ -69,6 +74,7 @@ export function makeBuildPanel(): PanelSpec {
     onClose: () => {
       offMode();
       offMoney();
+      offReset();
     },
   };
 }

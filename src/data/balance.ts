@@ -21,8 +21,22 @@ export const GUEST_BALANCE = {
   happinessOnService: 3,
   maxGuests: 30,
   spawnBasePerTick: 0.004,
-  spawnPerMachinePerTick: 0.01,
+  // Word of mouth: rating 0–100 scales this on top of the base rate.
+  spawnRatingScalePerTick: 0.06,
   spawnCapPerTick: 0.08,
+} as const;
+
+// Casino rating (0–100): happiness carries half; games, variety, and
+// cleanliness make up the rest; breakdowns subtract.
+export const RATING_BALANCE = {
+  neutralHappiness: 65, // assumed when the floor is empty
+  happinessWeight: 0.5,
+  perMachine: 5,
+  machineCap: 25,
+  varietyBonus: 10, // at least two distinct game types on the floor
+  cleanlinessMax: 15,
+  perMessPenalty: 3,
+  perBrokenPenalty: 5,
 } as const;
 
 export interface PayoutOutcome {
@@ -72,8 +86,8 @@ export function blackjackExpectedRtp(): number {
 export const STAFF_BALANCE = {
   moveTicksPerTile: 2,
   patrolIdleTicks: 20, // idle ticks between patrol strolls
-  mechanic: { wagePerHour: 6, repairTicks: 40 },
-  janitor: { wagePerHour: 4, cleanTicks: 25 },
+  mechanic: { wagePerHour: 3, repairTicks: 40 },
+  janitor: { wagePerHour: 2, cleanTicks: 25 },
 } as const;
 
 // Trash and spills: unhappy guests drop them; nearby guests sour further.

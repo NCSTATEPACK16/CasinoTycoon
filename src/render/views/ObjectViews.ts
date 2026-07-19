@@ -32,6 +32,10 @@ export class ObjectViews {
     for (const po of gameState.allObjects()) this.spawn(po.id, po.defId, po.col, po.row, false);
     eventBus.on('objectPlaced', ({ id, defId, col, row }) => this.spawn(id, defId, col, row, true));
     eventBus.on('objectSold', ({ id }) => this.despawn(id));
+    eventBus.on('worldReset', () => {
+      for (const img of this.sprites.values()) img.destroy();
+      this.sprites.clear();
+    });
   }
 
   spriteFor(id: string): Phaser.GameObjects.Image | undefined {

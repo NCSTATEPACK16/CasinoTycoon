@@ -42,6 +42,26 @@ export class Toolbar {
     }
     windows.onChange((id, open) => buttons.get(id)?.classList.toggle('pressed', open));
 
+    // Game speed: pause / 1× / 3× (render-side tick multiplier).
+    const speedGroup = el('div', 'tb-group tb-speed');
+    const speedButtons: [number, HTMLButtonElement][] = [];
+    for (const [label, value] of [
+      ['⏸', 0],
+      ['1×', 1],
+      ['3×', 3],
+    ] as const) {
+      const btn = el('button', 'tb-btn tb-speed-btn', label);
+      btn.addEventListener('click', () => eventBus.emit('speedChanged', { speed: value }));
+      speedGroup.appendChild(btn);
+      speedButtons.push([value, btn]);
+    }
+    bar.appendChild(speedGroup);
+    const syncSpeed = (speed: number) => {
+      for (const [value, btn] of speedButtons) btn.classList.toggle('pressed', value === speed);
+    };
+    eventBus.on('speedChanged', ({ speed }) => syncSpeed(speed));
+    syncSpeed(1);
+
     bar.appendChild(el('div', 'tb-spacer'));
 
     const cash = el('div', 'tb-readout tb-cash bevel-sunken');

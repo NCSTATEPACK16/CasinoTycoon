@@ -1,12 +1,16 @@
 import { eventBus } from '../EventBus';
-import { ENTRANCE_TILE, GRID_COLS, GRID_ROWS, TICKS_PER_HOUR } from '../config';
-import { GUEST_BALANCE, MESS_BALANCE } from '../data/balance';
+import { ENTRANCE_TILE, GRID_COLS, GRID_ROWS, HOURS_PER_DAY, STARTING_CASH } from '../config';
+import { GUEST_BALANCE, MESS_BALANCE, RATING_BALANCE } from '../data/balance';
+import type { CampaignDef } from '../data/campaigns';
 import { getObjectDef } from '../data/objects';
 import { canPlaceObject, placeObject, sellObject, type PlaceCheck } from './build';
 import { BlackjackTable } from './entities/machines/BlackjackTable';
 import { Guest } from './entities/Guest';
 import type { Mess, MessKind } from './entities/Mess';
 import { Staff, type StaffKind } from './entities/staff/Staff';
+import { Ledger, type LedgerJSON } from './economy';
+import { ScenarioManager, type ScenarioJSON } from './scenario/ScenarioManager';
+import { TimeSystem, type TimeSystemJSON } from './TimeSystem';
 import { type CasinoGame, type PlayCadence, type PlayResult } from './entities/machines/CasinoGame';
 import { SlotMachine } from './entities/machines/SlotMachine';
 import { GameState, type GameStateJSON, type PlacedObject } from './GameState';
@@ -21,6 +25,16 @@ import { Rng } from './rng';
 export interface WorldOptions {
   seed?: number;
   autoSpawn?: boolean;
+}
+
+/** Guests only come for the games; word of mouth (rating) does the rest. */
+export function spawnChance(rating: number, machineCount: number): number {
+  if (machineCount === 0) return 0;
+  const b = GUEST_BALANCE;
+  return Math.min(
+    b.spawnCapPerTick,
+    b.spawnBasePerTick + (rating / 100) * b.spawnRatingScalePerTick,
+  );
 }
 
 interface MachineJSON {
@@ -55,6 +69,9 @@ export interface CasinoWorldJSON {
   nextMessNum: number;
   staff: StaffJSON[];
   nextStaffNum: number;
+  time: TimeSystemJSON;
+  ledger: LedgerJSON;
+  scenario: ScenarioJSON | null;
 }
 
 export class CasinoWorld {
@@ -65,6 +82,9 @@ export class CasinoWorld {
   guests = new Map<string, Guest>();
   messes = new Map<string, Mess>();
   staff = new Map<string, Staff>();
+  time = new TimeSystem();
+  ledger = new Ledger();
+  scenario: ScenarioManager | null = null;
   tickCount = 0;
   entranceTile: Cell = { ...ENTRANCE_TILE };
   autoSpawn: boolean;
@@ -81,13 +101,47 @@ export class CasinoWorld {
     this.autoSpawn = opts.autoSpawn ?? true;
   }
 
+  // ---------- scenarios ----------
+
+  /** Start a campaign (or `null` for sandbox): full floor wipe + fresh clock/books. */
+  startScenario(def: CampaignDef | null): void {
+    this.reset(def?.startingCash ?? STARTING_CASH);
+    this.scenario = def ? new ScenarioManager(def) : null;
+    eventBus.emit('worldReset', { scenarioId: def?.id ?? null });
+    eventBus.emit('moneyChanged', { cash: this.state.cash, delta: 0 });
+    eventBus.emit('hourPassed', { hour: this.time.hour, day: this.time.day });
+  }
+
+  /** In-place wipe — `state` and `grid` stay the same objects (gameContext aliases them). */
+  private reset(startingCash: number): void {
+    this.guests.clear();
+    this.staff.clear();
+    this.messes.clear();
+    this.machines.clear();
+    this.repairClaims.clear();
+    this.grid.clear();
+    this.state.reset(startingCash);
+    this.time = new TimeSystem();
+    this.ledger = new Ledger();
+    this.tickCount = 0;
+    this.nextGuestNum = 1;
+    this.nextMessNum = 1;
+    this.nextStaffNum = 1;
+  }
+
+  isObjectAllowed(defId: string): boolean {
+    return this.scenario ? this.scenario.isAllowed(defId) : true;
+  }
+
   // ---------- building ----------
 
   canPlace(defId: string, col: number, row: number): PlaceCheck {
+    if (!this.isObjectAllowed(defId)) return { ok: false, reason: 'not-allowed' };
     return canPlaceObject(this.state, this.grid, defId, col, row);
   }
 
   place(defId: string, col: number, row: number): PlacedObject | null {
+    if (!this.isObjectAllowed(defId)) return null;
     const po = placeObject(this.state, this.grid, defId, col, row);
     if (po && defId === 'slot-machine') this.machines.set(po.id, new SlotMachine(po.id));
     if (po && defId === 'blackjack-table') this.machines.set(po.id, new BlackjackTable(po.id));
@@ -110,6 +164,7 @@ export class CasinoWorld {
 
   tick(): void {
     this.tickCount++;
+    const t = this.time.tick();
     if (this.autoSpawn) this.maybeSpawn();
     this.applyMessEffects();
     for (const guest of this.guests.values()) guest.tick(this);
@@ -120,7 +175,23 @@ export class CasinoWorld {
       }
     }
     for (const member of this.staff.values()) member.tick(this);
-    if (this.tickCount % TICKS_PER_HOUR === 0) this.chargeWages();
+    if (t.hourPassed) this.onHourBoundary(t.midnight);
+  }
+
+  /** Bookkeeping at every hour boundary; midnight also rolls the day over. */
+  private onHourBoundary(midnight: boolean): void {
+    // The hour that just completed (time already shows the new hour/day).
+    const closedHour = this.time.hour === 0 ? HOURS_PER_DAY - 1 : this.time.hour - 1;
+    const closedDay = this.time.hour === 0 ? this.time.day - 1 : this.time.day;
+    this.chargeWages();
+    if (midnight) this.chargeUpkeep();
+    this.ledger.closeHour(closedDay, closedHour, this.guests.size);
+    eventBus.emit('hourPassed', { hour: this.time.hour, day: this.time.day });
+    if (midnight) {
+      const record = this.ledger.closeDay(closedDay);
+      eventBus.emit('dayEnded', { day: record.day, profit: record.profit });
+      this.scenario?.onDayEnded(record);
+    }
   }
 
   private chargeWages(): void {
@@ -128,6 +199,18 @@ export class CasinoWorld {
     for (const member of this.staff.values()) total += member.wagePerHour;
     if (total === 0) return;
     this.state.cash -= total;
+    this.ledger.addExpense(total);
+    eventBus.emit('moneyChanged', { cash: this.state.cash, delta: -total });
+  }
+
+  private chargeUpkeep(): void {
+    let total = 0;
+    for (const po of this.state.allObjects()) {
+      total += getObjectDef(po.defId)?.upkeepPerDay ?? 0;
+    }
+    if (total === 0) return;
+    this.state.cash -= total;
+    this.ledger.addExpense(total);
     eventBus.emit('moneyChanged', { cash: this.state.cash, delta: -total });
   }
 
@@ -150,14 +233,28 @@ export class CasinoWorld {
     }
   }
 
+  /** Casino rating 0–100 — drives guest arrivals; shown in UI later. */
+  get rating(): number {
+    const b = RATING_BALANCE;
+    const guests = [...this.guests.values()];
+    const avgHappiness = guests.length
+      ? guests.reduce((sum, g) => sum + g.needs.happiness, 0) / guests.length
+      : b.neutralHappiness;
+    const variety = new Set([...this.machines.values()].map((m) => m.defId)).size;
+    let broken = 0;
+    for (const m of this.machines.values()) if (m.broken) broken++;
+    const score =
+      b.happinessWeight * avgHappiness +
+      Math.min(this.machines.size * b.perMachine, b.machineCap) +
+      (variety >= 2 ? b.varietyBonus : 0) +
+      Math.max(0, b.cleanlinessMax - this.messes.size * b.perMessPenalty) -
+      broken * b.perBrokenPenalty;
+    return Math.round(Math.min(100, Math.max(0, score)));
+  }
+
   private maybeSpawn(): void {
-    const b = GUEST_BALANCE;
-    if (this.guests.size >= b.maxGuests) return;
-    const p = Math.min(
-      b.spawnCapPerTick,
-      b.spawnBasePerTick + this.machines.size * b.spawnPerMachinePerTick,
-    );
-    if (!this.rng.chance(p)) return;
+    if (this.guests.size >= GUEST_BALANCE.maxGuests) return;
+    if (!this.rng.chance(spawnChance(this.rating, this.machines.size))) return;
     if (!this.grid.isWalkable(this.entranceTile.col, this.entranceTile.row)) return;
     this.spawnGuest();
   }
@@ -339,6 +436,7 @@ export class CasinoWorld {
     if (result.wager === 0) return null;
     const delta = result.wager - result.payout;
     this.state.cash += delta;
+    this.ledger.addRevenue(delta);
     eventBus.emit('moneyChanged', { cash: this.state.cash, delta });
     eventBus.emit('machinePlayed', {
       machineId,
@@ -351,6 +449,7 @@ export class CasinoWorld {
 
   payCasino(amount: number): void {
     this.state.cash += amount;
+    this.ledger.addRevenue(amount);
     eventBus.emit('moneyChanged', { cash: this.state.cash, delta: amount });
   }
 
@@ -418,6 +517,9 @@ export class CasinoWorld {
         row: s.pos.row,
       })),
       nextStaffNum: this.nextStaffNum,
+      time: this.time.toJSON(),
+      ledger: this.ledger.toJSON(),
+      scenario: this.scenario ? this.scenario.toJSON() : null,
     };
   }
 
@@ -444,6 +546,9 @@ export class CasinoWorld {
       world.staff.set(s.id, new Staff(s.id, s.kind, { col: s.col, row: s.row }));
     }
     world.nextStaffNum = data.nextStaffNum;
+    world.time = TimeSystem.fromJSON(data.time);
+    world.ledger = Ledger.fromJSON(data.ledger);
+    world.scenario = data.scenario ? ScenarioManager.fromJSON(data.scenario) : null;
     return world;
   }
 }

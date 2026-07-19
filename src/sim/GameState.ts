@@ -41,6 +41,13 @@ export class GameState {
     return [...this.objects.values()];
   }
 
+  /** Scenario reset — wipes funds and objects in place so aliases stay valid. */
+  reset(cash: number): void {
+    this.cash = cash;
+    this.nextObjectIdNum = 1;
+    this.objects.clear();
+  }
+
   toJSON(): GameStateJSON {
     return { cash: this.cash, nextObjectId: this.nextObjectIdNum, objects: this.allObjects() };
   }

@@ -52,6 +52,11 @@ export function attachFx(scene: Phaser.Scene, views: ObjectViews): void {
     smokeTimers.get(id)?.remove();
     smokeTimers.delete(id);
   });
+
+  eventBus.on('worldReset', () => {
+    for (const timer of smokeTimers.values()) timer.remove();
+    smokeTimers.clear();
+  });
 }
 
 function floatText(

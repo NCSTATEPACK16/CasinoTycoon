@@ -53,6 +53,11 @@ export class IsoGrid {
     return true;
   }
 
+  /** Empty every cell (scenario reset) — the grid object itself stays aliased. */
+  clear(): void {
+    this.occupants.fill(null);
+  }
+
   /** Free every cell held by `id`. Returns the number of cells freed. */
   free(id: string): number {
     let freed = 0;

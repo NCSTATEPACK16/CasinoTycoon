@@ -26,6 +26,7 @@ export default class WorldScene extends Phaser.Scene {
   private pincer!: PincerController;
   private highlight!: Phaser.GameObjects.Image;
   private tickAccumulator = 0;
+  private speed = 1;
 
   constructor() {
     super('world');
@@ -79,11 +80,14 @@ export default class WorldScene extends Phaser.Scene {
       this.staffViews,
       this.buildController,
     );
+
+    eventBus.on('speedChanged', ({ speed }) => (this.speed = speed));
   }
 
   override update(_time: number, delta: number) {
     // Fixed-timestep sim: accumulate render time, tick at 10 Hz, interpolate views.
-    this.tickAccumulator += delta;
+    // Game speed scales accumulation; paused (0) simply stops feeding it.
+    this.tickAccumulator += delta * this.speed;
     while (this.tickAccumulator >= SIM_TICK_MS) {
       this.tickAccumulator -= SIM_TICK_MS;
       world.tick();
