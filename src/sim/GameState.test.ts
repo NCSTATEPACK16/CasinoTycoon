@@ -66,7 +66,9 @@ describe('GameState', () => {
       target.addObject({ id: staleId, defId: 'plant', col: 5, row: 5 });
       target.load(source.toJSON());
       expect(target.getObject(staleId)).toBeUndefined();
-      expect(target.allObjects()).toEqual([{ id: sourceObjId, defId: 'slot-machine', col: 1, row: 1 }]);
+      expect(target.allObjects()).toEqual([
+        { id: sourceObjId, defId: 'slot-machine', col: 1, row: 1 },
+      ]);
     });
   });
 });

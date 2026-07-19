@@ -27,7 +27,11 @@ export function showScenarioSelect(uiRoot: HTMLElement): void {
     void leaderboard.getBest(def.id).then((best) => {
       if (best)
         stats.appendChild(
-          el('span', 'sc-badge', `★ Best ${formatCash(best.bestDailyProfit)} · ${best.completedInDays}d`),
+          el(
+            'span',
+            'sc-badge',
+            `★ Best ${formatCash(best.bestDailyProfit)} · ${best.completedInDays}d`,
+          ),
         );
     });
     card.addEventListener('click', () => {

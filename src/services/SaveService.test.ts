@@ -5,9 +5,15 @@ import { CasinoWorld } from '../sim/world';
 
 class FakeStore implements KVStore {
   private m = new Map<string, string>();
-  getItem(k: string) { return this.m.get(k) ?? null; }
-  setItem(k: string, v: string) { this.m.set(k, v); }
-  removeItem(k: string) { this.m.delete(k); }
+  getItem(k: string) {
+    return this.m.get(k) ?? null;
+  }
+  setItem(k: string, v: string) {
+    this.m.set(k, v);
+  }
+  removeItem(k: string) {
+    this.m.delete(k);
+  }
 }
 
 const snapshot = () => new CasinoWorld({ seed: 1 }).toJSON();
