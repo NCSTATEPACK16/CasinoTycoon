@@ -523,11 +523,16 @@ export class CasinoWorld {
     };
   }
 
-  static fromJSON(data: CasinoWorldJSON): CasinoWorld {
-    const world = new CasinoWorld();
-    world.state = GameState.fromJSON(data.state);
-    world.grid = IsoGrid.fromJSON(data.grid);
-    world.tickCount = data.tickCount;
+  /** In-place restore from a save — `state`/`grid` keep identity (gameContext aliases them). */
+  loadJSON(data: CasinoWorldJSON): void {
+    this.guests.clear();
+    this.repairClaims.clear();
+    this.machines.clear();
+    this.messes.clear();
+    this.staff.clear();
+    this.state.load(data.state);
+    this.grid.load(data.grid);
+    this.tickCount = data.tickCount;
     for (const m of data.machines) {
       const machine =
         m.defId === 'blackjack-table'
@@ -536,19 +541,27 @@ export class CasinoWorld {
       machine.reliability = m.reliability;
       machine.lifetimeProfit = m.lifetimeProfit;
       machine.broken = m.broken;
-      world.machines.set(m.id, machine);
+      this.machines.set(m.id, machine);
     }
-    for (const m of data.messes) {
-      world.messes.set(m.id, { ...m, claimedBy: null });
-    }
-    world.nextMessNum = data.nextMessNum;
-    for (const s of data.staff) {
-      world.staff.set(s.id, new Staff(s.id, s.kind, { col: s.col, row: s.row }));
-    }
-    world.nextStaffNum = data.nextStaffNum;
-    world.time = TimeSystem.fromJSON(data.time);
-    world.ledger = Ledger.fromJSON(data.ledger);
-    world.scenario = data.scenario ? ScenarioManager.fromJSON(data.scenario) : null;
+    for (const m of data.messes) this.messes.set(m.id, { ...m, claimedBy: null });
+    this.nextMessNum = data.nextMessNum;
+    for (const s of data.staff)
+      this.staff.set(s.id, new Staff(s.id, s.kind, { col: s.col, row: s.row }));
+    this.nextStaffNum = data.nextStaffNum;
+    this.nextGuestNum = 1; // guests are transient — never saved
+    this.time = TimeSystem.fromJSON(data.time);
+    this.ledger = Ledger.fromJSON(data.ledger);
+    this.scenario = data.scenario ? ScenarioManager.fromJSON(data.scenario) : null;
+    const scenarioId = this.scenario?.def.id ?? null;
+    eventBus.emit('worldReset', { scenarioId });
+    eventBus.emit('worldLoaded', { scenarioId });
+    eventBus.emit('moneyChanged', { cash: this.state.cash, delta: 0 });
+    eventBus.emit('hourPassed', { hour: this.time.hour, day: this.time.day });
+  }
+
+  static fromJSON(data: CasinoWorldJSON): CasinoWorld {
+    const world = new CasinoWorld();
+    world.loadJSON(data);
     return world;
   }
 }

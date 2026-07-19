@@ -23,6 +23,7 @@ export interface GameEvents {
   goalReached: { campaignId: string; day: number; profit: number };
   scenarioFailed: { campaignId: string; day: number };
   worldReset: { scenarioId: string | null };
+  worldLoaded: { scenarioId: string | null };
   speedChanged: { speed: number };
   // Extended as systems land (guestSpawned, machineBroke, ...). See PLAN.md catalog.
 }
