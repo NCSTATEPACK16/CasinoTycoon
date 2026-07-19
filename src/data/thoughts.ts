@@ -6,6 +6,7 @@ export interface ThoughtContext {
   bladder: number;
   hunger: number;
   happiness: number;
+  nearMess: boolean;
 }
 
 export interface ThoughtDef {
@@ -28,4 +29,5 @@ export const THOUGHTS: readonly ThoughtDef[] = [
   { id: 'broke', text: "I'm broke!", cooldownTicks: 100000, when: (c) => c.wallet < 10 },
   { id: 'great', text: 'This place is great!', cooldownTicks: 600, when: (c) => c.happiness > 85 },
   { id: 'awful', text: 'This place is a dump…', cooldownTicks: 600, when: (c) => c.happiness < 30 },
+  { id: 'filthy', text: 'This place is filthy!', cooldownTicks: 400, when: (c) => c.nearMess },
 ];

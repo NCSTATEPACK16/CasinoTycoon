@@ -40,6 +40,14 @@ export function attachFx(scene: Phaser.Scene, views: ObjectViews): void {
     smokeTimers.set(machineId, timer);
   });
 
+  eventBus.on('machineFixed', ({ machineId }) => {
+    views.spriteFor(machineId)?.clearTint();
+    smokeTimers.get(machineId)?.remove();
+    smokeTimers.delete(machineId);
+    const at = machineTop(machineId);
+    if (at) floatText(scene, at.x, at.y, 'Fixed!', '#7ee787');
+  });
+
   eventBus.on('objectSold', ({ id }) => {
     smokeTimers.get(id)?.remove();
     smokeTimers.delete(id);

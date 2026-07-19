@@ -7,8 +7,11 @@ import { BuildController } from './BuildController';
 import CameraController from './CameraController';
 import { attachFx } from './fx/floaters';
 import { gridToScreen, screenToGrid, worldBounds } from './iso';
+import { PincerController } from './PincerController';
 import { GuestViews } from './views/GuestViews';
+import { MessViews } from './views/MessViews';
 import { ObjectViews } from './views/ObjectViews';
+import { StaffViews } from './views/StaffViews';
 
 // Floors render below everything; walls and (later) objects depth-sort by screen y.
 const DEPTH_FLOOR = 0;
@@ -19,6 +22,8 @@ export default class WorldScene extends Phaser.Scene {
   private cameraController!: CameraController;
   private buildController!: BuildController;
   private guestViews!: GuestViews;
+  private staffViews!: StaffViews;
+  private pincer!: PincerController;
   private highlight!: Phaser.GameObjects.Image;
   private tickAccumulator = 0;
 
@@ -47,12 +52,15 @@ export default class WorldScene extends Phaser.Scene {
     const views = new ObjectViews(this);
     this.buildController = new BuildController(this, this.cameraController, views);
     this.guestViews = new GuestViews(this);
+    this.staffViews = new StaffViews(this);
+    new MessViews(this);
     attachFx(this, views);
 
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => this.updateHover(p));
     // Clicking a machine (outside build mode) opens its inspector window.
     this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
       if (this.buildController.active || this.cameraController.isDragging) return;
+      if (this.pincer.carrying) return; // releasing a carried staffer, not a click
       if (!p.leftButtonReleased() || p.getDistance() >= 6) return;
       const w = this.cameras.main.getWorldPoint(p.x, p.y);
       const { col, row } = screenToGrid(w.x, w.y);
@@ -62,6 +70,15 @@ export default class WorldScene extends Phaser.Scene {
         eventBus.emit('machineClicked', { machineId: occupant });
       }
     });
+
+    // Registered after the click handler above so `carrying` is still true
+    // when that handler runs during a pincer drop.
+    this.pincer = new PincerController(
+      this,
+      this.cameraController,
+      this.staffViews,
+      this.buildController,
+    );
   }
 
   override update(_time: number, delta: number) {
@@ -75,7 +92,10 @@ export default class WorldScene extends Phaser.Scene {
     // Camera may move without the pointer moving (edge scroll, drag) — re-derive hover.
     this.updateHover(this.input.activePointer);
     this.buildController.refresh(this.input.activePointer);
-    this.guestViews.update(this.tickAccumulator / SIM_TICK_MS);
+    const frameAlpha = this.tickAccumulator / SIM_TICK_MS;
+    this.guestViews.update(frameAlpha);
+    this.staffViews.update(frameAlpha, this.pincer.carriedStaffId);
+    this.pincer.refresh(this.input.activePointer);
   }
 
   private updateHover(p: Phaser.Input.Pointer): void {

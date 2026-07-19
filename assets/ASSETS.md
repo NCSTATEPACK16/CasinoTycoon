@@ -11,6 +11,23 @@
 
 `src/render/placeholders.ts` generates every needed texture at runtime (flat-shaded iso diamonds and boxes). The game is fully playable with zero downloaded assets. Real art replaces placeholders key-by-key via the manifest.
 
+**Characters (P6):** guests and staff are now generated *pixel people* (12×18 logical px at 2× scale → 24×36 textures), not boxes — 6 guest outfit variants plus mechanic (hard hat) and janitor (bucket), each with an `-a`/`-b` walk frame pair. Keys: `char-guest-{0..5}-{a|b}`, `char-mechanic-{a|b}`, `char-janitor-{a|b}`.
+
+## Generating real character art (Gemini / any image model)
+
+No coherent CC0 RCT-style "peep" set exists (checked OpenGameArt + Kenney, 2026-07). To replace the generated pixel people with real art, produce sheets matching this spec and register them under the keys above:
+
+> Pixel-art sprite of a tiny casino guest in the style of RollerCoaster Tycoon (1999)
+> peeps, viewed from a front-left 3/4 isometric angle. The figure is 24 px wide and
+> 36 px tall on a fully transparent background, standing centered at the bottom edge.
+> Chunky 2-px pixel clusters, flat colors, no outline, no anti-aliasing, no drop
+> shadow. Two frames side by side: (1) standing with legs apart, (2) mid-stride with
+> legs together. [VARIANT: red shirt / blue shirt / … | orange mechanic overalls with
+> yellow hard hat | purple janitor uniform carrying a gray bucket]
+
+- One sheet per variant, 2 frames each, 24×36 px per frame (or any integer multiple — we can downscale).
+- Deliver as PNG with transparency into `assets/characters/`, then we slice + register them in the manifest; game code never changes.
+
 ## Recommended CC0 packs (manual download → drop into `assets/`)
 
 | Pack | Source | Use for |

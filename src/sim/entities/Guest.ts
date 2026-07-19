@@ -1,8 +1,9 @@
 import { eventBus } from '../../EventBus';
-import { GUEST_BALANCE, SLOT_BALANCE } from '../../data/balance';
+import { GUEST_BALANCE, MESS_BALANCE } from '../../data/balance';
 import { THOUGHTS } from '../../data/thoughts';
 import type { Cell } from '../grid/astar';
 import type { CasinoWorld } from '../world';
+import { Walker } from './Walker';
 
 export type GuestState = 'wander' | 'seekGame' | 'play' | 'service' | 'leaving' | 'gone';
 
@@ -20,29 +21,25 @@ export interface GuestThought {
 
 const MAX_THOUGHTS = 6;
 
-export class Guest {
+export class Guest extends Walker {
   readonly id: string;
   wallet: number;
   needs: GuestNeeds;
   state: GuestState = 'wander';
 
-  // Movement: pos is the logical tile; while stepping, moveFrom→moveTo with
-  // moveTick/moveTicksPerTile progress. Render interpolates from these.
-  pos: Cell;
-  moveFrom: Cell;
-  moveTo: Cell | null = null;
-  moveTick = 0;
-
   thoughts: GuestThought[] = [];
+  /** Set by the world's mess pass each tick; read by the thought predicates. */
+  nearMess = false;
   private thoughtLast = new Map<string, number>();
-  private path: Cell[] = [];
   private machineId: string | null = null;
   private spinsLeft = 0;
   private spinTimer = 0;
+  private spinEveryTicks = 8; // from the machine's cadence at sit-down
   private serviceKind: 'toilet' | 'food-stall' | null = null;
   private serviceTimer = 0;
 
   constructor(id: string, wallet: number, start: Cell) {
+    super(start);
     this.id = id;
     this.wallet = wallet;
     this.needs = {
@@ -51,16 +48,26 @@ export class Guest {
       hunger: 100,
       happiness: GUEST_BALANCE.startHappiness,
     };
-    this.pos = { ...start };
-    this.moveFrom = { ...start };
+  }
+
+  get moveTicksPerTile(): number {
+    return GUEST_BALANCE.moveTicksPerTile;
   }
 
   tick(world: CasinoWorld): void {
     if (this.state === 'gone') return;
     this.decayNeeds();
+    this.maybeDropMess(world);
     this.updateThoughts(world.tickCount);
     this.stepMovement(world);
     this.act(world);
+  }
+
+  private maybeDropMess(world: CasinoWorld): void {
+    const b = MESS_BALANCE;
+    if (this.needs.happiness >= b.unhappyThreshold) return;
+    if (!world.rng.chance(b.dropChancePerTick)) return;
+    world.dropMess(this.pos.col, this.pos.row, world.rng.chance(0.5) ? 'spill' : 'trash');
   }
 
   private decayNeeds(): void {
@@ -74,7 +81,7 @@ export class Guest {
   }
 
   private updateThoughts(tick: number): void {
-    const ctx = { wallet: this.wallet, ...this.needs };
+    const ctx = { wallet: this.wallet, nearMess: this.nearMess, ...this.needs };
     for (const def of THOUGHTS) {
       if (!def.when(ctx)) continue;
       const last = this.thoughtLast.get(def.id);
@@ -86,38 +93,7 @@ export class Guest {
     }
   }
 
-  private stepMovement(world: CasinoWorld): void {
-    if (!this.moveTo) {
-      if (this.path.length > 0) this.beginStep(world);
-      return;
-    }
-    this.moveTick++;
-    if (this.moveTick >= GUEST_BALANCE.moveTicksPerTile) {
-      this.pos = { ...this.moveTo };
-      this.moveFrom = { ...this.moveTo };
-      this.moveTo = null;
-      this.moveTick = 0;
-      if (this.path.length > 0) this.beginStep(world);
-    }
-  }
-
-  private beginStep(world: CasinoWorld): void {
-    const next = this.path[0];
-    if (!next) return;
-    if (!world.grid.isWalkable(next.col, next.row)) {
-      // Something was built across the route — re-path to the same destination.
-      const dest = this.path[this.path.length - 1];
-      const fresh = dest ? world.pathTo(this.pos, dest) : null;
-      this.path = fresh ? fresh.slice(1) : [];
-      if (this.path.length === 0) this.onRouteLost(world);
-      return;
-    }
-    this.path.shift();
-    this.moveTo = next;
-    this.moveTick = 0;
-  }
-
-  private onRouteLost(world: CasinoWorld): void {
+  protected onRouteLost(world: CasinoWorld): void {
     if (this.state === 'leaving') {
       this.state = 'gone'; // fully walled in — despawn rather than pace forever
       return;
@@ -126,10 +102,6 @@ export class Guest {
     this.machineId = null;
     this.serviceKind = null;
     this.state = 'wander';
-  }
-
-  private get arrived(): boolean {
-    return this.moveTo === null && this.path.length === 0;
   }
 
   private act(world: CasinoWorld): void {
@@ -193,9 +165,11 @@ export class Guest {
   }
 
   private startPlaying(world: CasinoWorld): void {
-    if (this.machineId && world.machinePlayableBy(this.id, this.machineId)) {
+    const cadence = this.machineId ? world.machineCadence(this.machineId) : null;
+    if (this.machineId && cadence && world.machinePlayableBy(this.id, this.machineId)) {
       this.state = 'play';
-      this.spinsLeft = world.rng.int(SLOT_BALANCE.spinsMin, SLOT_BALANCE.spinsMax);
+      this.spinsLeft = world.rng.int(cadence.playsMin, cadence.playsMax);
+      this.spinEveryTicks = cadence.intervalTicks;
       this.spinTimer = 0;
       return;
     }
@@ -213,7 +187,7 @@ export class Guest {
       return;
     }
     this.spinTimer++;
-    if (this.spinTimer < SLOT_BALANCE.spinIntervalTicks) return;
+    if (this.spinTimer < this.spinEveryTicks) return;
     this.spinTimer = 0;
     const res = world.playMachine(this.machineId, this.id);
     if (!res) {
@@ -257,16 +231,7 @@ export class Guest {
     if (!this.goTo(world, world.entranceTile)) this.state = 'gone';
   }
 
-  private goTo(world: CasinoWorld, dest: Cell): boolean {
-    const path = world.pathTo(this.pos, dest);
-    if (!path) return false;
-    this.path = path.slice(1);
-    this.moveTo = null;
-    this.moveTick = 0;
-    return true;
-  }
-
-  private adjustHappiness(delta: number): void {
+  adjustHappiness(delta: number): void {
     this.needs.happiness = Math.min(100, Math.max(0, this.needs.happiness + delta));
   }
 }

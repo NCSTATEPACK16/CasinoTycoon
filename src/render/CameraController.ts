@@ -19,6 +19,8 @@ export default class CameraController {
   // Edge scroll stays off until the player actually moves the mouse — the
   // pointer defaults to (0,0), which would otherwise creep the camera on load.
   private pointerSeen = false;
+  /** While true (pincer carry), drag panning is disabled; edge scroll still works. */
+  suppressed = false;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -38,6 +40,7 @@ export default class CameraController {
 
     input.on('pointermove', (p: Phaser.Input.Pointer) => {
       this.pointerSeen = true;
+      if (this.suppressed) return;
       if (!this.downAt || !(p.leftButtonDown() || p.middleButtonDown())) return;
       if (!this.dragging) {
         const dist = Phaser.Math.Distance.Between(p.x, p.y, this.downAt.x, this.downAt.y);

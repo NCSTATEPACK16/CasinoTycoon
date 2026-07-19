@@ -14,7 +14,12 @@ export interface GameEvents {
   guestThought: { guestId: string; text: string };
   machinePlayed: { machineId: string; guestId: string; wager: number; payout: number };
   machineBroke: { machineId: string };
+  machineFixed: { machineId: string };
   machineClicked: { machineId: string };
+  messCreated: { id: string; col: number; row: number; kind: string };
+  messCleaned: { id: string };
+  staffHired: { id: string; kind: string };
+  staffFired: { id: string; kind: string };
   // Extended as systems land (guestSpawned, machineBroke, ...). See PLAN.md catalog.
 }
 

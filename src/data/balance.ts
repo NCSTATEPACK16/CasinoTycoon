@@ -25,8 +25,8 @@ export const GUEST_BALANCE = {
   spawnCapPerTick: 0.08,
 } as const;
 
-export interface SlotPayout {
-  p: number; // probability of this outcome per spin
+export interface PayoutOutcome {
+  p: number; // probability of this outcome per play
   multiplier: number; // payout as a multiple of cost-to-play
 }
 
@@ -40,10 +40,48 @@ export const SLOT_BALANCE = {
     { p: 0.25, multiplier: 2 },
     { p: 0.1, multiplier: 3 },
     { p: 0.008, multiplier: 15 },
-  ] as readonly SlotPayout[],
+  ] as readonly PayoutOutcome[],
 } as const;
 
 /** Expected return-to-player fraction implied by the payout table (0.92 → 8% house edge). */
 export function slotExpectedRtp(): number {
   return SLOT_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
 }
+
+// Blackjack: higher stakes, gentler house edge, slower rounds, communal table.
+export const BLACKJACK_BALANCE = {
+  costToPlay: 25,
+  wearPerPlay: 0.25,
+  playIntervalTicks: 12,
+  playsMin: 4,
+  playsMax: 10,
+  seats: 4,
+  payoutTable: [
+    { p: 0.4, multiplier: 2 }, // win — even money
+    { p: 0.09, multiplier: 1 }, // push — wager back
+    { p: 0.028, multiplier: 2.5 }, // blackjack — 3:2
+  ] as readonly PayoutOutcome[],
+} as const;
+
+/** Expected RTP implied by the blackjack payout table (0.96 → 4% house edge). */
+export function blackjackExpectedRtp(): number {
+  return BLACKJACK_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+}
+
+// Staff: hourly wages come out of casino cash at each hour boundary.
+export const STAFF_BALANCE = {
+  moveTicksPerTile: 2,
+  patrolIdleTicks: 20, // idle ticks between patrol strolls
+  mechanic: { wagePerHour: 6, repairTicks: 40 },
+  janitor: { wagePerHour: 4, cleanTicks: 25 },
+} as const;
+
+// Trash and spills: unhappy guests drop them; nearby guests sour further.
+export const MESS_BALANCE = {
+  unhappyThreshold: 40,
+  dropChancePerTick: 0.003,
+  happinessDrainPerTickNearby: 0.04,
+  maxDrainStacks: 3, // cap on how many messes stack their drain
+  radius: 3, // Chebyshev tiles
+  maxMesses: 40,
+} as const;

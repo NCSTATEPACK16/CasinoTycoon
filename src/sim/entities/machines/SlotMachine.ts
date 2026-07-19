@@ -1,31 +1,29 @@
 import { SLOT_BALANCE } from '../../../data/balance';
 import type { Rng } from '../../rng';
-import { CasinoGame, type PlayResult } from './CasinoGame';
+import { CasinoGame, type PlayCadence, type PlayResult } from './CasinoGame';
 
 export class SlotMachine extends CasinoGame {
   constructor(id: string, costToPlay: number = SLOT_BALANCE.costToPlay) {
     super(id, 'slot-machine', costToPlay);
   }
 
+  get cadence(): PlayCadence {
+    return {
+      intervalTicks: SLOT_BALANCE.spinIntervalTicks,
+      playsMin: SLOT_BALANCE.spinsMin,
+      playsMax: SLOT_BALANCE.spinsMax,
+    };
+  }
+
   protected spin(rng: Rng): PlayResult {
-    return { wager: this.costToPlay, payout: this.rollPayout(rng) };
+    return { wager: this.costToPlay, payout: this.rollPayout(rng, SLOT_BALANCE.payoutTable) };
   }
 
   protected wearPerPlay(): number {
     return SLOT_BALANCE.wearPerPlay;
   }
 
-  /** Free Play (Machine Inspector): roll the RNG with no wear, profit, or cash movement. */
   testSpin(rng: Rng): number {
-    return this.rollPayout(rng);
-  }
-
-  private rollPayout(rng: Rng): number {
-    let r = rng.next();
-    for (const outcome of SLOT_BALANCE.payoutTable) {
-      if (r < outcome.p) return Math.round(this.costToPlay * outcome.multiplier);
-      r -= outcome.p;
-    }
-    return 0;
+    return this.rollPayout(rng, SLOT_BALANCE.payoutTable);
   }
 }

@@ -51,12 +51,62 @@ const OBJECTS: BoxSpec[] = [
   { key: 'obj-wall', top: 0x5a5468, left: 0x3d3849, right: 0x4b4658, height: 96 },
 ];
 
-// Characters: small capsule-ish boxes, distinct colors per role.
-const CHARACTERS: BoxSpec[] = [
-  { key: 'char-guest', top: 0xf2c94c, left: 0xb08f2e, right: 0xd1ab3a, height: 44 },
-  { key: 'char-mechanic', top: 0xe07840, left: 0xa4552c, right: 0xc26636, height: 46 },
-  { key: 'char-janitor', top: 0x8f7ae0, left: 0x6355a4, right: 0x7967c2, height: 46 },
-];
+// Characters are little RCT-style pixel people, generated per outfit variant
+// with a 2-frame walk (see makePixelPeople). Guests get GUEST_VARIANTS looks.
+export const GUEST_VARIANTS = 6;
+
+interface PersonPalette {
+  hair: number;
+  skin: number;
+  shirt: number;
+  shirtShade: number;
+  pants: number;
+  shoes: number;
+  accessory?: 'hardhat' | 'bucket';
+}
+
+const GUEST_SHIRTS = [0xc94f4f, 0x4f6fc9, 0x4fa15f, 0xd9b13b, 0x9a5fc9, 0x3fa9a9];
+const SKINS = [0xe8b88a, 0xc98d5a, 0x8a5a3a];
+const HAIRS = [0x3a2a1e, 0x1e1a16, 0xc9a94f];
+
+function shade(color: number, f: number): number {
+  const r = Math.floor(((color >> 16) & 0xff) * f);
+  const g = Math.floor(((color >> 8) & 0xff) * f);
+  const b = Math.floor((color & 0xff) * f);
+  return (r << 16) | (g << 8) | b;
+}
+
+function guestPalette(variant: number): PersonPalette {
+  const shirt = GUEST_SHIRTS[variant % GUEST_SHIRTS.length]!;
+  return {
+    hair: HAIRS[(variant + 1) % HAIRS.length]!,
+    skin: SKINS[variant % SKINS.length]!,
+    shirt,
+    shirtShade: shade(shirt, 0.62),
+    pants: 0x2e3450,
+    shoes: 0x241f1a,
+  };
+}
+
+const MECHANIC_PALETTE: PersonPalette = {
+  hair: 0x3a2a1e,
+  skin: 0xe8b88a,
+  shirt: 0xd9772f,
+  shirtShade: 0xa8571f,
+  pants: 0x3a4a66,
+  shoes: 0x241f1a,
+  accessory: 'hardhat',
+};
+
+const JANITOR_PALETTE: PersonPalette = {
+  hair: 0x1e1a16,
+  skin: 0xc98d5a,
+  shirt: 0x7a5fc9,
+  shirtShade: 0x5a4499,
+  pants: 0x4a4a52,
+  shoes: 0x241f1a,
+  accessory: 'bucket',
+};
 
 function diamondPoints(w: number, h: number): Phaser.Types.Math.Vector2Like[] {
   return [
@@ -123,9 +173,96 @@ function makeSmoke(scene: Phaser.Scene): void {
   g.destroy();
 }
 
+// A little pixel person on a 12×18 logical-pixel grid, drawn at PIXEL_SCALE.
+// Two frames: 'a' stands / plants the legs apart, 'b' brings them under —
+// alternating per sim tick while walking reads as a stride.
+const PIXEL_SCALE = 2;
+
+function makePerson(scene: Phaser.Scene, key: string, pal: PersonPalette, frame: 'a' | 'b'): void {
+  if (scene.textures.exists(key)) return;
+  const g = scene.make.graphics({ x: 0, y: 0 }, false);
+  const px = (x: number, y: number, w: number, h: number, color: number) => {
+    g.fillStyle(color, 1);
+    g.fillRect(x * PIXEL_SCALE, y * PIXEL_SCALE, w * PIXEL_SCALE, h * PIXEL_SCALE);
+  };
+
+  if (pal.accessory === 'hardhat') {
+    px(2, 0, 8, 2, 0xe8c832); // helmet
+    px(1, 2, 10, 1, 0xcaa92a); // brim
+    px(3, 3, 6, 2, pal.skin); // face
+  } else {
+    px(3, 0, 6, 1, pal.hair);
+    px(2, 1, 1, 2, pal.hair); // fringe
+    px(3, 1, 6, 4, pal.skin);
+  }
+  px(2, 5, 8, 7, pal.shirt); // torso
+  px(2, 5, 1, 7, pal.shirtShade); // iso shade on the left
+  px(1, 9, 1, 2, pal.skin); // hands
+  px(10, 9, 1, 2, pal.skin);
+  if (pal.accessory === 'bucket') {
+    px(10, 12, 2, 1, 0x6e747c);
+    px(10, 13, 2, 3, 0x9aa0a8);
+  }
+  if (frame === 'a') {
+    px(3, 12, 2, 5, pal.pants);
+    px(7, 12, 2, 5, pal.pants);
+    px(3, 17, 3, 1, pal.shoes);
+    px(7, 17, 3, 1, pal.shoes);
+  } else {
+    px(4, 12, 2, 5, pal.pants);
+    px(6, 12, 2, 5, pal.pants);
+    px(3, 17, 3, 1, pal.shoes);
+    px(6, 17, 3, 1, pal.shoes);
+  }
+
+  g.generateTexture(key, 12 * PIXEL_SCALE, 18 * PIXEL_SCALE);
+  g.destroy();
+}
+
+function makePixelPeople(scene: Phaser.Scene): void {
+  for (let v = 0; v < GUEST_VARIANTS; v++) {
+    const pal = guestPalette(v);
+    makePerson(scene, `char-guest-${v}-a`, pal, 'a');
+    makePerson(scene, `char-guest-${v}-b`, pal, 'b');
+  }
+  makePerson(scene, 'char-mechanic-a', MECHANIC_PALETTE, 'a');
+  makePerson(scene, 'char-mechanic-b', MECHANIC_PALETTE, 'b');
+  makePerson(scene, 'char-janitor-a', JANITOR_PALETTE, 'a');
+  makePerson(scene, 'char-janitor-b', JANITOR_PALETTE, 'b');
+}
+
+// Floor decals for messes: a dark spill puddle and scattered trash bits.
+function makeMessTextures(scene: Phaser.Scene): void {
+  if (!scene.textures.exists('fx-mess-spill')) {
+    const g = scene.make.graphics({ x: 0, y: 0 }, false);
+    g.fillStyle(0x53381f, 0.85);
+    g.fillEllipse(24, 13, 38, 16);
+    g.fillEllipse(11, 17, 14, 8);
+    g.fillStyle(0x6e4a2a, 0.9);
+    g.fillEllipse(27, 11, 18, 8);
+    g.generateTexture('fx-mess-spill', 48, 24);
+    g.destroy();
+  }
+  if (!scene.textures.exists('fx-mess-trash')) {
+    const g = scene.make.graphics({ x: 0, y: 0 }, false);
+    g.fillStyle(0xb8b2a6, 1);
+    g.fillRect(10, 10, 7, 5);
+    g.fillRect(30, 14, 6, 6);
+    g.fillStyle(0x8a8478, 1);
+    g.fillRect(20, 6, 6, 5);
+    g.fillCircle(38, 8, 3);
+    g.fillStyle(0xc9563e, 1); // a stray cup
+    g.fillRect(15, 16, 4, 6);
+    g.generateTexture('fx-mess-trash', 48, 24);
+    g.destroy();
+  }
+}
+
 /** Generate every placeholder texture into the scene's texture manager (global cache). */
 export function generatePlaceholders(scene: Phaser.Scene): void {
   for (const f of FLOORS) if (!scene.textures.exists(f.key)) makeFloor(scene, f);
-  for (const o of [...OBJECTS, ...CHARACTERS]) if (!scene.textures.exists(o.key)) makeBox(scene, o);
+  for (const o of OBJECTS) if (!scene.textures.exists(o.key)) makeBox(scene, o);
+  makePixelPeople(scene);
   if (!scene.textures.exists('fx-smoke')) makeSmoke(scene);
+  makeMessTextures(scene);
 }
