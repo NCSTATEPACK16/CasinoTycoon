@@ -19,6 +19,9 @@ export class MessViews {
       for (const img of this.sprites.values()) img.destroy();
       this.sprites.clear();
     });
+    eventBus.on('worldLoaded', () => {
+      for (const m of world.messes.values()) this.spawn(m.id, m.col, m.row, m.kind);
+    });
   }
 
   private spawn(id: string, col: number, row: number, kind: string): void {

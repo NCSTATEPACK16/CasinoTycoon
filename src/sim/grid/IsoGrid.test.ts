@@ -54,4 +54,31 @@ describe('IsoGrid', () => {
     expect(copy.occupantAt(4, 3)).toBe('b');
     expect(copy.isWalkable(0, 0)).toBe(true);
   });
+
+  describe('load (in-place restore)', () => {
+    it('restores occupancy from JSON without replacing the grid object', () => {
+      const a = new IsoGrid(4, 3);
+      a.occupy('obj-1', 1, 1, 2, 1);
+      const b = new IsoGrid(4, 3);
+      const ref = b;
+      b.load(a.toJSON());
+      expect(b).toBe(ref);
+      expect(b.occupantAt(1, 1)).toBe('obj-1');
+      expect(b.occupantAt(2, 1)).toBe('obj-1');
+      expect(b.occupantAt(0, 0)).toBeNull();
+      expect(b.toJSON()).toEqual(a.toJSON());
+    });
+
+    it('changes dimensions and occupancy when loading from different source', () => {
+      const source = new IsoGrid(4, 3);
+      source.occupy('obj-1', 1, 1);
+      const target = new IsoGrid(2, 2);
+      const ref = target;
+      target.load(source.toJSON());
+      expect(target).toBe(ref);
+      expect(target.cols).toBe(4);
+      expect(target.rows).toBe(3);
+      expect(target.toJSON()).toEqual(source.toJSON());
+    });
+  });
 });

@@ -11,7 +11,7 @@ export interface GameEvents {
   buildModeChanged: { mode: 'off' | 'place' | 'bulldoze'; defId?: string };
   guestSpawned: { id: string };
   guestLeft: { id: string };
-  guestThought: { guestId: string; text: string };
+  guestThought: { guestId: string; thoughtId: string; text: string };
   machinePlayed: { machineId: string; guestId: string; wager: number; payout: number };
   machineBroke: { machineId: string };
   machineFixed: { machineId: string };
@@ -23,13 +23,14 @@ export interface GameEvents {
   goalReached: { campaignId: string; day: number; profit: number };
   scenarioFailed: { campaignId: string; day: number };
   worldReset: { scenarioId: string | null };
+  worldLoaded: { scenarioId: string | null };
   speedChanged: { speed: number };
   // Extended as systems land (guestSpawned, machineBroke, ...). See PLAN.md catalog.
 }
 
 type Handler<T> = (payload: T) => void;
 
-class TypedEventBus {
+export class TypedEventBus {
   private handlers = new Map<string, Set<Handler<unknown>>>();
 
   on<K extends keyof GameEvents>(event: K, fn: Handler<GameEvents[K]>): () => void {

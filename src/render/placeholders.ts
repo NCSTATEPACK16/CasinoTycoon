@@ -231,6 +231,31 @@ function makePixelPeople(scene: Phaser.Scene): void {
   makePerson(scene, 'char-janitor-b', JANITOR_PALETTE, 'b');
 }
 
+// P8 fx: a gold coin for jackpot bursts and a speech-bubble back for thoughts.
+function makeCoin(scene: Phaser.Scene): void {
+  const g = scene.make.graphics({ x: 0, y: 0 }, false);
+  g.fillStyle(0x9c7a1c, 1);
+  g.fillCircle(6, 6, 6);
+  g.fillStyle(0xe8b93c, 1);
+  g.fillCircle(5.5, 5.5, 5);
+  g.fillStyle(0xf7df8a, 1);
+  g.fillCircle(4.5, 4.5, 2);
+  g.generateTexture('fx-coin', 12, 12);
+  g.destroy();
+}
+
+function makeThoughtBubble(scene: Phaser.Scene): void {
+  const g = scene.make.graphics({ x: 0, y: 0 }, false);
+  g.fillStyle(0x2b2619, 0.9);
+  g.fillRoundedRect(0, 0, 30, 24, 7); // border coat
+  g.fillStyle(0xf6f1e2, 1);
+  g.fillRoundedRect(1, 1, 28, 22, 6);
+  g.fillStyle(0xf6f1e2, 1); // tail
+  g.fillTriangle(12, 23, 18, 23, 15, 29);
+  g.generateTexture('fx-bubble', 30, 30);
+  g.destroy();
+}
+
 // Floor decals for messes: a dark spill puddle and scattered trash bits.
 function makeMessTextures(scene: Phaser.Scene): void {
   if (!scene.textures.exists('fx-mess-spill')) {
@@ -264,5 +289,7 @@ export function generatePlaceholders(scene: Phaser.Scene): void {
   for (const o of OBJECTS) if (!scene.textures.exists(o.key)) makeBox(scene, o);
   makePixelPeople(scene);
   if (!scene.textures.exists('fx-smoke')) makeSmoke(scene);
+  if (!scene.textures.exists('fx-coin')) makeCoin(scene);
+  if (!scene.textures.exists('fx-bubble')) makeThoughtBubble(scene);
   makeMessTextures(scene);
 }

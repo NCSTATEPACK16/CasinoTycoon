@@ -22,6 +22,9 @@ export class StaffViews {
       for (const img of this.sprites.values()) img.destroy();
       this.sprites.clear();
     });
+    eventBus.on('worldLoaded', () => {
+      for (const s of world.staff.values()) this.spawn(s.id, s.kind);
+    });
   }
 
   private spawn(id: string, kind: string): void {

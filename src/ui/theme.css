@@ -175,6 +175,32 @@
   flex-direction: column;
 }
 
+.ui-window.win-opening {
+  animation: win-pop 0.18s ease-out;
+}
+
+.ui-window.win-closing {
+  animation: win-shrink 0.15s ease-in forwards;
+}
+
+@keyframes win-pop {
+  from {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes win-shrink {
+  to {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+}
+
 .win-titlebar {
   display: flex;
   align-items: center;
@@ -417,6 +443,26 @@ button.g-row.selected {
   gap: 6px;
 }
 
+/* ---------- sound settings ---------- */
+
+.p-slider {
+  flex: 1;
+  min-width: 110px;
+  height: 16px;
+  accent-color: var(--gold);
+  background: transparent;
+  cursor: pointer;
+}
+
+label.p-mute {
+  cursor: pointer;
+}
+
+label.p-mute input {
+  accent-color: var(--gold);
+  cursor: pointer;
+}
+
 /* ---------- ticker ---------- */
 
 .ticker-msg {
@@ -554,4 +600,27 @@ button.g-row.selected {
 .p-tile.locked .tile-icon {
   filter: grayscale(1);
   opacity: 0.5;
+}
+
+/* P9 — save/load window */
+.p-save-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 4px;
+}
+.p-save-row + .p-save-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.p-save-label {
+  font-weight: bold;
+}
+.p-save-meta {
+  opacity: 0.75;
+  font-size: 0.85em;
+}
+.p-save-btns {
+  display: flex;
+  gap: 4px;
 }

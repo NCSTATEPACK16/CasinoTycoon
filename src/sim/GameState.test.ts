@@ -41,4 +41,34 @@ describe('GameState', () => {
     const restored = GameState.fromJSON(state.toJSON());
     expect(restored.newObjectId()).not.toBe(existing);
   });
+
+  describe('load (in-place restore)', () => {
+    it('restores cash, objects, and the id counter in place', () => {
+      const a = new GameState();
+      a.cash = 777;
+      a.addObject({ id: a.newObjectId(), defId: 'slot-machine', col: 2, row: 3 });
+      const b = new GameState();
+      const ref = b;
+      b.load(a.toJSON());
+      expect(b).toBe(ref);
+      expect(b.cash).toBe(777);
+      expect(b.allObjects()).toEqual(a.allObjects());
+      expect(b.newObjectId()).toBe(a.newObjectId()); // counters advanced identically
+    });
+
+    it('removes stale objects not present in source', () => {
+      const source = new GameState();
+      source.cash = 500;
+      const sourceObjId = source.newObjectId();
+      source.addObject({ id: sourceObjId, defId: 'slot-machine', col: 1, row: 1 });
+      const target = new GameState();
+      const staleId = 'stale-obj-1';
+      target.addObject({ id: staleId, defId: 'plant', col: 5, row: 5 });
+      target.load(source.toJSON());
+      expect(target.getObject(staleId)).toBeUndefined();
+      expect(target.allObjects()).toEqual([
+        { id: sourceObjId, defId: 'slot-machine', col: 1, row: 1 },
+      ]);
+    });
+  });
 });

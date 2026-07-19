@@ -3,9 +3,12 @@ import { GRID_COLS, GRID_ROWS, SIM_TICK_MS, TILE_H } from '../config';
 import { eventBus } from '../EventBus';
 import { world, worldGrid } from '../gameContext';
 import type { IsoGrid } from '../sim/grid/IsoGrid';
+import { audio } from '../services/AudioService';
 import { BuildController } from './BuildController';
 import CameraController from './CameraController';
+import { attachAudioFx } from './fx/audioFx';
 import { attachFx } from './fx/floaters';
+import { ThoughtBubbles } from './fx/ThoughtBubbles';
 import { gridToScreen, screenToGrid, worldBounds } from './iso';
 import { PincerController } from './PincerController';
 import { GuestViews } from './views/GuestViews';
@@ -23,6 +26,7 @@ export default class WorldScene extends Phaser.Scene {
   private buildController!: BuildController;
   private guestViews!: GuestViews;
   private staffViews!: StaffViews;
+  private thoughtBubbles!: ThoughtBubbles;
   private pincer!: PincerController;
   private highlight!: Phaser.GameObjects.Image;
   private tickAccumulator = 0;
@@ -54,8 +58,11 @@ export default class WorldScene extends Phaser.Scene {
     this.buildController = new BuildController(this, this.cameraController, views);
     this.guestViews = new GuestViews(this);
     this.staffViews = new StaffViews(this);
+    this.thoughtBubbles = new ThoughtBubbles(this, this.guestViews);
     new MessViews(this);
     attachFx(this, views);
+    attachAudioFx();
+    audio.init(this);
 
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => this.updateHover(p));
     // Clicking a machine (outside build mode) opens its inspector window.
@@ -98,6 +105,7 @@ export default class WorldScene extends Phaser.Scene {
     this.buildController.refresh(this.input.activePointer);
     const frameAlpha = this.tickAccumulator / SIM_TICK_MS;
     this.guestViews.update(frameAlpha);
+    this.thoughtBubbles.update();
     this.staffViews.update(frameAlpha, this.pincer.carriedStaffId);
     this.pincer.refresh(this.input.activePointer);
   }

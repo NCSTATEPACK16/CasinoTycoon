@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { AUDIO_KEYS } from '../services/AudioService';
 import { generatePlaceholders } from './placeholders';
 
 // Generates the runtime placeholder textures (and later preloads real atlases),
@@ -6,6 +7,10 @@ import { generatePlaceholders } from './placeholders';
 export default class BootScene extends Phaser.Scene {
   constructor() {
     super('boot');
+  }
+
+  preload() {
+    for (const key of AUDIO_KEYS) this.load.audio(key, `audio/${key}.ogg`);
   }
 
   create() {

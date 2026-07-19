@@ -1,5 +1,6 @@
 import './theme.css';
 import { eventBus } from '../EventBus';
+import { audio } from '../services/AudioService';
 import { el, formatCash } from './dom';
 import { showScenarioSelect } from './ScenarioSelect';
 import { Ticker } from './Ticker';
@@ -16,6 +17,15 @@ export function initUI(): void {
   const windows = new WindowManager(uiRoot);
   new Ticker(uiRoot);
   new Toolbar(uiRoot, windows);
+  // Every DOM button click gets a soft tick (capture phase so stopPropagation
+  // in a panel handler can't swallow it).
+  uiRoot.addEventListener(
+    'click',
+    (e) => {
+      if ((e.target as HTMLElement).closest('button')) audio.play('ui-click', { volume: 0.45 });
+    },
+    true,
+  );
   // Closing the Build window drops any active build tool.
   windows.onChange((id, open) => {
     if (id === 'build' && !open) eventBus.emit('buildModeChanged', { mode: 'off' });

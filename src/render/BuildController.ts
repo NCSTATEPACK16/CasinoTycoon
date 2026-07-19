@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { eventBus } from '../EventBus';
 import { getObjectDef } from '../data/objects';
 import { world, worldGrid } from '../gameContext';
+import { audio } from '../services/AudioService';
 import type CameraController from './CameraController';
 import { gridToScreen, screenToGrid } from './iso';
 import { objectTransform, type ObjectViews } from './views/ObjectViews';
@@ -119,6 +120,7 @@ export class BuildController {
         const check = world.canPlace(this.defId, col, row);
         if (!check.ok && check.reason === 'insufficient-funds') {
           eventBus.emit('tickerMessage', { text: 'Not enough cash!' });
+          audio.play('ui-error', { volume: 0.7 });
         }
       }
       this.refresh(p);

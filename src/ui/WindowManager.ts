@@ -1,3 +1,4 @@
+import { audio } from '../services/AudioService';
 import { el } from './dom';
 
 // RCT-style window system: singleton windows by id, draggable by title bar,
@@ -64,8 +65,12 @@ export class WindowManager {
       return;
     }
 
-    const root = el('section', 'ui-window');
+    const root = el('section', 'ui-window win-opening');
     root.style.width = `${spec.width}px`;
+    root.addEventListener('animationend', () => root.classList.remove('win-opening'), {
+      once: true,
+    });
+    audio.play('ui-open', { volume: 0.6 });
 
     const titlebar = el('header', 'win-titlebar');
     const title = el('span', 'win-title', spec.title);
@@ -106,9 +111,17 @@ export class WindowManager {
   close(id: string): void {
     const win = this.windows.get(id);
     if (!win) return;
-    win.root.remove();
     this.windows.delete(id);
     win.onClose?.();
+    audio.play('ui-close', { volume: 0.6 });
+    // Play the close animation out before removing; input off immediately.
+    const root = win.root;
+    root.style.pointerEvents = 'none';
+    root.classList.remove('win-opening');
+    root.classList.add('win-closing');
+    const remove = () => root.remove();
+    root.addEventListener('animationend', remove, { once: true });
+    window.setTimeout(remove, 300); // fallback if animations are disabled
     this.notify(id, false);
   }
 
