@@ -189,8 +189,8 @@ export class CasinoWorld {
     eventBus.emit('hourPassed', { hour: this.time.hour, day: this.time.day });
     if (midnight) {
       const record = this.ledger.closeDay(closedDay);
-      eventBus.emit('dayEnded', { day: record.day, profit: record.profit });
       this.scenario?.onDayEnded(record);
+      eventBus.emit('dayEnded', { day: record.day, profit: record.profit });
     }
   }
 
