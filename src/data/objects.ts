@@ -31,7 +31,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     upkeepPerDay: 20,
     footprint: { w: 1, h: 1 },
     spriteKey: 'img-slot-machine',
-    displaySize: { w: 96, h: 130 },
+    displaySize: { w: 77, h: 130 },
     category: 'game',
   },
   {
@@ -42,7 +42,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     upkeepPerDay: 50,
     footprint: { w: 2, h: 2 },
     spriteKey: 'img-blackjack-table',
-    displaySize: { w: 220, h: 150 },
+    displaySize: { w: 220, h: 161 },
     category: 'game',
   },
   {
@@ -53,7 +53,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     upkeepPerDay: 35,
     footprint: { w: 2, h: 2 },
     spriteKey: 'img-craps-table',
-    displaySize: { w: 220, h: 130 },
+    displaySize: { w: 220, h: 144 },
     category: 'game',
   },
   {
