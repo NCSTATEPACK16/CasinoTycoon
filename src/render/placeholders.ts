@@ -36,7 +36,15 @@ const FLOORS: DiamondSpec[] = [
 // Objects: iso boxes (diamond top face + two side faces).
 const OBJECTS: BoxSpec[] = [
   { key: 'obj-slot-machine', top: 0xd94f6b, left: 0x8f2f44, right: 0xb03d55, height: 72 },
-  { key: 'obj-blackjack-table', top: 0x2c7a4b, left: 0x1c5232, right: 0x24663e, height: 40, cols: 2, rows: 2 },
+  {
+    key: 'obj-blackjack-table',
+    top: 0x2c7a4b,
+    left: 0x1c5232,
+    right: 0x24663e,
+    height: 40,
+    cols: 2,
+    rows: 2,
+  },
   { key: 'obj-toilet', top: 0x7fb2d9, left: 0x53809f, right: 0x6899bc, height: 56 },
   { key: 'obj-food-stall', top: 0xe0a33e, left: 0xa87728, right: 0xc48d32, height: 64 },
   { key: 'obj-plant', top: 0x3f9b4f, left: 0x2b6f37, right: 0x358543, height: 48 },

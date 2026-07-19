@@ -1,8 +1,11 @@
 import Phaser from 'phaser';
 import { GRID_COLS, GRID_ROWS, TILE_H } from '../config';
-import { IsoGrid } from '../sim/grid/IsoGrid';
-import { gridToScreen, screenToGrid, worldBounds } from './iso';
+import { worldGrid } from '../gameContext';
+import type { IsoGrid } from '../sim/grid/IsoGrid';
+import { BuildController } from './BuildController';
 import CameraController from './CameraController';
+import { gridToScreen, screenToGrid, worldBounds } from './iso';
+import { ObjectViews } from './views/ObjectViews';
 
 // Floors render below everything; walls and (later) objects depth-sort by screen y.
 const DEPTH_FLOOR = 0;
@@ -11,6 +14,7 @@ const DEPTH_HIGHLIGHT = 1;
 export default class WorldScene extends Phaser.Scene {
   private grid!: IsoGrid;
   private cameraController!: CameraController;
+  private buildController!: BuildController;
   private highlight!: Phaser.GameObjects.Image;
 
   constructor() {
@@ -18,7 +22,7 @@ export default class WorldScene extends Phaser.Scene {
   }
 
   create() {
-    this.grid = new IsoGrid(GRID_COLS, GRID_ROWS);
+    this.grid = worldGrid;
 
     this.drawFloor();
     this.drawEdgeWalls();
@@ -35,6 +39,9 @@ export default class WorldScene extends Phaser.Scene {
     this.cameras.main.centerOn(center.x, center.y);
     this.cameraController = new CameraController(this);
 
+    const views = new ObjectViews(this);
+    this.buildController = new BuildController(this, this.cameraController, views);
+
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => this.updateHover(p));
   }
 
@@ -42,10 +49,11 @@ export default class WorldScene extends Phaser.Scene {
     this.cameraController.update();
     // Camera may move without the pointer moving (edge scroll, drag) — re-derive hover.
     this.updateHover(this.input.activePointer);
+    this.buildController.refresh(this.input.activePointer);
   }
 
   private updateHover(p: Phaser.Input.Pointer): void {
-    if (this.cameraController.isDragging) {
+    if (this.cameraController.isDragging || this.buildController.active) {
       this.highlight.setVisible(false);
       return;
     }

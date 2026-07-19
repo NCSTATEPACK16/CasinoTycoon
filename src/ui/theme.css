@@ -283,9 +283,55 @@
   background: var(--panel-face);
   border: 2px solid;
   border-color: var(--panel-light) var(--panel-dark) var(--panel-dark) var(--panel-light);
-  opacity: 0.55;
   text-align: center;
   font-size: 10px;
+  font-family: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.p-tile:hover {
+  background: #645c42;
+}
+
+.p-tile.selected {
+  background: var(--panel-dark);
+  border-color: var(--panel-dark) var(--panel-light) var(--panel-light) var(--panel-dark);
+  color: var(--gold);
+}
+
+.p-tile.disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.p-tile.disabled:hover {
+  background: var(--panel-face);
+}
+
+.p-tool {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 6px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--ink);
+  background: var(--panel-face);
+  border: 2px solid;
+  border-color: var(--panel-light) var(--panel-dark) var(--panel-dark) var(--panel-light);
+  cursor: pointer;
+}
+
+.p-tool:hover {
+  background: #645c42;
+}
+
+.p-tool.selected {
+  background: var(--panel-dark);
+  border-color: var(--panel-dark) var(--panel-light) var(--panel-light) var(--panel-dark);
+  color: var(--gold);
 }
 
 .p-tile .tile-icon {

@@ -45,12 +45,9 @@ export default class CameraController {
       cam.scrollY -= (p.y - p.prevPosition.y) / cam.zoom;
     });
 
-    input.on(
-      'wheel',
-      (p: Phaser.Input.Pointer, _objs: unknown, _dx: number, dy: number) => {
-        this.zoomAt(p.x, p.y, -dy * ZOOM_STEP);
-      },
-    );
+    input.on('wheel', (p: Phaser.Input.Pointer, _objs: unknown, _dx: number, dy: number) => {
+      this.zoomAt(p.x, p.y, -dy * ZOOM_STEP);
+    });
   }
 
   /** True while a pan drag is active — scenes use this to suppress hover/click handling. */

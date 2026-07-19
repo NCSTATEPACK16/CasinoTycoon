@@ -9,11 +9,14 @@ export interface PanelSpec {
   title: string;
   width: number;
   content: HTMLElement;
+  /** Cleanup hook (unsubscribe EventBus handlers etc.); runs when the window closes. */
+  onClose?: () => void;
 }
 
 interface ManagedWindow {
   root: HTMLElement;
   minimized: boolean;
+  onClose?: () => void;
 }
 
 const CASCADE_STEP = 28;
@@ -82,7 +85,7 @@ export class WindowManager {
     root.style.left = `${16 + step}px`;
     root.style.top = `${16 + step}px`;
 
-    const win: ManagedWindow = { root, minimized: false };
+    const win: ManagedWindow = { root, minimized: false, onClose: spec.onClose };
     this.windows.set(id, win);
 
     root.addEventListener('pointerdown', () => this.bringToFront(root));
@@ -105,6 +108,7 @@ export class WindowManager {
     if (!win) return;
     win.root.remove();
     this.windows.delete(id);
+    win.onClose?.();
     this.notify(id, false);
   }
 

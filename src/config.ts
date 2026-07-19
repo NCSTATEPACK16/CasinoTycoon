@@ -18,3 +18,6 @@ export const HOURS_PER_DAY = 24;
 
 // Sandbox starting bankroll; campaign scenarios override this (P7).
 export const STARTING_CASH = 2000;
+
+// Fraction of an object's cost returned when bulldozed.
+export const SELL_REFUND_RATIO = 0.5;

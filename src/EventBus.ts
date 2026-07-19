@@ -6,6 +6,9 @@ export interface GameEvents {
   tickerMessage: { text: string };
   hourPassed: { hour: number; day: number };
   dayEnded: { day: number; profit: number };
+  objectPlaced: { id: string; defId: string; col: number; row: number };
+  objectSold: { id: string; defId: string; col: number; row: number; refund: number };
+  buildModeChanged: { mode: 'off' | 'place' | 'bulldoze'; defId?: string };
   // Extended as systems land (guestSpawned, machineBroke, ...). See PLAN.md catalog.
 }
 

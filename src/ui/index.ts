@@ -1,4 +1,5 @@
 import './theme.css';
+import { eventBus } from '../EventBus';
 import { Ticker } from './Ticker';
 import { Toolbar } from './Toolbar';
 import { WindowManager } from './WindowManager';
@@ -12,4 +13,8 @@ export function initUI(): void {
   const windows = new WindowManager(uiRoot);
   new Ticker(uiRoot);
   new Toolbar(uiRoot, windows);
+  // Closing the Build window drops any active build tool.
+  windows.onChange((id, open) => {
+    if (id === 'build' && !open) eventBus.emit('buildModeChanged', { mode: 'off' });
+  });
 }
