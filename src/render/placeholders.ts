@@ -113,8 +113,19 @@ function makeBox(scene: Phaser.Scene, spec: BoxSpec): void {
   g.destroy();
 }
 
+function makeSmoke(scene: Phaser.Scene): void {
+  const g = scene.make.graphics({ x: 0, y: 0 }, false);
+  g.fillStyle(0xb9b3a8, 1);
+  g.fillCircle(8, 8, 8);
+  g.fillStyle(0xd8d3c8, 1);
+  g.fillCircle(6, 6, 4);
+  g.generateTexture('fx-smoke', 16, 16);
+  g.destroy();
+}
+
 /** Generate every placeholder texture into the scene's texture manager (global cache). */
 export function generatePlaceholders(scene: Phaser.Scene): void {
   for (const f of FLOORS) if (!scene.textures.exists(f.key)) makeFloor(scene, f);
   for (const o of [...OBJECTS, ...CHARACTERS]) if (!scene.textures.exists(o.key)) makeBox(scene, o);
+  if (!scene.textures.exists('fx-smoke')) makeSmoke(scene);
 }

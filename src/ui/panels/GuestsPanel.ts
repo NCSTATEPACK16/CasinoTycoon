@@ -1,29 +1,94 @@
-import type { PanelSpec } from '../WindowManager';
+import { world } from '../../gameContext';
+import type { GuestState } from '../../sim/entities/Guest';
 import { el } from '../dom';
+import type { PanelSpec } from '../WindowManager';
 
-// P2 stub — live guest list with thoughts and needs arrives in P4.
-const SAMPLE_GUESTS = [
-  { name: 'Guest #1', mood: '🙂', need: 'Happiness', fill: 78 },
-  { name: 'Guest #2', mood: '🤑', need: 'Cash', fill: 45 },
-  { name: 'Guest #3', mood: '😠', need: 'Bladder', fill: 12 },
-];
+const REFRESH_MS = 500;
+const MAX_ROWS = 12;
 
+const STATE_LABEL: Record<GuestState, string> = {
+  wander: 'Wandering',
+  seekGame: 'Heading to a game',
+  play: 'Playing',
+  service: 'Using services',
+  leaving: 'Leaving',
+  gone: 'Gone',
+};
+
+const mood = (happiness: number) => (happiness >= 70 ? '🙂' : happiness >= 40 ? '😐' : '😠');
+
+// Live guest browser: click a guest for needs bars + recent thoughts.
 export function makeGuestsPanel(): PanelSpec {
   const content = el('div');
-  content.appendChild(el('div', 'p-heading', 'Guests: 0 in casino'));
-  for (const guest of SAMPLE_GUESTS) {
-    const r = el('div', 'p-row');
-    r.appendChild(el('span', '', `${guest.mood} ${guest.name}`));
-    r.appendChild(el('span', '', guest.need));
-    const bar = el('div', `p-bar${guest.fill < 25 ? ' low' : ''}`);
-    const fill = el('i');
-    fill.style.width = `${guest.fill}%`;
-    bar.appendChild(fill);
-    r.appendChild(bar);
-    content.appendChild(r);
-  }
-  content.appendChild(
-    el('div', 'p-note', 'Sample data. Real guests walk in during P4 — needs, thoughts and all.'),
-  );
-  return { title: 'Guests', width: 300, content };
+  const heading = el('div', 'p-heading', 'Guests: 0 in casino');
+  const list = el('div');
+  const detail = el('div');
+  content.append(heading, list, detail);
+  let selectedId: string | null = null;
+
+  const render = () => {
+    const guests = [...world.guests.values()];
+    heading.textContent = `Guests: ${guests.length} in casino`;
+    if (selectedId && !world.guests.has(selectedId)) selectedId = null;
+
+    list.textContent = '';
+    for (const g of guests.slice(0, MAX_ROWS)) {
+      const row = el('button', `p-row g-row${g.id === selectedId ? ' selected' : ''}`);
+      row.appendChild(el('span', '', `${mood(g.needs.happiness)} Guest #${g.id.slice(2)}`));
+      row.appendChild(el('span', 'val', `$${Math.round(g.wallet)}`));
+      row.addEventListener('click', () => {
+        selectedId = selectedId === g.id ? null : g.id;
+        render();
+      });
+      list.appendChild(row);
+    }
+    if (guests.length > MAX_ROWS) {
+      list.appendChild(el('div', 'p-note', `…and ${guests.length - MAX_ROWS} more`));
+    }
+
+    detail.textContent = '';
+    const sel = selectedId ? world.guests.get(selectedId) : undefined;
+    if (!sel) {
+      detail.appendChild(
+        el(
+          'div',
+          'p-note',
+          guests.length
+            ? 'Click a guest for needs and thoughts.'
+            : 'The floor is empty — build some games!',
+        ),
+      );
+      return;
+    }
+    detail.appendChild(
+      el('div', 'p-heading', `Guest #${sel.id.slice(2)} — ${STATE_LABEL[sel.state]}`),
+    );
+    const bars: [string, number][] = [
+      ['Energy', sel.needs.energy],
+      ['Bladder', sel.needs.bladder],
+      ['Hunger', sel.needs.hunger],
+      ['Happiness', sel.needs.happiness],
+    ];
+    for (const [label, value] of bars) {
+      const row = el('div', 'p-row');
+      row.appendChild(el('span', '', label));
+      const bar = el('div', `p-bar${value < 25 ? ' low' : ''}`);
+      const fill = el('i');
+      fill.style.width = `${Math.round(value)}%`;
+      bar.appendChild(fill);
+      row.appendChild(bar);
+      detail.appendChild(row);
+    }
+    detail.appendChild(el('div', 'p-heading', 'Thoughts'));
+    if (sel.thoughts.length === 0) {
+      detail.appendChild(el('div', 'p-note', 'Nothing on their mind yet.'));
+    }
+    for (const t of [...sel.thoughts].reverse()) {
+      detail.appendChild(el('div', 'g-thought', `💭 ${t.text}`));
+    }
+  };
+
+  render();
+  const timer = window.setInterval(render, REFRESH_MS);
+  return { title: 'Guests', width: 300, content, onClose: () => window.clearInterval(timer) };
 }

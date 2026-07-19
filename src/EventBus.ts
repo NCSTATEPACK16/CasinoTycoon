@@ -9,6 +9,12 @@ export interface GameEvents {
   objectPlaced: { id: string; defId: string; col: number; row: number };
   objectSold: { id: string; defId: string; col: number; row: number; refund: number };
   buildModeChanged: { mode: 'off' | 'place' | 'bulldoze'; defId?: string };
+  guestSpawned: { id: string };
+  guestLeft: { id: string };
+  guestThought: { guestId: string; text: string };
+  machinePlayed: { machineId: string; guestId: string; wager: number; payout: number };
+  machineBroke: { machineId: string };
+  machineClicked: { machineId: string };
   // Extended as systems land (guestSpawned, machineBroke, ...). See PLAN.md catalog.
 }
 

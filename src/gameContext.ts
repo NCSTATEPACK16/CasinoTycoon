@@ -1,10 +1,9 @@
-import { GRID_COLS, GRID_ROWS } from './config';
-import { GameState } from './sim/GameState';
-import { IsoGrid } from './sim/grid/IsoGrid';
+import { CasinoWorld } from './sim/world';
 
-// Composition root for the running game's sim state. Render and UI import these
-// singletons; sim modules stay pure and receive them as arguments. Save/load
-// (P9) rehydrates by replacing the contents, not the bindings.
+// Composition root for the running game. Render and UI import these singletons;
+// sim modules stay pure. Save/load (P9) will rehydrate via CasinoWorld.fromJSON
+// and must refresh these bindings.
 
-export const gameState = new GameState();
-export const worldGrid = new IsoGrid(GRID_COLS, GRID_ROWS);
+export const world = new CasinoWorld();
+export const gameState = world.state;
+export const worldGrid = world.grid;

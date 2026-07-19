@@ -3,6 +3,7 @@ import { eventBus } from '../EventBus';
 import { Ticker } from './Ticker';
 import { Toolbar } from './Toolbar';
 import { WindowManager } from './WindowManager';
+import { makeMachineInspector } from './panels/MachineInspector';
 
 // Mounts the DOM UI overlay (toolbar, ticker, window layer) into #ui-root.
 // The root stays pointer-events:none; widgets opt back in, so the Phaser
@@ -16,5 +17,9 @@ export function initUI(): void {
   // Closing the Build window drops any active build tool.
   windows.onChange((id, open) => {
     if (id === 'build' && !open) eventBus.emit('buildModeChanged', { mode: 'off' });
+  });
+  // Clicking a machine in the world opens its inspector.
+  eventBus.on('machineClicked', ({ machineId }) => {
+    windows.open(`machine-${machineId}`, makeMachineInspector(machineId));
   });
 }

@@ -1,10 +1,13 @@
 import Phaser from 'phaser';
-import { GRID_COLS, GRID_ROWS, TILE_H } from '../config';
-import { worldGrid } from '../gameContext';
+import { GRID_COLS, GRID_ROWS, SIM_TICK_MS, TILE_H } from '../config';
+import { eventBus } from '../EventBus';
+import { world, worldGrid } from '../gameContext';
 import type { IsoGrid } from '../sim/grid/IsoGrid';
 import { BuildController } from './BuildController';
 import CameraController from './CameraController';
+import { attachFx } from './fx/floaters';
 import { gridToScreen, screenToGrid, worldBounds } from './iso';
+import { GuestViews } from './views/GuestViews';
 import { ObjectViews } from './views/ObjectViews';
 
 // Floors render below everything; walls and (later) objects depth-sort by screen y.
@@ -15,7 +18,9 @@ export default class WorldScene extends Phaser.Scene {
   private grid!: IsoGrid;
   private cameraController!: CameraController;
   private buildController!: BuildController;
+  private guestViews!: GuestViews;
   private highlight!: Phaser.GameObjects.Image;
+  private tickAccumulator = 0;
 
   constructor() {
     super('world');
@@ -41,15 +46,36 @@ export default class WorldScene extends Phaser.Scene {
 
     const views = new ObjectViews(this);
     this.buildController = new BuildController(this, this.cameraController, views);
+    this.guestViews = new GuestViews(this);
+    attachFx(this, views);
 
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => this.updateHover(p));
+    // Clicking a machine (outside build mode) opens its inspector window.
+    this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
+      if (this.buildController.active || this.cameraController.isDragging) return;
+      if (!p.leftButtonReleased() || p.getDistance() >= 6) return;
+      const w = this.cameras.main.getWorldPoint(p.x, p.y);
+      const { col, row } = screenToGrid(w.x, w.y);
+      if (!this.grid.inBounds(col, row)) return;
+      const occupant = this.grid.occupantAt(col, row);
+      if (occupant && world.machines.has(occupant)) {
+        eventBus.emit('machineClicked', { machineId: occupant });
+      }
+    });
   }
 
-  override update() {
+  override update(_time: number, delta: number) {
+    // Fixed-timestep sim: accumulate render time, tick at 10 Hz, interpolate views.
+    this.tickAccumulator += delta;
+    while (this.tickAccumulator >= SIM_TICK_MS) {
+      this.tickAccumulator -= SIM_TICK_MS;
+      world.tick();
+    }
     this.cameraController.update();
     // Camera may move without the pointer moving (edge scroll, drag) — re-derive hover.
     this.updateHover(this.input.activePointer);
     this.buildController.refresh(this.input.activePointer);
+    this.guestViews.update(this.tickAccumulator / SIM_TICK_MS);
   }
 
   private updateHover(p: Phaser.Input.Pointer): void {

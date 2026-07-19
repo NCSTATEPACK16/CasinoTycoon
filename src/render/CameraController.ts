@@ -16,6 +16,9 @@ export default class CameraController {
   private scene: Phaser.Scene;
   private dragging = false;
   private downAt: { x: number; y: number } | null = null;
+  // Edge scroll stays off until the player actually moves the mouse — the
+  // pointer defaults to (0,0), which would otherwise creep the camera on load.
+  private pointerSeen = false;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -34,6 +37,7 @@ export default class CameraController {
     });
 
     input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      this.pointerSeen = true;
       if (!this.downAt || !(p.leftButtonDown() || p.middleButtonDown())) return;
       if (!this.dragging) {
         const dist = Phaser.Math.Distance.Between(p.x, p.y, this.downAt.x, this.downAt.y);
@@ -75,7 +79,12 @@ export default class CameraController {
   /** Call from the scene's update() — handles edge scrolling. */
   update(): void {
     if (this.downAt) return; // no edge scroll mid-drag
+    if (!this.pointerSeen) return;
     const p = this.scene.input.activePointer;
+    // Phaser tracks the pointer at window level, so a cursor parked on the DOM
+    // toolbar or a window would edge-scroll forever. Only scroll over the canvas.
+    const over = typeof document !== 'undefined' ? document.elementFromPoint(p.x, p.y) : null;
+    if (over && over.tagName !== 'CANVAS') return;
     const cam = this.scene.cameras.main;
     const speed = EDGE_SPEED / cam.zoom;
     if (p.x <= EDGE_MARGIN && p.x >= 0) cam.scrollX -= speed;

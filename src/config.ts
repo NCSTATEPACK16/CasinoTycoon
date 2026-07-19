@@ -21,3 +21,6 @@ export const STARTING_CASH = 2000;
 
 // Fraction of an object's cost returned when bulldozed.
 export const SELL_REFUND_RATIO = 0.5;
+
+// Where guests enter and exit: middle of the open east edge (walls line north/west only).
+export const ENTRANCE_TILE = { col: GRID_COLS - 1, row: 15 } as const;

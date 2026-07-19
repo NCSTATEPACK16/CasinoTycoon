@@ -1,8 +1,7 @@
 import Phaser from 'phaser';
 import { eventBus } from '../EventBus';
 import { getObjectDef } from '../data/objects';
-import { gameState, worldGrid } from '../gameContext';
-import { canPlaceObject, placeObject, sellObject } from '../sim/build';
+import { world, worldGrid } from '../gameContext';
 import type CameraController from './CameraController';
 import { gridToScreen, screenToGrid } from './iso';
 import { objectTransform, type ObjectViews } from './views/ObjectViews';
@@ -65,13 +64,13 @@ export class BuildController {
       this.hidePreview();
       return;
     }
-    const world = this.scene.cameras.main.getWorldPoint(p.x, p.y);
-    const { col, row } = screenToGrid(world.x, world.y);
+    const worldPoint = this.scene.cameras.main.getWorldPoint(p.x, p.y);
+    const { col, row } = screenToGrid(worldPoint.x, worldPoint.y);
 
     if (this.mode === 'place' && this.defId) {
       const def = getObjectDef(this.defId);
       if (!def) return;
-      const valid = canPlaceObject(gameState, worldGrid, this.defId, col, row).ok;
+      const valid = world.canPlace(this.defId, col, row).ok;
       const { w, h } = def.footprint;
       let m = 0;
       for (let dr = 0; dr < h; dr++) {
@@ -112,12 +111,12 @@ export class BuildController {
   private onPointerUp(p: Phaser.Input.Pointer): void {
     if (!this.active || !p.leftButtonReleased()) return;
     if (p.getDistance() >= CLICK_SLOP) return; // was a camera drag
-    const world = this.scene.cameras.main.getWorldPoint(p.x, p.y);
-    const { col, row } = screenToGrid(world.x, world.y);
+    const worldPoint = this.scene.cameras.main.getWorldPoint(p.x, p.y);
+    const { col, row } = screenToGrid(worldPoint.x, worldPoint.y);
 
     if (this.mode === 'place' && this.defId) {
-      if (!placeObject(gameState, worldGrid, this.defId, col, row)) {
-        const check = canPlaceObject(gameState, worldGrid, this.defId, col, row);
+      if (!world.place(this.defId, col, row)) {
+        const check = world.canPlace(this.defId, col, row);
         if (!check.ok && check.reason === 'insufficient-funds') {
           eventBus.emit('tickerMessage', { text: 'Not enough cash!' });
         }
@@ -129,7 +128,7 @@ export class BuildController {
     const target = worldGrid.inBounds(col, row) ? worldGrid.occupantAt(col, row) : null;
     if (target) {
       this.setBulldozeTarget(null);
-      sellObject(gameState, worldGrid, target);
+      world.sell(target);
       this.refresh(p);
     }
   }
