@@ -55,8 +55,19 @@ and processed the same way as the table sprites — the "transparent" background
 opaque pixels with a baked-in checkerboard rather than real alpha (same failure mode as the
 P9 table sprites), recovered via the same border-flood-fill + bimodal-pocket technique and
 cropped to content. Registered in `public/sprites/chips/` (not `kenney-chips/` — these aren't
-Kenney assets) and in `src/render/atlas.ts` as `img-chip-{white,blue,red,green,black}`. Not
-consumed by any render code yet — P11 swaps the `fx-coin` jackpot-burst texture for these.
+Kenney assets) and in `src/render/atlas.ts` as `img-chip-{white,blue,red,green,black}`.
+
+**Re-processed 2026-07-20** from the same `assets/chips.png` sheet (kept local-only, not
+committed — same convention as other raw `assets/*` source deliveries): the checkerboard
+recovery was redone with a border-connected flood fill (any near-grayscale pixel connected
+to the sheet's edge treated as background, converted to real alpha), then a second pass kept
+only the largest opaque connected component per chip to drop a few disconnected background
+specks the first pass left behind (visible on `chip_black` only). Each chip trimmed to its
+alpha bounding box, padded to a shared square, and downsampled to 128×128 — small enough to
+keep the atlas light while still crisp once P11 displays them at coin size (~14px) via
+`setDisplaySize`, not `setScale` (the raw art is far larger than the on-screen footprint).
+Still not consumed by any render code — P11 Task 7 swaps the `fx-coin` jackpot-burst texture
+for these.
 
 ## Audio (active — P8)
 
