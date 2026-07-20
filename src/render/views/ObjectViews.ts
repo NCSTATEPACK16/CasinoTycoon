@@ -4,6 +4,7 @@ import { eventBus } from '../../EventBus';
 import { getObjectDef, type ObjectDef } from '../../data/objects';
 import { gameState } from '../../gameContext';
 import { gridToScreen } from '../iso';
+import type WorldScene from '../WorldScene';
 
 /**
  * Screen placement for an object anchored at footprint origin (col,row):
@@ -26,6 +27,7 @@ export function objectTransform(
 export class ObjectViews {
   private scene: Phaser.Scene;
   private sprites = new Map<string, Phaser.GameObjects.Image>();
+  private glows = new Map<string, Phaser.GameObjects.Image>();
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -35,6 +37,12 @@ export class ObjectViews {
     eventBus.on('worldReset', () => {
       for (const img of this.sprites.values()) img.destroy();
       this.sprites.clear();
+      const worldScene = this.scene as unknown as WorldScene;
+      for (const glow of this.glows.values()) {
+        worldScene.getGlowPool().remove(glow);
+        glow.destroy();
+      }
+      this.glows.clear();
     });
     eventBus.on('worldLoaded', () => {
       for (const po of gameState.allObjects()) this.spawn(po.id, po.defId, po.col, po.row, false);
@@ -49,6 +57,18 @@ export class ObjectViews {
     const def = getObjectDef(defId);
     if (!def) return;
     const t = objectTransform(def, col, row);
+
+    if (defId === 'neon-sign' || defId === 'marquee') {
+      const glowKey = defId === 'marquee' ? 'glow-sign-large' : 'glow-sign-small';
+      const glow = this.scene.add
+        .image(t.x, t.y, glowKey)
+        .setOrigin(0.5, 1)
+        .setDepth(t.depth - 1);
+      const worldScene = this.scene as unknown as WorldScene;
+      worldScene.getGlowPool().add(glow);
+      this.glows.set(id, glow);
+    }
+
     const img = this.scene.add.image(t.x, t.y, def.spriteKey).setOrigin(0.5, 1).setDepth(t.depth);
     if (def.displaySize) img.setDisplaySize(def.displaySize.w, def.displaySize.h);
     this.sprites.set(id, img);
@@ -74,6 +94,12 @@ export class ObjectViews {
     const img = this.sprites.get(id);
     if (!img) return;
     this.sprites.delete(id);
+    const glow = this.glows.get(id);
+    if (glow) {
+      this.glows.delete(id);
+      (this.scene as unknown as WorldScene).getGlowPool().remove(glow);
+      glow.destroy();
+    }
     this.scene.tweens.add({
       targets: img,
       alpha: 0,

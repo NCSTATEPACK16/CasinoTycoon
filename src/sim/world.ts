@@ -252,12 +252,18 @@ export class CasinoWorld {
     const variety = new Set([...this.machines.values()].map((m) => m.defId)).size;
     let broken = 0;
     for (const m of this.machines.values()) if (m.broken) broken++;
+    let signageBonus = 0;
+    for (const po of this.state.allObjects()) {
+      signageBonus += getObjectDef(po.defId)?.ratingBonus ?? 0;
+    }
+    signageBonus = Math.min(signageBonus, b.signageBonusCap);
     const score =
       b.happinessWeight * avgHappiness +
       Math.min(this.machines.size * b.perMachine, b.machineCap) +
       (variety >= 2 ? b.varietyBonus : 0) +
       Math.max(0, b.cleanlinessMax - this.messes.size * b.perMessPenalty) -
-      broken * b.perBrokenPenalty;
+      broken * b.perBrokenPenalty +
+      signageBonus;
     return Math.round(Math.min(100, Math.max(0, score)));
   }
 

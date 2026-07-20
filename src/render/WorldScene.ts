@@ -10,7 +10,9 @@ import { attachAudioFx } from './fx/audioFx';
 import { attachFx } from './fx/floaters';
 import { ThoughtBubbles } from './fx/ThoughtBubbles';
 import { gridToScreen, screenToGrid, worldBounds } from './iso';
+import { GlowPool } from './neon';
 import { PincerController } from './PincerController';
+import { tileVariantIndex } from './tileVariant';
 import { GuestViews } from './views/GuestViews';
 import { MessViews } from './views/MessViews';
 import { ObjectViews } from './views/ObjectViews';
@@ -28,6 +30,7 @@ export default class WorldScene extends Phaser.Scene {
   private staffViews!: StaffViews;
   private thoughtBubbles!: ThoughtBubbles;
   private pincer!: PincerController;
+  private glowPool!: GlowPool;
   private highlight!: Phaser.GameObjects.Image;
   private tickAccumulator = 0;
   private speed = 1;
@@ -54,6 +57,7 @@ export default class WorldScene extends Phaser.Scene {
     this.cameras.main.centerOn(center.x, center.y);
     this.cameraController = new CameraController(this);
 
+    this.glowPool = new GlowPool(this);
     const views = new ObjectViews(this);
     this.buildController = new BuildController(this, this.cameraController, views);
     this.guestViews = new GuestViews(this);
@@ -92,6 +96,10 @@ export default class WorldScene extends Phaser.Scene {
     );
 
     eventBus.on('speedChanged', ({ speed }) => (this.speed = speed));
+  }
+
+  getGlowPool(): GlowPool {
+    return this.glowPool;
   }
 
   override update(_time: number, delta: number) {
@@ -139,10 +147,12 @@ export default class WorldScene extends Phaser.Scene {
 
   private floorKey(col: number, row: number): string {
     const edge = col === 0 || row === 0 || col === GRID_COLS - 1 || row === GRID_ROWS - 1;
-    if (edge) return 'floor-wood';
-    // Marble aisles cross the carpet every 10 tiles.
-    if (col % 10 < 2 || row % 10 < 2) return 'floor-marble';
-    return 'floor-carpet-red';
+    const style = edge
+      ? 'floor-wood-dark'
+      : col % 10 < 2 || row % 10 < 2
+        ? 'floor-marble-night'
+        : 'floor-carpet-plum';
+    return `${style}-${tileVariantIndex(col, row)}`;
   }
 
   private drawEdgeWalls(): void {

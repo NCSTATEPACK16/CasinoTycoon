@@ -36,6 +36,7 @@ export const RATING_BALANCE = {
   cleanlinessMax: 15,
   perMessPenalty: 3,
   perBrokenPenalty: 5,
+  signageBonusCap: 10,
 } as const;
 
 export interface PayoutOutcome {
