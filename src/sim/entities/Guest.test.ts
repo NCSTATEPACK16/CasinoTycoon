@@ -73,4 +73,19 @@ describe('Guest', () => {
     }
     expect(visited.size).toBeGreaterThan(3); // actually moved through tiles
   });
+
+  it('has a stable flavor name and regular archetype, and tracks netResult/favoriteGame', () => {
+    const world = new CasinoWorld({ seed: 8, autoSpawn: false });
+    world.place('slot-machine', 5, 5);
+    const guest = world.spawnGuest();
+    guest.wallet = 500;
+    expect(guest.archetype).toBe('regular');
+    expect(guest.name).toMatch(/^[A-Za-z ]+ [A-Z]\.$/);
+    expect(guest.netResult).toBe(0);
+    expect(guest.favoriteGame()).toBeNull();
+    for (let i = 0; i < 400 && guest.state !== 'play'; i++) world.tick();
+    for (let i = 0; i < 200; i++) world.tick(); // let it actually spin a few times
+    expect(guest.favoriteGame()).toBe('slot-machine');
+    expect(guest.netResult).not.toBe(0);
+  });
 });
