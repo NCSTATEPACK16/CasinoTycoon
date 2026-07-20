@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { TILE_W, TILE_H } from '../config';
+import { TILE_VARIANT_COUNT } from './tileVariant';
 
 // Runtime-generated placeholder textures honoring the sprite contract in assets/ASSETS.md.
 // Every game object gets a texture key here; real art later replaces keys via the atlas
@@ -47,6 +48,14 @@ const FEEDBACK_TILES: DiamondSpec[] = [
 ];
 
 const BRIGHTNESS_VARIANTS = [0.82, 0.91, 1.0, 1.1];
+// Must stay in lockstep with tileVariantIndex()'s range — a mismatch here
+// would make floorKey() request a variant key that was never generated
+// (a silently-missing texture), so fail loudly instead.
+if (BRIGHTNESS_VARIANTS.length !== TILE_VARIANT_COUNT) {
+  throw new Error(
+    `BRIGHTNESS_VARIANTS must have exactly TILE_VARIANT_COUNT (${TILE_VARIANT_COUNT}) entries, got ${BRIGHTNESS_VARIANTS.length}`,
+  );
+}
 
 function makeFloorVariant(scene: Phaser.Scene, style: FloorStyle, variant: number): void {
   const key = `${style.key}-${variant}`;
@@ -76,7 +85,7 @@ const OBJECTS: BoxSpec[] = [
   { key: 'obj-food-stall', top: 0x8a5a1e, left: 0x5c3c12, right: 0x6f4816, height: 64 },
   { key: 'obj-plant', top: 0x1f5c33, left: 0x123d21, right: 0x184a29, height: 48 },
   { key: 'obj-wall', top: 0x1c1a26, left: 0x121019, right: 0x17141f, height: 96 },
-  { key: 'obj-neon-sign', top: 0xff3ec8, left: 0xb02c8c, right: 0xd934a8, height: 40 },
+  { key: 'obj-neon-sign', top: 0xff3ec8, left: 0xb02c8c, right: 0xd934a8, height: 20 },
   {
     key: 'obj-marquee',
     top: 0x3ec8ff,

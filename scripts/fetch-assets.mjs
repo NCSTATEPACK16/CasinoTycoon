@@ -1,8 +1,11 @@
 // scripts/fetch-assets.mjs
-// Downloads the Kenney Casino Kit (CC0) and curates five chip sprites into
-// public/sprites/kenney-chips/ for the P11 jackpot chip-arc upgrade.
-// Idempotent (skips if all curated files already exist). Network or page-
-// structure failures print a manual-download fallback instead of leaving
+// Attempts to download a Kenney "Casino Kit" pack (CC0) and curate five chip
+// sprites into public/sprites/chips/ for the P11 jackpot chip-arc upgrade.
+// As of 2026-07-19 this pack does not exist on kenney.nl (see assets/ASSETS.md) —
+// this script is kept in case Kenney adds one later, but is not expected to
+// succeed today; the chip sprites currently in the repo were self-generated
+// instead. Idempotent (skips if all curated files already exist). Network or
+// page-structure failures print a manual-download fallback instead of leaving
 // the build in a broken state — nothing else depends on this script running.
 import { mkdir, readdir, writeFile, copyFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -13,7 +16,7 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DEST_DIR = path.join(__dirname, '..', 'public', 'sprites', 'kenney-chips');
+const DEST_DIR = path.join(__dirname, '..', 'public', 'sprites', 'chips');
 const PAGE_URL = 'https://kenney.nl/assets/casino-kit';
 const CURATED_FILES = [
   'chip_white.png',
@@ -31,7 +34,9 @@ async function findZipUrl() {
     html.match(/id="inline-download"[^>]*href="([^"]+\.zip)"/) ??
     html.match(/href="([^"]+\.zip)"[^>]*id="inline-download"/);
   if (!match) {
-    throw new Error('Could not find the #inline-download zip link — kenney.nl page structure may have changed.');
+    throw new Error(
+      'Could not find the #inline-download zip link — kenney.nl page structure may have changed.',
+    );
   }
   return new URL(match[1], PAGE_URL).toString();
 }
@@ -51,7 +56,7 @@ async function main() {
   await mkdir(DEST_DIR, { recursive: true });
   const already = existsSync(DEST_DIR) ? await readdir(DEST_DIR) : [];
   if (CURATED_FILES.every((f) => already.includes(f))) {
-    console.log('All curated Kenney chip sprites already present — skipping fetch.');
+    console.log('All curated chip sprites already present — skipping fetch.');
     return;
   }
 
@@ -100,4 +105,9 @@ async function main() {
   }
 }
 
-main();
+main().catch((err) => {
+  console.error(`fetch-assets failed unexpectedly: ${err.message}`);
+  console.error(`Manual fallback: download the Casino Kit from ${PAGE_URL} yourself,`);
+  console.error(`extract chip PNGs (${CURATED_FILES.join(', ')}) into ${DEST_DIR}.`);
+  process.exitCode = 1;
+});

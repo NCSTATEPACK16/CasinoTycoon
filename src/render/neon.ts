@@ -9,7 +9,9 @@ export interface GlowSpec {
 }
 
 const GLOWS: GlowSpec[] = [
-  { key: 'glow-sign-small', color: 0xff3ec8, width: 60, height: 24 },
+  // Wider than the 1-tile neon-sign box's silhouette so the halo escapes
+  // laterally instead of hiding entirely behind the opaque object.
+  { key: 'glow-sign-small', color: 0xff3ec8, width: 130, height: 24 },
   { key: 'glow-sign-large', color: 0x3ec8ff, width: 120, height: 40 },
 ];
 
