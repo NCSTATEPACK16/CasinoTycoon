@@ -67,29 +67,37 @@ async function main() {
   }
 
   const tmpZip = path.join(DEST_DIR, '_download.zip');
-  const zipRes = await fetch(zipUrl);
-  if (!zipRes.ok) throw new Error(`Could not download ${zipUrl}: HTTP ${zipRes.status}`);
-  await writeFile(tmpZip, Buffer.from(await zipRes.arrayBuffer()));
-
   const tmpDir = path.join(DEST_DIR, '_extract');
-  await mkdir(tmpDir, { recursive: true });
-  await execFileAsync('unzip', ['-o', tmpZip, '-d', tmpDir]);
+  try {
+    const zipRes = await fetch(zipUrl);
+    if (!zipRes.ok) throw new Error(`Could not download ${zipUrl}: HTTP ${zipRes.status}`);
+    await writeFile(tmpZip, Buffer.from(await zipRes.arrayBuffer()));
 
-  const found = await findFilesRecursive(tmpDir, CURATED_FILES);
-  let copied = 0;
-  for (const name of CURATED_FILES) {
-    const src = found[name];
-    if (!src) {
-      console.warn(`Warning: ${name} not found in the downloaded pack — skipping.`);
-      continue;
+    await mkdir(tmpDir, { recursive: true });
+    await execFileAsync('unzip', ['-o', tmpZip, '-d', tmpDir]);
+
+    const found = await findFilesRecursive(tmpDir, CURATED_FILES);
+    let copied = 0;
+    for (const name of CURATED_FILES) {
+      const src = found[name];
+      if (!src) {
+        console.warn(`Warning: ${name} not found in the downloaded pack — skipping.`);
+        continue;
+      }
+      await copyFile(src, path.join(DEST_DIR, name));
+      copied++;
     }
-    await copyFile(src, path.join(DEST_DIR, name));
-    copied++;
-  }
 
-  await rm(tmpZip, { force: true });
-  await rm(tmpDir, { recursive: true, force: true });
-  console.log(`Curated ${copied}/${CURATED_FILES.length} chip sprites into ${DEST_DIR}`);
+    console.log(`Curated ${copied}/${CURATED_FILES.length} chip sprites into ${DEST_DIR}`);
+  } catch (err) {
+    console.error(`fetch-assets failed: ${err.message}`);
+    console.error(`Manual fallback: download the Casino Kit from ${PAGE_URL} yourself,`);
+    console.error(`extract chip PNGs (${CURATED_FILES.join(', ')}) into ${DEST_DIR}.`);
+    process.exitCode = 1;
+  } finally {
+    await rm(tmpZip, { force: true });
+    await rm(tmpDir, { recursive: true, force: true });
+  }
 }
 
 main();
