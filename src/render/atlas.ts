@@ -15,6 +15,13 @@ export const FILE_ASSETS: readonly FileAsset[] = [
   { key: 'img-slot-machine', url: 'sprites/slot-machine.png' },
   { key: 'img-blackjack-table', url: 'sprites/blackjack-table.png' },
   { key: 'img-craps-table', url: 'sprites/craps-table.png' },
+  // Self-generated (Kenney has no casino/chip pack — see assets/ASSETS.md).
+  // Not consumed by any render code yet; P11 swaps fx-coin for these.
+  { key: 'img-chip-white', url: 'sprites/chips/chip_white.png' },
+  { key: 'img-chip-blue', url: 'sprites/chips/chip_blue.png' },
+  { key: 'img-chip-red', url: 'sprites/chips/chip_red.png' },
+  { key: 'img-chip-green', url: 'sprites/chips/chip_green.png' },
+  { key: 'img-chip-black', url: 'sprites/chips/chip_black.png' },
 ];
 
 export function preloadFileAssets(scene: Pick<Phaser.Scene, 'load'>): void {

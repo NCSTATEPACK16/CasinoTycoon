@@ -21,6 +21,13 @@ describe('FILE_ASSETS', () => {
     expect(keys).toContain('img-blackjack-table');
     expect(keys).toContain('img-craps-table');
   });
+
+  it('includes the five chip sprites', () => {
+    const keys = FILE_ASSETS.map((a) => a.key);
+    for (const c of ['white', 'blue', 'red', 'green', 'black']) {
+      expect(keys).toContain(`img-chip-${c}`);
+    }
+  });
 });
 
 describe('preloadFileAssets', () => {

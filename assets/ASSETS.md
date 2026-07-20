@@ -48,11 +48,15 @@ has no dedicated casino/chip pack; the closest hit, Playing Cards Pack, contains
 The script is kept as-is (idempotent, fails loudly with a manual-download fallback) in case
 Kenney adds one later, but is not expected to succeed today.
 
-Chip art is instead self-generated, same convention as the P9 table sprites (`slot-machine.png`
-et al. in `public/sprites/`): five PNGs (`chip_white`, `chip_blue`, `chip_red`, `chip_green`,
-`chip_black`) with real alpha transparency, dropped into `public/sprites/kenney-chips/` and
-registered in `src/render/atlas.ts` as `img-chip-{white,blue,red,green,black}`. Not consumed
-by any render code yet — P11 swaps the `fx-coin` jackpot-burst texture for these.
+Chip art is instead self-generated (2026-07-19), same convention as the P9 table sprites
+(`slot-machine.png` et al. in `public/sprites/`): five PNGs (`chip_white`, `chip_blue`,
+`chip_red`, `chip_green`, `chip_black`) delivered as one sheet (`assets/chips.png`), split
+and processed the same way as the table sprites — the "transparent" background was again
+opaque pixels with a baked-in checkerboard rather than real alpha (same failure mode as the
+P9 table sprites), recovered via the same border-flood-fill + bimodal-pocket technique and
+cropped to content. Registered in `public/sprites/chips/` (not `kenney-chips/` — these aren't
+Kenney assets) and in `src/render/atlas.ts` as `img-chip-{white,blue,red,green,black}`. Not
+consumed by any render code yet — P11 swaps the `fx-coin` jackpot-burst texture for these.
 
 ## Audio (active — P8)
 
