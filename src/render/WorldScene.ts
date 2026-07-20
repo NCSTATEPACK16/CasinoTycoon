@@ -11,6 +11,7 @@ import { attachFx } from './fx/floaters';
 import { ThoughtBubbles } from './fx/ThoughtBubbles';
 import { gridToScreen, screenToGrid, worldBounds } from './iso';
 import { PincerController } from './PincerController';
+import { tileVariantIndex } from './tileVariant';
 import { GuestViews } from './views/GuestViews';
 import { MessViews } from './views/MessViews';
 import { ObjectViews } from './views/ObjectViews';
@@ -139,10 +140,12 @@ export default class WorldScene extends Phaser.Scene {
 
   private floorKey(col: number, row: number): string {
     const edge = col === 0 || row === 0 || col === GRID_COLS - 1 || row === GRID_ROWS - 1;
-    if (edge) return 'floor-wood';
-    // Marble aisles cross the carpet every 10 tiles.
-    if (col % 10 < 2 || row % 10 < 2) return 'floor-marble';
-    return 'floor-carpet-red';
+    const style = edge
+      ? 'floor-wood-dark'
+      : col % 10 < 2 || row % 10 < 2
+        ? 'floor-marble-night'
+        : 'floor-carpet-plum';
+    return `${style}-${tileVariantIndex(col, row)}`;
   }
 
   private drawEdgeWalls(): void {

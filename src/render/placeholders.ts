@@ -22,33 +22,60 @@ interface BoxSpec {
   rows?: number;
 }
 
-// Floor tiles: flat diamonds.
-const FLOORS: DiamondSpec[] = [
-  { key: 'floor-carpet-red', top: 0x8e2437, left: 0x6f1c2b, right: 0x7d2031 },
-  { key: 'floor-carpet-green', top: 0x1f6e43, left: 0x175434, right: 0x1b613b },
-  { key: 'floor-marble', top: 0xd8d3c8, left: 0xb4afa4, right: 0xc6c1b6 },
-  { key: 'floor-wood', top: 0x9a6b3f, left: 0x7b5431, right: 0x8b5f38 },
+interface FloorStyle {
+  key: string; // prefix; four textures are generated per style: `${key}-0..3`
+  top: number;
+  left: number;
+  right: number;
+}
+
+// Night casino palette: deep plum/teal carpets, charcoal marble, dark wood —
+// darkness lives in the textures themselves, never a screen-dimming overlay
+// (that would mute the neon glow work in Task 4).
+const FLOOR_STYLES: FloorStyle[] = [
+  { key: 'floor-carpet-plum', top: 0x4a1f3d, left: 0x391730, right: 0x401a35 },
+  { key: 'floor-marble-night', top: 0x2a2a33, left: 0x1c1c22, right: 0x222228 },
+  { key: 'floor-wood-dark', top: 0x3a2818, left: 0x2a1c10, right: 0x312013 },
+];
+
+// UI feedback tiles keep their existing, functional (non-palette) colors —
+// they're state indicators, not floor identity.
+const FEEDBACK_TILES: DiamondSpec[] = [
   { key: 'tile-highlight', top: 0xfff59d, left: 0xf5e076, right: 0xfaea87 },
   { key: 'tile-valid', top: 0x7ce67c, left: 0x58c058, right: 0x6ad46a },
   { key: 'tile-invalid', top: 0xe67c7c, left: 0xc05858, right: 0xd46a6a },
 ];
 
+const BRIGHTNESS_VARIANTS = [0.82, 0.91, 1.0, 1.1];
+
+function makeFloorVariant(scene: Phaser.Scene, style: FloorStyle, variant: number): void {
+  const key = `${style.key}-${variant}`;
+  if (scene.textures.exists(key)) return;
+  const f = BRIGHTNESS_VARIANTS[variant]!;
+  makeFloor(scene, {
+    key,
+    top: shade(style.top, f),
+    left: shade(style.left, f),
+    right: shade(style.right, f),
+  });
+}
+
 // Objects: iso boxes (diamond top face + two side faces).
 const OBJECTS: BoxSpec[] = [
-  { key: 'obj-slot-machine', top: 0xd94f6b, left: 0x8f2f44, right: 0xb03d55, height: 72 },
+  { key: 'obj-slot-machine', top: 0x7a2f52, left: 0x501f36, right: 0x652742, height: 72 },
   {
     key: 'obj-blackjack-table',
-    top: 0x2c7a4b,
-    left: 0x1c5232,
-    right: 0x24663e,
+    top: 0x123a3a,
+    left: 0x0a2626,
+    right: 0x0e3030,
     height: 40,
     cols: 2,
     rows: 2,
   },
-  { key: 'obj-toilet', top: 0x7fb2d9, left: 0x53809f, right: 0x6899bc, height: 56 },
-  { key: 'obj-food-stall', top: 0xe0a33e, left: 0xa87728, right: 0xc48d32, height: 64 },
-  { key: 'obj-plant', top: 0x3f9b4f, left: 0x2b6f37, right: 0x358543, height: 48 },
-  { key: 'obj-wall', top: 0x5a5468, left: 0x3d3849, right: 0x4b4658, height: 96 },
+  { key: 'obj-toilet', top: 0x2f4a5c, left: 0x203541, right: 0x283f4d, height: 56 },
+  { key: 'obj-food-stall', top: 0x8a5a1e, left: 0x5c3c12, right: 0x6f4816, height: 64 },
+  { key: 'obj-plant', top: 0x1f5c33, left: 0x123d21, right: 0x184a29, height: 48 },
+  { key: 'obj-wall', top: 0x1c1a26, left: 0x121019, right: 0x17141f, height: 96 },
 ];
 
 // Characters are little RCT-style pixel people, generated per outfit variant
@@ -285,7 +312,10 @@ function makeMessTextures(scene: Phaser.Scene): void {
 
 /** Generate every placeholder texture into the scene's texture manager (global cache). */
 export function generatePlaceholders(scene: Phaser.Scene): void {
-  for (const f of FLOORS) if (!scene.textures.exists(f.key)) makeFloor(scene, f);
+  for (const t of FEEDBACK_TILES) if (!scene.textures.exists(t.key)) makeFloor(scene, t);
+  for (const style of FLOOR_STYLES) {
+    for (let v = 0; v < BRIGHTNESS_VARIANTS.length; v++) makeFloorVariant(scene, style, v);
+  }
   for (const o of OBJECTS) if (!scene.textures.exists(o.key)) makeBox(scene, o);
   makePixelPeople(scene);
   if (!scene.textures.exists('fx-smoke')) makeSmoke(scene);
