@@ -46,4 +46,10 @@ describe('object catalog', () => {
     expect(getObjectDef('slot-machine')?.name).toBe('Slot Machine');
     expect(getObjectDef('no-such-thing')).toBeUndefined();
   });
+
+  it('ratingBonus, when present, is non-negative', () => {
+    for (const d of OBJECT_CATALOG) {
+      if (d.ratingBonus !== undefined) expect(d.ratingBonus, d.id).toBeGreaterThanOrEqual(0);
+    }
+  });
 });

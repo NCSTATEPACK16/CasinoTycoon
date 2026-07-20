@@ -76,6 +76,16 @@ const OBJECTS: BoxSpec[] = [
   { key: 'obj-food-stall', top: 0x8a5a1e, left: 0x5c3c12, right: 0x6f4816, height: 64 },
   { key: 'obj-plant', top: 0x1f5c33, left: 0x123d21, right: 0x184a29, height: 48 },
   { key: 'obj-wall', top: 0x1c1a26, left: 0x121019, right: 0x17141f, height: 96 },
+  { key: 'obj-neon-sign', top: 0xff3ec8, left: 0xb02c8c, right: 0xd934a8, height: 40 },
+  {
+    key: 'obj-marquee',
+    top: 0x3ec8ff,
+    left: 0x2c8cb0,
+    right: 0x34a8d9,
+    height: 56,
+    cols: 2,
+    rows: 1,
+  },
 ];
 
 // Characters are little RCT-style pixel people, generated per outfit variant

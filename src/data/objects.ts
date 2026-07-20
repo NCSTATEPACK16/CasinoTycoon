@@ -19,6 +19,7 @@ export interface ObjectDef {
   // On-screen size in px for real (non-placeholder) art, since source images
   // are captured at arbitrary export resolution, not pre-sized to the iso grid.
   displaySize?: { w: number; h: number };
+  ratingBonus?: number; // small, capped casino-rating contribution (RATING_BALANCE.signageBonusCap)
   category: ObjectCategory;
 }
 
@@ -84,6 +85,28 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     upkeepPerDay: 0,
     footprint: { w: 1, h: 1 },
     spriteKey: 'obj-plant',
+    category: 'decor',
+  },
+  {
+    id: 'neon-sign',
+    name: 'Neon Sign',
+    icon: '🪧',
+    cost: 250,
+    upkeepPerDay: 5,
+    footprint: { w: 1, h: 1 },
+    spriteKey: 'obj-neon-sign',
+    ratingBonus: 2,
+    category: 'decor',
+  },
+  {
+    id: 'marquee',
+    name: 'Marquee',
+    icon: '✨',
+    cost: 600,
+    upkeepPerDay: 12,
+    footprint: { w: 2, h: 1 },
+    spriteKey: 'obj-marquee',
+    ratingBonus: 4,
     category: 'decor',
   },
 ];
