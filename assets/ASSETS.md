@@ -40,6 +40,20 @@ No coherent CC0 RCT-style "peep" set exists (checked OpenGameArt + Kenney, 2026-
 - One sheet per variant, 2 frames each, 24×36 px per frame (or any integer multiple — we can downscale).
 - Deliver as PNG with transparency into `assets/characters/`, then we slice + register them in the manifest; game code never changes.
 
+## Chip sprites (P10 — for the P11 chip-arc jackpot upgrade)
+
+`npm run fetch-assets` (`scripts/fetch-assets.mjs`) was written expecting a Kenney "Casino
+Kit" pack with chip sprites — **that pack does not exist** (confirmed 2026-07-19: kenney.nl
+has no dedicated casino/chip pack; the closest hit, Playing Cards Pack, contains only cards).
+The script is kept as-is (idempotent, fails loudly with a manual-download fallback) in case
+Kenney adds one later, but is not expected to succeed today.
+
+Chip art is instead self-generated, same convention as the P9 table sprites (`slot-machine.png`
+et al. in `public/sprites/`): five PNGs (`chip_white`, `chip_blue`, `chip_red`, `chip_green`,
+`chip_black`) with real alpha transparency, dropped into `public/sprites/kenney-chips/` and
+registered in `src/render/atlas.ts` as `img-chip-{white,blue,red,green,black}`. Not consumed
+by any render code yet — P11 swaps the `fx-coin` jackpot-burst texture for these.
+
 ## Audio (active — P8)
 
 Downloaded 2026-07-19 from kenney.nl (all CC0), curated into `public/audio/` with semantic
@@ -62,13 +76,12 @@ looping it on the music bus.
 
 ## Recommended CC0 packs (manual download → drop into `assets/`)
 
-| Pack                                                          | Source                       | Use for                                                |
-| ------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------ |
-| Kenney — Casino Pack                                          | kenney.nl/assets/casino-pack | Cards, chips, slot symbols (reel icons, UI decoration) |
-| Kenney — Isometric Miniature packs (Library / Dungeon / Farm) | kenney.nl/assets             | Floor styles, walls, decor to adapt                    |
-| Kenney — UI Pack (RPG expansion)                              | kenney.nl/assets/ui-pack     | Beveled RCT-style window chrome, buttons               |
-| Kenney — Interface Sounds + Casino Audio                      | kenney.nl/assets             | UI clicks, chimes, jackpot stingers                    |
-| freesound.org (CC0 filter)                                    | freesound.org                | Casino ambiance loop                                   |
+| Pack                                                          | Source                   | Use for                                  |
+| ------------------------------------------------------------- | ------------------------ | ---------------------------------------- |
+| Kenney — Isometric Miniature packs (Library / Dungeon / Farm) | kenney.nl/assets         | Floor styles, walls, decor to adapt      |
+| Kenney — UI Pack (RPG expansion)                              | kenney.nl/assets/ui-pack | Beveled RCT-style window chrome, buttons |
+| Kenney — Interface Sounds + Casino Audio                      | kenney.nl/assets         | UI clicks, chimes, jackpot stingers      |
+| freesound.org (CC0 filter)                                    | freesound.org            | Casino ambiance loop                     |
 
 **Known gaps** (no good free isometric source; placeholders stay until commissioned art):
 slot machine cabinets, blackjack tables, guest/staff character sprites in iso perspective.
