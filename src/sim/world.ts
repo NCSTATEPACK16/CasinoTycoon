@@ -1,6 +1,6 @@
 import { eventBus } from '../EventBus';
 import { ENTRANCE_TILE, GRID_COLS, GRID_ROWS, HOURS_PER_DAY, JACKPOT_PAYOUT_MULT, STARTING_CASH } from '../config';
-import { GUEST_BALANCE, MESS_BALANCE, RATING_BALANCE } from '../data/balance';
+import { GUEST_BALANCE, MESS_BALANCE, RAGE_BALANCE, RATING_BALANCE } from '../data/balance';
 import type { CampaignDef } from '../data/campaigns';
 import { getObjectDef } from '../data/objects';
 import { canPlaceObject, placeObject, sellObject, type PlaceCheck } from './build';
@@ -98,6 +98,7 @@ export class CasinoWorld {
   private nextStaffNum = 1;
   /** machineId → staffId, so two mechanics never race to the same repair. */
   private repairClaims = new Map<string, string>();
+  private ragePenalty = 0;
 
   constructor(opts: WorldOptions = {}) {
     this.state = new GameState();
@@ -190,6 +191,7 @@ export class CasinoWorld {
 
   /** Bookkeeping at every hour boundary; midnight also rolls the day over. */
   private onHourBoundary(midnight: boolean): void {
+    this.ragePenalty = Math.max(0, this.ragePenalty - RAGE_BALANCE.dingDecayPerHour);
     // The hour that just completed (time already shows the new hour/day).
     const closedHour = this.time.hour === 0 ? HOURS_PER_DAY - 1 : this.time.hour - 1;
     const closedDay = this.time.hour === 0 ? this.time.day - 1 : this.time.day;
@@ -279,7 +281,8 @@ export class CasinoWorld {
       (variety >= 2 ? b.varietyBonus : 0) +
       Math.max(0, b.cleanlinessMax - this.messes.size * b.perMessPenalty) -
       broken * b.perBrokenPenalty +
-      signageBonus;
+      signageBonus -
+      this.ragePenalty;
     return Math.round(Math.min(100, Math.max(0, score)));
   }
 
@@ -386,6 +389,12 @@ export class CasinoWorld {
     for (const mess of this.messes.values()) {
       if (mess.claimedBy === staffId) mess.claimedBy = null;
     }
+  }
+
+  /** One-time rating ding from a rage quit; decays over subsequent hours. */
+  applyRageQuitPenalty(): void {
+    this.ragePenalty = Math.min(RAGE_BALANCE.maxRatingPenalty, this.ragePenalty + RAGE_BALANCE.ratingDing);
+    this.ledger.recordRageQuit();
   }
 
   // ---------- mess ----------

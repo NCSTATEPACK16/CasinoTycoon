@@ -1,5 +1,5 @@
 import { eventBus } from '../../EventBus';
-import { FOOD_BALANCE, GUEST_BALANCE, MESS_BALANCE } from '../../data/balance';
+import { FOOD_BALANCE, GUEST_BALANCE, MESS_BALANCE, RAGE_BALANCE, STRUT_BALANCE } from '../../data/balance';
 import { flavorName } from '../../data/names';
 import { THOUGHTS } from '../../data/thoughts';
 import type { Cell } from '../grid/astar';
@@ -38,6 +38,9 @@ export class Guest extends Walker {
   /** Running total of payout − wager across every play this guest has made
    *  since the last time the session folded into the day's report. */
   netResult = 0;
+  raging = false;
+  celebrating = false;
+  private celebrateTicksLeft = 0;
   private wagersByGame = new Map<string, number>();
   private thoughtLast = new Map<string, number>();
   private machineId: string | null = null;
@@ -62,6 +65,7 @@ export class Guest extends Walker {
   }
 
   get moveTicksPerTile(): number {
+    if (this.raging) return Math.max(1, Math.round(GUEST_BALANCE.moveTicksPerTile / RAGE_BALANCE.speedMult));
     return GUEST_BALANCE.moveTicksPerTile;
   }
 
@@ -70,6 +74,10 @@ export class Guest extends Walker {
     this.decayNeeds();
     this.maybeDropMess(world);
     this.updateThoughts(world.tickCount);
+    if (this.celebrateTicksLeft > 0) {
+      this.celebrateTicksLeft--;
+      if (this.celebrateTicksLeft === 0) this.celebrating = false;
+    }
     this.stepMovement(world);
     this.act(world);
   }
@@ -220,8 +228,16 @@ export class Guest extends Walker {
       if (defId) this.wagersByGame.set(defId, (this.wagersByGame.get(defId) ?? 0) + res.wager);
     }
     this.adjustHappiness(res.payout > 0 ? b.happinessOnWin : b.happinessOnLoss);
+    if (res.payout >= res.wager * STRUT_BALANCE.payoutMultiplier) this.startCelebrating(world);
     this.spinsLeft--;
     if (this.spinsLeft <= 0) this.stopPlaying(world);
+  }
+
+  private startCelebrating(world: CasinoWorld): void {
+    this.celebrating = true;
+    this.celebrateTicksLeft = STRUT_BALANCE.durationTicks;
+    this.adjustHappiness(STRUT_BALANCE.happinessBump);
+    this.recordThought(world.tickCount, 'celebrate', 'Jackpot! I’m on fire!');
   }
 
   private stopPlaying(world: CasinoWorld): void {
@@ -262,6 +278,12 @@ export class Guest extends Walker {
   private leave(world: CasinoWorld): void {
     world.releaseMachines(this.id);
     this.machineId = null;
+    if (this.wallet < GUEST_BALANCE.brokeWallet && this.needs.happiness < RAGE_BALANCE.happinessThreshold) {
+      this.raging = true;
+      world.applyRageQuitPenalty();
+      this.recordThought(world.tickCount, 'raging', 'This place ripped me off!');
+      eventBus.emit('tickerMessage', { text: `${this.name} storms out in a rage!` });
+    }
     this.state = 'leaving';
     if (!this.goTo(world, world.entranceTile)) this.state = 'gone';
   }

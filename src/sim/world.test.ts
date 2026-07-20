@@ -123,4 +123,15 @@ describe('CasinoWorld', () => {
     expect(record).toBeDefined();
     expect(record!.guestCount).toBeGreaterThanOrEqual(0); // folded if it had played, 0 is fine if it hadn't
   });
+
+  it('a rage quit dings the casino rating, which decays over time', () => {
+    const world = new CasinoWorld({ seed: 16, autoSpawn: false });
+    world.place('slot-machine', 5, 5);
+    const before = world.rating;
+    world.applyRageQuitPenalty();
+    expect(world.rating).toBeLessThan(before);
+    const dinged = world.rating;
+    for (let i = 0; i < 60; i++) world.tick(); // past an hour boundary (TICKS_PER_HOUR=50)
+    expect(world.rating).toBeGreaterThan(dinged);
+  });
 });
