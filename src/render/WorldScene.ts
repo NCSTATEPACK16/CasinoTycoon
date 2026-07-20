@@ -10,6 +10,7 @@ import { attachAudioFx } from './fx/audioFx';
 import { attachFx } from './fx/floaters';
 import { ThoughtBubbles } from './fx/ThoughtBubbles';
 import { gridToScreen, screenToGrid, worldBounds } from './iso';
+import { GlowPool } from './neon';
 import { PincerController } from './PincerController';
 import { tileVariantIndex } from './tileVariant';
 import { GuestViews } from './views/GuestViews';
@@ -29,6 +30,7 @@ export default class WorldScene extends Phaser.Scene {
   private staffViews!: StaffViews;
   private thoughtBubbles!: ThoughtBubbles;
   private pincer!: PincerController;
+  private glowPool!: GlowPool;
   private highlight!: Phaser.GameObjects.Image;
   private tickAccumulator = 0;
   private speed = 1;
@@ -55,6 +57,7 @@ export default class WorldScene extends Phaser.Scene {
     this.cameras.main.centerOn(center.x, center.y);
     this.cameraController = new CameraController(this);
 
+    this.glowPool = new GlowPool(this);
     const views = new ObjectViews(this);
     this.buildController = new BuildController(this, this.cameraController, views);
     this.guestViews = new GuestViews(this);
@@ -93,6 +96,10 @@ export default class WorldScene extends Phaser.Scene {
     );
 
     eventBus.on('speedChanged', ({ speed }) => (this.speed = speed));
+  }
+
+  getGlowPool(): GlowPool {
+    return this.glowPool;
   }
 
   override update(_time: number, delta: number) {
