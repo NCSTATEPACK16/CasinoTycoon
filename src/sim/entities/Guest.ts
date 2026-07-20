@@ -1,9 +1,12 @@
 import { eventBus } from '../../EventBus';
 import { FOOD_BALANCE, GUEST_BALANCE, MESS_BALANCE } from '../../data/balance';
+import { flavorName } from '../../data/names';
 import { THOUGHTS } from '../../data/thoughts';
 import type { Cell } from '../grid/astar';
 import type { CasinoWorld } from '../world';
 import { Walker } from './Walker';
+
+export type GuestArchetype = 'regular';
 
 export type GuestState = 'wander' | 'seekGame' | 'play' | 'service' | 'leaving' | 'gone';
 
@@ -30,6 +33,12 @@ export class Guest extends Walker {
   thoughts: GuestThought[] = [];
   /** Set by the world's mess pass each tick; read by the thought predicates. */
   nearMess = false;
+  readonly archetype: GuestArchetype = 'regular';
+  readonly name: string;
+  /** Running total of payout − wager across every play this guest has made
+   *  since the last time the session folded into the day's report. */
+  netResult = 0;
+  private wagersByGame = new Map<string, number>();
   private thoughtLast = new Map<string, number>();
   private machineId: string | null = null;
   private spinsLeft = 0;
@@ -43,6 +52,7 @@ export class Guest extends Walker {
     super(start);
     this.id = id;
     this.wallet = wallet;
+    this.name = flavorName(id);
     this.needs = {
       energy: 100,
       bladder: 100,
@@ -204,6 +214,11 @@ export class Guest extends Walker {
       return;
     }
     this.wallet += res.payout - res.wager;
+    this.netResult += res.payout - res.wager;
+    if (this.machineId) {
+      const defId = world.machineDefId(this.machineId);
+      if (defId) this.wagersByGame.set(defId, (this.wagersByGame.get(defId) ?? 0) + res.wager);
+    }
     this.adjustHappiness(res.payout > 0 ? b.happinessOnWin : b.happinessOnLoss);
     this.spinsLeft--;
     if (this.spinsLeft <= 0) this.stopPlaying(world);
@@ -253,5 +268,18 @@ export class Guest extends Walker {
 
   adjustHappiness(delta: number): void {
     this.needs.happiness = Math.min(100, Math.max(0, this.needs.happiness + delta));
+  }
+
+  /** The defId this guest has wagered the most on, or null if it never played. */
+  favoriteGame(): string | null {
+    let best: string | null = null;
+    let bestWager = 0;
+    for (const [defId, wager] of this.wagersByGame) {
+      if (wager > bestWager) {
+        best = defId;
+        bestWager = wager;
+      }
+    }
+    return best;
   }
 }

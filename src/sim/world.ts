@@ -279,7 +279,7 @@ export class CasinoWorld {
     const wallet = this.rng.int(GUEST_BALANCE.walletMin, GUEST_BALANCE.walletMax);
     const guest = new Guest(id, wallet, this.entranceTile);
     this.guests.set(id, guest);
-    eventBus.emit('guestSpawned', { id });
+    eventBus.emit('guestSpawned', { id, archetype: guest.archetype });
     return guest;
   }
 
@@ -438,6 +438,10 @@ export class CasinoWorld {
 
   machineCost(machineId: string): number {
     return this.machines.get(machineId)?.costToPlay ?? Infinity;
+  }
+
+  machineDefId(machineId: string): string | null {
+    return this.machines.get(machineId)?.defId ?? null;
   }
 
   machineCadence(machineId: string): PlayCadence | null {

@@ -9,7 +9,7 @@ export interface GameEvents {
   objectPlaced: { id: string; defId: string; col: number; row: number };
   objectSold: { id: string; defId: string; col: number; row: number; refund: number };
   buildModeChanged: { mode: 'off' | 'place' | 'bulldoze'; defId?: string };
-  guestSpawned: { id: string };
+  guestSpawned: { id: string; archetype: import('./sim/entities/Guest').GuestArchetype };
   guestLeft: { id: string };
   guestThought: { guestId: string; thoughtId: string; text: string };
   machinePlayed: { machineId: string; guestId: string; wager: number; payout: number };
