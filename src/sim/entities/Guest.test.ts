@@ -88,4 +88,52 @@ describe('Guest', () => {
     expect(guest.favoriteGame()).toBe('slot-machine');
     expect(guest.netResult).not.toBe(0);
   });
+
+  it('a broke AND unhappy guest rage-quits: raging flag, faster exit, ticker line', () => {
+    const world = new CasinoWorld({ seed: 12, autoSpawn: false });
+    const guest = world.spawnGuest();
+    guest.wallet = 0;
+    guest.needs.happiness = 5;
+    const lines: string[] = [];
+    eventBus.on('tickerMessage', ({ text }) => lines.push(text));
+    for (let i = 0; i < 30 && guest.state !== 'leaving'; i++) world.tick();
+    expect(guest.state).toBe('leaving');
+    expect(guest.raging).toBe(true);
+    expect(lines.some((t) => t.includes(guest.name))).toBe(true);
+  });
+
+  it('a broke but content guest leaves calmly (not raging)', () => {
+    const world = new CasinoWorld({ seed: 13, autoSpawn: false });
+    const guest = world.spawnGuest();
+    guest.wallet = 0;
+    guest.needs.happiness = 80;
+    for (let i = 0; i < 30 && guest.state !== 'leaving'; i++) world.tick();
+    expect(guest.state).toBe('leaving');
+    expect(guest.raging).toBe(false);
+  });
+
+  it('a raging guest moves faster to the exit than a calm one', () => {
+    const world = new CasinoWorld({ seed: 14, autoSpawn: false });
+    const calm = world.spawnGuest();
+    calm.wallet = 0;
+    calm.needs.happiness = 80;
+    const raging = world.spawnGuest();
+    raging.wallet = 0;
+    raging.needs.happiness = 5;
+    raging.raging = true;
+    expect(raging.moveTicksPerTile).toBeLessThan(calm.moveTicksPerTile);
+  });
+
+  it('a big win triggers a celebrating beat with a happiness bump', () => {
+    const world = new CasinoWorld({ seed: 15, autoSpawn: false });
+    world.place('slot-machine', 5, 5);
+    const guest = world.spawnGuest();
+    guest.wallet = 5000;
+    let sawCelebrate = false;
+    for (let i = 0; i < 20000 && !sawCelebrate; i++) {
+      world.tick();
+      if (guest.celebrating) sawCelebrate = true;
+    }
+    expect(sawCelebrate).toBe(true);
+  });
 });
