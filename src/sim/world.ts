@@ -1,5 +1,5 @@
 import { eventBus } from '../EventBus';
-import { ENTRANCE_TILE, GRID_COLS, GRID_ROWS, HOURS_PER_DAY, STARTING_CASH } from '../config';
+import { ENTRANCE_TILE, GRID_COLS, GRID_ROWS, HOURS_PER_DAY, JACKPOT_PAYOUT_MULT, STARTING_CASH } from '../config';
 import { GUEST_BALANCE, MESS_BALANCE, RATING_BALANCE } from '../data/balance';
 import type { CampaignDef } from '../data/campaigns';
 import { getObjectDef } from '../data/objects';
@@ -179,6 +179,7 @@ export class CasinoWorld {
     for (const guest of this.guests.values()) guest.tick(this);
     for (const [id, guest] of [...this.guests]) {
       if (guest.state === 'gone') {
+        this.foldGuestSession(guest);
         this.guests.delete(id);
         eventBus.emit('guestLeft', { id });
       }
@@ -193,7 +194,10 @@ export class CasinoWorld {
     const closedHour = this.time.hour === 0 ? HOURS_PER_DAY - 1 : this.time.hour - 1;
     const closedDay = this.time.hour === 0 ? this.time.day - 1 : this.time.day;
     this.chargeWages();
-    if (midnight) this.chargeUpkeep();
+    if (midnight) {
+      this.chargeUpkeep();
+      for (const guest of this.guests.values()) this.foldGuestSession(guest);
+    }
     this.ledger.closeHour(closedDay, closedHour, this.guests.size);
     eventBus.emit('hourPassed', { hour: this.time.hour, day: this.time.day });
     if (midnight) {
@@ -201,6 +205,18 @@ export class CasinoWorld {
       this.scenario?.onDayEnded(record);
       eventBus.emit('dayEnded', { day: record.day, profit: record.profit });
     }
+  }
+
+  /** Record a guest's running session into today's ledger, then reset it so
+   * a later fold (midnight, or eventual departure) doesn't double-count. */
+  private foldGuestSession(guest: Guest): void {
+    if (guest.netResult === 0) return;
+    this.ledger.recordGuestSession({
+      name: guest.name,
+      netResult: guest.netResult,
+      favoriteGame: guest.favoriteGame(),
+    });
+    guest.netResult = 0;
   }
 
   private chargeWages(): void {
@@ -456,6 +472,8 @@ export class CasinoWorld {
     const delta = result.wager - result.payout;
     this.state.cash += delta;
     this.ledger.addRevenue(delta);
+    this.ledger.recordPlay(result.wager, result.payout);
+    if (result.payout >= result.wager * JACKPOT_PAYOUT_MULT) this.ledger.recordJackpot();
     eventBus.emit('moneyChanged', { cash: this.state.cash, delta });
     eventBus.emit('machinePlayed', {
       machineId,
