@@ -144,3 +144,12 @@ export const STRUT_BALANCE = {
   durationTicks: 30,
   happinessBump: 6,
 } as const;
+
+// Campaign score: profit-vs-goal ratio × day-efficiency × final rating,
+// each factor weighted so no single one dominates (tuned by score.test.ts).
+export const SCORE_BALANCE = {
+  baseMultiplier: 100,
+  // Reaching the goal early counts more than reaching it on the last day.
+  dayEfficiencyFloor: 0.5, // never let a last-day win score below half credit
+  ratingWeight: 0.01, // rating is 0-100; this keeps its influence proportional
+} as const;
