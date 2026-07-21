@@ -17,19 +17,19 @@ interface ToolbarButton {
   make: () => PanelSpec;
 }
 
-const BUTTONS: ToolbarButton[] = [
-  { id: 'build', label: 'Build', icon: '🔨', make: makeBuildPanel },
-  { id: 'finance', label: 'Finance', icon: '💰', make: makeFinancePanel },
-  { id: 'guests', label: 'Guests', icon: '👥', make: makeGuestsPanel },
-  { id: 'staff', label: 'Staff', icon: '🔧', make: makeStaffPanel },
-  { id: 'objectives', label: 'Objectives', icon: '🎯', make: makeObjectivesPanel },
-  { id: 'sound', label: 'Sound', icon: '🔊', make: makeSoundPanel },
-  { id: 'save', label: 'Save', icon: '💾', make: makeSavePanel },
-];
-
 // Bottom toolbar: panel toggles on the left, cash + clock readouts on the right.
 export class Toolbar {
   constructor(uiRoot: HTMLElement, windows: WindowManager) {
+    const BUTTONS: ToolbarButton[] = [
+      { id: 'build', label: 'Build', icon: '🔨', make: makeBuildPanel },
+      { id: 'finance', label: 'Finance', icon: '💰', make: () => makeFinancePanel(windows) },
+      { id: 'guests', label: 'Guests', icon: '👥', make: makeGuestsPanel },
+      { id: 'staff', label: 'Staff', icon: '🔧', make: makeStaffPanel },
+      { id: 'objectives', label: 'Objectives', icon: '🎯', make: makeObjectivesPanel },
+      { id: 'sound', label: 'Sound', icon: '🔊', make: makeSoundPanel },
+      { id: 'save', label: 'Save', icon: '💾', make: makeSavePanel },
+    ];
+
     const bar = el('div', 'ui-toolbar bevel-raised');
     uiRoot.appendChild(bar);
 

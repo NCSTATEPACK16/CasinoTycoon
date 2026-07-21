@@ -134,4 +134,15 @@ describe('CasinoWorld', () => {
     for (let i = 0; i < 60; i++) world.tick(); // past an hour boundary (TICKS_PER_HOUR=50)
     expect(world.rating).toBeGreaterThan(dinged);
   });
+
+  it("the dawn ticker headline names yesterday's top winner", () => {
+    const world = new CasinoWorld({ seed: 44, autoSpawn: false });
+    world.place('slot-machine', 5, 5);
+    const guest = world.spawnGuest();
+    guest.wallet = 5000;
+    const lines: string[] = [];
+    eventBus.on('tickerMessage', ({ text }) => lines.push(text));
+    for (let i = 0; i < 1250; i++) world.tick(); // past midnight
+    expect(lines.some((t) => t.startsWith('Yesterday:'))).toBe(true);
+  });
 });
