@@ -212,7 +212,7 @@ export class CasinoWorld {
       this.scenario?.onDayEnded(record);
       eventBus.emit('dayEnded', { day: record.day, profit: record.profit });
       const top = record.winners[0];
-      if (top) {
+      if (top && top.net > 0) {
         eventBus.emit('tickerMessage', {
           text: `Yesterday: ${top.name} took us for ${formatDollarAmount(top.net)}!`,
         });

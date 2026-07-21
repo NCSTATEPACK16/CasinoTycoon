@@ -145,4 +145,17 @@ describe('CasinoWorld', () => {
     for (let i = 0; i < 1250; i++) world.tick(); // past midnight
     expect(lines.some((t) => t.startsWith('Yesterday:'))).toBe(true);
   });
+
+  it('the dawn ticker stays silent when the day only produced net-negative sessions', () => {
+    // Deliberately no machines placed, so the guest cannot play and its
+    // netResult is not perturbed by autonomous play during the tick loop.
+    const world = new CasinoWorld({ seed: 44, autoSpawn: false });
+    const guest = world.spawnGuest();
+    guest.wallet = 5000;
+    guest.netResult = -80; // guest lost money overall today
+    const lines: string[] = [];
+    eventBus.on('tickerMessage', ({ text }) => lines.push(text));
+    for (let i = 0; i < 1250; i++) world.tick(); // past midnight
+    expect(lines.some((t) => t.startsWith('Yesterday:'))).toBe(false);
+  });
 });
