@@ -9,7 +9,10 @@ const DEPTH_FX = 20000;
 // Full jackpot celebration (shake + flash + ticker) at most this often; the
 // coin burst and fanfare still fire per jackpot.
 const CELEBRATION_COOLDOWN_MS = 8000;
-const COINS_PER_BURST = 12;
+const CHIP_KEYS = ['img-chip-white', 'img-chip-blue', 'img-chip-red', 'img-chip-green', 'img-chip-black'];
+const CHIPS_PER_BURST = 12;
+const GRAVITY = 900; // px/s² — same feel as a soft arcade lob
+const CHIP_DISPLAY_SIZE = 14; // px on screen — matches the old fx-coin's rough footprint
 
 // Machines fire floaters constantly at full load — recycle the display
 // objects instead of allocating/destroying them every play.
@@ -55,13 +58,13 @@ class TextPool {
 
 let texts: TextPool;
 let smokes: ImagePool;
-let coins: ImagePool;
+let chipPools: Map<string, ImagePool>;
 
 /** Floating money text on plays, smoke on breakdowns, coin bursts on jackpots. */
 export function attachFx(scene: Phaser.Scene, views: ObjectViews): void {
   texts = new TextPool(scene);
   smokes = new ImagePool(scene, 'fx-smoke');
-  coins = new ImagePool(scene, 'fx-coin');
+  chipPools = new Map(CHIP_KEYS.map((key) => [key, new ImagePool(scene, key)]));
   const smokeTimers = new Map<string, Phaser.Time.TimerEvent>();
   let lastCelebration = -Infinity;
 
@@ -81,7 +84,7 @@ export function attachFx(scene: Phaser.Scene, views: ObjectViews): void {
     if (payout > 0) floatText(scene, at.x, at.y + 16, `-$${payout}`, '#ff7b72', 180);
 
     if (payout >= wager * JACKPOT_PAYOUT_MULT) {
-      coinBurst(scene, at.x, at.y + 20);
+      chipArcBurst(scene, at.x, at.y + 20);
       floatText(scene, at.x, at.y - 14, 'JACKPOT!', '#e8b93c');
       const now = scene.time.now;
       if (now - lastCelebration >= CELEBRATION_COOLDOWN_MS) {
@@ -176,32 +179,63 @@ function puff(scene: Phaser.Scene, x: number, y: number): void {
   });
 }
 
-/** Coins spray upward then rain past the machine, fading as they fall. */
-function coinBurst(scene: Phaser.Scene, x: number, y: number): void {
-  for (let i = 0; i < COINS_PER_BURST; i++) {
-    const coin = coins.obtain();
-    coin.setPosition(x, y).setAlpha(1).setScale(Phaser.Math.FloatBetween(0.7, 1.1));
-    const dx = Phaser.Math.Between(-46, 46);
-    const rise = Phaser.Math.Between(30, 70);
-    scene.tweens.add({
-      targets: coin,
-      x: x + dx * 0.6,
-      y: y - rise,
-      angle: Phaser.Math.Between(-180, 180),
-      duration: Phaser.Math.Between(160, 260),
-      ease: 'Quad.easeOut',
-      onComplete: () => {
-        scene.tweens.add({
-          targets: coin,
-          x: x + dx,
-          y: y + 46,
-          angle: coin.angle + Phaser.Math.Between(-180, 180),
-          alpha: 0,
-          duration: Phaser.Math.Between(380, 560),
-          ease: 'Quad.easeIn',
-          onComplete: () => coins.release(coin),
-        });
+/** Chips launch on parabolic arcs (gravity + a single bounce at the machine's
+ * base), then fade. Same pool-per-texture convention as the coin burst it
+ * replaces; same 8s celebration cooldown gates the surrounding fanfare. */
+function chipArcBurst(scene: Phaser.Scene, x: number, y: number): void {
+  const baseY = y + 46; // where the arc lands / bounces, matching the old rain-to
+  for (let i = 0; i < CHIPS_PER_BURST; i++) {
+    const key = Phaser.Utils.Array.GetRandom(CHIP_KEYS);
+    const pool = chipPools.get(key)!;
+    const chip = pool.obtain();
+    const size = CHIP_DISPLAY_SIZE * Phaser.Math.FloatBetween(0.85, 1.15);
+    chip.setTexture(key).setPosition(x, y).setAlpha(1).setDisplaySize(size, size);
+
+    const vx = Phaser.Math.Between(-70, 70);
+    const vy = -Phaser.Math.Between(180, 320); // launch upward
+    const spin = Phaser.Math.Between(-360, 360);
+    const duration = Phaser.Math.Between(500, 700);
+
+    // Parabolic ascent+descent to the bounce point, driven by onUpdate so the
+    // path is a real gravity arc rather than a canned tween ease.
+    let elapsed = 0;
+    const tween = scene.tweens.addCounter({
+      from: 0,
+      to: duration,
+      duration,
+      onUpdate: () => {
+        elapsed += scene.game.loop.delta;
+        const t = elapsed / 1000;
+        chip.x = x + vx * t;
+        chip.y = y + vy * t + 0.5 * GRAVITY * t * t;
+        chip.angle = spin * (elapsed / duration);
       },
+      onComplete: () => bounce(scene, chip, baseY),
+    });
+    // Fallback in case onComplete never fires (e.g. scene shutdown mid-tween).
+    scene.time.delayedCall(duration + 400, () => {
+      if (tween.isPlaying()) tween.stop();
     });
   }
+}
+
+/** One small bounce at the machine's base, then fade out. */
+function bounce(scene: Phaser.Scene, chip: Phaser.GameObjects.Image, baseY: number): void {
+  scene.tweens.add({
+    targets: chip,
+    y: chip.y - 12,
+    duration: 120,
+    ease: 'Quad.easeOut',
+    yoyo: true,
+    onComplete: () => {
+      scene.tweens.add({
+        targets: chip,
+        y: baseY,
+        alpha: 0,
+        duration: 260,
+        ease: 'Quad.easeIn',
+        onComplete: () => chipPools.get(chip.texture.key)?.release(chip),
+      });
+    },
+  });
 }
