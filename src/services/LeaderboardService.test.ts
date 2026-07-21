@@ -16,31 +16,32 @@ class FakeStore implements KVStore {
 }
 
 describe('LocalLeaderboard', () => {
-  it('records a first win with a null score placeholder', async () => {
+  it('records a first win with a real score', async () => {
     const lb = new LocalLeaderboard(new FakeStore());
-    await lb.record({ campaignId: 'dusty-dime', dailyProfit: 383, day: 2 });
+    await lb.record({ campaignId: 'dusty-dime', dailyProfit: 383, day: 2, score: 120 });
     expect(await lb.getBest('dusty-dime')).toEqual({
       campaignId: 'dusty-dime',
       bestDailyProfit: 383,
       completedInDays: 2,
-      score: null,
+      score: 120,
     });
   });
 
   it('keeps the best of each stat independently across wins', async () => {
     const lb = new LocalLeaderboard(new FakeStore());
-    await lb.record({ campaignId: 'dusty-dime', dailyProfit: 383, day: 2 });
-    await lb.record({ campaignId: 'dusty-dime', dailyProfit: 900, day: 3 }); // richer but slower
+    await lb.record({ campaignId: 'dusty-dime', dailyProfit: 383, day: 2, score: 120 });
+    await lb.record({ campaignId: 'dusty-dime', dailyProfit: 900, day: 3, score: 90 }); // richer but slower
     const best = await lb.getBest('dusty-dime');
     expect(best!.bestDailyProfit).toBe(900); // higher profit kept
     expect(best!.completedInDays).toBe(2); // faster completion kept
+    expect(best!.score).toBe(120); // higher score kept
   });
 
   it('getBest returns null for unplayed campaigns; getAll lists every entry', async () => {
     const lb = new LocalLeaderboard(new FakeStore());
     expect(await lb.getBest('neon-nights')).toBeNull();
-    await lb.record({ campaignId: 'dusty-dime', dailyProfit: 1, day: 1 });
-    await lb.record({ campaignId: 'high-roller', dailyProfit: 2, day: 1 });
+    await lb.record({ campaignId: 'dusty-dime', dailyProfit: 1, day: 1, score: 10 });
+    await lb.record({ campaignId: 'high-roller', dailyProfit: 2, day: 1, score: 20 });
     expect((await lb.getAll()).map((e) => e.campaignId).sort()).toEqual([
       'dusty-dime',
       'high-roller',
@@ -53,7 +54,7 @@ describe('LocalLeaderboard', () => {
     const lb = new LocalLeaderboard(store);
     expect(await lb.getAll()).toEqual([]);
     expect(await lb.getBest('dusty-dime')).toBeNull();
-    await lb.record({ campaignId: 'dusty-dime', dailyProfit: 100, day: 1 }); // overwrites garbage
+    await lb.record({ campaignId: 'dusty-dime', dailyProfit: 100, day: 1, score: 50 }); // overwrites garbage
     expect((await lb.getBest('dusty-dime'))!.bestDailyProfit).toBe(100);
   });
 });

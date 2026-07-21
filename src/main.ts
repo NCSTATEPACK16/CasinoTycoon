@@ -7,6 +7,8 @@ import { initUI } from './ui';
 import { saveService } from './services/SaveService';
 import { wireAutosave } from './services/autosave';
 import { leaderboard } from './services/LeaderboardService';
+import { getCampaign } from './data/campaigns';
+import { computeCampaignScore } from './data/score';
 
 // Dev-only test affordance: Playwright drivers reach the sim through this.
 // Stripped from production builds by Vite's dead-code elimination.
@@ -32,7 +34,15 @@ initUI();
 // real autosave. See src/services/autosave.ts.
 wireAutosave(eventBus, saveService, world);
 
-// Campaign wins land on the local leaderboard (score stays null until P11).
+// Campaign wins land on the local leaderboard with a real composite score.
 eventBus.on('goalReached', ({ campaignId, day, profit }) => {
-  void leaderboard.record({ campaignId, dailyProfit: profit, day });
+  const def = getCampaign(campaignId);
+  const score = computeCampaignScore({
+    profit,
+    goalDailyProfit: def?.goalDailyProfit ?? profit,
+    day,
+    dayLimit: def?.dayLimit ?? day,
+    rating: world.rating,
+  });
+  void leaderboard.record({ campaignId, dailyProfit: profit, day, score });
 });

@@ -8,6 +8,9 @@ import { GUEST_VARIANTS } from '../placeholders';
 const POOL_MAX = 160;
 const BOB_AMPLITUDE = 1.6; // px — subtle excitement while seated at a game
 const BOB_SPEED = 0.008; // radians per ms
+const SHAKE_AMPLITUDE = 3; // px — sine-wave horizontal shake while raging
+const SHAKE_SPEED = 0.02; // radians per ms
+const CELEBRATE_BOB_MULT = 2.2; // bigger bob than the normal seated bob
 
 // Guest sprites polled from world.guests each frame; spawn/despawn via events.
 // Movement interpolates the sim's moveFrom→moveTo step plus the frame fraction.
@@ -59,12 +62,17 @@ export class GuestViews {
       const col = from.col + (to.col - from.col) * t;
       const row = from.row + (to.row - from.row) * t;
       const s = gridToScreen(col, row);
-      // Playing guests bob in their seat; the phase offset desyncs neighbors.
-      const bob =
-        guest.state === 'play'
-          ? Math.abs(Math.sin(now * BOB_SPEED + (Number(id.slice(2)) || 0))) * BOB_AMPLITUDE
-          : 0;
-      img.setPosition(s.x, s.y + TILE_H / 2 - bob).setDepth(s.y);
+      // Playing guests bob in their seat; celebrating guests bob bigger.
+      // The phase offset (guest id) desyncs neighbors.
+      const idPhase = Number(id.slice(2)) || 0;
+      const bobActive = guest.state === 'play' || guest.celebrating;
+      const bobMult = guest.celebrating ? CELEBRATE_BOB_MULT : 1;
+      const bob = bobActive
+        ? Math.abs(Math.sin(now * BOB_SPEED + idPhase)) * BOB_AMPLITUDE * bobMult
+        : 0;
+      const shake = guest.raging ? Math.sin(now * SHAKE_SPEED + idPhase) * SHAKE_AMPLITUDE : 0;
+      img.setPosition(s.x + shake, s.y + TILE_H / 2 - bob).setDepth(s.y);
+      img.setTint(guest.raging ? 0xff6b6b : 0xffffff);
 
       const frame = guest.moveTo && (from.col + from.row) % 2 === 0 ? 'b' : 'a';
       const key = `${this.baseKeys.get(id)}-${frame}`;

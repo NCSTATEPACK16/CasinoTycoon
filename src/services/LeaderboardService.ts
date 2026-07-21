@@ -1,7 +1,8 @@
 import type { KVStore } from './SaveService';
 
 // Per-campaign bests. Async interface so the P12 SupabaseLeaderboard drops in.
-// `score` is reserved: P11's composite campaign score fills it; P12 ranks by it.
+// `score` holds P11's composite campaign score (profit-vs-goal x day-efficiency
+// x rating, see src/data/score.ts); P12 ranks by it.
 
 const STORE_KEY = 'casino-leaderboard-v1';
 
@@ -13,7 +14,7 @@ export interface LeaderboardEntry {
 }
 
 export interface LeaderboardService {
-  record(win: { campaignId: string; dailyProfit: number; day: number }): Promise<void>;
+  record(win: { campaignId: string; dailyProfit: number; day: number; score: number }): Promise<void>;
   getBest(campaignId: string): Promise<LeaderboardEntry | null>;
   getAll(): Promise<LeaderboardEntry[]>;
 }
@@ -21,14 +22,14 @@ export interface LeaderboardService {
 export class LocalLeaderboard implements LeaderboardService {
   constructor(private store: KVStore = globalThis.localStorage) {}
 
-  async record(win: { campaignId: string; dailyProfit: number; day: number }): Promise<void> {
+  async record(win: { campaignId: string; dailyProfit: number; day: number; score: number }): Promise<void> {
     const entries = this.readAll();
     const prev = entries[win.campaignId];
     entries[win.campaignId] = {
       campaignId: win.campaignId,
       bestDailyProfit: Math.max(prev?.bestDailyProfit ?? -Infinity, win.dailyProfit),
       completedInDays: Math.min(prev?.completedInDays ?? Infinity, win.day),
-      score: prev?.score ?? null,
+      score: Math.max(prev?.score ?? -Infinity, win.score),
     };
     this.store.setItem(STORE_KEY, JSON.stringify({ entries }));
   }

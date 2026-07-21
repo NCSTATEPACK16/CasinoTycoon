@@ -1,6 +1,6 @@
 import { eventBus } from '../EventBus';
-import { ENTRANCE_TILE, GRID_COLS, GRID_ROWS, HOURS_PER_DAY, STARTING_CASH } from '../config';
-import { GUEST_BALANCE, MESS_BALANCE, RATING_BALANCE } from '../data/balance';
+import { ENTRANCE_TILE, GRID_COLS, GRID_ROWS, HOURS_PER_DAY, JACKPOT_PAYOUT_MULT, STARTING_CASH } from '../config';
+import { GUEST_BALANCE, MESS_BALANCE, RAGE_BALANCE, RATING_BALANCE } from '../data/balance';
 import type { CampaignDef } from '../data/campaigns';
 import { getObjectDef } from '../data/objects';
 import { canPlaceObject, placeObject, sellObject, type PlaceCheck } from './build';
@@ -28,6 +28,11 @@ import { Rng } from './rng';
 export interface WorldOptions {
   seed?: number;
   autoSpawn?: boolean;
+}
+
+// Sim can't import src/ui/dom.ts's formatCash — that's presentation-layer.
+function formatDollarAmount(n: number): string {
+  return `$${Math.round(Math.abs(n)).toLocaleString()}`;
 }
 
 /** Guests only come for the games; word of mouth (rating) does the rest. */
@@ -98,6 +103,7 @@ export class CasinoWorld {
   private nextStaffNum = 1;
   /** machineId → staffId, so two mechanics never race to the same repair. */
   private repairClaims = new Map<string, string>();
+  private ragePenalty = 0;
 
   constructor(opts: WorldOptions = {}) {
     this.state = new GameState();
@@ -179,6 +185,7 @@ export class CasinoWorld {
     for (const guest of this.guests.values()) guest.tick(this);
     for (const [id, guest] of [...this.guests]) {
       if (guest.state === 'gone') {
+        this.foldGuestSession(guest);
         this.guests.delete(id);
         eventBus.emit('guestLeft', { id });
       }
@@ -189,18 +196,40 @@ export class CasinoWorld {
 
   /** Bookkeeping at every hour boundary; midnight also rolls the day over. */
   private onHourBoundary(midnight: boolean): void {
+    this.ragePenalty = Math.max(0, this.ragePenalty - RAGE_BALANCE.dingDecayPerHour);
     // The hour that just completed (time already shows the new hour/day).
     const closedHour = this.time.hour === 0 ? HOURS_PER_DAY - 1 : this.time.hour - 1;
     const closedDay = this.time.hour === 0 ? this.time.day - 1 : this.time.day;
     this.chargeWages();
-    if (midnight) this.chargeUpkeep();
+    if (midnight) {
+      this.chargeUpkeep();
+      for (const guest of this.guests.values()) this.foldGuestSession(guest);
+    }
     this.ledger.closeHour(closedDay, closedHour, this.guests.size);
     eventBus.emit('hourPassed', { hour: this.time.hour, day: this.time.day });
     if (midnight) {
       const record = this.ledger.closeDay(closedDay);
       this.scenario?.onDayEnded(record);
       eventBus.emit('dayEnded', { day: record.day, profit: record.profit });
+      const top = record.winners[0];
+      if (top && top.net > 0) {
+        eventBus.emit('tickerMessage', {
+          text: `Yesterday: ${top.name} took us for ${formatDollarAmount(top.net)}!`,
+        });
+      }
     }
+  }
+
+  /** Record a guest's running session into today's ledger, then reset it so
+   * a later fold (midnight, or eventual departure) doesn't double-count. */
+  private foldGuestSession(guest: Guest): void {
+    if (guest.netResult === 0) return;
+    this.ledger.recordGuestSession({
+      name: guest.name,
+      netResult: guest.netResult,
+      favoriteGame: guest.favoriteGame(),
+    });
+    guest.netResult = 0;
   }
 
   private chargeWages(): void {
@@ -263,7 +292,8 @@ export class CasinoWorld {
       (variety >= 2 ? b.varietyBonus : 0) +
       Math.max(0, b.cleanlinessMax - this.messes.size * b.perMessPenalty) -
       broken * b.perBrokenPenalty +
-      signageBonus;
+      signageBonus -
+      this.ragePenalty;
     return Math.round(Math.min(100, Math.max(0, score)));
   }
 
@@ -279,7 +309,7 @@ export class CasinoWorld {
     const wallet = this.rng.int(GUEST_BALANCE.walletMin, GUEST_BALANCE.walletMax);
     const guest = new Guest(id, wallet, this.entranceTile);
     this.guests.set(id, guest);
-    eventBus.emit('guestSpawned', { id });
+    eventBus.emit('guestSpawned', { id, archetype: guest.archetype });
     return guest;
   }
 
@@ -372,6 +402,12 @@ export class CasinoWorld {
     }
   }
 
+  /** One-time rating ding from a rage quit; decays over subsequent hours. */
+  applyRageQuitPenalty(): void {
+    this.ragePenalty = Math.min(RAGE_BALANCE.maxRatingPenalty, this.ragePenalty + RAGE_BALANCE.ratingDing);
+    this.ledger.recordRageQuit();
+  }
+
   // ---------- mess ----------
 
   dropMess(col: number, row: number, kind: MessKind): Mess | null {
@@ -440,6 +476,10 @@ export class CasinoWorld {
     return this.machines.get(machineId)?.costToPlay ?? Infinity;
   }
 
+  machineDefId(machineId: string): string | null {
+    return this.machines.get(machineId)?.defId ?? null;
+  }
+
   machineCadence(machineId: string): PlayCadence | null {
     return this.machines.get(machineId)?.cadence ?? null;
   }
@@ -452,6 +492,8 @@ export class CasinoWorld {
     const delta = result.wager - result.payout;
     this.state.cash += delta;
     this.ledger.addRevenue(delta);
+    this.ledger.recordPlay(result.wager, result.payout);
+    if (result.payout >= result.wager * JACKPOT_PAYOUT_MULT) this.ledger.recordJackpot();
     eventBus.emit('moneyChanged', { cash: this.state.cash, delta });
     eventBus.emit('machinePlayed', {
       machineId,
