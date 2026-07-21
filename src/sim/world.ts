@@ -30,6 +30,11 @@ export interface WorldOptions {
   autoSpawn?: boolean;
 }
 
+// Sim can't import src/ui/dom.ts's formatCash — that's presentation-layer.
+function formatDollarAmount(n: number): string {
+  return `$${Math.round(Math.abs(n)).toLocaleString()}`;
+}
+
 /** Guests only come for the games; word of mouth (rating) does the rest. */
 export function spawnChance(rating: number, machineCount: number): number {
   if (machineCount === 0) return 0;
@@ -206,6 +211,12 @@ export class CasinoWorld {
       const record = this.ledger.closeDay(closedDay);
       this.scenario?.onDayEnded(record);
       eventBus.emit('dayEnded', { day: record.day, profit: record.profit });
+      const top = record.winners[0];
+      if (top) {
+        eventBus.emit('tickerMessage', {
+          text: `Yesterday: ${top.name} took us for ${formatDollarAmount(top.net)}!`,
+        });
+      }
     }
   }
 

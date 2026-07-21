@@ -1,7 +1,8 @@
 import { world } from '../../gameContext';
 import type { HourlySample } from '../../sim/economy';
 import { el, formatCash, row } from '../dom';
-import type { PanelSpec } from '../WindowManager';
+import type { PanelSpec, WindowManager } from '../WindowManager';
+import { makeDailyReportPanel } from './DailyReportPanel';
 
 const REFRESH_MS = 1000;
 const WINDOW_HOURS = 48;
@@ -23,7 +24,7 @@ interface Series {
 
 // Live P&L: today's running numbers, two hourly line charts (cash flow and
 // guest count get separate charts — different units), and the daily history.
-export function makeFinancePanel(): PanelSpec {
+export function makeFinancePanel(windows: WindowManager): PanelSpec {
   const content = el('div');
 
   const todayHead = el('div', 'p-heading', 'Today');
@@ -102,7 +103,13 @@ export function makeFinancePanel(): PanelSpec {
       historyList.appendChild(el('div', 'p-note', 'The books close at midnight.'));
     }
     for (const r of days) {
-      historyList.appendChild(row(`Day ${r.day}`, formatCash(r.profit)));
+      const dayRow = row(`Day ${r.day}`, formatCash(r.profit));
+      dayRow.classList.add('p-tool');
+      dayRow.style.cursor = 'pointer';
+      dayRow.addEventListener('click', () => {
+        windows.open(`day-report-${r.day}`, makeDailyReportPanel(r));
+      });
+      historyList.appendChild(dayRow);
     }
   };
 
