@@ -18,6 +18,8 @@ const EMOJI: Record<string, string> = {
   great: '🤩',
   awful: '😠',
   filthy: '🤢',
+  raging: '😡',
+  celebrate: '💰',
 };
 
 interface Bubble {
