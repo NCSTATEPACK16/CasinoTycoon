@@ -11,9 +11,11 @@ describe('Guest', () => {
     const guest = world.spawnGuest();
     const energy = guest.needs.energy;
     const bladder = guest.needs.bladder;
+    const thirst = guest.needs.thirst;
     for (let i = 0; i < 100; i++) world.tick();
     expect(guest.needs.energy).toBeCloseTo(energy - 100 * GUEST_BALANCE.decayPerTick.energy, 3);
     expect(guest.needs.bladder).toBeCloseTo(bladder - 100 * GUEST_BALANCE.decayPerTick.bladder, 3);
+    expect(guest.needs.thirst).toBeCloseTo(thirst - 100 * GUEST_BALANCE.decayPerTick.thirst, 3);
   });
 
   it('a broke guest heads for the exit and eventually leaves', () => {

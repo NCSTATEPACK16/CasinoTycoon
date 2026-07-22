@@ -95,6 +95,15 @@ const OBJECTS: BoxSpec[] = [
     cols: 2,
     rows: 1,
   },
+  {
+    key: 'obj-bar',
+    top: 0x6b2a1e,
+    left: 0x481c14,
+    right: 0x5a2318,
+    height: 44,
+    cols: 2,
+    rows: 1,
+  },
 ];
 
 // Characters are little RCT-style pixel people, generated per outfit variant

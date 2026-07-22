@@ -114,6 +114,16 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     ratingBonus: 4,
     category: 'decor',
   },
+  {
+    id: 'bar',
+    name: 'Bar',
+    icon: '🍸',
+    cost: 700,
+    upkeepPerDay: 15,
+    footprint: { w: 2, h: 1 },
+    spriteKey: 'obj-bar',
+    category: 'service',
+  },
 ];
 
 const BY_ID = new Map(OBJECT_CATALOG.map((d) => [d.id, d]));
