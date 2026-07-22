@@ -21,6 +21,7 @@ export class GuestViews {
   private scene: Phaser.Scene;
   private sprites = new Map<string, Phaser.GameObjects.Image>();
   private baseKeys = new Map<string, string>();
+  private facingLeft = new Map<string, boolean>();
   private pool: Phaser.GameObjects.Image[] = [];
 
   constructor(scene: Phaser.Scene) {
@@ -30,17 +31,20 @@ export class GuestViews {
       const base = `char-guest-${variant}`;
       this.sprites.set(id, this.obtain(`${base}-a`));
       this.baseKeys.set(id, base);
+      this.facingLeft.set(id, false);
     });
     eventBus.on('guestLeft', ({ id }) => {
       const img = this.sprites.get(id);
       if (img) this.release(img);
       this.sprites.delete(id);
       this.baseKeys.delete(id);
+      this.facingLeft.delete(id);
     });
     eventBus.on('worldReset', () => {
       for (const img of this.sprites.values()) this.release(img);
       this.sprites.clear();
       this.baseKeys.clear();
+      this.facingLeft.clear();
     });
   }
 
@@ -73,6 +77,13 @@ export class GuestViews {
       const shake = guest.raging ? Math.sin(now * SHAKE_SPEED + idPhase) * SHAKE_AMPLITUDE : 0;
       img.setPosition(s.x + shake, s.y + TILE_H / 2 - bob).setDepth(s.y);
       img.setTint(guest.raging ? 0xff6b6b : 0xffffff);
+
+      // Iso projection: screen-x delta sign covers all 4 grid directions
+      // (grid-east and grid-north both read as screen-right, and vice versa),
+      // so a single left/right mirror is enough — no separate up/down art needed.
+      const dx = to.col - from.col - (to.row - from.row);
+      if (guest.moveTo && dx !== 0) this.facingLeft.set(id, dx < 0);
+      img.setFlipX(this.facingLeft.get(id) ?? false);
 
       const frame = guest.moveTo && (from.col + from.row) % 2 === 0 ? 'b' : 'a';
       const key = `${this.baseKeys.get(id)}-${frame}`;

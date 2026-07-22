@@ -9,6 +9,7 @@ import { gridToScreen } from '../iso';
 export class StaffViews {
   private scene: Phaser.Scene;
   private sprites = new Map<string, Phaser.GameObjects.Image>();
+  private facingLeft = new Map<string, boolean>();
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -17,10 +18,12 @@ export class StaffViews {
     eventBus.on('staffFired', ({ id }) => {
       this.sprites.get(id)?.destroy();
       this.sprites.delete(id);
+      this.facingLeft.delete(id);
     });
     eventBus.on('worldReset', () => {
       for (const img of this.sprites.values()) img.destroy();
       this.sprites.clear();
+      this.facingLeft.clear();
     });
     eventBus.on('worldLoaded', () => {
       for (const s of world.staff.values()) this.spawn(s.id, s.kind);
@@ -30,6 +33,7 @@ export class StaffViews {
   private spawn(id: string, kind: string): void {
     const img = this.scene.add.image(0, 0, `char-${kind}-a`).setOrigin(0.5, 1);
     this.sprites.set(id, img);
+    this.facingLeft.set(id, false);
   }
 
   spriteFor(id: string): Phaser.GameObjects.Image | undefined {
@@ -64,6 +68,11 @@ export class StaffViews {
       const row = from.row + (to.row - from.row) * t;
       const s = gridToScreen(col, row);
       img.setPosition(s.x, s.y + TILE_H / 2).setDepth(s.y);
+
+      // See GuestViews.update: screen-x delta sign covers all 4 grid directions.
+      const dx = to.col - from.col - (to.row - from.row);
+      if (member.moveTo && dx !== 0) this.facingLeft.set(id, dx < 0);
+      img.setFlipX(this.facingLeft.get(id) ?? false);
 
       const frame = member.moveTo && (from.col + from.row) % 2 === 0 ? 'b' : 'a';
       const key = `char-${member.kind}-${frame}`;
