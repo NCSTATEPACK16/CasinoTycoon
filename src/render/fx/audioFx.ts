@@ -3,8 +3,16 @@ import { JACKPOT_PAYOUT_MULT } from '../../config';
 import { world } from '../../gameContext';
 import { audio } from '../../services/AudioService';
 
-const CHIP_KEYS = ['sfx-chips-1', 'sfx-chips-2', 'sfx-chips-3'];
-const CARD_KEYS = ['sfx-card-1', 'sfx-card-2'];
+const CHIP_KEYS = [
+  'sfx-chips-1',
+  'sfx-chips-2',
+  'sfx-chips-3',
+  'sfx-chips-4',
+  'sfx-chips-5',
+  'sfx-chips-6',
+];
+const CARD_KEYS = ['sfx-card-1', 'sfx-card-2', 'sfx-card-3', 'sfx-card-4', 'sfx-card-5'];
+const DICE_KEYS = ['sfx-dice-1', 'sfx-dice-2', 'sfx-dice-3', 'sfx-dice-4'];
 const COIN_KEYS = ['sfx-coin-1', 'sfx-coin-2'];
 
 // With dozens of guests playing, machinePlayed fires many times a second —
@@ -19,8 +27,10 @@ export function attachAudioFx(): void {
     const now = performance.now();
     if (now - lastPlaySfx >= PLAY_SFX_GAP_MS) {
       lastPlaySfx = now;
-      const isTable = world.machines.get(machineId)?.defId.includes('blackjack') ?? false;
-      audio.playRandom(isTable ? CARD_KEYS : CHIP_KEYS, { volume: 0.55, detuneJitter: 120 });
+      const defId = world.machines.get(machineId)?.defId;
+      const pool =
+        defId === 'blackjack-table' ? CARD_KEYS : defId === 'craps-table' ? DICE_KEYS : CHIP_KEYS;
+      audio.playRandom(pool, { volume: 0.55, detuneJitter: 120 });
       if (payout > 0) audio.playRandom(COIN_KEYS, { volume: 0.7, detuneJitter: 80 });
     }
     // The jackpot fanfare rides the celebration cooldown in floaters.ts via
