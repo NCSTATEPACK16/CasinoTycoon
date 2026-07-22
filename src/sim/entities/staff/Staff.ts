@@ -1,10 +1,10 @@
-import { STAFF_BALANCE } from '../../../data/balance';
+import { BAR_BALANCE, STAFF_BALANCE } from '../../../data/balance';
 import type { Cell } from '../../grid/astar';
 import type { CasinoWorld } from '../../world';
 import { Walker } from '../Walker';
 
-export type StaffKind = 'mechanic' | 'janitor';
-export type StaffState = 'idle' | 'patrol' | 'toJob' | 'working' | 'carried';
+export type StaffKind = 'mechanic' | 'janitor' | 'bartender' | 'waitress';
+export type StaffState = 'idle' | 'patrol' | 'toJob' | 'working' | 'brewing' | 'carried';
 
 // One class for both roles: the only difference is which jobs the world hands
 // them (broken machines vs messes) and how long the work takes.
@@ -13,7 +13,9 @@ export class Staff extends Walker {
   readonly kind: StaffKind;
   state: StaffState = 'idle';
   jobId: string | null = null;
+  assignedBarId: string | null = null;
   private workTimer = 0;
+  private brewTimer = 0;
   private idleTimer = 0;
 
   constructor(id: string, kind: StaffKind, start: Cell) {
@@ -31,9 +33,9 @@ export class Staff extends Walker {
   }
 
   get workDurationTicks(): number {
-    return this.kind === 'mechanic'
-      ? STAFF_BALANCE.mechanic.repairTicks
-      : STAFF_BALANCE.janitor.cleanTicks;
+    if (this.kind === 'mechanic') return STAFF_BALANCE.mechanic.repairTicks;
+    if (this.kind === 'waitress') return STAFF_BALANCE.waitress.deliverTicks;
+    return STAFF_BALANCE.janitor.cleanTicks;
   }
 
   protected onRouteLost(world: CasinoWorld): void {
@@ -49,6 +51,7 @@ export class Staff extends Walker {
   /** Pincer pickup: freeze in place and give the job back to the pool. */
   pickUp(world: CasinoWorld): void {
     this.abandonJob(world);
+    this.assignedBarId = null;
     this.clearMovement();
     this.state = 'carried';
   }
@@ -59,6 +62,10 @@ export class Staff extends Walker {
   }
 
   private act(world: CasinoWorld): void {
+    if (this.kind === 'bartender') {
+      this.actBartender(world);
+      return;
+    }
     switch (this.state) {
       case 'idle':
         this.findWork(world);
@@ -79,9 +86,41 @@ export class Staff extends Walker {
       case 'working':
         this.tickWork(world);
         break;
+      case 'brewing':
       case 'carried':
         break;
     }
+  }
+
+  /** Bartender: no job queue — assign to the nearest bar once, then brew
+   * forever while stationed there. Doesn't fit claimJobFor/completeJob
+   * since production never "completes." */
+  private actBartender(world: CasinoWorld): void {
+    if (this.state === 'carried') return;
+    if (!this.assignedBarId || !world.bars.has(this.assignedBarId)) {
+      this.assignedBarId = null;
+      for (const po of world.state.allObjects()) {
+        if (po.defId !== 'bar') continue;
+        const stand = world.barStandTile(po.id);
+        if (!stand || !this.goTo(world, stand)) continue;
+        this.assignedBarId = po.id;
+        this.state = 'toJob';
+        break;
+      }
+      return;
+    }
+    if (this.state === 'toJob') {
+      if (this.arrived) {
+        this.state = 'brewing';
+        this.brewTimer = 0;
+      }
+      return;
+    }
+    if (this.state !== 'brewing') return;
+    this.brewTimer++;
+    if (this.brewTimer < BAR_BALANCE.brewTicks) return;
+    this.brewTimer = 0;
+    world.brewDrink(this.assignedBarId);
   }
 
   private findWork(world: CasinoWorld): void {

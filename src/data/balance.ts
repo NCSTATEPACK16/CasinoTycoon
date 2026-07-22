@@ -108,6 +108,8 @@ export const STAFF_BALANCE = {
   patrolIdleTicks: 20, // idle ticks between patrol strolls
   mechanic: { wagePerHour: 3, repairTicks: 40 },
   janitor: { wagePerHour: 2, cleanTicks: 25 },
+  bartender: { wagePerHour: 3 },
+  waitress: { wagePerHour: 3, deliverTicks: 15 },
 } as const;
 
 // Trash and spills: unhappy guests drop them; nearby guests sour further.
