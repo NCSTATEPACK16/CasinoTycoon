@@ -169,8 +169,21 @@ function floodFillBackground(width, height, seeds, isBgColor, pixelAt, visited) 
  * because that art's own local pixel-to-pixel steps are often smaller than
  * the tolerance too. The two asset batches need different handling, not a
  * shared default (see PLAN.md's P10.6 log for the regression).
+ *
+ * `bgTolerance` overrides `BG_COLOR_TOLERANCE` for the non-gradient corner-
+ * match path only. Needed for the restroom asset (P10.5 T3): its neon-tube
+ * glow bleeds a soft gradient into the surrounding checkerboard, which the
+ * default tolerance can't cross — every background pixel stays one giant
+ * component fused to the real art (a single connected region spanning the
+ * full canvas, confirmed by dumping connected-component sizes), while
+ * `walkGradient` overshoots the other way and eats into the object's own
+ * soft-shaded surfaces (same failure mode as the wall-panel above). 45 was
+ * found by bisecting tolerance values against the resulting content bbox:
+ * <=30 still leaves one full-canvas component, 60 already shrinks the kept
+ * component from ~774k px to ~195k (starts cutting real art), 45 lands
+ * cleanly in between.
  */
-export function recoverAlpha(png, { walkGradient = false } = {}) {
+export function recoverAlpha(png, { walkGradient = false, bgTolerance = BG_COLOR_TOLERANCE } = {}) {
   if (hasRealAlpha(png)) return false;
   const { width, height, data } = png;
   const pixelAt = (idx) => {
@@ -183,7 +196,7 @@ export function recoverAlpha(png, { walkGradient = false } = {}) {
     : sampleCornerColors(width, height, data);
   const isBgColor = (idx) => {
     const [r, g, b] = pixelAt(idx);
-    return bgColors.some((bg) => colorDistance([r, g, b], bg) < BG_COLOR_TOLERANCE);
+    return bgColors.some((bg) => colorDistance([r, g, b], bg) < bgTolerance);
   };
 
   const visited = new Uint8Array(width * height);

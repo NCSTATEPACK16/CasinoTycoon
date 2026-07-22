@@ -25,6 +25,9 @@ export const FILE_ASSETS: readonly FileAsset[] = [
   { key: 'img-wall-panel', url: 'sprites/wall-panel.png' },
   { key: 'img-neon-sign', url: 'sprites/neon-sign.png' },
   { key: 'img-marquee', url: 'sprites/marquee.png' },
+  { key: 'img-restroom', url: 'sprites/restroom.png' },
+  { key: 'img-plant', url: 'sprites/plant.png' },
+  { key: 'img-food-stall', url: 'sprites/food-stall.png' },
   // Characters load directly into the same keys GuestViews/StaffViews already
   // reference (char-guest-N-a/b, char-mechanic-a/b, char-janitor-a/b) —
   // unlike objects there's no spriteKey indirection, so real art has to use

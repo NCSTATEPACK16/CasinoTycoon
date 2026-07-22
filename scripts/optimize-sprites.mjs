@@ -57,14 +57,25 @@ const TARGETS = [
   { file: 'sprites/characters/mechanic-b.png', target: [200, 72] },
   { file: 'sprites/characters/janitor-a.png', target: [200, 72] },
   { file: 'sprites/characters/janitor-b.png', target: [200, 72] },
+  // bgTolerance: 45 — the neon-tube glow bleeds a soft gradient into the
+  // checkerboard that the default tolerance can't cross (see sprite-alpha.mjs's
+  // recoverAlpha doc comment for how this value was found).
+  { file: 'sprites/restroom.png', target: [340, 378], bgTolerance: 45 },
+  // Same glow-bleed issue as the restroom (its base ring), smaller bleed
+  // radius so a lower tolerance (30 vs 45) already separates it cleanly.
+  { file: 'sprites/plant.png', target: [240, 288], bgTolerance: 30 },
+  // Two neon signs (SNACKS/DRINKS) bleeding into the checkerboard, same
+  // family of fix; 30 already fully separates (28 still leaves a full-width
+  // leak, per the tolerance bisection in PLAN.md's P10.5 log).
+  { file: 'sprites/food-stall.png', target: [380, 316], bgTolerance: 30 },
 ];
 
-async function optimizeOne({ file, target, walkGradient }) {
+async function optimizeOne({ file, target, walkGradient, bgTolerance }) {
   const abs = path.join(ROOT, 'public', file);
   const before = await readFile(abs);
   let png = PNG.sync.read(before);
 
-  const recovered = recoverAlpha(png, { walkGradient });
+  const recovered = recoverAlpha(png, { walkGradient, bgTolerance });
   if (recovered) png = cropToContent(png);
 
   const [maxW, maxH] = target;

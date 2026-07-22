@@ -4,9 +4,11 @@ import { eventBus } from '../EventBus';
 import { world, worldGrid } from '../gameContext';
 import type { IsoGrid } from '../sim/grid/IsoGrid';
 import { audio } from '../services/AudioService';
+import { createSkylineBackdrop } from './atmosphere';
 import { BuildController } from './BuildController';
 import CameraController from './CameraController';
 import { attachAudioFx } from './fx/audioFx';
+import { attachDustMotes } from './fx/dustMotes';
 import { attachFx } from './fx/floaters';
 import { ThoughtBubbles } from './fx/ThoughtBubbles';
 import { gridToScreen, screenToGrid, worldBounds } from './iso';
@@ -44,6 +46,7 @@ export default class WorldScene extends Phaser.Scene {
   create() {
     this.grid = worldGrid;
 
+    createSkylineBackdrop(this);
     this.drawFloor();
     this.drawEdgeWalls();
 
@@ -62,6 +65,12 @@ export default class WorldScene extends Phaser.Scene {
     // reopen P10's "no per-object postFX" perf decision.
     this.cameras.main.postFX.addBloom(0xffffff, 1, 1, 1, 1.2);
     this.cameras.main.postFX.addVignette(0.5, 0.5, 0.8);
+    // T6: glossy-marble read for the floor. A per-tile preFX pass would
+    // reopen the per-object-postFX perf concern above (1200 floor tiles); a
+    // whole-frame camera pass is the same one-shader-pass tradeoff T1 already
+    // made for bloom/vignette, just a subtler sweep so it reads fine over
+    // objects/characters too.
+    this.cameras.main.postFX.addShine(0.3, 0.4, 5);
 
     this.glowPool = new GlowPool(this);
     const views = new ObjectViews(this);
@@ -71,6 +80,7 @@ export default class WorldScene extends Phaser.Scene {
     this.thoughtBubbles = new ThoughtBubbles(this, this.guestViews);
     new MessViews(this);
     attachFx(this, views);
+    attachDustMotes(this);
     attachAudioFx();
     audio.init(this);
 
