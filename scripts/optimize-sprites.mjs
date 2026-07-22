@@ -57,6 +57,10 @@ const TARGETS = [
   { file: 'sprites/characters/mechanic-b.png', target: [200, 72] },
   { file: 'sprites/characters/janitor-a.png', target: [200, 72] },
   { file: 'sprites/characters/janitor-b.png', target: [200, 72] },
+  { file: 'sprites/characters/bartender-a.png', target: [200, 72] },
+  { file: 'sprites/characters/bartender-b.png', target: [200, 72] },
+  { file: 'sprites/characters/waitress-a.png', target: [200, 72] },
+  { file: 'sprites/characters/waitress-b.png', target: [200, 72] },
   // bgTolerance: 45 — the neon-tube glow bleeds a soft gradient into the
   // checkerboard that the default tolerance can't cross (see sprite-alpha.mjs's
   // recoverAlpha doc comment for how this value was found).
