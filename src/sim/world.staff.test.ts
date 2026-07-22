@@ -164,13 +164,15 @@ describe('CasinoWorld — staff', () => {
     const world = new CasinoWorld({ seed: 1, autoSpawn: false });
     const mech = world.hireStaff('mechanic');
     const jan = world.hireStaff('janitor');
+    const tender = world.hireStaff('bartender');
     world.pickUpStaff(jan.id);
     world.dropStaff(jan.id, 9, 9);
     const restored = CasinoWorld.fromJSON(world.toJSON());
-    expect(restored.staff.size).toBe(2);
+    expect(restored.staff.size).toBe(3);
     expect(restored.staff.get(mech.id)!.kind).toBe('mechanic');
+    expect(restored.staff.get(tender.id)!.kind).toBe('bartender');
     expect(restored.staff.get(jan.id)!.pos).toEqual({ col: 9, row: 9 });
     const extra = restored.hireStaff('janitor');
-    expect([mech.id, jan.id]).not.toContain(extra.id);
+    expect([mech.id, jan.id, tender.id]).not.toContain(extra.id);
   });
 });
