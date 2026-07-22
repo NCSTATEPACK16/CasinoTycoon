@@ -1,5 +1,12 @@
 import { eventBus } from '../../EventBus';
-import { FOOD_BALANCE, GUEST_BALANCE, MESS_BALANCE, RAGE_BALANCE, STRUT_BALANCE } from '../../data/balance';
+import {
+  BAR_BALANCE,
+  FOOD_BALANCE,
+  GUEST_BALANCE,
+  MESS_BALANCE,
+  RAGE_BALANCE,
+  STRUT_BALANCE,
+} from '../../data/balance';
 import { flavorName } from '../../data/names';
 import { THOUGHTS } from '../../data/thoughts';
 import type { Cell } from '../grid/astar';
@@ -48,9 +55,10 @@ export class Guest extends Walker {
   private spinsLeft = 0;
   private spinTimer = 0;
   private spinEveryTicks = 8; // from the machine's cadence at sit-down
-  private serviceKind: 'toilet' | 'food-stall' | null = null;
+  private serviceKind: 'toilet' | 'food-stall' | 'bar' | null = null;
   private serviceTimer = 0;
   private foodStallId: string | null = null;
+  private barId: string | null = null;
 
   constructor(id: string, wallet: number, start: Cell) {
     super(start);
@@ -134,6 +142,7 @@ export class Guest extends Walker {
     this.machineId = null;
     this.serviceKind = null;
     this.foodStallId = null;
+    this.barId = null;
     this.state = 'wander';
   }
 
@@ -180,6 +189,16 @@ export class Guest extends Walker {
         this.state = 'service';
         this.serviceKind = 'food-stall';
         this.foodStallId = svc.standId;
+        this.serviceTimer = 0;
+        return;
+      }
+    }
+    if (this.needs.thirst < b.needThreshold) {
+      const svc = world.findBar();
+      if (svc && this.goTo(world, svc.stand)) {
+        this.state = 'service';
+        this.serviceKind = 'bar';
+        this.barId = svc.barId;
         this.serviceTimer = 0;
         return;
       }
@@ -277,6 +296,14 @@ export class Guest extends Walker {
         }
       }
       this.foodStallId = null;
+    } else if (this.serviceKind === 'bar') {
+      const purchase = this.barId ? world.buyDrink(this.barId, this.wallet) : null;
+      if (purchase) {
+        this.wallet -= purchase.price;
+        this.needs.thirst = BAR_BALANCE.thirstRestore;
+        this.adjustHappiness(BAR_BALANCE.happinessOnSelfServe);
+      }
+      this.barId = null;
     }
     this.serviceKind = null;
     this.evaluate(world);
