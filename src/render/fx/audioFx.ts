@@ -38,4 +38,8 @@ export function attachAudioFx(): void {
   eventBus.on('staffFired', () => audio.play('ui-close'));
   eventBus.on('goalReached', () => audio.play('sfx-victory', { volume: 0.9 }));
   eventBus.on('scenarioFailed', () => audio.play('sfx-failure', { volume: 0.9 }));
+
+  eventBus.on('guestThought', ({ thoughtId }) => {
+    if (thoughtId === 'raging') audio.play('ui-error', { volume: 0.5 });
+  });
 }

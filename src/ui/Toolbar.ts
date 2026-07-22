@@ -17,19 +17,19 @@ interface ToolbarButton {
   make: () => PanelSpec;
 }
 
-const BUTTONS: ToolbarButton[] = [
-  { id: 'build', label: 'Build', icon: '🔨', make: makeBuildPanel },
-  { id: 'finance', label: 'Finance', icon: '💰', make: makeFinancePanel },
-  { id: 'guests', label: 'Guests', icon: '👥', make: makeGuestsPanel },
-  { id: 'staff', label: 'Staff', icon: '🔧', make: makeStaffPanel },
-  { id: 'objectives', label: 'Objectives', icon: '🎯', make: makeObjectivesPanel },
-  { id: 'sound', label: 'Sound', icon: '🔊', make: makeSoundPanel },
-  { id: 'save', label: 'Save', icon: '💾', make: makeSavePanel },
-];
-
 // Bottom toolbar: panel toggles on the left, cash + clock readouts on the right.
 export class Toolbar {
   constructor(uiRoot: HTMLElement, windows: WindowManager) {
+    const BUTTONS: ToolbarButton[] = [
+      { id: 'build', label: 'Build', icon: '🔨', make: makeBuildPanel },
+      { id: 'finance', label: 'Finance', icon: '💰', make: () => makeFinancePanel(windows) },
+      { id: 'guests', label: 'Guests', icon: '👥', make: makeGuestsPanel },
+      { id: 'staff', label: 'Staff', icon: '🔧', make: makeStaffPanel },
+      { id: 'objectives', label: 'Objectives', icon: '🎯', make: makeObjectivesPanel },
+      { id: 'sound', label: 'Sound', icon: '🔊', make: makeSoundPanel },
+      { id: 'save', label: 'Save', icon: '💾', make: makeSavePanel },
+    ];
+
     const bar = el('div', 'ui-toolbar bevel-raised');
     uiRoot.appendChild(bar);
 
@@ -80,8 +80,36 @@ export class Toolbar {
     clock.append(clockIcon, clockValue);
     bar.appendChild(clock);
 
+    let displayedCash = STARTING_CASH;
+    let targetCash = STARTING_CASH;
+    let animStart = 0;
+    let animFrom = STARTING_CASH;
+    let rafHandle = 0;
+    const TICKUP_MS = 400;
+
+    const easeOutQuad = (t: number) => 1 - (1 - t) * (1 - t);
+
+    const stepTickUp = (now: number) => {
+      const t = Math.min(1, (now - animStart) / TICKUP_MS);
+      displayedCash = animFrom + (targetCash - animFrom) * easeOutQuad(t);
+      cashValue.textContent = formatCash(Math.round(displayedCash));
+      if (t < 1) {
+        rafHandle = requestAnimationFrame(stepTickUp);
+      } else {
+        displayedCash = targetCash;
+        cashValue.textContent = formatCash(targetCash);
+      }
+    };
+
     eventBus.on('moneyChanged', ({ cash: total, delta }) => {
-      cashValue.textContent = formatCash(total);
+      // Retarget the running interpolation from wherever it currently is —
+      // rapid-fire plays shouldn't restart from the old target each time.
+      animFrom = displayedCash;
+      animStart = performance.now();
+      targetCash = total;
+      cancelAnimationFrame(rafHandle);
+      rafHandle = requestAnimationFrame(stepTickUp);
+
       const flash = delta >= 0 ? 'flash-up' : 'flash-down';
       cash.classList.remove('flash-up', 'flash-down');
       // Force a reflow so re-adding the class restarts the CSS animation.

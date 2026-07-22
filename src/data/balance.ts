@@ -128,3 +128,28 @@ export const FOOD_BALANCE = {
   ripoffMultiplier: 3,
   happinessOnRipoff: -6,
 } as const;
+
+// Rage quit: broke AND unhappy leaves fast, angry, and dings the rating once.
+export const RAGE_BALANCE = {
+  happinessThreshold: 25, // below this + broke = raging; broke-but-content leaves calmly
+  speedMult: 1.5,
+  ratingDing: 4,
+  maxRatingPenalty: 20, // stacked dings cap out so a bad run can't zero the rating
+  dingDecayPerHour: 1,
+} as const;
+
+// Winner strut: a big win earns a brief celebration beat.
+export const STRUT_BALANCE = {
+  payoutMultiplier: 5, // payout >= wager * this triggers the strut
+  durationTicks: 30,
+  happinessBump: 6,
+} as const;
+
+// Campaign score: profit-vs-goal ratio × day-efficiency × final rating,
+// each factor weighted so no single one dominates (tuned by score.test.ts).
+export const SCORE_BALANCE = {
+  baseMultiplier: 100,
+  // Reaching the goal early counts more than reaching it on the last day.
+  dayEfficiencyFloor: 0.5, // never let a last-day win score below half credit
+  ratingWeight: 0.01, // rating is 0-100; this keeps its influence proportional
+} as const;

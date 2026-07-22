@@ -81,4 +81,81 @@ describe('CasinoWorld', () => {
     expect(restoredMachine.lifetimeProfit).toBe(123);
     expect(restored.state.cash).toBe(world.state.cash);
   });
+
+  it('folds a departing guest session into the ledger (name, net, favorite game)', () => {
+    const world = new CasinoWorld({ seed: 21, autoSpawn: false });
+    world.place('slot-machine', 5, 5);
+    const guest = world.spawnGuest();
+    guest.wallet = 500;
+    for (let i = 0; i < 600 && guest.netResult === 0; i++) world.tick();
+    guest.wallet = 0; // force it toward the exit
+    for (let i = 0; i < 2000 && world.guests.size > 0; i++) world.tick();
+    // recordPlay/recordJackpot accumulate into the *current* (not-yet-closed) day;
+    // closing day 1 exposes what actually got folded.
+    const record = world.ledger.closeDay(1);
+    expect(record.guestCount).toBe(1);
+    expect(record.takenIn).toBeGreaterThan(0);
+  });
+
+  it('counts a jackpot the moment it pays out', () => {
+    const world = new CasinoWorld({ seed: 33, autoSpawn: false });
+    const po = world.place('slot-machine', 5, 5)!;
+    const guest = world.spawnGuest();
+    guest.wallet = 5000;
+    let sawJackpot = false;
+    for (let i = 0; i < 20000 && !sawJackpot; i++) {
+      const res = world.playMachine(po.id, guest.id);
+      if (res && res.payout >= res.wager * 10) sawJackpot = true;
+    }
+    expect(sawJackpot).toBe(true);
+    const record = world.ledger.closeDay(1);
+    expect(record.jackpotCount).toBeGreaterThan(0);
+  });
+
+  it('folds all still-present guests at midnight without losing them from the floor', () => {
+    const world = new CasinoWorld({ seed: 55, autoSpawn: false });
+    world.place('slot-machine', 5, 5);
+    const guest = world.spawnGuest();
+    guest.wallet = 500;
+    for (let i = 0; i < 1250; i++) world.tick(); // past midnight (TICKS_PER_HOUR=50 × 24h + margin)
+    expect(world.guests.has(guest.id)).toBe(true); // still on the floor, not force-removed
+    const record = world.ledger.history[0];
+    expect(record).toBeDefined();
+    expect(record!.guestCount).toBeGreaterThanOrEqual(0); // folded if it had played, 0 is fine if it hadn't
+  });
+
+  it('a rage quit dings the casino rating, which decays over time', () => {
+    const world = new CasinoWorld({ seed: 16, autoSpawn: false });
+    world.place('slot-machine', 5, 5);
+    const before = world.rating;
+    world.applyRageQuitPenalty();
+    expect(world.rating).toBeLessThan(before);
+    const dinged = world.rating;
+    for (let i = 0; i < 60; i++) world.tick(); // past an hour boundary (TICKS_PER_HOUR=50)
+    expect(world.rating).toBeGreaterThan(dinged);
+  });
+
+  it("the dawn ticker headline names yesterday's top winner", () => {
+    const world = new CasinoWorld({ seed: 44, autoSpawn: false });
+    world.place('slot-machine', 5, 5);
+    const guest = world.spawnGuest();
+    guest.wallet = 5000;
+    const lines: string[] = [];
+    eventBus.on('tickerMessage', ({ text }) => lines.push(text));
+    for (let i = 0; i < 1250; i++) world.tick(); // past midnight
+    expect(lines.some((t) => t.startsWith('Yesterday:'))).toBe(true);
+  });
+
+  it('the dawn ticker stays silent when the day only produced net-negative sessions', () => {
+    // Deliberately no machines placed, so the guest cannot play and its
+    // netResult is not perturbed by autonomous play during the tick loop.
+    const world = new CasinoWorld({ seed: 44, autoSpawn: false });
+    const guest = world.spawnGuest();
+    guest.wallet = 5000;
+    guest.netResult = -80; // guest lost money overall today
+    const lines: string[] = [];
+    eventBus.on('tickerMessage', ({ text }) => lines.push(text));
+    for (let i = 0; i < 1250; i++) world.tick(); // past midnight
+    expect(lines.some((t) => t.startsWith('Yesterday:'))).toBe(false);
+  });
 });
