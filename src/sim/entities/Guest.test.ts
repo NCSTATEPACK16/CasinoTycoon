@@ -48,6 +48,23 @@ describe('Guest', () => {
     expect(peak).toBeGreaterThan(90); // service restored the need
   });
 
+  it('a thirsty wandering guest self-serves at the bar and recovers', () => {
+    const world = new CasinoWorld({ seed: 7, autoSpawn: false });
+    const po = world.place('bar', 20, 15)!;
+    world.brewDrink(po.id);
+    const guest = world.spawnGuest();
+    guest.wallet = 500;
+    guest.needs.thirst = 20;
+    guest.needs.hunger = 100;
+    guest.needs.bladder = 100;
+    let peak = guest.needs.thirst;
+    for (let i = 0; i < 1200; i++) {
+      world.tick();
+      peak = Math.max(peak, guest.needs.thirst);
+    }
+    expect(peak).toBeGreaterThan(90);
+  });
+
   it('emits threshold thoughts once per cooldown', () => {
     const world = new CasinoWorld({ seed: 8, autoSpawn: false });
     const guest = world.spawnGuest();
