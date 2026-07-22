@@ -199,6 +199,15 @@ const SECURITY_PALETTE: PersonPalette = {
   shoes: 0x0a0a0c,
 };
 
+const DEALER_PALETTE: PersonPalette = {
+  hair: 0x1a1a1a,
+  skin: 0xd9a066,
+  shirt: 0x141418,
+  shirtShade: 0x0a0a0c,
+  pants: 0x141418,
+  shoes: 0x0a0a0a,
+};
+
 function diamondPoints(w: number, h: number): Phaser.Types.Math.Vector2Like[] {
   return [
     { x: w / 2, y: 0 },
@@ -328,6 +337,8 @@ function makePixelPeople(scene: Phaser.Scene): void {
   makePerson(scene, 'char-pitBoss-b', PITBOSS_PALETTE, 'b');
   makePerson(scene, 'char-security-a', SECURITY_PALETTE, 'a');
   makePerson(scene, 'char-security-b', SECURITY_PALETTE, 'b');
+  makePerson(scene, 'char-dealer-a', DEALER_PALETTE, 'a');
+  makePerson(scene, 'char-dealer-b', DEALER_PALETTE, 'b');
 }
 
 // P8 fx: a gold coin for jackpot bursts and a speech-bubble back for thoughts.
