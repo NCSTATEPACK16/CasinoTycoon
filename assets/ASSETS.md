@@ -97,13 +97,15 @@ for these.
 
 Downloaded 2026-07-19 from kenney.nl (all CC0), curated into `public/audio/` with semantic
 names; Vite serves them at `/audio/<key>.ogg` and `BootScene` preloads every key listed in
-`src/services/AudioService.ts` (`AUDIO_KEYS`).
+`src/services/AudioService.ts` (`AUDIO_KEYS`). Widened 2026-07-22 (P10.6 sub-project 2)
+using the fuller source zip the user provided directly, plus a dedicated Craps dice-sound
+pool replacing its earlier fallback to chip sounds.
 
 | Keys                                                   | Source pack      | Original files                                                                                              |
 | ------------------------------------------------------ | ---------------- | ----------------------------------------------------------------------------------------------------------- |
-| `sfx-chips-{1..3}`, `sfx-coin-{1,2}`                   | Casino Audio     | chips-handle-1/3/5, chip-lay-1/2                                                                            |
-| `sfx-card-{1,2}`, `sfx-shuffle`                        | Casino Audio     | card-slide-1, card-place-2, card-shuffle                                                                    |
-| `sfx-dice-{1,2}`                                       | Casino Audio     | dice-throw-1, dice-shake-2                                                                                  |
+| `sfx-chips-{1..6}`, `sfx-coin-{1,2}`                   | Casino Audio     | chips-handle-1/3/5, chips-collide-2, chips-stack-3, chip-lay-1/2/3                                          |
+| `sfx-card-{1..5}`, `sfx-shuffle`                       | Casino Audio     | card-slide-1/4, card-place-2/4, card-shove-2, card-shuffle                                                  |
+| `sfx-dice-{1..4}`                                      | Casino Audio     | dice-throw-1/2, dice-shake-2/3 — dedicated pool for Craps plays (P10.6 sub-project 2), chips no longer used |
 | `sfx-jackpot`, `sfx-victory`, `sfx-failure`            | Music Jingles    | jingles_NES03, jingles_PIZZI07, jingles_NES10                                                               |
 | `sfx-break`, `sfx-fixed`                               | Interface Sounds | error_005, confirmation_002                                                                                 |
 | `ui-click/open/close/error/place/sell/pluck/drop/hire` | Interface Sounds | click_001, maximize_004, minimize_004, error_001, drop_002, drop_003, pluck_001, drop_001, confirmation_001 |
