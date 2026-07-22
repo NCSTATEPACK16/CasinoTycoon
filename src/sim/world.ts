@@ -1,6 +1,6 @@
 import { eventBus } from '../EventBus';
 import { ENTRANCE_TILE, GRID_COLS, GRID_ROWS, HOURS_PER_DAY, JACKPOT_PAYOUT_MULT, STARTING_CASH } from '../config';
-import { GUEST_BALANCE, MESS_BALANCE, RAGE_BALANCE, RATING_BALANCE } from '../data/balance';
+import { BAR_BALANCE, GUEST_BALANCE, MESS_BALANCE, RAGE_BALANCE, RATING_BALANCE } from '../data/balance';
 import type { CampaignDef } from '../data/campaigns';
 import { getObjectDef } from '../data/objects';
 import { canPlaceObject, placeObject, sellObject, type PlaceCheck } from './build';
@@ -8,6 +8,7 @@ import { BlackjackTable } from './entities/machines/BlackjackTable';
 import { CrapsTable } from './entities/machines/CrapsTable';
 import { SeatedCasinoGame } from './entities/machines/SeatedCasinoGame';
 import { Guest } from './entities/Guest';
+import { Bar, type BarJSON } from './entities/Bar';
 import { FoodStall, type FoodStallJSON, type FoodPurchase } from './entities/FoodStall';
 import type { Mess, MessKind } from './entities/Mess';
 import { Staff, type StaffKind } from './entities/staff/Staff';
@@ -74,6 +75,7 @@ export interface CasinoWorldJSON {
   tickCount: number;
   machines: MachineJSON[];
   foodStalls: FoodStallJSON[];
+  bars: BarJSON[];
   messes: MessJSON[];
   nextMessNum: number;
   staff: StaffJSON[];
@@ -89,6 +91,7 @@ export class CasinoWorld {
   rng: Rng;
   machines = new Map<string, CasinoGame>();
   foodStalls = new Map<string, FoodStall>();
+  bars = new Map<string, Bar>();
   guests = new Map<string, Guest>();
   messes = new Map<string, Mess>();
   staff = new Map<string, Staff>();
@@ -130,6 +133,7 @@ export class CasinoWorld {
     this.messes.clear();
     this.machines.clear();
     this.foodStalls.clear();
+    this.bars.clear();
     this.repairClaims.clear();
     this.grid.clear();
     this.state.reset(startingCash);
@@ -159,6 +163,7 @@ export class CasinoWorld {
     if (po && defId === 'blackjack-table') this.machines.set(po.id, new BlackjackTable(po.id));
     if (po && defId === 'craps-table') this.machines.set(po.id, new CrapsTable(po.id));
     if (po && defId === 'food-stall') this.foodStalls.set(po.id, new FoodStall(po.id));
+    if (po && defId === 'bar') this.bars.set(po.id, new Bar(po.id));
     return po;
   }
 
@@ -172,6 +177,7 @@ export class CasinoWorld {
       this.repairClaims.delete(objectId);
     }
     this.foodStalls.delete(objectId);
+    this.bars.delete(objectId);
     return sellObject(this.state, this.grid, objectId);
   }
 
@@ -537,6 +543,45 @@ export class CasinoWorld {
     return purchase;
   }
 
+  /** An operational bar: has stock and a walkable stand tile. */
+  findBar(): { barId: string; stand: Cell } | null {
+    for (const po of this.state.allObjects()) {
+      if (po.defId !== 'bar') continue;
+      const bar = this.bars.get(po.id);
+      if (!bar || !bar.hasStock()) continue;
+      const stand = this.standTileFor(po);
+      if (!stand) continue;
+      return { barId: po.id, stand };
+    }
+    return null;
+  }
+
+  /** Bartender production: one drink into stock, charged as an expense. */
+  brewDrink(barId: string): void {
+    const bar = this.bars.get(barId);
+    if (!bar) return;
+    bar.brew();
+    this.ledger.addExpense(BAR_BALANCE.drinkCost);
+  }
+
+  /** Self-serve or delivered sale: null if unaffordable or out of stock. */
+  buyDrink(barId: string, wallet: number): { price: number } | null {
+    const bar = this.bars.get(barId);
+    if (!bar || !bar.hasStock() || wallet < BAR_BALANCE.drinkPrice) return null;
+    if (!bar.takeDrink()) return null;
+    this.state.cash += BAR_BALANCE.drinkPrice;
+    this.ledger.addRevenue(BAR_BALANCE.drinkPrice);
+    eventBus.emit('moneyChanged', { cash: this.state.cash, delta: BAR_BALANCE.drinkPrice });
+    return { price: BAR_BALANCE.drinkPrice };
+  }
+
+  /** Public wrapper so Staff.ts (bartender) can reach a bar's stand tile
+   * without standTileFor (private, keyed on a PlacedObject) leaking out. */
+  barStandTile(barId: string): Cell | null {
+    const po = this.state.getObject(barId);
+    return po ? this.standTileFor(po) : null;
+  }
+
   findService(defId: 'toilet'): { stand: Cell } | null {
     for (const po of this.state.allObjects()) {
       if (po.defId !== defId) continue;
@@ -588,6 +633,7 @@ export class CasinoWorld {
         broken: m.broken,
       })),
       foodStalls: [...this.foodStalls.values()].map((f) => f.toJSON()),
+      bars: [...this.bars.values()].map((b) => b.toJSON()),
       messes: [...this.messes.values()].map((m) => ({
         id: m.id,
         kind: m.kind,
@@ -614,6 +660,7 @@ export class CasinoWorld {
     this.repairClaims.clear();
     this.machines.clear();
     this.foodStalls.clear();
+    this.bars.clear();
     this.messes.clear();
     this.staff.clear();
     this.state.load(data.state);
@@ -632,6 +679,7 @@ export class CasinoWorld {
       this.machines.set(m.id, machine);
     }
     for (const f of data.foodStalls) this.foodStalls.set(f.id, FoodStall.fromJSON(f));
+    for (const b of data.bars) this.bars.set(b.id, Bar.fromJSON(b));
     for (const m of data.messes) this.messes.set(m.id, { ...m, claimedBy: null });
     this.nextMessNum = data.nextMessNum;
     for (const s of data.staff)
