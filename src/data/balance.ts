@@ -120,6 +120,15 @@ export const STAFF_BALANCE = {
   waitress: { wagePerHour: 3, deliverTicks: 15 },
   pitBoss: { wagePerHour: 4 },
   security: { wagePerHour: 3 },
+  dealer: { wagePerHour: 4 },
+} as const;
+
+// Dealer: cosmetic-only staff member stationed at a blackjack/craps table.
+// No sim interaction with seating/payout — just a small, capped rating bonus
+// per dealt table (a fuller-looking floor reads as more legitimate).
+export const DEALER_BALANCE = {
+  dealerBonusPerTable: 2,
+  dealerBonusCap: 10,
 } as const;
 
 // Trash and spills: unhappy guests drop them; nearby guests sour further.
