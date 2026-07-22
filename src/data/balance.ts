@@ -4,7 +4,7 @@ export const GUEST_BALANCE = {
   walletMin: 40,
   walletMax: 220,
   startHappiness: 70,
-  decayPerTick: { energy: 0.02, bladder: 0.04, hunger: 0.03 },
+  decayPerTick: { energy: 0.02, bladder: 0.04, hunger: 0.03, thirst: 0.03 },
   // Below this a need sends the guest hunting for the matching service object.
   needThreshold: 25,
   // Needs this starved actively drain happiness.
@@ -143,6 +143,18 @@ export const STRUT_BALANCE = {
   payoutMultiplier: 5, // payout >= wager * this triggers the strut
   durationTicks: 30,
   happinessBump: 6,
+} as const;
+
+// Bar: bartender brews on a timer into a capped stock; waitress delivers to
+// seated guests, wandering guests self-serve like the food stall/toilet.
+export const BAR_BALANCE = {
+  maxStock: 6,
+  brewTicks: 15, // one drink added roughly every 1.5s at 10 ticks/sec
+  drinkPrice: 12,
+  drinkCost: 4, // what the casino "pays" per drink brewed, for a real margin
+  thirstRestore: 100,
+  happinessOnSelfServe: 3, // matches GUEST_BALANCE.happinessOnService
+  happinessOnDelivery: 5, // a little more — real table service feels better
 } as const;
 
 // Campaign score: profit-vs-goal ratio × day-efficiency × final rating,

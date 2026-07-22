@@ -14,6 +14,7 @@ export interface GuestNeeds {
   energy: number;
   bladder: number;
   hunger: number;
+  thirst: number;
   happiness: number;
 }
 
@@ -60,6 +61,7 @@ export class Guest extends Walker {
       energy: 100,
       bladder: 100,
       hunger: 100,
+      thirst: 100,
       happiness: GUEST_BALANCE.startHappiness,
     };
   }
@@ -94,7 +96,12 @@ export class Guest extends Walker {
     this.needs.energy = Math.max(0, this.needs.energy - b.decayPerTick.energy);
     this.needs.bladder = Math.max(0, this.needs.bladder - b.decayPerTick.bladder);
     this.needs.hunger = Math.max(0, this.needs.hunger - b.decayPerTick.hunger);
-    if (this.needs.bladder < b.criticalThreshold || this.needs.hunger < b.criticalThreshold) {
+    this.needs.thirst = Math.max(0, this.needs.thirst - b.decayPerTick.thirst);
+    if (
+      this.needs.bladder < b.criticalThreshold ||
+      this.needs.hunger < b.criticalThreshold ||
+      this.needs.thirst < b.criticalThreshold
+    ) {
       this.adjustHappiness(-b.criticalHappinessDrainPerTick);
     }
   }
