@@ -1,6 +1,13 @@
 import { eventBus } from '../EventBus';
 import { ENTRANCE_TILE, GRID_COLS, GRID_ROWS, HOURS_PER_DAY, JACKPOT_PAYOUT_MULT, STARTING_CASH } from '../config';
-import { BAR_BALANCE, GUEST_BALANCE, MESS_BALANCE, RAGE_BALANCE, RATING_BALANCE } from '../data/balance';
+import {
+  BAR_BALANCE,
+  GUEST_BALANCE,
+  MESS_BALANCE,
+  RAGE_BALANCE,
+  RATING_BALANCE,
+  SECURITY_BALANCE,
+} from '../data/balance';
 import type { CampaignDef } from '../data/campaigns';
 import { getObjectDef } from '../data/objects';
 import { canPlaceObject, placeObject, sellObject, type PlaceCheck } from './build';
@@ -295,13 +302,19 @@ export class CasinoWorld {
       signageBonus += getObjectDef(po.defId)?.ratingBonus ?? 0;
     }
     signageBonus = Math.min(signageBonus, b.signageBonusCap);
+    let securityBonus = 0;
+    for (const m of this.staff.values()) {
+      if (m.kind === 'pitBoss' || m.kind === 'security') securityBonus += SECURITY_BALANCE.bonusPerStaff;
+    }
+    securityBonus = Math.min(securityBonus, SECURITY_BALANCE.bonusCap);
     const score =
       b.happinessWeight * avgHappiness +
       Math.min(this.machines.size * b.perMachine, b.machineCap) +
       (variety >= 2 ? b.varietyBonus : 0) +
       Math.max(0, b.cleanlinessMax - this.messes.size * b.perMessPenalty) -
       broken * b.perBrokenPenalty +
-      signageBonus -
+      signageBonus +
+      securityBonus -
       this.ragePenalty;
     return Math.round(Math.min(100, Math.max(0, score)));
   }
@@ -388,7 +401,9 @@ export class CasinoWorld {
       }
       return null;
     }
-    return null; // bartender never calls claimJobFor — see Staff.actBartender
+    // bartender never calls this (see Staff.actBartender); pitBoss/security
+    // are pure ambient patrol and never claim a job either.
+    return null;
   }
 
   isJobStillValid(member: Staff): boolean {
@@ -406,6 +421,8 @@ export class CasinoWorld {
         this.drinkClaims.get(member.jobId) === member.id
       );
     }
+    // Only janitor reaches here — pitBoss/security never hold a jobId, so the
+    // `if (!member.jobId) return false;` guard above already excludes them.
     return this.messes.get(member.jobId)?.claimedBy === member.id;
   }
 
@@ -435,6 +452,8 @@ export class CasinoWorld {
       guest.waitingForDrink = false;
       return;
     }
+    // Only janitor reaches here — pitBoss/security never claim a job in the
+    // first place (see claimJobFor), so completeJob is unreachable for them.
     this.cleanMess(member.jobId);
   }
 

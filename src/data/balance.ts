@@ -39,6 +39,14 @@ export const RATING_BALANCE = {
   signageBonusCap: 10,
 } as const;
 
+// Ambient-only staff: no job-queue behavior, just floor presence for a
+// small capped rating bonus (same shape as neon-sign/marquee's ratingBonus,
+// applied to staff instead of a placed object).
+export const SECURITY_BALANCE = {
+  bonusPerStaff: 1.5,
+  bonusCap: 8,
+} as const;
+
 export interface PayoutOutcome {
   p: number; // probability of this outcome per play
   multiplier: number; // payout as a multiple of cost-to-play
@@ -110,6 +118,8 @@ export const STAFF_BALANCE = {
   janitor: { wagePerHour: 2, cleanTicks: 25 },
   bartender: { wagePerHour: 3 },
   waitress: { wagePerHour: 3, deliverTicks: 15 },
+  pitBoss: { wagePerHour: 4 },
+  security: { wagePerHour: 3 },
 } as const;
 
 // Trash and spills: unhappy guests drop them; nearby guests sour further.

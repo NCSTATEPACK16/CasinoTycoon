@@ -6,13 +6,22 @@ import type { PanelSpec } from '../WindowManager';
 
 const REFRESH_MS = 500;
 
-const STAFF_KINDS: readonly StaffKind[] = ['mechanic', 'janitor', 'bartender', 'waitress'];
+const STAFF_KINDS: readonly StaffKind[] = [
+  'mechanic',
+  'janitor',
+  'bartender',
+  'waitress',
+  'pitBoss',
+  'security',
+];
 
 const KIND_META: Record<StaffKind, { icon: string; label: string; wage: number }> = {
   mechanic: { icon: '🔧', label: 'Mechanic', wage: STAFF_BALANCE.mechanic.wagePerHour },
   janitor: { icon: '🧹', label: 'Janitor', wage: STAFF_BALANCE.janitor.wagePerHour },
   bartender: { icon: '🍹', label: 'Bartender', wage: STAFF_BALANCE.bartender.wagePerHour },
   waitress: { icon: '🍸', label: 'Cocktail Waitress', wage: STAFF_BALANCE.waitress.wagePerHour },
+  pitBoss: { icon: '🎩', label: 'Pit Boss', wage: STAFF_BALANCE.pitBoss.wagePerHour },
+  security: { icon: '🛡️', label: 'Security', wage: STAFF_BALANCE.security.wagePerHour },
 };
 
 const STATE_LABEL: Record<StaffState, string> = {
@@ -49,7 +58,14 @@ export function makeStaffPanel(): PanelSpec {
 
   const render = () => {
     const members = [...world.staff.values()];
-    const counts: Record<StaffKind, number> = { mechanic: 0, janitor: 0, bartender: 0, waitress: 0 };
+    const counts: Record<StaffKind, number> = {
+      mechanic: 0,
+      janitor: 0,
+      bartender: 0,
+      waitress: 0,
+      pitBoss: 0,
+      security: 0,
+    };
     let hourly = 0;
     for (const m of members) {
       counts[m.kind]++;
