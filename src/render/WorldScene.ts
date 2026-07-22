@@ -21,6 +21,8 @@ import { StaffViews } from './views/StaffViews';
 // Floors render below everything; walls and (later) objects depth-sort by screen y.
 const DEPTH_FLOOR = 0;
 const DEPTH_HIGHLIGHT = 1;
+// Width matches TILE_W so panels tile edge-to-edge along a wall run.
+const WALL_DISPLAY_SIZE = { w: 128, h: 278 };
 
 export default class WorldScene extends Phaser.Scene {
   private grid!: IsoGrid;
@@ -56,6 +58,10 @@ export default class WorldScene extends Phaser.Scene {
     const center = gridToScreen(GRID_COLS / 2, GRID_ROWS / 2);
     this.cameras.main.centerOn(center.x, center.y);
     this.cameraController = new CameraController(this);
+    // One shader pass over the composited frame, not per-sprite — doesn't
+    // reopen P10's "no per-object postFX" perf decision.
+    this.cameras.main.postFX.addBloom(0xffffff, 1, 1, 1, 1.2);
+    this.cameras.main.postFX.addVignette(0.5, 0.5, 0.8);
 
     this.glowPool = new GlowPool(this);
     const views = new ObjectViews(this);
@@ -157,16 +163,20 @@ export default class WorldScene extends Phaser.Scene {
 
   private drawEdgeWalls(): void {
     // Walls line the two far edges (north = row 0, west = col 0) so they never
-    // cover the floor; the near edges stay open for the camera view.
-    const wall = (col: number, row: number) => {
+    // cover the floor; the near edges stay open for the camera view. The art
+    // depicts one wall face's orientation; the perpendicular run mirrors it
+    // via setFlipX rather than needing a second orientation asset.
+    const wall = (col: number, row: number, flip: boolean) => {
       const s = gridToScreen(col, row);
       // Anchor at tile center-bottom per the sprite contract; depth = screen y.
       this.add
-        .image(s.x, s.y + TILE_H / 2, 'obj-wall')
+        .image(s.x, s.y + TILE_H / 2, 'img-wall-panel')
         .setOrigin(0.5, 1)
+        .setDisplaySize(WALL_DISPLAY_SIZE.w, WALL_DISPLAY_SIZE.h)
+        .setFlipX(flip)
         .setDepth(s.y);
     };
-    for (let col = 0; col < GRID_COLS; col++) wall(col, 0);
-    for (let row = 1; row < GRID_ROWS; row++) wall(0, row);
+    for (let col = 0; col < GRID_COLS; col++) wall(col, 0, false);
+    for (let row = 1; row < GRID_ROWS; row++) wall(0, row, true);
   }
 }
