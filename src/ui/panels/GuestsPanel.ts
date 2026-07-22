@@ -67,6 +67,7 @@ export function makeGuestsPanel(): PanelSpec {
       ['Energy', sel.needs.energy],
       ['Bladder', sel.needs.bladder],
       ['Hunger', sel.needs.hunger],
+      ['Thirst', sel.needs.thirst],
       ['Happiness', sel.needs.happiness],
     ];
     for (const [label, value] of bars) {
