@@ -109,6 +109,22 @@ describe('CasinoWorld — staff', () => {
     expect(world.bars.get(po.id)!.stock).toBeGreaterThan(0);
   });
 
+  it('a waitress delivers a drink to a seated, thirsty guest', () => {
+    const world = new CasinoWorld({ seed: 29, autoSpawn: false });
+    world.place('bar', 2, 2);
+    world.place('slot-machine', 20, 20);
+    world.hireStaff('bartender');
+    world.hireStaff('waitress');
+    const guest = world.spawnGuest();
+    guest.wallet = 5000;
+    for (let i = 0; i < 400 && guest.state !== 'play'; i++) world.tick();
+    expect(guest.state).toBe('play');
+    guest.needs.thirst = 10;
+    for (let i = 0; i < 4000 && guest.needs.thirst < 50; i++) world.tick();
+    expect(guest.needs.thirst).toBeGreaterThan(50);
+    expect(guest.waitingForDrink).toBe(false);
+  });
+
   it('idle staff patrol the floor instead of standing frozen', () => {
     const world = new CasinoWorld({ seed: 24, autoSpawn: false });
     const jan = world.hireStaff('janitor');

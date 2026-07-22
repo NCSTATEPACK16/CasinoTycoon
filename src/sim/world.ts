@@ -106,6 +106,8 @@ export class CasinoWorld {
   private nextStaffNum = 1;
   /** machineId → staffId, so two mechanics never race to the same repair. */
   private repairClaims = new Map<string, string>();
+  /** guestId → staffId, so two waitresses never race to the same delivery. */
+  private drinkClaims = new Map<string, string>();
   private ragePenalty = 0;
 
   constructor(opts: WorldOptions = {}) {
@@ -135,6 +137,7 @@ export class CasinoWorld {
     this.foodStalls.clear();
     this.bars.clear();
     this.repairClaims.clear();
+    this.drinkClaims.clear();
     this.grid.clear();
     this.state.reset(startingCash);
     this.time = new TimeSystem();
@@ -367,12 +370,25 @@ export class CasinoWorld {
       }
       return null;
     }
-    for (const mess of this.messes.values()) {
-      if (mess.claimedBy) continue;
-      mess.claimedBy = member.id;
-      return { jobId: mess.id, cell: { col: mess.col, row: mess.row } };
+    if (member.kind === 'waitress') {
+      for (const guest of this.guests.values()) {
+        if (guest.state !== 'play' || !guest.waitingForDrink || this.drinkClaims.has(guest.id)) {
+          continue;
+        }
+        this.drinkClaims.set(guest.id, member.id);
+        return { jobId: guest.id, cell: { ...guest.pos } };
+      }
+      return null;
     }
-    return null;
+    if (member.kind === 'janitor') {
+      for (const mess of this.messes.values()) {
+        if (mess.claimedBy) continue;
+        mess.claimedBy = member.id;
+        return { jobId: mess.id, cell: { col: mess.col, row: mess.row } };
+      }
+      return null;
+    }
+    return null; // bartender never calls claimJobFor — see Staff.actBartender
   }
 
   isJobStillValid(member: Staff): boolean {
@@ -380,6 +396,15 @@ export class CasinoWorld {
     if (member.kind === 'mechanic') {
       const machine = this.machines.get(member.jobId);
       return !!machine && machine.broken && this.repairClaims.get(member.jobId) === member.id;
+    }
+    if (member.kind === 'waitress') {
+      const guest = this.guests.get(member.jobId);
+      return (
+        !!guest &&
+        guest.state === 'play' &&
+        guest.waitingForDrink &&
+        this.drinkClaims.get(member.jobId) === member.id
+      );
     }
     return this.messes.get(member.jobId)?.claimedBy === member.id;
   }
@@ -396,12 +421,29 @@ export class CasinoWorld {
       eventBus.emit('tickerMessage', { text: 'A machine has been repaired!' });
       return;
     }
+    if (member.kind === 'waitress') {
+      const guestId = member.jobId;
+      this.drinkClaims.delete(guestId);
+      const guest = this.guests.get(guestId);
+      const bar = this.findBar();
+      if (!guest || !guest.waitingForDrink || !bar) return; // try again later
+      const purchase = this.buyDrink(bar.barId, guest.wallet);
+      if (!purchase) return;
+      guest.wallet -= purchase.price;
+      guest.needs.thirst = BAR_BALANCE.thirstRestore;
+      guest.adjustHappiness(BAR_BALANCE.happinessOnDelivery);
+      guest.waitingForDrink = false;
+      return;
+    }
     this.cleanMess(member.jobId);
   }
 
   releaseJobs(staffId: string): void {
     for (const [machineId, claimant] of this.repairClaims) {
       if (claimant === staffId) this.repairClaims.delete(machineId);
+    }
+    for (const [guestId, claimant] of this.drinkClaims) {
+      if (claimant === staffId) this.drinkClaims.delete(guestId);
     }
     for (const mess of this.messes.values()) {
       if (mess.claimedBy === staffId) mess.claimedBy = null;

@@ -108,6 +108,20 @@ describe('Guest', () => {
     expect(guest.netResult).not.toBe(0);
   });
 
+  it('a seated, thirsty guest flags waitingForDrink without leaving their seat', () => {
+    const world = new CasinoWorld({ seed: 16, autoSpawn: false });
+    world.place('slot-machine', 5, 5);
+    const guest = world.spawnGuest();
+    guest.wallet = 5000;
+    for (let i = 0; i < 400 && guest.state !== 'play'; i++) world.tick();
+    expect(guest.state).toBe('play');
+    const seatPos = { ...guest.pos };
+    guest.needs.thirst = 10;
+    for (let i = 0; i < 5; i++) world.tick();
+    expect(guest.waitingForDrink).toBe(true);
+    expect(guest.pos).toEqual(seatPos); // never left the seat
+  });
+
   it('a broke AND unhappy guest rage-quits: raging flag, faster exit, ticker line', () => {
     const world = new CasinoWorld({ seed: 12, autoSpawn: false });
     const guest = world.spawnGuest();
