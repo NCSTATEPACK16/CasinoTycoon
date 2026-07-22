@@ -48,6 +48,7 @@ export class Guest extends Walker {
   netResult = 0;
   raging = false;
   celebrating = false;
+  waitingForDrink = false;
   private celebrateTicksLeft = 0;
   private wagersByGame = new Map<string, number>();
   private thoughtLast = new Map<string, number>();
@@ -239,6 +240,9 @@ export class Guest extends Walker {
       this.stopPlaying(world);
       return;
     }
+    if (!this.waitingForDrink && this.needs.thirst < b.needThreshold) {
+      this.waitingForDrink = true;
+    }
     this.spinTimer++;
     if (this.spinTimer < this.spinEveryTicks) return;
     this.spinTimer = 0;
@@ -269,6 +273,7 @@ export class Guest extends Walker {
   private stopPlaying(world: CasinoWorld): void {
     world.releaseMachines(this.id);
     this.machineId = null;
+    this.waitingForDrink = false;
     this.evaluate(world);
   }
 
