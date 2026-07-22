@@ -1,21 +1,26 @@
 import { STAFF_BALANCE } from '../../data/balance';
 import { world } from '../../gameContext';
-import type { StaffState } from '../../sim/entities/staff/Staff';
+import type { StaffKind, StaffState } from '../../sim/entities/staff/Staff';
 import { el } from '../dom';
 import type { PanelSpec } from '../WindowManager';
 
 const REFRESH_MS = 500;
 
-const KIND_META = {
+const STAFF_KINDS: readonly StaffKind[] = ['mechanic', 'janitor', 'bartender', 'waitress'];
+
+const KIND_META: Record<StaffKind, { icon: string; label: string; wage: number }> = {
   mechanic: { icon: '🔧', label: 'Mechanic', wage: STAFF_BALANCE.mechanic.wagePerHour },
   janitor: { icon: '🧹', label: 'Janitor', wage: STAFF_BALANCE.janitor.wagePerHour },
-} as const;
+  bartender: { icon: '🍹', label: 'Bartender', wage: STAFF_BALANCE.bartender.wagePerHour },
+  waitress: { icon: '🍸', label: 'Cocktail Waitress', wage: STAFF_BALANCE.waitress.wagePerHour },
+};
 
 const STATE_LABEL: Record<StaffState, string> = {
   idle: 'Standing by',
   patrol: 'Patrolling',
   toJob: 'Heading to work',
   working: 'Working',
+  brewing: 'Brewing drinks',
   carried: 'In your grip',
 };
 
@@ -29,7 +34,7 @@ export function makeStaffPanel(): PanelSpec {
   const note = el('div', 'p-note', 'Drag a staffer on the floor to move them (RCT pincer).');
 
   const hireButtons: HTMLButtonElement[] = [];
-  for (const kind of ['mechanic', 'janitor'] as const) {
+  for (const kind of STAFF_KINDS) {
     const meta = KIND_META[kind];
     const btn = el('button', 'p-tool', `${meta.icon} Hire ($${meta.wage}/hr)`);
     btn.addEventListener('click', () => {
@@ -44,7 +49,7 @@ export function makeStaffPanel(): PanelSpec {
 
   const render = () => {
     const members = [...world.staff.values()];
-    const counts = { mechanic: 0, janitor: 0 };
+    const counts: Record<StaffKind, number> = { mechanic: 0, janitor: 0, bartender: 0, waitress: 0 };
     let hourly = 0;
     for (const m of members) {
       counts[m.kind]++;
@@ -52,7 +57,7 @@ export function makeStaffPanel(): PanelSpec {
     }
 
     summary.textContent = '';
-    for (const kind of ['mechanic', 'janitor'] as const) {
+    for (const kind of STAFF_KINDS) {
       const meta = KIND_META[kind];
       const r = el('div', 'p-row');
       r.appendChild(el('span', '', `${meta.icon} ${meta.label}s`));

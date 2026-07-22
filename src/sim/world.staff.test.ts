@@ -92,6 +92,23 @@ describe('CasinoWorld — staff', () => {
     expect(world.messes.size).toBe(0);
   });
 
+  it('a bartender walks to the bar and brews drinks on a timer', () => {
+    const world = new CasinoWorld({ seed: 27, autoSpawn: false });
+    const po = world.place('bar', 15, 15)!;
+    world.hireStaff('bartender');
+    for (let i = 0; i < 500 && world.bars.get(po.id)!.stock === 0; i++) world.tick();
+    expect(world.bars.get(po.id)!.stock).toBeGreaterThan(0);
+  });
+
+  it('a bartender hired before any bar exists waits, then assigns once one is built', () => {
+    const world = new CasinoWorld({ seed: 28, autoSpawn: false });
+    world.hireStaff('bartender');
+    for (let i = 0; i < 30; i++) world.tick(); // idles/patrols, no bar yet
+    const po = world.place('bar', 12, 12)!;
+    for (let i = 0; i < 500 && world.bars.get(po.id)!.stock === 0; i++) world.tick();
+    expect(world.bars.get(po.id)!.stock).toBeGreaterThan(0);
+  });
+
   it('idle staff patrol the floor instead of standing frozen', () => {
     const world = new CasinoWorld({ seed: 24, autoSpawn: false });
     const jan = world.hireStaff('janitor');
