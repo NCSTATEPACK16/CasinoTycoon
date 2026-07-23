@@ -125,6 +125,77 @@ describe('CasinoWorld — staff', () => {
     expect(guest.waitingForDrink).toBe(false);
   });
 
+  it('a dealer walks to a placed blackjack table and stations there', () => {
+    const world = new CasinoWorld({ seed: 31, autoSpawn: false });
+    world.place('blackjack-table', 15, 15)!;
+    const dealer = world.hireStaff('dealer');
+    for (let i = 0; i < 500 && dealer.state !== 'stationed'; i++) world.tick();
+    expect(dealer.state).toBe('stationed');
+    expect(dealer.pos).not.toEqual(world.entranceTile);
+  });
+
+  it('a dealer hired before any table exists waits, then assigns once one is built', () => {
+    const world = new CasinoWorld({ seed: 32, autoSpawn: false });
+    const dealer = world.hireStaff('dealer');
+    for (let i = 0; i < 30; i++) world.tick(); // nothing to claim yet
+    expect(dealer.state).toBe('idle');
+    world.place('craps-table', 12, 12);
+    for (let i = 0; i < 500 && dealer.state !== 'stationed'; i++) world.tick();
+    expect(dealer.state).toBe('stationed');
+  });
+
+  it('two dealers claim two different tables, never the same one', () => {
+    const world = new CasinoWorld({ seed: 33, autoSpawn: false });
+    world.state.cash = 5000;
+    world.place('blackjack-table', 8, 8);
+    world.place('craps-table', 20, 20);
+    const a = world.hireStaff('dealer');
+    const b = world.hireStaff('dealer');
+    for (let i = 0; i < 500 && (a.state !== 'stationed' || b.state !== 'stationed'); i++) {
+      world.tick();
+    }
+    expect(a.state).toBe('stationed');
+    expect(b.state).toBe('stationed');
+    expect(a.assignedTableId).not.toBe(b.assignedTableId);
+  });
+
+  it('selling a dealt table frees its dealer to reassign elsewhere', () => {
+    const world = new CasinoWorld({ seed: 34, autoSpawn: false });
+    world.state.cash = 5000;
+    const a = world.place('blackjack-table', 8, 8)!;
+    const b = world.place('craps-table', 20, 20)!;
+    const dealer = world.hireStaff('dealer');
+    for (let i = 0; i < 500 && dealer.state !== 'stationed'; i++) world.tick();
+    expect(dealer.assignedTableId).toBe(a.id);
+    world.sell(a.id);
+    for (let i = 0; i < 500 && (dealer.assignedTableId !== b.id || dealer.state !== 'stationed'); i++) {
+      world.tick();
+    }
+    expect(dealer.assignedTableId).toBe(b.id);
+    expect(dealer.state).toBe('stationed');
+  });
+
+  it('firing a dealer frees its table for another dealer', () => {
+    const world = new CasinoWorld({ seed: 35, autoSpawn: false });
+    const po = world.place('blackjack-table', 8, 8)!;
+    const first = world.hireStaff('dealer');
+    for (let i = 0; i < 500 && first.state !== 'stationed'; i++) world.tick();
+    expect(first.assignedTableId).toBe(po.id);
+    world.fireStaff(first.id);
+    const second = world.hireStaff('dealer');
+    for (let i = 0; i < 500 && second.state !== 'stationed'; i++) world.tick();
+    expect(second.assignedTableId).toBe(po.id);
+  });
+
+  it('a dealt table contributes a small capped rating bonus', () => {
+    const world = new CasinoWorld({ seed: 36, autoSpawn: false });
+    world.place('blackjack-table', 8, 8);
+    const before = world.rating;
+    const dealer = world.hireStaff('dealer');
+    for (let i = 0; i < 500 && dealer.state !== 'stationed'; i++) world.tick();
+    expect(world.rating).toBeGreaterThan(before);
+  });
+
   it('idle staff patrol the floor instead of standing frozen', () => {
     const world = new CasinoWorld({ seed: 24, autoSpawn: false });
     const jan = world.hireStaff('janitor');
