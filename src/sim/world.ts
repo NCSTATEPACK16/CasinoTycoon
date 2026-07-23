@@ -1,6 +1,7 @@
 import { eventBus } from '../EventBus';
 import { ENTRANCE_TILE, GRID_COLS, GRID_ROWS, HOURS_PER_DAY, JACKPOT_PAYOUT_MULT, STARTING_CASH } from '../config';
 import {
+  ARCHETYPE_BALANCE,
   BAR_BALANCE,
   DEALER_BALANCE,
   GUEST_BALANCE,
@@ -15,7 +16,7 @@ import { canPlaceObject, placeObject, sellObject, type PlaceCheck } from './buil
 import { BlackjackTable } from './entities/machines/BlackjackTable';
 import { CrapsTable } from './entities/machines/CrapsTable';
 import { SeatedCasinoGame } from './entities/machines/SeatedCasinoGame';
-import { Guest } from './entities/Guest';
+import { Guest, type GuestArchetype } from './entities/Guest';
 import { Bar, type BarJSON } from './entities/Bar';
 import { FoodStall, type FoodStallJSON, type FoodPurchase } from './entities/FoodStall';
 import type { Mess, MessKind } from './entities/Mess';
@@ -97,6 +98,11 @@ export class CasinoWorld {
   state: GameState;
   grid: IsoGrid;
   rng: Rng;
+  /** Separate stream for archetype selection so a guest's cosmetic archetype
+   *  roll never perturbs the shared `rng` stream's call count — every other
+   *  system's draws (payouts, spawn timing, ...) stay byte-identical to a
+   *  build with no archetypes at all, for the same world seed. */
+  private archetypeRng: Rng;
   machines = new Map<string, CasinoGame>();
   foodStalls = new Map<string, FoodStall>();
   bars = new Map<string, Bar>();
@@ -123,7 +129,9 @@ export class CasinoWorld {
   constructor(opts: WorldOptions = {}) {
     this.state = new GameState();
     this.grid = new IsoGrid(GRID_COLS, GRID_ROWS);
-    this.rng = new Rng(opts.seed ?? Date.now() >>> 0);
+    const seed = opts.seed ?? Date.now() >>> 0;
+    this.rng = new Rng(seed);
+    this.archetypeRng = new Rng((seed ^ 0x9e3779b9) >>> 0);
     this.autoSpawn = opts.autoSpawn ?? true;
   }
 
@@ -336,13 +344,29 @@ export class CasinoWorld {
     this.spawnGuest();
   }
 
-  spawnGuest(): Guest {
+  spawnGuest(archetypeOverride?: GuestArchetype): Guest {
     const id = `g-${this.nextGuestNum++}`;
-    const wallet = this.rng.int(GUEST_BALANCE.walletMin, GUEST_BALANCE.walletMax);
-    const guest = new Guest(id, wallet, this.entranceTile);
+    const archetype = archetypeOverride ?? this.rollArchetype();
+    const wallet =
+      archetype === 'highRoller'
+        ? this.rng.int(ARCHETYPE_BALANCE.highRollerWalletMin, ARCHETYPE_BALANCE.highRollerWalletMax)
+        : this.rng.int(GUEST_BALANCE.walletMin, GUEST_BALANCE.walletMax);
+    const guest = new Guest(id, wallet, this.entranceTile, archetype);
     this.guests.set(id, guest);
     eventBus.emit('guestSpawned', { id, archetype: guest.archetype });
     return guest;
+  }
+
+  /** Single bucketed roll on the dedicated archetypeRng (see its field
+   *  comment) — every archetype is independently weighted by its slice of
+   *  the [0,1) range. */
+  private rollArchetype(): GuestArchetype {
+    const b = ARCHETYPE_BALANCE;
+    const roll = this.archetypeRng.next();
+    if (roll < b.highRollerChance) return 'highRoller';
+    if (roll < b.highRollerChance + b.bikerChance) return 'biker';
+    if (roll < b.highRollerChance + b.bikerChance + b.touristChance) return 'tourist';
+    return 'regular';
   }
 
   // ---------- staff ----------

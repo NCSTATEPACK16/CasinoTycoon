@@ -41,6 +41,12 @@ const TARGETS = [
   // checkerboard; point-color matching alone left visible gridline
   // fragments. See sprite-alpha.mjs's recoverAlpha doc comment for why this
   // is opt-in rather than the default (it regressed the wall-panel above).
+  { file: 'sprites/characters/guest-highRoller-a.png', target: [200, 72] },
+  { file: 'sprites/characters/guest-highRoller-b.png', target: [200, 72] },
+  { file: 'sprites/characters/guest-biker-a.png', target: [200, 72] },
+  { file: 'sprites/characters/guest-biker-b.png', target: [200, 72] },
+  { file: 'sprites/characters/guest-tourist-a.png', target: [200, 72] },
+  { file: 'sprites/characters/guest-tourist-b.png', target: [200, 72] },
   { file: 'sprites/characters/guest-0-a.png', target: [200, 72], walkGradient: true },
   { file: 'sprites/characters/guest-0-b.png', target: [200, 72], walkGradient: true },
   { file: 'sprites/characters/guest-1-a.png', target: [200, 72], walkGradient: true },

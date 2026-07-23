@@ -208,6 +208,33 @@ const DEALER_PALETTE: PersonPalette = {
   shoes: 0x0a0a0a,
 };
 
+const HIGHROLLER_PALETTE: PersonPalette = {
+  hair: 0x2a1e16,
+  skin: 0xe8b88a,
+  shirt: 0xf2f2ea,
+  shirtShade: 0xc9c9c0,
+  pants: 0xf2f2ea,
+  shoes: 0x5a3a22,
+};
+
+const BIKER_PALETTE: PersonPalette = {
+  hair: 0x2a1a12,
+  skin: 0xc98d5a,
+  shirt: 0x2b2b2f,
+  shirtShade: 0x1a1a1c,
+  pants: 0x2e3450,
+  shoes: 0x1a1512,
+};
+
+const TOURIST_PALETTE: PersonPalette = {
+  hair: 0x3a2a1e,
+  skin: 0xe8b88a,
+  shirt: 0x3ea1c9,
+  shirtShade: 0x2a7391,
+  pants: 0xc9a95a,
+  shoes: 0xe8b88a,
+};
+
 function diamondPoints(w: number, h: number): Phaser.Types.Math.Vector2Like[] {
   return [
     { x: w / 2, y: 0 },
@@ -339,6 +366,12 @@ function makePixelPeople(scene: Phaser.Scene): void {
   makePerson(scene, 'char-security-b', SECURITY_PALETTE, 'b');
   makePerson(scene, 'char-dealer-a', DEALER_PALETTE, 'a');
   makePerson(scene, 'char-dealer-b', DEALER_PALETTE, 'b');
+  makePerson(scene, 'char-guest-highRoller-a', HIGHROLLER_PALETTE, 'a');
+  makePerson(scene, 'char-guest-highRoller-b', HIGHROLLER_PALETTE, 'b');
+  makePerson(scene, 'char-guest-biker-a', BIKER_PALETTE, 'a');
+  makePerson(scene, 'char-guest-biker-b', BIKER_PALETTE, 'b');
+  makePerson(scene, 'char-guest-tourist-a', TOURIST_PALETTE, 'a');
+  makePerson(scene, 'char-guest-tourist-b', TOURIST_PALETTE, 'b');
 }
 
 // P8 fx: a gold coin for jackpot bursts and a speech-bubble back for thoughts.

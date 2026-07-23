@@ -178,6 +178,19 @@ export const BAR_BALANCE = {
   happinessOnDelivery: 5, // a little more — real table service feels better
 } as const;
 
+// Guest archetypes: a small independent weighted roll on spawn. biker/tourist
+// are cosmetic-only (same needs/decay/wallet as regular) — highRoller is the
+// one with real mechanical weight, via a much wider/higher wallet range so
+// they visibly spend more and stick around longer. Deliberately bounded scope
+// per the P10.6 roadmap — no new decay-rate or happiness-threshold behavior.
+export const ARCHETYPE_BALANCE = {
+  highRollerChance: 0.015,
+  bikerChance: 0.05,
+  touristChance: 0.05,
+  highRollerWalletMin: 250, // ~6x GUEST_BALANCE.walletMin
+  highRollerWalletMax: 1100, // ~5x GUEST_BALANCE.walletMax
+} as const;
+
 // Campaign score: profit-vs-goal ratio × day-efficiency × final rating,
 // each factor weighted so no single one dominates (tuned by score.test.ts).
 export const SCORE_BALANCE = {

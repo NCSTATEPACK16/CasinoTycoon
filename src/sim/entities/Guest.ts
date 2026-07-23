@@ -13,7 +13,7 @@ import type { Cell } from '../grid/astar';
 import type { CasinoWorld } from '../world';
 import { Walker } from './Walker';
 
-export type GuestArchetype = 'regular';
+export type GuestArchetype = 'regular' | 'highRoller' | 'biker' | 'tourist';
 
 export type GuestState = 'wander' | 'seekGame' | 'play' | 'service' | 'leaving' | 'gone';
 
@@ -41,7 +41,7 @@ export class Guest extends Walker {
   thoughts: GuestThought[] = [];
   /** Set by the world's mess pass each tick; read by the thought predicates. */
   nearMess = false;
-  readonly archetype: GuestArchetype = 'regular';
+  readonly archetype: GuestArchetype;
   readonly name: string;
   /** Running total of payout − wager across every play this guest has made
    *  since the last time the session folded into the day's report. */
@@ -61,10 +61,11 @@ export class Guest extends Walker {
   private foodStallId: string | null = null;
   private barId: string | null = null;
 
-  constructor(id: string, wallet: number, start: Cell) {
+  constructor(id: string, wallet: number, start: Cell, archetype: GuestArchetype = 'regular') {
     super(start);
     this.id = id;
     this.wallet = wallet;
+    this.archetype = archetype;
     this.name = flavorName(id);
     this.needs = {
       energy: 100,
