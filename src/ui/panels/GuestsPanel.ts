@@ -1,5 +1,5 @@
 import { world } from '../../gameContext';
-import type { GuestState } from '../../sim/entities/Guest';
+import type { GuestArchetype, GuestState } from '../../sim/entities/Guest';
 import { el } from '../dom';
 import type { PanelSpec } from '../WindowManager';
 
@@ -13,6 +13,13 @@ const STATE_LABEL: Record<GuestState, string> = {
   service: 'Using services',
   leaving: 'Leaving',
   gone: 'Gone',
+};
+
+const ARCHETYPE_LABEL: Record<GuestArchetype, string> = {
+  regular: '',
+  highRoller: ' 💎 High Roller',
+  biker: ' 🏍️ Biker',
+  tourist: ' 📷 Tourist',
 };
 
 const mood = (happiness: number) => (happiness >= 70 ? '🙂' : happiness >= 40 ? '😐' : '😠');
@@ -61,7 +68,11 @@ export function makeGuestsPanel(): PanelSpec {
       return;
     }
     detail.appendChild(
-      el('div', 'p-heading', `Guest #${sel.id.slice(2)} — ${STATE_LABEL[sel.state]}`),
+      el(
+        'div',
+        'p-heading',
+        `Guest #${sel.id.slice(2)} — ${STATE_LABEL[sel.state]}${ARCHETYPE_LABEL[sel.archetype]}`,
+      ),
     );
     const bars: [string, number][] = [
       ['Energy', sel.needs.energy],

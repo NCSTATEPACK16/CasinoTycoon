@@ -96,7 +96,7 @@ describe('Guest', () => {
   it('has a stable flavor name and regular archetype, and tracks netResult/favoriteGame', () => {
     const world = new CasinoWorld({ seed: 8, autoSpawn: false });
     world.place('slot-machine', 5, 5);
-    const guest = world.spawnGuest();
+    const guest = world.spawnGuest('regular');
     guest.wallet = 500;
     expect(guest.archetype).toBe('regular');
     expect(guest.name).toMatch(/^[A-Za-z ]+ [A-Z]\.$/);
@@ -120,6 +120,14 @@ describe('Guest', () => {
     for (let i = 0; i < 5; i++) world.tick();
     expect(guest.waitingForDrink).toBe(true);
     expect(guest.pos).toEqual(seatPos); // never left the seat
+  });
+
+  it('accepts an explicit archetype from its constructor, defaulting to regular', () => {
+    const world = new CasinoWorld({ seed: 20, autoSpawn: false });
+    const regular = world.spawnGuest();
+    expect(regular.archetype).toBe('regular');
+    const vip = world.spawnGuest('highRoller');
+    expect(vip.archetype).toBe('highRoller');
   });
 
   it('a broke AND unhappy guest rage-quits: raging flag, faster exit, ticker line', () => {
