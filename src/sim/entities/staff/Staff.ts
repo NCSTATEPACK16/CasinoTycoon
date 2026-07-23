@@ -3,7 +3,7 @@ import type { Cell } from '../../grid/astar';
 import type { CasinoWorld } from '../../world';
 import { Walker } from '../Walker';
 
-export type StaffKind = 'mechanic' | 'janitor' | 'bartender' | 'waitress';
+export type StaffKind = 'mechanic' | 'janitor' | 'bartender' | 'waitress' | 'pitBoss' | 'security';
 export type StaffState = 'idle' | 'patrol' | 'toJob' | 'working' | 'brewing' | 'carried';
 
 // One class for both roles: the only difference is which jobs the world hands

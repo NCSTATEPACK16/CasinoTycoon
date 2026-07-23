@@ -175,4 +175,63 @@ describe('CasinoWorld — staff', () => {
     const extra = restored.hireStaff('janitor');
     expect([mech.id, jan.id, tender.id]).not.toContain(extra.id);
   });
+
+  it('hires a pitBoss and a security guard at the entrance', () => {
+    const world = new CasinoWorld({ seed: 40, autoSpawn: false });
+    const boss = world.hireStaff('pitBoss');
+    const guard = world.hireStaff('security');
+    expect(world.staff.get(boss.id)).toBe(boss);
+    expect(world.staff.get(guard.id)).toBe(guard);
+    expect(boss.pos).toEqual(world.entranceTile);
+    expect(guard.pos).toEqual(world.entranceTile);
+  });
+
+  it('idle pitBoss/security patrol the floor instead of standing frozen', () => {
+    const world = new CasinoWorld({ seed: 41, autoSpawn: false });
+    const guard = world.hireStaff('security');
+    const start = { ...guard.pos };
+    let moved = false;
+    for (let i = 0; i < 600 && !moved; i++) {
+      world.tick();
+      if (guard.pos.col !== start.col || guard.pos.row !== start.row) moved = true;
+    }
+    expect(moved).toBe(true);
+  });
+
+  it('pitBoss and security never claim mechanic or janitor jobs', () => {
+    const world = new CasinoWorld({ seed: 42, autoSpawn: false });
+    world.dropMess(12, 12, 'spill');
+    const po = world.place('slot-machine', 10, 10)!;
+    const machine = world.machines.get(po.id)!;
+    machine.reliability = 0;
+    machine.broken = true;
+    const boss = world.hireStaff('pitBoss');
+    const guard = world.hireStaff('security');
+    for (let i = 0; i < 500; i++) world.tick();
+    expect(boss.state).not.toBe('working');
+    expect(guard.state).not.toBe('working');
+    expect(boss.jobId).toBeNull();
+    expect(guard.jobId).toBeNull();
+    expect(world.messes.size).toBe(1); // untouched — no janitor hired
+    expect(machine.broken).toBe(true); // untouched — no mechanic hired
+  });
+
+  it('charges hourly wages for pitBoss and security', () => {
+    const world = new CasinoWorld({ seed: 43, autoSpawn: false });
+    world.hireStaff('pitBoss');
+    world.hireStaff('security');
+    const before = world.state.cash;
+    const hourly = STAFF_BALANCE.pitBoss.wagePerHour + STAFF_BALANCE.security.wagePerHour;
+    for (let i = 0; i < TICKS_PER_HOUR; i++) world.tick();
+    expect(world.state.cash).toBe(before - hourly);
+  });
+
+  it('serializes pitBoss/security kind through toJSON/fromJSON', () => {
+    const world = new CasinoWorld({ seed: 44, autoSpawn: false });
+    const boss = world.hireStaff('pitBoss');
+    const guard = world.hireStaff('security');
+    const restored = CasinoWorld.fromJSON(world.toJSON());
+    expect(restored.staff.get(boss.id)!.kind).toBe('pitBoss');
+    expect(restored.staff.get(guard.id)!.kind).toBe('security');
+  });
 });

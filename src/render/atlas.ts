@@ -53,6 +53,10 @@ export const FILE_ASSETS: readonly FileAsset[] = [
   { key: 'char-bartender-b', url: 'sprites/characters/bartender-b.png' },
   { key: 'char-waitress-a', url: 'sprites/characters/waitress-a.png' },
   { key: 'char-waitress-b', url: 'sprites/characters/waitress-b.png' },
+  { key: 'char-pitBoss-a', url: 'sprites/characters/pitBoss-a.png' },
+  { key: 'char-pitBoss-b', url: 'sprites/characters/pitBoss-b.png' },
+  { key: 'char-security-a', url: 'sprites/characters/security-a.png' },
+  { key: 'char-security-b', url: 'sprites/characters/security-b.png' },
 ];
 
 export function preloadFileAssets(scene: Pick<Phaser.Scene, 'load'>): void {
