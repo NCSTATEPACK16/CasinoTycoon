@@ -10,7 +10,8 @@ export type StaffKind =
   | 'waitress'
   | 'pitBoss'
   | 'security'
-  | 'dealer';
+  | 'dealer'
+  | 'cashier';
 export type StaffState = 'idle' | 'patrol' | 'toJob' | 'working' | 'brewing' | 'stationed' | 'carried';
 
 // One class for every role. Mechanic/janitor share the job-queue dispatch
@@ -25,6 +26,8 @@ export class Staff extends Walker {
   assignedBarId: string | null = null;
   /** Dealer only: the table it's claimed/stationed at. */
   assignedTableId: string | null = null;
+  /** Cashier only: the cage it's claimed/stationed at. */
+  assignedCageId: string | null = null;
   private workTimer = 0;
   private brewTimer = 0;
   private idleTimer = 0;
@@ -64,6 +67,7 @@ export class Staff extends Walker {
     this.abandonJob(world);
     this.assignedBarId = null;
     this.assignedTableId = null;
+    this.assignedCageId = null;
     this.clearMovement();
     this.state = 'carried';
   }
@@ -80,6 +84,10 @@ export class Staff extends Walker {
     }
     if (this.kind === 'dealer') {
       this.actDealer(world);
+      return;
+    }
+    if (this.kind === 'cashier') {
+      this.actCashier(world);
       return;
     }
     switch (this.state) {
@@ -163,6 +171,30 @@ export class Staff extends Walker {
       return;
     }
     world.releaseDealerClaim(claim.tableId); // claimed but unreachable — put it back
+  }
+
+  /** Cashier: same "assign once, stay stationed forever" shape as the
+   * dealer, targeting a cage instead of a table. No timer — the cage just
+   * needs the cashier physically present for guests to self-serve there. */
+  private actCashier(world: CasinoWorld): void {
+    if (this.state === 'carried') return;
+    if (this.assignedCageId && !world.isCashierAssignmentValid(this.id, this.assignedCageId)) {
+      this.assignedCageId = null;
+      this.state = 'idle';
+    }
+    if (this.state === 'stationed') return;
+    if (this.state === 'toJob') {
+      if (this.arrived) this.state = 'stationed';
+      return;
+    }
+    const claim = world.claimCashierCage(this.id);
+    if (!claim) return;
+    if (this.goTo(world, claim.stand)) {
+      this.assignedCageId = claim.cageId;
+      this.state = 'toJob';
+      return;
+    }
+    world.releaseCashierClaim(claim.cageId); // claimed but unreachable — put it back
   }
 
   private findWork(world: CasinoWorld): void {

@@ -121,6 +121,17 @@ export const STAFF_BALANCE = {
   pitBoss: { wagePerHour: 4 },
   security: { wagePerHour: 3 },
   dealer: { wagePerHour: 4 },
+  cashier: { wagePerHour: 4 },
+} as const;
+
+// Cashier + Cage: a cashier stationed at a cage lets guests running low on
+// cash (but not yet broke) get a one-time wallet top-up for a fee — same
+// "staffed booth, presence-gated" shape as the bar. No production timer
+// (unlike the bartender) — the cage just needs a cashier physically there.
+export const CASHIER_BALANCE = {
+  walletThreshold: 30, // below this (but still affordable to keep playing) triggers a visit
+  advanceAmount: 40,
+  fee: 8,
 } as const;
 
 // Dealer: cosmetic-only staff member stationed at a blackjack/craps table.

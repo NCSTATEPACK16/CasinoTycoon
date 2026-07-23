@@ -28,6 +28,7 @@ export const FILE_ASSETS: readonly FileAsset[] = [
   { key: 'img-restroom', url: 'sprites/restroom.png' },
   { key: 'img-plant', url: 'sprites/plant.png' },
   { key: 'img-food-stall', url: 'sprites/food-stall.png' },
+  { key: 'img-cage', url: 'sprites/cage.png' },
   // Characters load directly into the same keys GuestViews/StaffViews already
   // reference (char-guest-N-a/b, char-mechanic-a/b, char-janitor-a/b) —
   // unlike objects there's no spriteKey indirection, so real art has to use
@@ -65,6 +66,8 @@ export const FILE_ASSETS: readonly FileAsset[] = [
   { key: 'char-security-b', url: 'sprites/characters/security-b.png' },
   { key: 'char-dealer-a', url: 'sprites/characters/dealer-a.png' },
   { key: 'char-dealer-b', url: 'sprites/characters/dealer-b.png' },
+  { key: 'char-cashier-a', url: 'sprites/characters/cashier-a.png' },
+  { key: 'char-cashier-b', url: 'sprites/characters/cashier-b.png' },
 ];
 
 export function preloadFileAssets(scene: Pick<Phaser.Scene, 'load'>): void {

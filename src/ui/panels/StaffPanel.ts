@@ -14,6 +14,7 @@ const STAFF_KINDS: readonly StaffKind[] = [
   'pitBoss',
   'security',
   'dealer',
+  'cashier',
 ];
 
 const KIND_META: Record<StaffKind, { icon: string; label: string; wage: number }> = {
@@ -24,6 +25,7 @@ const KIND_META: Record<StaffKind, { icon: string; label: string; wage: number }
   pitBoss: { icon: '🎩', label: 'Pit Boss', wage: STAFF_BALANCE.pitBoss.wagePerHour },
   security: { icon: '🛡️', label: 'Security', wage: STAFF_BALANCE.security.wagePerHour },
   dealer: { icon: '🎴', label: 'Dealer', wage: STAFF_BALANCE.dealer.wagePerHour },
+  cashier: { icon: '💵', label: 'Cashier', wage: STAFF_BALANCE.cashier.wagePerHour },
 };
 
 const STATE_LABEL: Record<StaffState, string> = {
@@ -69,6 +71,7 @@ export function makeStaffPanel(): PanelSpec {
       pitBoss: 0,
       security: 0,
       dealer: 0,
+      cashier: 0,
     };
     let hourly = 0;
     for (const m of members) {

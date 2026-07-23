@@ -73,6 +73,8 @@ const TARGETS = [
   { file: 'sprites/characters/security-b.png', target: [200, 72] },
   { file: 'sprites/characters/dealer-a.png', target: [200, 72] },
   { file: 'sprites/characters/dealer-b.png', target: [200, 72] },
+  { file: 'sprites/characters/cashier-a.png', target: [200, 72] },
+  { file: 'sprites/characters/cashier-b.png', target: [200, 72] },
   // bgTolerance: 45 — the neon-tube glow bleeds a soft gradient into the
   // checkerboard that the default tolerance can't cross (see sprite-alpha.mjs's
   // recoverAlpha doc comment for how this value was found).
@@ -84,6 +86,7 @@ const TARGETS = [
   // family of fix; 30 already fully separates (28 still leaves a full-width
   // leak, per the tolerance bisection in PLAN.md's P10.5 log).
   { file: 'sprites/food-stall.png', target: [380, 316], bgTolerance: 30 },
+  { file: 'sprites/cage.png', target: [440, 322] },
 ];
 
 async function optimizeOne({ file, target, walkGradient, bgTolerance }) {

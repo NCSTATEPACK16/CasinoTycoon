@@ -65,6 +65,17 @@ describe('Guest', () => {
     expect(peak).toBeGreaterThan(90);
   });
 
+  it('a guest running low on cash visits an operational cage for a one-time top-up', () => {
+    const world = new CasinoWorld({ seed: 17, autoSpawn: false });
+    world.place('cage', 20, 15);
+    world.hireStaff('cashier');
+    const guest = world.spawnGuest();
+    guest.wallet = 25; // below CASHIER_BALANCE.walletThreshold, above brokeWallet
+    const before = guest.wallet;
+    for (let i = 0; i < 1500 && guest.wallet <= before; i++) world.tick();
+    expect(guest.wallet).toBeGreaterThan(before);
+  });
+
   it('emits threshold thoughts once per cooldown', () => {
     const world = new CasinoWorld({ seed: 8, autoSpawn: false });
     const guest = world.spawnGuest();

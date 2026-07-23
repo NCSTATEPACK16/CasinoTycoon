@@ -1,6 +1,7 @@
 import { eventBus } from '../../EventBus';
 import {
   BAR_BALANCE,
+  CASHIER_BALANCE,
   FOOD_BALANCE,
   GUEST_BALANCE,
   MESS_BALANCE,
@@ -56,10 +57,13 @@ export class Guest extends Walker {
   private spinsLeft = 0;
   private spinTimer = 0;
   private spinEveryTicks = 8; // from the machine's cadence at sit-down
-  private serviceKind: 'toilet' | 'food-stall' | 'bar' | null = null;
+  private serviceKind: 'toilet' | 'food-stall' | 'bar' | 'cage' | null = null;
+  /** Once true, never visits a cage again this session — a one-time top-up. */
+  private usedCashAdvance = false;
   private serviceTimer = 0;
   private foodStallId: string | null = null;
   private barId: string | null = null;
+  private cageId: string | null = null;
 
   constructor(id: string, wallet: number, start: Cell, archetype: GuestArchetype = 'regular') {
     super(start);
@@ -145,6 +149,7 @@ export class Guest extends Walker {
     this.serviceKind = null;
     this.foodStallId = null;
     this.barId = null;
+    this.cageId = null;
     this.state = 'wander';
   }
 
@@ -201,6 +206,16 @@ export class Guest extends Walker {
         this.state = 'service';
         this.serviceKind = 'bar';
         this.barId = svc.barId;
+        this.serviceTimer = 0;
+        return;
+      }
+    }
+    if (!this.usedCashAdvance && this.wallet < CASHIER_BALANCE.walletThreshold) {
+      const svc = world.findCage();
+      if (svc && this.goTo(world, svc.stand)) {
+        this.state = 'service';
+        this.serviceKind = 'cage';
+        this.cageId = svc.cageId;
         this.serviceTimer = 0;
         return;
       }
@@ -310,6 +325,13 @@ export class Guest extends Walker {
         this.adjustHappiness(BAR_BALANCE.happinessOnSelfServe);
       }
       this.barId = null;
+    } else if (this.serviceKind === 'cage') {
+      const result = this.cageId ? world.useCage(this.wallet) : null;
+      if (result) {
+        this.wallet += result.advance - CASHIER_BALANCE.fee;
+        this.usedCashAdvance = true;
+      }
+      this.cageId = null;
     }
     this.serviceKind = null;
     this.evaluate(world);
