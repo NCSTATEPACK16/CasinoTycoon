@@ -26,9 +26,11 @@ export class GuestViews {
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
-    eventBus.on('guestSpawned', ({ id }) => {
-      const variant = (Number(id.slice(2)) || 0) % GUEST_VARIANTS;
-      const base = `char-guest-${variant}`;
+    eventBus.on('guestSpawned', ({ id, archetype }) => {
+      const base =
+        archetype !== 'regular'
+          ? `char-guest-${archetype}`
+          : `char-guest-${(Number(id.slice(2)) || 0) % GUEST_VARIANTS}`;
       this.sprites.set(id, this.obtain(`${base}-a`));
       this.baseKeys.set(id, base);
       this.facingLeft.set(id, false);

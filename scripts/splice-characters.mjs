@@ -43,6 +43,9 @@ const SINGLE_SOURCES = {
   pitBoss: 'Pitt Boss.png',
   security: 'security guard.png',
   dealer: 'dealer.png',
+  'guest-highRoller': 'The VIP.png',
+  'guest-biker': 'The Biker.png',
+  'guest-tourist': 'the tourist.png',
 };
 
 // guest varient 0.png (only this file, of the 15+ in this drop) carries a
