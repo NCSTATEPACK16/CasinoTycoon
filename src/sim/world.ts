@@ -2,6 +2,7 @@ import { eventBus } from '../EventBus';
 import { ENTRANCE_TILE, GRID_COLS, GRID_ROWS, HOURS_PER_DAY, JACKPOT_PAYOUT_MULT, STARTING_CASH } from '../config';
 import {
   BAR_BALANCE,
+  DEALER_BALANCE,
   GUEST_BALANCE,
   MESS_BALANCE,
   RAGE_BALANCE,
@@ -115,6 +116,8 @@ export class CasinoWorld {
   private repairClaims = new Map<string, string>();
   /** guestId → staffId, so two waitresses never race to the same delivery. */
   private drinkClaims = new Map<string, string>();
+  /** tableId → staffId, so two dealers never race for the same table. */
+  private dealerAssignments = new Map<string, string>();
   private ragePenalty = 0;
 
   constructor(opts: WorldOptions = {}) {
@@ -145,6 +148,7 @@ export class CasinoWorld {
     this.bars.clear();
     this.repairClaims.clear();
     this.drinkClaims.clear();
+    this.dealerAssignments.clear();
     this.grid.clear();
     this.state.reset(startingCash);
     this.time = new TimeSystem();
@@ -185,6 +189,7 @@ export class CasinoWorld {
       machine.releaseAll();
       this.machines.delete(objectId);
       this.repairClaims.delete(objectId);
+      this.dealerAssignments.delete(objectId);
     }
     this.foodStalls.delete(objectId);
     this.bars.delete(objectId);
@@ -307,6 +312,10 @@ export class CasinoWorld {
       if (m.kind === 'pitBoss' || m.kind === 'security') securityBonus += SECURITY_BALANCE.bonusPerStaff;
     }
     securityBonus = Math.min(securityBonus, SECURITY_BALANCE.bonusCap);
+    const dealerBonus = Math.min(
+      this.dealerAssignments.size * DEALER_BALANCE.dealerBonusPerTable,
+      DEALER_BALANCE.dealerBonusCap,
+    );
     const score =
       b.happinessWeight * avgHappiness +
       Math.min(this.machines.size * b.perMachine, b.machineCap) +
@@ -314,7 +323,8 @@ export class CasinoWorld {
       Math.max(0, b.cleanlinessMax - this.messes.size * b.perMessPenalty) -
       broken * b.perBrokenPenalty +
       signageBonus +
-      securityBonus -
+      securityBonus +
+      dealerBonus -
       this.ragePenalty;
     return Math.round(Math.min(100, Math.max(0, score)));
   }
@@ -464,9 +474,40 @@ export class CasinoWorld {
     for (const [guestId, claimant] of this.drinkClaims) {
       if (claimant === staffId) this.drinkClaims.delete(guestId);
     }
+    for (const [tableId, claimant] of this.dealerAssignments) {
+      if (claimant === staffId) this.dealerAssignments.delete(tableId);
+    }
     for (const mess of this.messes.values()) {
       if (mess.claimedBy === staffId) mess.claimedBy = null;
     }
+  }
+
+  /** Claim the nearest blackjack/craps table without a dealer already
+   * assigned. Claims immediately (before the caller attempts to path to it),
+   * mirroring claimJobFor's shape, so two dealers evaluated in the same tick
+   * never claim the same table — staff tick sequentially within a tick, so
+   * the second dealer's scan already sees the first's claim. */
+  claimDealerTable(staffId: string): { tableId: string; stand: Cell } | null {
+    for (const po of this.state.allObjects()) {
+      if (po.defId !== 'blackjack-table' && po.defId !== 'craps-table') continue;
+      if (this.dealerAssignments.has(po.id)) continue;
+      const stand = this.standTileFor(po);
+      if (!stand) continue;
+      this.dealerAssignments.set(po.id, staffId);
+      return { tableId: po.id, stand };
+    }
+    return null;
+  }
+
+  /** False once the table is sold (sell() clears the entry) or reassigned —
+   * tells a dealer its claim on `tableId` no longer holds. */
+  isDealerAssignmentValid(staffId: string, tableId: string): boolean {
+    return this.dealerAssignments.get(tableId) === staffId;
+  }
+
+  /** Put a just-claimed-but-unreachable table's claim back. */
+  releaseDealerClaim(tableId: string): void {
+    this.dealerAssignments.delete(tableId);
   }
 
   /** One-time rating ding from a rage quit; decays over subsequent hours. */
@@ -719,6 +760,7 @@ export class CasinoWorld {
   loadJSON(data: CasinoWorldJSON): void {
     this.guests.clear();
     this.repairClaims.clear();
+    this.dealerAssignments.clear();
     this.machines.clear();
     this.foodStalls.clear();
     this.bars.clear();
