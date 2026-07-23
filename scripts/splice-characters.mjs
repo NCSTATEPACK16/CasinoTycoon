@@ -43,6 +43,7 @@ const SINGLE_SOURCES = {
   pitBoss: 'Pitt Boss.png',
   security: 'security guard.png',
   dealer: 'dealer.png',
+  cashier: 'cashier.png',
   'guest-highRoller': 'The VIP.png',
   'guest-biker': 'The Biker.png',
   'guest-tourist': 'the tourist.png',

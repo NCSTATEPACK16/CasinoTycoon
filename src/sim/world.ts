@@ -3,6 +3,7 @@ import { ENTRANCE_TILE, GRID_COLS, GRID_ROWS, HOURS_PER_DAY, JACKPOT_PAYOUT_MULT
 import {
   ARCHETYPE_BALANCE,
   BAR_BALANCE,
+  CASHIER_BALANCE,
   DEALER_BALANCE,
   GUEST_BALANCE,
   MESS_BALANCE,
@@ -124,6 +125,8 @@ export class CasinoWorld {
   private drinkClaims = new Map<string, string>();
   /** tableId → staffId, so two dealers never race for the same table. */
   private dealerAssignments = new Map<string, string>();
+  /** cageId → staffId, so two cashiers never race for the same cage. */
+  private cashierAssignments = new Map<string, string>();
   private ragePenalty = 0;
 
   constructor(opts: WorldOptions = {}) {
@@ -157,6 +160,7 @@ export class CasinoWorld {
     this.repairClaims.clear();
     this.drinkClaims.clear();
     this.dealerAssignments.clear();
+    this.cashierAssignments.clear();
     this.grid.clear();
     this.state.reset(startingCash);
     this.time = new TimeSystem();
@@ -201,6 +205,7 @@ export class CasinoWorld {
     }
     this.foodStalls.delete(objectId);
     this.bars.delete(objectId);
+    this.cashierAssignments.delete(objectId);
     return sellObject(this.state, this.grid, objectId);
   }
 
@@ -501,6 +506,9 @@ export class CasinoWorld {
     for (const [tableId, claimant] of this.dealerAssignments) {
       if (claimant === staffId) this.dealerAssignments.delete(tableId);
     }
+    for (const [cageId, claimant] of this.cashierAssignments) {
+      if (claimant === staffId) this.cashierAssignments.delete(cageId);
+    }
     for (const mess of this.messes.values()) {
       if (mess.claimedBy === staffId) mess.claimedBy = null;
     }
@@ -532,6 +540,64 @@ export class CasinoWorld {
   /** Put a just-claimed-but-unreachable table's claim back. */
   releaseDealerClaim(tableId: string): void {
     this.dealerAssignments.delete(tableId);
+  }
+
+  /** Claim the nearest cage without a cashier already stationed — same
+   * immediate-claim shape as claimDealerTable, for the same reason. */
+  claimCashierCage(staffId: string): { cageId: string; stand: Cell } | null {
+    for (const po of this.state.allObjects()) {
+      if (po.defId !== 'cage') continue;
+      if (this.cashierAssignments.has(po.id)) continue;
+      const stand = this.standTileFor(po);
+      if (!stand) continue;
+      this.cashierAssignments.set(po.id, staffId);
+      return { cageId: po.id, stand };
+    }
+    return null;
+  }
+
+  /** False once the cage is sold or reassigned. */
+  isCashierAssignmentValid(staffId: string, cageId: string): boolean {
+    return this.cashierAssignments.get(cageId) === staffId;
+  }
+
+  /** Put a just-claimed-but-unreachable cage's claim back. */
+  releaseCashierClaim(cageId: string): void {
+    this.cashierAssignments.delete(cageId);
+  }
+
+  /** An operational cage: has a cashier actually stationed there right now
+   * (mirrors findBar's stock gate — presence instead of stock; unlike
+   * dealerAssignments/repairClaims-style "claimed" checks, this specifically
+   * requires the assigned staffer to have arrived, not just be en route) and
+   * a walkable stand tile. */
+  findCage(): { cageId: string; stand: Cell } | null {
+    for (const po of this.state.allObjects()) {
+      if (po.defId !== 'cage') continue;
+      const staffId = this.cashierAssignments.get(po.id);
+      if (!staffId || this.staff.get(staffId)?.state !== 'stationed') continue;
+      const stand = this.standTileFor(po);
+      if (!stand) continue;
+      return { cageId: po.id, stand };
+    }
+    return null;
+  }
+
+  /** One-time wallet top-up net of the fee; null if the wallet can't cover
+   * the fee at all. */
+  useCage(wallet: number): { advance: number } | null {
+    if (wallet < CASHIER_BALANCE.fee) return null;
+    this.state.cash += CASHIER_BALANCE.fee;
+    this.ledger.addRevenue(CASHIER_BALANCE.fee);
+    eventBus.emit('moneyChanged', { cash: this.state.cash, delta: CASHIER_BALANCE.fee });
+    return { advance: CASHIER_BALANCE.advanceAmount };
+  }
+
+  /** Public wrapper so Staff.ts (cashier) can reach a cage's stand tile,
+   * mirroring barStandTile. */
+  cageStandTile(cageId: string): Cell | null {
+    const po = this.state.getObject(cageId);
+    return po ? this.standTileFor(po) : null;
   }
 
   /** One-time rating ding from a rage quit; decays over subsequent hours. */
@@ -785,6 +851,7 @@ export class CasinoWorld {
     this.guests.clear();
     this.repairClaims.clear();
     this.dealerAssignments.clear();
+    this.cashierAssignments.clear();
     this.machines.clear();
     this.foodStalls.clear();
     this.bars.clear();

@@ -208,6 +208,15 @@ const DEALER_PALETTE: PersonPalette = {
   shoes: 0x0a0a0a,
 };
 
+const CASHIER_PALETTE: PersonPalette = {
+  hair: 0x2a1e16,
+  skin: 0xe8b88a,
+  shirt: 0x3ea15f,
+  shirtShade: 0x2a7341,
+  pants: 0x1c1c22,
+  shoes: 0x241f1a,
+};
+
 const HIGHROLLER_PALETTE: PersonPalette = {
   hair: 0x2a1e16,
   skin: 0xe8b88a,
@@ -366,6 +375,8 @@ function makePixelPeople(scene: Phaser.Scene): void {
   makePerson(scene, 'char-security-b', SECURITY_PALETTE, 'b');
   makePerson(scene, 'char-dealer-a', DEALER_PALETTE, 'a');
   makePerson(scene, 'char-dealer-b', DEALER_PALETTE, 'b');
+  makePerson(scene, 'char-cashier-a', CASHIER_PALETTE, 'a');
+  makePerson(scene, 'char-cashier-b', CASHIER_PALETTE, 'b');
   makePerson(scene, 'char-guest-highRoller-a', HIGHROLLER_PALETTE, 'a');
   makePerson(scene, 'char-guest-highRoller-b', HIGHROLLER_PALETTE, 'b');
   makePerson(scene, 'char-guest-biker-a', BIKER_PALETTE, 'a');

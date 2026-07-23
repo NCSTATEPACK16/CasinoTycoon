@@ -124,6 +124,17 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     spriteKey: 'obj-bar',
     category: 'service',
   },
+  {
+    id: 'cage',
+    name: 'VIP Cage',
+    icon: '💰',
+    cost: 900,
+    upkeepPerDay: 20,
+    footprint: { w: 2, h: 2 },
+    spriteKey: 'img-cage',
+    displaySize: { w: 220, h: 120 },
+    category: 'service',
+  },
 ];
 
 const BY_ID = new Map(OBJECT_CATALOG.map((d) => [d.id, d]));
