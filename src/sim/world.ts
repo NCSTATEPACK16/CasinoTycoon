@@ -14,8 +14,7 @@ import {
 import type { CampaignDef } from '../data/campaigns';
 import { getObjectDef } from '../data/objects';
 import { canPlaceObject, placeObject, sellObject, type PlaceCheck } from './build';
-import { BlackjackTable } from './entities/machines/BlackjackTable';
-import { CrapsTable } from './entities/machines/CrapsTable';
+import { createMachine, createMachineOrThrow } from './entities/machines/factory';
 import { SeatedCasinoGame } from './entities/machines/SeatedCasinoGame';
 import { Guest, type GuestArchetype } from './entities/Guest';
 import { Bar, type BarJSON } from './entities/Bar';
@@ -26,7 +25,6 @@ import { Ledger, type LedgerJSON } from './economy';
 import { ScenarioManager, type ScenarioJSON } from './scenario/ScenarioManager';
 import { TimeSystem, type TimeSystemJSON } from './TimeSystem';
 import { type CasinoGame, type PlayCadence, type PlayResult } from './entities/machines/CasinoGame';
-import { SlotMachine } from './entities/machines/SlotMachine';
 import { GameState, type GameStateJSON, type PlacedObject } from './GameState';
 import { findPath, type Cell } from './grid/astar';
 import { IsoGrid, type IsoGridJSON } from './grid/IsoGrid';
@@ -185,9 +183,10 @@ export class CasinoWorld {
   place(defId: string, col: number, row: number): PlacedObject | null {
     if (!this.isObjectAllowed(defId)) return null;
     const po = placeObject(this.state, this.grid, defId, col, row);
-    if (po && defId === 'slot-machine') this.machines.set(po.id, new SlotMachine(po.id));
-    if (po && defId === 'blackjack-table') this.machines.set(po.id, new BlackjackTable(po.id));
-    if (po && defId === 'craps-table') this.machines.set(po.id, new CrapsTable(po.id));
+    if (po) {
+      const machine = createMachine(defId, po.id);
+      if (machine) this.machines.set(po.id, machine);
+    }
     if (po && defId === 'food-stall') this.foodStalls.set(po.id, new FoodStall(po.id));
     if (po && defId === 'bar') this.bars.set(po.id, new Bar(po.id));
     return po;
@@ -861,12 +860,7 @@ export class CasinoWorld {
     this.grid.load(data.grid);
     this.tickCount = data.tickCount;
     for (const m of data.machines) {
-      const machine =
-        m.defId === 'blackjack-table'
-          ? new BlackjackTable(m.id, m.costToPlay)
-          : m.defId === 'craps-table'
-            ? new CrapsTable(m.id, m.costToPlay)
-            : new SlotMachine(m.id, m.costToPlay);
+      const machine = createMachineOrThrow(m.defId, m.id, m.costToPlay);
       machine.reliability = m.reliability;
       machine.lifetimeProfit = m.lifetimeProfit;
       machine.broken = m.broken;
