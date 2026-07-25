@@ -138,6 +138,14 @@
   font-size: 13px;
 }
 
+.tb-readout-btn {
+  cursor: pointer;
+}
+
+.tb-readout-btn:hover {
+  filter: brightness(1.15);
+}
+
 .tb-cash {
   color: var(--gold);
 }

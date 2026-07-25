@@ -8,6 +8,7 @@ import { makeFinancePanel } from './panels/FinancePanel';
 import { makeGuestsPanel } from './panels/GuestsPanel';
 import { makeStaffPanel } from './panels/StaffPanel';
 import { makeObjectivesPanel } from './panels/ObjectivesPanel';
+import { makeRatingPanel } from './panels/RatingPanel';
 import { makeSoundPanel } from './panels/SoundPanel';
 import { makeSavePanel } from './panels/SavePanel';
 
@@ -100,6 +101,9 @@ export class Toolbar {
     const ratingRo = el('div', 'tb-readout bevel-sunken');
     ratingRo.id = 'tb-rating';
     ratingRo.append(el('span', 'ro-icon', '⭐'), el('span', '', '0/100'));
+    ratingRo.classList.add('tb-readout-btn');
+    ratingRo.title = 'Casino rating — click for a breakdown';
+    ratingRo.addEventListener('click', () => windows.toggle('rating', makeRatingPanel));
     bar.appendChild(ratingRo);
 
     const syncStats = () => {
