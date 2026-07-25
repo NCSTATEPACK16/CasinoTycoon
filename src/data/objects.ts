@@ -82,6 +82,20 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     category: 'game',
   },
   {
+    // Guests play each other for a house rake, so it needs at least two
+    // seated players before a hand is dealt — a lone guest earns nothing.
+    // spriteKey is the generated placeholder for now; Task 12 swaps it to
+    // 'img-poker-table' when the real art is wired into the atlas.
+    id: 'poker-table',
+    name: 'Poker Table',
+    icon: '♠️',
+    cost: 1200,
+    upkeepPerDay: 40,
+    footprint: { w: 2, h: 2 },
+    spriteKey: 'obj-poker-table',
+    category: 'game',
+  },
+  {
     id: 'toilet',
     name: 'Restroom',
     icon: '🚻',

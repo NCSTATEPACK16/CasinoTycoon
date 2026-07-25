@@ -155,6 +155,24 @@ export function bigSixExpectedRtp(): number {
   return BIG_SIX_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
 }
 
+// Poker: guests play each other and the house takes a rake, so revenue is a
+// steady percentage of volume rather than a house edge on a payout table.
+// This is the only game that pays for guest COUNT rather than guest SPEND —
+// and the only one that earns nothing at all when under-populated.
+export const POKER_BALANCE = {
+  costToPlay: 30,
+  wearPerPlay: 0.15,
+  playIntervalTicks: 15,
+  playsMin: 6,
+  playsMax: 15,
+  seats: 6,
+  minPlayers: 2,
+  rake: 0.05,
+} as const;
+
+// No expectedRtp helper — poker's return is computed from live table
+// population, not a static payout table.
+
 // Staff: hourly wages come out of casino cash at each hour boundary.
 export const STAFF_BALANCE = {
   moveTicksPerTile: 2,

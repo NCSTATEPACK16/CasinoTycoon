@@ -6,6 +6,7 @@ import { BigSixWheel } from './BigSixWheel';
 import { BlackjackTable } from './BlackjackTable';
 import type { CasinoGame } from './CasinoGame';
 import { CrapsTable } from './CrapsTable';
+import { PokerTable } from './PokerTable';
 import { RouletteTable } from './RouletteTable';
 import { SlotMachine } from './SlotMachine';
 
@@ -17,6 +18,7 @@ const MACHINE_CTORS: Record<string, MachineCtor> = {
   'craps-table': (id, cost) => new CrapsTable(id, cost),
   'roulette-table': (id, cost) => new RouletteTable(id, cost),
   'big-six-wheel': (id, cost) => new BigSixWheel(id, cost),
+  'poker-table': (id, cost) => new PokerTable(id, cost),
 };
 
 /** True only for defIds this factory can actually build (not inherited keys). */

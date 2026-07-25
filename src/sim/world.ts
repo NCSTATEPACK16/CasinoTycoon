@@ -15,6 +15,7 @@ import type { CampaignDef } from '../data/campaigns';
 import { getObjectDef } from '../data/objects';
 import { canPlaceObject, placeObject, sellObject, type PlaceCheck } from './build';
 import { createMachine, createMachineOrThrow } from './entities/machines/factory';
+import { PokerTable } from './entities/machines/PokerTable';
 import { SeatedCasinoGame } from './entities/machines/SeatedCasinoGame';
 import { Guest, type GuestArchetype } from './entities/Guest';
 import { Bar, type BarJSON } from './entities/Bar';
@@ -715,6 +716,12 @@ export class CasinoWorld {
 
   machineCost(machineId: string): number {
     return this.machines.get(machineId)?.costToPlay ?? Infinity;
+  }
+
+  /** True when a guest is seated at a poker table that can't deal yet. */
+  isTableWaitingForPlayers(machineId: string): boolean {
+    const machine = this.machines.get(machineId);
+    return machine instanceof PokerTable && !machine.canDeal;
   }
 
   /** Per-game happiness penalty added to GUEST_BALANCE.happinessOnLoss on a loss. */
