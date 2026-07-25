@@ -15,6 +15,10 @@ export const FILE_ASSETS: readonly FileAsset[] = [
   { key: 'img-slot-machine', url: 'sprites/slot-machine.png' },
   { key: 'img-blackjack-table', url: 'sprites/blackjack-table.png' },
   { key: 'img-craps-table', url: 'sprites/craps-table.png' },
+  { key: 'img-roulette-table', url: 'sprites/roulette-table.png' },
+  { key: 'img-poker-table', url: 'sprites/poker-table.png' },
+  { key: 'img-big-six-wheel', url: 'sprites/big-six-wheel.png' },
+  { key: 'img-high-limit-table', url: 'sprites/high-limit-table.png' },
   // Self-generated (Kenney has no casino/chip pack — see assets/ASSETS.md).
   // Not consumed by any render code yet; P11 swaps fx-coin for these.
   { key: 'img-chip-white', url: 'sprites/chips/chip_white.png' },

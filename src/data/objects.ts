@@ -58,55 +58,51 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     category: 'game',
   },
   {
-    // spriteKey is the generated placeholder for now; Task 12 swaps it to
-    // 'img-roulette-table' when the real art is wired into the atlas.
     id: 'roulette-table',
     name: 'Roulette Table',
     icon: '🎡',
     cost: 1800,
     upkeepPerDay: 50,
     footprint: { w: 2, h: 2 },
-    spriteKey: 'obj-roulette-table',
+    spriteKey: 'img-roulette-table',
+    displaySize: { w: 220, h: 135 },
     category: 'game',
   },
   {
-    // spriteKey is the generated placeholder for now; Task 12 swaps it to
-    // 'img-big-six-wheel' when the real art is wired into the atlas.
     id: 'big-six-wheel',
     name: 'Big Six Wheel',
     icon: '🎯',
     cost: 350,
     upkeepPerDay: 12,
     footprint: { w: 1, h: 1 },
-    spriteKey: 'obj-big-six-wheel',
+    spriteKey: 'img-big-six-wheel',
+    displaySize: { w: 81, h: 140 },
     category: 'game',
   },
   {
     // Guests play each other for a house rake, so it needs at least two
     // seated players before a hand is dealt — a lone guest earns nothing.
-    // spriteKey is the generated placeholder for now; Task 12 swaps it to
-    // 'img-poker-table' when the real art is wired into the atlas.
     id: 'poker-table',
     name: 'Poker Table',
     icon: '♠️',
     cost: 1200,
     upkeepPerDay: 40,
     footprint: { w: 2, h: 2 },
-    spriteKey: 'obj-poker-table',
+    spriteKey: 'img-poker-table',
+    displaySize: { w: 220, h: 149 },
     category: 'game',
   },
   {
     // Only guests carrying at least HIGH_LIMIT_BALANCE.minWallet will sit —
     // the gate is wallet, not archetype, so a lucky guest can graduate in.
-    // spriteKey is the generated placeholder for now; Task 12 swaps it to
-    // 'img-high-limit-table' when the real art is wired into the atlas.
     id: 'high-limit-table',
     name: 'High-Limit Table',
     icon: '💎',
     cost: 2500,
     upkeepPerDay: 80,
     footprint: { w: 2, h: 2 },
-    spriteKey: 'obj-high-limit-table',
+    spriteKey: 'img-high-limit-table',
+    displaySize: { w: 212, h: 160 },
     category: 'game',
   },
   {
