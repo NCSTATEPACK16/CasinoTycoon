@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { eventBus } from '../../EventBus';
 import { POKER_BALANCE } from '../../data/balance';
+import { THOUGHTS } from '../../data/thoughts';
 import type { ThoughtContext, ThoughtDef } from '../../data/thoughts';
 import { CasinoWorld } from '../world';
 import type { PokerTable } from './machines/PokerTable';
@@ -210,5 +211,104 @@ describe('poker sit-and-wait', () => {
       expect(guest.waitingForPlayersTicks).toBe(0);
     }
     expect(guest.netResult).not.toBe(0);
+  });
+});
+
+const defOf = (id: string): ThoughtDef => {
+  const def = THOUGHTS.find((t) => t.id === id);
+  if (!def) throw new Error(`no thought ${id}`);
+  return def;
+};
+
+const fire = (id: string, ctx: ThoughtContext) => defOf(id).when(ctx);
+
+const textOf = (id: string, ctx: ThoughtContext) => {
+  const def = defOf(id);
+  return typeof def.text === 'function' ? def.text(ctx) : def.text;
+};
+
+describe('object-aware thoughts', () => {
+  const atRoulette = (over: Partial<ThoughtContext> = {}) =>
+    baseCtx({
+      currentGame: { defId: 'roulette-table', name: 'Roulette Table', costToPlay: 20 },
+      ...over,
+    });
+
+  it('calls a game rigged after three straight losses, naming it', () => {
+    expect(fire('game-rigged', atRoulette({ lossStreak: 2 }))).toBe(false);
+    expect(fire('game-rigged', atRoulette({ lossStreak: 3 }))).toBe(true);
+    expect(textOf('game-rigged', atRoulette({ lossStreak: 3 }))).toBe(
+      'That Roulette Table is rigged!',
+    );
+  });
+
+  it('never fires a game thought with no game to name', () => {
+    for (const id of ['game-rigged', 'game-love', 'too-rich']) {
+      expect(fire(id, baseCtx({ lossStreak: 9, winStreak: 9, wallet: 1 })), id).toBe(false);
+    }
+  });
+
+  it('loves a game after two straight wins, not on arrival', () => {
+    expect(fire('game-love', atRoulette({ winStreak: 0 }))).toBe(false);
+    expect(fire('game-love', atRoulette({ winStreak: 2 }))).toBe(true);
+  });
+
+  it('balks at a game costing more than 30% of the wallet', () => {
+    expect(fire('too-rich', atRoulette({ wallet: 100 }))).toBe(false);
+    expect(fire('too-rich', atRoulette({ wallet: 50 }))).toBe(true);
+  });
+
+  it('keys the rigged cooldown per game', () => {
+    const def = defOf('game-rigged');
+    const roulette = atRoulette({ lossStreak: 3 });
+    const bigSix = baseCtx({
+      lossStreak: 3,
+      currentGame: { defId: 'big-six-wheel', name: 'Big Six Wheel', costToPlay: 5 },
+    });
+    expect(def.subject!(roulette)).not.toBe(def.subject!(bigSix));
+  });
+
+  it('complains about missing facilities only when they are missing', () => {
+    expect(fire('no-toilet', baseCtx({ bladder: 15, hasToilet: false }))).toBe(true);
+    expect(fire('no-toilet', baseCtx({ bladder: 15, hasToilet: true }))).toBe(false);
+    expect(fire('bathroom', baseCtx({ bladder: 15, hasToilet: false }))).toBe(false);
+    expect(fire('bathroom', baseCtx({ bladder: 15, hasToilet: true }))).toBe(true);
+  });
+
+  it('guards all three need thoughts on their facility', () => {
+    expect(fire('hungry', baseCtx({ hunger: 15, hasFoodStall: false }))).toBe(false);
+    expect(fire('hungry', baseCtx({ hunger: 15, hasFoodStall: true }))).toBe(true);
+    expect(fire('no-food', baseCtx({ hunger: 15, hasFoodStall: false }))).toBe(true);
+    expect(fire('thirsty', baseCtx({ thirst: 15, hasBar: false }))).toBe(false);
+    expect(fire('thirsty', baseCtx({ thirst: 15, hasBar: true }))).toBe(true);
+    expect(fire('no-bar', baseCtx({ thirst: 15, hasBar: false }))).toBe(true);
+  });
+
+  it('notes an under-populated poker table', () => {
+    expect(fire('waiting-for-players', baseCtx({ waitingForPlayers: true }))).toBe(true);
+    expect(fire('waiting-for-players', baseCtx({ waitingForPlayers: false }))).toBe(false);
+  });
+
+  it('gives every thought a unique id', () => {
+    const ids = THOUGHTS.map((t) => t.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('fires the absence thoughts end to end on an empty floor', () => {
+    const world = new CasinoWorld({ seed: 51, autoSpawn: false });
+    const guest = world.spawnGuest();
+    guest.wallet = 500;
+    const seen = new Set<string>();
+    eventBus.on('guestThought', ({ guestId, thoughtId }) => {
+      if (guestId === guest.id) seen.add(thoughtId);
+    });
+    guest.needs.bladder = 10;
+    guest.needs.hunger = 10;
+    guest.needs.thirst = 10;
+    world.tick();
+    expect(seen.has('no-toilet')).toBe(true);
+    expect(seen.has('no-food')).toBe(true);
+    expect(seen.has('no-bar')).toBe(true);
+    expect(seen.has('bathroom')).toBe(false);
   });
 });

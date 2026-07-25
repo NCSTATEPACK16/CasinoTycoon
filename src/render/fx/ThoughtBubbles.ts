@@ -12,6 +12,7 @@ const MAX_ACTIVE = 40;
 const EMOJI: Record<string, string> = {
   bathroom: '🚽',
   hungry: '🍔',
+  thirsty: '🍸',
   tired: '😴',
   'low-cash': '💸',
   broke: '💰',
@@ -20,6 +21,16 @@ const EMOJI: Record<string, string> = {
   filthy: '🤢',
   raging: '😡',
   celebrate: '💰',
+  'game-rigged': '🤬',
+  'game-love': '😍',
+  'too-rich': '😬',
+  'waiting-for-players': '⏳',
+  'no-toilet': '🚻',
+  'no-food': '🍽️',
+  'no-bar': '🍹',
+  flush: '🍀',
+  'worn-out': '🪑',
+  content: '🙂',
 };
 
 interface Bubble {

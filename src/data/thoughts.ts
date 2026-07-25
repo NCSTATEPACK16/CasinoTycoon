@@ -39,13 +39,26 @@ export interface ThoughtDef {
 }
 
 export const THOUGHTS: readonly ThoughtDef[] = [
-  { id: 'bathroom', text: 'I need a bathroom!', cooldownTicks: 300, when: (c) => c.bladder < 25 },
-  { id: 'hungry', text: "I'm hungry…", cooldownTicks: 300, when: (c) => c.hunger < 25 },
+  // The three need thoughts are guarded on the facility existing — otherwise a
+  // guest asks for a bathroom in a casino that has three, and the player is
+  // told nothing. The no-X thoughts below cover the opposite case.
+  {
+    id: 'bathroom',
+    text: 'I need a bathroom!',
+    cooldownTicks: 300,
+    when: (c) => c.bladder < 25 && c.hasToilet,
+  },
+  {
+    id: 'hungry',
+    text: "I'm hungry…",
+    cooldownTicks: 300,
+    when: (c) => c.hunger < 25 && c.hasFoodStall,
+  },
   {
     id: 'thirsty',
     text: 'I could really use a drink.',
     cooldownTicks: 300,
-    when: (c) => c.thirst < 25,
+    when: (c) => c.thirst < 25 && c.hasBar,
   },
   { id: 'tired', text: "I'm exhausted.", cooldownTicks: 400, when: (c) => c.energy < 20 },
   {
@@ -58,4 +71,60 @@ export const THOUGHTS: readonly ThoughtDef[] = [
   { id: 'great', text: 'This place is great!', cooldownTicks: 600, when: (c) => c.happiness > 85 },
   { id: 'awful', text: 'This place is a dump…', cooldownTicks: 600, when: (c) => c.happiness < 30 },
   { id: 'filthy', text: 'This place is filthy!', cooldownTicks: 400, when: (c) => c.nearMess },
+  // --- Object-aware: these name what the player actually built. ---
+  {
+    id: 'game-rigged',
+    text: (c) => `That ${c.currentGame?.name} is rigged!`,
+    cooldownTicks: 400,
+    when: (c) => c.currentGame !== null && c.lossStreak >= 3,
+    subject: (c) => c.currentGame?.defId ?? '',
+  },
+  {
+    id: 'game-love',
+    text: (c) => `I love this ${c.currentGame?.name}!`,
+    cooldownTicks: 400,
+    when: (c) => c.currentGame !== null && c.winStreak >= 2,
+    subject: (c) => c.currentGame?.defId ?? '',
+  },
+  {
+    id: 'too-rich',
+    text: (c) => `${c.currentGame?.name} is too rich for my blood.`,
+    cooldownTicks: 500,
+    when: (c) => c.currentGame !== null && c.currentGame.costToPlay > c.wallet * 0.3,
+    subject: (c) => c.currentGame?.defId ?? '',
+  },
+  {
+    id: 'waiting-for-players',
+    text: 'Waiting for someone to join…',
+    cooldownTicks: 200,
+    when: (c) => c.waitingForPlayers,
+  },
+  // --- Absence-aware: turn a vague complaint into a build instruction. ---
+  {
+    id: 'no-toilet',
+    text: "There's nowhere to go!",
+    cooldownTicks: 400,
+    when: (c) => c.bladder < 20 && !c.hasToilet,
+  },
+  {
+    id: 'no-food',
+    text: 'Doesn’t anyone sell food here?',
+    cooldownTicks: 400,
+    when: (c) => c.hunger < 20 && !c.hasFoodStall,
+  },
+  {
+    id: 'no-bar',
+    text: 'I’d kill for a bar in this place.',
+    cooldownTicks: 400,
+    when: (c) => c.thirst < 20 && !c.hasBar,
+  },
+  // --- Scalar tiers filling gaps in the original set. ---
+  { id: 'flush', text: 'I’m feeling lucky tonight.', cooldownTicks: 600, when: (c) => c.wallet > 400 },
+  { id: 'worn-out', text: 'I need to sit down.', cooldownTicks: 500, when: (c) => c.energy < 10 },
+  {
+    id: 'content',
+    text: 'Not a bad little place.',
+    cooldownTicks: 700,
+    when: (c) => c.happiness >= 60 && c.happiness <= 75,
+  },
 ];
