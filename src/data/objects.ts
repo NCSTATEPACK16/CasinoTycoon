@@ -96,6 +96,20 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     category: 'game',
   },
   {
+    // Only guests carrying at least HIGH_LIMIT_BALANCE.minWallet will sit —
+    // the gate is wallet, not archetype, so a lucky guest can graduate in.
+    // spriteKey is the generated placeholder for now; Task 12 swaps it to
+    // 'img-high-limit-table' when the real art is wired into the atlas.
+    id: 'high-limit-table',
+    name: 'High-Limit Table',
+    icon: '💎',
+    cost: 2500,
+    upkeepPerDay: 80,
+    footprint: { w: 2, h: 2 },
+    spriteKey: 'obj-high-limit-table',
+    category: 'game',
+  },
+  {
     id: 'toilet',
     name: 'Restroom',
     icon: '🚻',

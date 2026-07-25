@@ -45,6 +45,15 @@ export abstract class CasinoGame {
     return 0;
   }
 
+  /**
+   * Minimum wallet a guest needs before they'll be seated, checked in
+   * world.reserveMachine on top of the universal `wallet >= costToPlay` test.
+   * 0 = no gate, so every game that doesn't override this is unaffected.
+   */
+  get minWallet(): number {
+    return 0;
+  }
+
   isPlayableBy(guestId: string): boolean {
     return !this.broken && this.reservedBy === guestId;
   }

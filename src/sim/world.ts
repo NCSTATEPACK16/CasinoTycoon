@@ -558,14 +558,17 @@ export class CasinoWorld {
     }
   }
 
-  /** Claim the nearest blackjack/craps table without a dealer already
-   * assigned. Claims immediately (before the caller attempts to path to it),
-   * mirroring claimJobFor's shape, so two dealers evaluated in the same tick
-   * never claim the same table — staff tick sequentially within a tick, so
-   * the second dealer's scan already sees the first's claim. */
+  /** Claim the nearest dealable table without a dealer already assigned.
+   * "Dealable" is a capability, not a list of defIds: any SeatedCasinoGame
+   * qualifies, so every communal table (blackjack, craps, roulette, poker,
+   * high-limit) is covered and the standing Big Six wheel correctly is not.
+   * Claims immediately (before the caller attempts to path to it), mirroring
+   * claimJobFor's shape, so two dealers evaluated in the same tick never
+   * claim the same table — staff tick sequentially within a tick, so the
+   * second dealer's scan already sees the first's claim. */
   claimDealerTable(staffId: string): { tableId: string; stand: Cell } | null {
     for (const po of this.state.allObjects()) {
-      if (po.defId !== 'blackjack-table' && po.defId !== 'craps-table') continue;
+      if (!(this.machines.get(po.id) instanceof SeatedCasinoGame)) continue;
       if (this.dealerAssignments.has(po.id)) continue;
       const stand = this.standTileFor(po);
       if (!stand) continue;
@@ -684,6 +687,9 @@ export class CasinoWorld {
   reserveMachine(guestId: string, wallet: number): { machineId: string; stand: Cell } | null {
     for (const machine of this.machines.values()) {
       if (!machine.isAvailable || wallet < machine.costToPlay) continue;
+      // Per-game wallet floor on top of the affordability test above. Defaults
+      // to 0 on CasinoGame, so this can never exclude an ungated game.
+      if (wallet < machine.minWallet) continue;
       const po = this.state.getObject(machine.id);
       if (!po) continue;
       if (machine instanceof SeatedCasinoGame) {

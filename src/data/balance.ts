@@ -173,6 +173,31 @@ export const POKER_BALANCE = {
 // No expectedRtp helper — poker's return is computed from live table
 // population, not a static payout table.
 
+// High-limit: gated on wallet rather than archetype. highRollerChance is only
+// 0.015, so an archetype gate would leave the table idle almost always; a
+// wallet gate admits high rollers on arrival AND lets an ordinary guest who
+// has won big graduate into it. Best odds in the house, so the VIP treatment
+// is real rather than cosmetic.
+export const HIGH_LIMIT_BALANCE = {
+  costToPlay: 150,
+  wearPerPlay: 0.2,
+  playIntervalTicks: 14,
+  playsMin: 3,
+  playsMax: 8,
+  seats: 3,
+  minWallet: 400,
+  payoutTable: [
+    { p: 0.02, multiplier: 10 },
+    { p: 0.12, multiplier: 3 },
+    { p: 0.19, multiplier: 2 },
+  ] as readonly PayoutOutcome[],
+} as const;
+
+/** Expected RTP implied by the high-limit payout table (0.94 → 6% house edge). */
+export function highLimitExpectedRtp(): number {
+  return HIGH_LIMIT_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+}
+
 // Staff: hourly wages come out of casino cash at each hour boundary.
 export const STAFF_BALANCE = {
   moveTicksPerTile: 2,
