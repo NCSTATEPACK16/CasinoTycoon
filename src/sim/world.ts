@@ -717,6 +717,11 @@ export class CasinoWorld {
     return this.machines.get(machineId)?.costToPlay ?? Infinity;
   }
 
+  /** Per-game happiness penalty added to GUEST_BALANCE.happinessOnLoss on a loss. */
+  machineExtraHappinessOnLoss(machineId: string): number {
+    return this.machines.get(machineId)?.extraHappinessOnLoss ?? 0;
+  }
+
   machineDefId(machineId: string): string | null {
     return this.machines.get(machineId)?.defId ?? null;
   }

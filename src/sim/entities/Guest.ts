@@ -273,7 +273,14 @@ export class Guest extends Walker {
       const defId = world.machineDefId(this.machineId);
       if (defId) this.wagersByGame.set(defId, (this.wagersByGame.get(defId) ?? 0) + res.wager);
     }
-    this.adjustHappiness(res.payout > 0 ? b.happinessOnWin : b.happinessOnLoss);
+    if (res.payout > 0) {
+      this.adjustHappiness(b.happinessOnWin);
+    } else {
+      // Per-game sting stacks on the global loss penalty rather than replacing
+      // it: a Big Six loss is happinessOnLoss (-1) plus its own -2, i.e. -3.
+      const extra = this.machineId ? world.machineExtraHappinessOnLoss(this.machineId) : 0;
+      this.adjustHappiness(b.happinessOnLoss + extra);
+    }
     if (res.payout >= res.wager * STRUT_BALANCE.payoutMultiplier) this.startCelebrating(world);
     this.spinsLeft--;
     if (this.spinsLeft <= 0) this.stopPlaying(world);

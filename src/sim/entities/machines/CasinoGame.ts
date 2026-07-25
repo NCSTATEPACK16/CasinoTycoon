@@ -36,6 +36,15 @@ export abstract class CasinoGame {
     return !this.broken && this.reservedBy === null;
   }
 
+  /**
+   * Extra happiness delta applied on a losing play, on top of the global
+   * GUEST_BALANCE.happinessOnLoss. Only games that are deliberately punishing
+   * override this.
+   */
+  get extraHappinessOnLoss(): number {
+    return 0;
+  }
+
   isPlayableBy(guestId: string): boolean {
     return !this.broken && this.reservedBy === guestId;
   }

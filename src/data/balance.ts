@@ -132,6 +132,29 @@ export function rouletteExpectedRtp(): number {
   return ROULETTE_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
 }
 
+// Big Six: cheap, fast, standing, and by far the worst odds in the house.
+// extraHappinessOnLoss stacks on top of GUEST_BALANCE.happinessOnLoss (-1),
+// so a losing spin costs -3 happiness in total. Without it the wheel is just
+// a cheap slot with bad math and the profit-vs-happiness tension is invisible
+// until it surfaces later as an unexplained rage quit.
+export const BIG_SIX_BALANCE = {
+  costToPlay: 5,
+  wearPerPlay: 0.4,
+  spinIntervalTicks: 5,
+  spinsMin: 3,
+  spinsMax: 10,
+  extraHappinessOnLoss: -2,
+  payoutTable: [
+    { p: 0.3, multiplier: 2 },
+    { p: 0.05, multiplier: 4 },
+  ] as readonly PayoutOutcome[],
+} as const;
+
+/** Expected RTP implied by the big six payout table (0.80 → 20% house edge). */
+export function bigSixExpectedRtp(): number {
+  return BIG_SIX_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+}
+
 // Staff: hourly wages come out of casino cash at each hour boundary.
 export const STAFF_BALANCE = {
   moveTicksPerTile: 2,

@@ -70,6 +70,18 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     category: 'game',
   },
   {
+    // spriteKey is the generated placeholder for now; Task 12 swaps it to
+    // 'img-big-six-wheel' when the real art is wired into the atlas.
+    id: 'big-six-wheel',
+    name: 'Big Six Wheel',
+    icon: '🎯',
+    cost: 350,
+    upkeepPerDay: 12,
+    footprint: { w: 1, h: 1 },
+    spriteKey: 'obj-big-six-wheel',
+    category: 'game',
+  },
+  {
     id: 'toilet',
     name: 'Restroom',
     icon: '🚻',
