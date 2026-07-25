@@ -6,8 +6,10 @@ import { SeatedCasinoGame } from './SeatedCasinoGame';
 // The only game where guests play each other rather than the house. Each
 // seated guest wagers costToPlay and wins the whole pot with probability
 // 1/seatedCount, so expected payout per guest is costToPlay * (1 - rake) for
-// any table population: the house take is exactly the rake, while the swing a
-// guest feels grows with how crowded the table is.
+// any table population: the house take is roughly the rake, while the swing a
+// guest feels grows with how crowded the table is. "Roughly" because potFor
+// rounds the pot to whole chips — exact at even N, and up to 0.56pp under the
+// rake at odd N (always in the players' favour).
 export class PokerTable extends SeatedCasinoGame {
   constructor(id: string, costToPlay: number = POKER_BALANCE.costToPlay) {
     super(id, 'poker-table', costToPlay, POKER_BALANCE.seats);

@@ -144,6 +144,12 @@ export class CasinoWorld {
   /** cageId → staffId, so two cashiers never race for the same cage. */
   private cashierAssignments = new Map<string, string>();
   private ragePenalty = 0;
+  /** Recomputed on every floor change and once per tick — see hasServiceObject. */
+  private serviceAvailability: Record<string, boolean> = {
+    toilet: false,
+    bar: false,
+    'food-stall': false,
+  };
 
   constructor(opts: WorldOptions = {}) {
     this.state = new GameState();
@@ -179,6 +185,7 @@ export class CasinoWorld {
     this.cashierAssignments.clear();
     this.grid.clear();
     this.state.reset(startingCash);
+    this.refreshServiceAvailability();
     this.time = new TimeSystem();
     this.ledger = new Ledger();
     this.tickCount = 0;
@@ -207,6 +214,7 @@ export class CasinoWorld {
     }
     if (po && defId === 'food-stall') this.foodStalls.set(po.id, new FoodStall(po.id));
     if (po && defId === 'bar') this.bars.set(po.id, new Bar(po.id));
+    if (po) this.refreshServiceAvailability();
     return po;
   }
 
@@ -223,13 +231,37 @@ export class CasinoWorld {
     this.foodStalls.delete(objectId);
     this.bars.delete(objectId);
     this.cashierAssignments.delete(objectId);
-    return sellObject(this.state, this.grid, objectId);
+    const refund = sellObject(this.state, this.grid, objectId);
+    this.refreshServiceAvailability();
+    return refund;
+  }
+
+  /**
+   * Whether a service object of this type exists on the floor. Backed by a
+   * cache refreshed on every floor change and at the top of each tick: guests
+   * query this every tick, and scanning all placed objects per guest would be
+   * O(objects x guests) per tick.
+   */
+  hasServiceObject(defId: string): boolean {
+    return this.serviceAvailability[defId] ?? false;
+  }
+
+  /** Rebuild the hasServiceObject cache from the current floor. */
+  private refreshServiceAvailability(): void {
+    const found: Record<string, boolean> = { toilet: false, bar: false, 'food-stall': false };
+    for (const po of this.state.allObjects()) {
+      if (po.defId in found) found[po.defId] = true;
+    }
+    this.serviceAvailability = found;
   }
 
   // ---------- simulation ----------
 
   tick(): void {
     this.tickCount++;
+    // Before guests run: they read it, and staff/scenario code may have built
+    // or sold since the last refresh.
+    this.refreshServiceAvailability();
     const t = this.time.tick();
     if (this.autoSpawn) this.maybeSpawn();
     this.applyMessEffects();
@@ -724,7 +756,9 @@ export class CasinoWorld {
     return this.machines.get(machineId)?.costToPlay ?? Infinity;
   }
 
-  /** True when a guest is seated at a poker table that can't deal yet. */
+  /** True when this is a poker table that can't deal yet. An empty table
+   * answers true as well — it genuinely is waiting for players — but the
+   * caller that matters is a guest asking about the table it's sitting at. */
   isTableWaitingForPlayers(machineId: string): boolean {
     const machine = this.machines.get(machineId);
     return machine instanceof PokerTable && !machine.canDeal;
@@ -747,7 +781,11 @@ export class CasinoWorld {
     const machine = this.machines.get(machineId);
     if (!machine || machine.broken) return null;
     const result = machine.play(this.rng);
-    if (result.wager === 0) return null;
+    // A zero wager means the table couldn't deal (poker below minPlayers). No
+    // money moved and there is nothing to record, but the caller still gets a
+    // result: `null` is reserved for "there is no machine to play", which is
+    // what tells a guest to give its seat up.
+    if (result.wager === 0) return result;
     const delta = result.wager - result.payout;
     this.state.cash += delta;
     this.ledger.addRevenue(delta);
@@ -974,6 +1012,7 @@ export class CasinoWorld {
     this.time = TimeSystem.fromJSON(data.time);
     this.ledger = Ledger.fromJSON(data.ledger);
     this.scenario = data.scenario ? ScenarioManager.fromJSON(data.scenario) : null;
+    this.refreshServiceAvailability();
     const scenarioId = this.scenario?.def.id ?? null;
     eventBus.emit('worldReset', { scenarioId });
     eventBus.emit('worldLoaded', { scenarioId });

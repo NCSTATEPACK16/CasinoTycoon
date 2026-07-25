@@ -168,6 +168,12 @@ export const POKER_BALANCE = {
   seats: 6,
   minPlayers: 2,
   rake: 0.05,
+  // How long a guest keeps a seat at a table that can't deal yet. Without a
+  // bounded wait a lone guest vacates on its first zero-wager play attempt, so
+  // the table only ever deals when two guests happen to sit within one play
+  // interval of each other — 12 seconds of patience is what makes a poker room
+  // fill up at all.
+  maxWaitTicks: 120,
 } as const;
 
 // No expectedRtp helper — poker's return is computed from live table

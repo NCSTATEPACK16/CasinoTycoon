@@ -5,11 +5,14 @@ import {
   FOOD_BALANCE,
   GUEST_BALANCE,
   MESS_BALANCE,
+  POKER_BALANCE,
   RAGE_BALANCE,
   STRUT_BALANCE,
 } from '../../data/balance';
 import { flavorName } from '../../data/names';
+import { getObjectDef } from '../../data/objects';
 import { THOUGHTS } from '../../data/thoughts';
+import type { ThoughtContext } from '../../data/thoughts';
 import type { Cell } from '../grid/astar';
 import type { CasinoWorld } from '../world';
 import { Walker } from './Walker';
@@ -50,6 +53,13 @@ export class Guest extends Walker {
   raging = false;
   celebrating = false;
   waitingForDrink = false;
+  /** Consecutive losing plays at the current machine; reset when it changes. */
+  lossStreak = 0;
+  /** Consecutive winning plays at the current machine; reset when it changes. */
+  winStreak = 0;
+  /** Ticks spent seated at a table that couldn't deal, bounded by
+   *  POKER_BALANCE.maxWaitTicks. Zero at every other game. */
+  waitingForPlayersTicks = 0;
   private celebrateTicksLeft = 0;
   private wagersByGame = new Map<string, number>();
   private thoughtLast = new Map<string, number>();
@@ -89,7 +99,7 @@ export class Guest extends Walker {
     if (this.state === 'gone') return;
     this.decayNeeds();
     this.maybeDropMess(world);
-    this.updateThoughts(world.tickCount);
+    this.updateThoughts(world.tickCount, world);
     if (this.celebrateTicksLeft > 0) {
       this.celebrateTicksLeft--;
       if (this.celebrateTicksLeft === 0) this.celebrating = false;
@@ -120,20 +130,46 @@ export class Guest extends Walker {
     }
   }
 
-  private updateThoughts(tick: number): void {
-    const ctx = { wallet: this.wallet, nearMess: this.nearMess, ...this.needs };
+  private thoughtContext(world: CasinoWorld): ThoughtContext {
+    const defId = this.machineId ? world.machineDefId(this.machineId) : null;
+    const def = defId ? getObjectDef(defId) : undefined;
+    return {
+      wallet: this.wallet,
+      nearMess: this.nearMess,
+      ...this.needs,
+      currentGame:
+        def && this.machineId
+          ? { defId: def.id, name: def.name, costToPlay: world.machineCost(this.machineId) }
+          : null,
+      lossStreak: this.lossStreak,
+      winStreak: this.winStreak,
+      hasToilet: world.hasServiceObject('toilet'),
+      hasBar: world.hasServiceObject('bar'),
+      hasFoodStall: world.hasServiceObject('food-stall'),
+      waitingForPlayers: this.machineId
+        ? world.isTableWaitingForPlayers(this.machineId)
+        : false,
+    };
+  }
+
+  private updateThoughts(tick: number, world: CasinoWorld): void {
+    const ctx = this.thoughtContext(world);
     for (const def of THOUGHTS) {
       if (!def.when(ctx)) continue;
-      const last = this.thoughtLast.get(def.id);
+      // Cooldowns key on id+subject so a thought about one game can't mute the
+      // same thought about another.
+      const key = def.subject ? `${def.id}:${def.subject(ctx)}` : def.id;
+      const last = this.thoughtLast.get(key);
       if (last !== undefined && tick - last < def.cooldownTicks) continue;
-      this.recordThought(tick, def.id, def.text);
+      const text = typeof def.text === 'function' ? def.text(ctx) : def.text;
+      this.recordThought(tick, def.id, text, key);
     }
   }
 
   /** Push a thought (subject to its own cooldown) — shared by polled THOUGHTS
    * predicates and one-off event-triggered reactions like a rip-off purchase. */
-  private recordThought(tick: number, id: string, text: string): void {
-    this.thoughtLast.set(id, tick);
+  private recordThought(tick: number, id: string, text: string, cooldownKey: string = id): void {
+    this.thoughtLast.set(cooldownKey, tick);
     this.thoughts.push({ text, atTick: tick });
     if (this.thoughts.length > MAX_THOUGHTS) this.thoughts.shift();
     eventBus.emit('guestThought', { guestId: this.id, thoughtId: id, text });
@@ -146,6 +182,9 @@ export class Guest extends Walker {
     }
     world.releaseMachines(this.id);
     this.machineId = null;
+    this.lossStreak = 0;
+    this.winStreak = 0;
+    this.waitingForPlayersTicks = 0;
     this.serviceKind = null;
     this.foodStallId = null;
     this.barId = null;
@@ -264,9 +303,19 @@ export class Guest extends Walker {
     this.spinTimer = 0;
     const res = world.playMachine(this.machineId, this.id);
     if (!res) {
+      // No machine to play any more (sold, or broken down under us).
       this.stopPlaying(world);
       return;
     }
+    if (res.wager === 0) {
+      // The table is short of players. Hold the seat — a poker room only ever
+      // fills if the first guest waits for the second — but not forever.
+      // spinEveryTicks is exactly the ticks elapsed since the last attempt.
+      this.waitingForPlayersTicks += this.spinEveryTicks;
+      if (this.waitingForPlayersTicks >= POKER_BALANCE.maxWaitTicks) this.stopPlaying(world);
+      return;
+    }
+    this.waitingForPlayersTicks = 0;
     this.wallet += res.payout - res.wager;
     this.netResult += res.payout - res.wager;
     if (this.machineId) {
@@ -274,8 +323,12 @@ export class Guest extends Walker {
       if (defId) this.wagersByGame.set(defId, (this.wagersByGame.get(defId) ?? 0) + res.wager);
     }
     if (res.payout > 0) {
+      this.winStreak++;
+      this.lossStreak = 0;
       this.adjustHappiness(b.happinessOnWin);
     } else {
+      this.lossStreak++;
+      this.winStreak = 0;
       // Per-game sting stacks on the global loss penalty rather than replacing
       // it: a Big Six loss is happinessOnLoss (-1) plus its own -2, i.e. -3.
       const extra = this.machineId ? world.machineExtraHappinessOnLoss(this.machineId) : 0;
@@ -297,6 +350,11 @@ export class Guest extends Walker {
     world.releaseMachines(this.id);
     this.machineId = null;
     this.waitingForDrink = false;
+    // Reset before evaluate() — it may seat this guest at the next machine in
+    // the same call, and a streak must never carry across games.
+    this.lossStreak = 0;
+    this.winStreak = 0;
+    this.waitingForPlayersTicks = 0;
     this.evaluate(world);
   }
 
