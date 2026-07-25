@@ -15,14 +15,22 @@ const MACHINE_CTORS: Record<string, MachineCtor> = {
   'craps-table': (id, cost) => new CrapsTable(id, cost),
 };
 
+/** True only for defIds this factory can actually build (not inherited keys). */
+export function isMachineDefId(defId: string): boolean {
+  return Object.hasOwn(MACHINE_CTORS, defId);
+}
+
 /** Build a machine for a catalog defId, or null if that object isn't a game. */
 export function createMachine(
   defId: string,
   id: string,
   costToPlay?: number,
 ): CasinoGame | null {
-  const ctor = MACHINE_CTORS[defId];
-  return ctor ? ctor(id, costToPlay) : null;
+  // hasOwn, not a truthy lookup: a plain object literal inherits 'constructor',
+  // 'toString', 'valueOf'… off Object.prototype, and those would otherwise
+  // resolve to a truthy non-ctor and slip past createMachineOrThrow's guard.
+  if (!isMachineDefId(defId)) return null;
+  return MACHINE_CTORS[defId]!(id, costToPlay);
 }
 
 /** Deserialize variant: a save naming an unknown game must fail loudly. */

@@ -847,6 +847,17 @@ export class CasinoWorld {
 
   /** In-place restore from a save — `state`/`grid` keep identity (gameContext aliases them). */
   loadJSON(data: CasinoWorldJSON): void {
+    // Build every machine BEFORE touching live state. An unrecognized defId
+    // (corrupt or newer-than-this-build save) must throw while the player's
+    // current casino is still intact — the clearing below is unrecoverable,
+    // so a throw partway through it would leave a wiped, half-loaded world.
+    const loadedMachines = data.machines.map((m) => {
+      const machine = createMachineOrThrow(m.defId, m.id, m.costToPlay);
+      machine.reliability = m.reliability;
+      machine.lifetimeProfit = m.lifetimeProfit;
+      machine.broken = m.broken;
+      return machine;
+    });
     this.guests.clear();
     this.repairClaims.clear();
     this.dealerAssignments.clear();
@@ -859,13 +870,7 @@ export class CasinoWorld {
     this.state.load(data.state);
     this.grid.load(data.grid);
     this.tickCount = data.tickCount;
-    for (const m of data.machines) {
-      const machine = createMachineOrThrow(m.defId, m.id, m.costToPlay);
-      machine.reliability = m.reliability;
-      machine.lifetimeProfit = m.lifetimeProfit;
-      machine.broken = m.broken;
-      this.machines.set(m.id, machine);
-    }
+    for (const machine of loadedMachines) this.machines.set(machine.id, machine);
     for (const f of data.foodStalls) this.foodStalls.set(f.id, FoodStall.fromJSON(f));
     for (const b of data.bars) this.bars.set(b.id, Bar.fromJSON(b));
     for (const m of data.messes) this.messes.set(m.id, { ...m, claimedBy: null });

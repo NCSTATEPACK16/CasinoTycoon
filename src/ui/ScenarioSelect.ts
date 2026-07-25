@@ -1,4 +1,5 @@
 import { CAMPAIGNS } from '../data/campaigns';
+import { eventBus } from '../EventBus';
 import { world } from '../gameContext';
 import { el, formatCash } from './dom';
 import { AUTOSAVE_SLOT, saveService } from '../services/SaveService';
@@ -65,10 +66,17 @@ export function showScenarioSelect(uiRoot: HTMLElement): void {
       ),
     );
     cont.addEventListener('click', () => {
-      void saveService.load(latest.slot).then((data) => {
-        if (data) world.loadJSON(data);
-        overlay.remove();
-      });
+      void saveService
+        .load(latest.slot)
+        .then((data) => {
+          if (data) world.loadJSON(data);
+          overlay.remove();
+        })
+        .catch(() => {
+          // Keep the picker up: loadJSON left the world untouched, so the
+          // player can still start a scenario instead of a wiped session.
+          eventBus.emit('tickerMessage', { text: 'Load failed! Save not compatible.' });
+        });
     });
     cards.prepend(cont);
   });
