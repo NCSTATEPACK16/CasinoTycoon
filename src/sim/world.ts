@@ -77,6 +77,23 @@ interface StaffJSON {
   row: number;
 }
 
+/** The casino rating split into its contributing terms. Bonuses are positive,
+ *  penalties negative; the eight scoring terms plus `rage` sum to the pre-clamp
+ *  score, and `total` is that score clamped to 0..100 and rounded. */
+export interface RatingBreakdown {
+  happiness: number;
+  machines: number;
+  variety: number;
+  cleanliness: number;
+  broken: number; // negative or zero
+  signage: number;
+  security: number;
+  dealers: number;
+  /** Decaying ding from guests who rage-quit. Negative or zero. */
+  rage: number;
+  total: number; // clamped 0..100
+}
+
 export interface CasinoWorldJSON {
   state: GameStateJSON;
   grid: IsoGridJSON;
@@ -304,13 +321,20 @@ export class CasinoWorld {
     }
   }
 
-  /** Casino rating 0–100 — drives guest arrivals; shown in UI later. */
-  get rating(): number {
-    const b = RATING_BALANCE;
+  /** Mean guest happiness, or the neutral assumption when the floor is empty. */
+  get averageHappiness(): number {
     const guests = [...this.guests.values()];
-    const avgHappiness = guests.length
+    return guests.length
       ? guests.reduce((sum, g) => sum + g.needs.happiness, 0) / guests.length
-      : b.neutralHappiness;
+      : RATING_BALANCE.neutralHappiness;
+  }
+
+  /** Every contribution to the casino rating, term by term, so the UI can
+   *  explain the number instead of just showing it. Terms sum to the
+   *  pre-clamp score; `total` is that score clamped to 0..100 and rounded. */
+  ratingBreakdown(): RatingBreakdown {
+    const b = RATING_BALANCE;
+    const avgHappiness = this.averageHappiness;
     const variety = new Set([...this.machines.values()].map((m) => m.defId)).size;
     let broken = 0;
     for (const m of this.machines.values()) if (m.broken) broken++;
@@ -321,24 +345,44 @@ export class CasinoWorld {
     signageBonus = Math.min(signageBonus, b.signageBonusCap);
     let securityBonus = 0;
     for (const m of this.staff.values()) {
-      if (m.kind === 'pitBoss' || m.kind === 'security') securityBonus += SECURITY_BALANCE.bonusPerStaff;
+      if (m.kind === 'pitBoss' || m.kind === 'security') {
+        securityBonus += SECURITY_BALANCE.bonusPerStaff;
+      }
     }
     securityBonus = Math.min(securityBonus, SECURITY_BALANCE.bonusCap);
     const dealerBonus = Math.min(
       this.dealerAssignments.size * DEALER_BALANCE.dealerBonusPerTable,
       DEALER_BALANCE.dealerBonusCap,
     );
+
+    const terms = {
+      happiness: b.happinessWeight * avgHappiness,
+      machines: Math.min(this.machines.size * b.perMachine, b.machineCap),
+      variety: variety >= 2 ? b.varietyBonus : 0,
+      cleanliness: Math.max(0, b.cleanlinessMax - this.messes.size * b.perMessPenalty),
+      // Guard the sign so an unbroken floor reports 0, not -0.
+      broken: broken ? -(broken * b.perBrokenPenalty) : 0,
+      signage: signageBonus,
+      security: securityBonus,
+      dealers: dealerBonus,
+      rage: this.ragePenalty ? -this.ragePenalty : 0,
+    };
     const score =
-      b.happinessWeight * avgHappiness +
-      Math.min(this.machines.size * b.perMachine, b.machineCap) +
-      (variety >= 2 ? b.varietyBonus : 0) +
-      Math.max(0, b.cleanlinessMax - this.messes.size * b.perMessPenalty) -
-      broken * b.perBrokenPenalty +
-      signageBonus +
-      securityBonus +
-      dealerBonus -
-      this.ragePenalty;
-    return Math.round(Math.min(100, Math.max(0, score)));
+      terms.happiness +
+      terms.machines +
+      terms.variety +
+      terms.cleanliness +
+      terms.broken +
+      terms.signage +
+      terms.security +
+      terms.dealers +
+      terms.rage;
+    return { ...terms, total: Math.round(Math.min(100, Math.max(0, score))) };
+  }
+
+  /** Casino rating 0–100 — drives guest arrivals; shown in UI later. */
+  get rating(): number {
+    return this.ratingBreakdown().total;
   }
 
   private maybeSpawn(): void {
