@@ -58,6 +58,18 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     category: 'game',
   },
   {
+    // spriteKey is the generated placeholder for now; Task 12 swaps it to
+    // 'img-roulette-table' when the real art is wired into the atlas.
+    id: 'roulette-table',
+    name: 'Roulette Table',
+    icon: '🎡',
+    cost: 1800,
+    upkeepPerDay: 50,
+    footprint: { w: 2, h: 2 },
+    spriteKey: 'obj-roulette-table',
+    category: 'game',
+  },
+  {
     id: 'toilet',
     name: 'Restroom',
     icon: '🚻',

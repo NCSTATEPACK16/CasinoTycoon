@@ -110,6 +110,28 @@ export function crapsExpectedRtp(): number {
   return CRAPS_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
 }
 
+// Roulette: a wide crowd table whose point is variance. The 1.5% branch pays
+// 20x, which clears STRUT_BALANCE.payoutMultiplier and so drives the P11
+// winner-strut and chip-arc jackpot that slots otherwise trigger alone.
+export const ROULETTE_BALANCE = {
+  costToPlay: 20,
+  wearPerPlay: 0.2,
+  playIntervalTicks: 10,
+  playsMin: 4,
+  playsMax: 10,
+  seats: 6,
+  payoutTable: [
+    { p: 0.015, multiplier: 20 }, // straight-up number — the variance tail
+    { p: 0.08, multiplier: 3 }, // column/dozen
+    { p: 0.19, multiplier: 2 }, // even-money outside bet
+  ] as readonly PayoutOutcome[],
+} as const;
+
+/** Expected RTP implied by the roulette payout table (0.92 → 8% house edge). */
+export function rouletteExpectedRtp(): number {
+  return ROULETTE_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+}
+
 // Staff: hourly wages come out of casino cash at each hour boundary.
 export const STAFF_BALANCE = {
   moveTicksPerTile: 2,
