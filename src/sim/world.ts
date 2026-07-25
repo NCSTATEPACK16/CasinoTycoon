@@ -782,16 +782,46 @@ export class CasinoWorld {
     return null;
   }
 
-  /** One seat cell per table seat: the midpoints of the four footprint sides. */
+  /**
+   * Cells a guest can stand in to occupy a seat. The first four entries are
+   * the historical one-per-side cells and MUST keep their order — Blackjack
+   * and Craps declare 4 seats and would otherwise have guests relocate. The
+   * remainder fill out the rest of the footprint perimeter so tables with
+   * more than four seats (Roulette, Poker) have reachable cells for them.
+   */
   private seatCellsFor(po: PlacedObject): Cell[] {
     const def = getObjectDef(po.defId);
     const { w, h } = def?.footprint ?? { w: 1, h: 1 };
-    return [
+
+    const cells: Cell[] = [
       { col: po.col - 1, row: po.row }, // west
       { col: po.col, row: po.row - 1 }, // north
       { col: po.col + w, row: po.row + h - 1 }, // east
       { col: po.col + w - 1, row: po.row + h }, // south
     ];
+    const seen = new Set(cells.map((c) => `${c.col},${c.row}`));
+
+    const push = (col: number, row: number) => {
+      const key = `${col},${row}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      cells.push({ col, row });
+    };
+
+    for (let i = 0; i < h; i++) {
+      push(po.col - 1, po.row + i); // west run
+      push(po.col + w, po.row + i); // east run
+    }
+    for (let i = 0; i < w; i++) {
+      push(po.col + i, po.row - 1); // north run
+      push(po.col + i, po.row + h); // south run
+    }
+    return cells;
+  }
+
+  /** Test-only accessor for the seat-cell enumeration. */
+  seatCellsForTest(po: PlacedObject): Cell[] {
+    return this.seatCellsFor(po);
   }
 
   /** First walkable cell on the perimeter of an object's footprint. */
