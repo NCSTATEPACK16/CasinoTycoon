@@ -53,4 +53,19 @@ export class LocalLeaderboard implements LeaderboardService {
   }
 }
 
-export const leaderboard: LeaderboardService = new LocalLeaderboard();
+// Same swappable-facade shape as `saveService` — see SaveService.ts.
+let lbBackend: LeaderboardService = new LocalLeaderboard();
+
+export function setLeaderboardBackend(inner: LeaderboardService): void {
+  lbBackend = inner;
+}
+
+export function getLeaderboardBackend(): LeaderboardService {
+  return lbBackend;
+}
+
+export const leaderboard: LeaderboardService = {
+  record: (win) => lbBackend.record(win),
+  getBest: (id) => lbBackend.getBest(id),
+  getAll: () => lbBackend.getAll(),
+};

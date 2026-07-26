@@ -81,4 +81,22 @@ export class LocalSaveService implements SaveService {
   }
 }
 
-export const saveService: SaveService = new LocalSaveService();
+// `saveService` is a stable facade, not the implementation. Signing in swaps
+// the inner backend; every consumer keeps its existing import and reference,
+// including ones that captured it at module-eval time.
+let backend: SaveService = new LocalSaveService();
+
+export function setSaveBackend(inner: SaveService): void {
+  backend = inner;
+}
+
+export function getSaveBackend(): SaveService {
+  return backend;
+}
+
+export const saveService: SaveService = {
+  save: (slot, world) => backend.save(slot, world),
+  load: (slot) => backend.load(slot),
+  delete: (slot) => backend.delete(slot),
+  list: () => backend.list(),
+};
