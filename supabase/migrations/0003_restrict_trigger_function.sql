@@ -1,0 +1,11 @@
+-- check_display_name() is a trigger function, but creating it in `public` also
+-- publishes it at /rest/v1/rpc/check_display_name, where Supabase's security
+-- advisor flags it (correctly) as a SECURITY DEFINER function any caller can
+-- reach. Calling it directly would error out — a trigger function has no
+-- trigger context — but an exposed definer function is still surface that
+-- doesn't need to exist.
+--
+-- Revoking EXECUTE does not disarm the trigger: Postgres checks EXECUTE on the
+-- function at CREATE TRIGGER time, not on each fire. Verified after applying —
+-- inserting the display name 'mierda' still raises display_name_blocked.
+revoke execute on function public.check_display_name() from anon, authenticated, public;
