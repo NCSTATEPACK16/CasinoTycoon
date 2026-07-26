@@ -669,3 +669,28 @@ label.p-mute input {
   display: flex;
   gap: 4px;
 }
+
+/* Text input. Sunken bevel per the discipline at the top of this file, and
+   user-select re-enabled: #ui-root turns it off globally, which would
+   otherwise make selecting inside a field unreliable. */
+.p-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 6px 0;
+  padding: 5px 6px;
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--ink);
+  background: var(--panel-dark);
+  border: 2px solid;
+  border-color: var(--panel-dark) var(--panel-light) var(--panel-light) var(--panel-dark);
+  user-select: text;
+  -webkit-user-select: text;
+}
+.p-input::placeholder {
+  color: var(--ink-dim);
+}
+.p-input:focus {
+  outline: 1px solid var(--gold);
+}
