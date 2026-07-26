@@ -78,3 +78,32 @@ describe('CasinoWorld — blackjack tables', () => {
     expect(restoredTable.broken).toBe(true);
   });
 });
+
+describe('seatCellsFor perimeter capacity', () => {
+  it('keeps the original four cells first, in order, for a 2x2 footprint', () => {
+    const world = new CasinoWorld({ seed: 21, autoSpawn: false });
+    const po = world.place('blackjack-table', 5, 5)!;
+    const cells = world.seatCellsForTest(po);
+    expect(cells.slice(0, 4)).toEqual([
+      { col: 4, row: 5 },
+      { col: 5, row: 4 },
+      { col: 7, row: 6 },
+      { col: 6, row: 7 },
+    ]);
+  });
+
+  it('enumerates eight distinct cells for a 2x2 footprint', () => {
+    const world = new CasinoWorld({ seed: 22, autoSpawn: false });
+    const po = world.place('blackjack-table', 5, 5)!;
+    const cells = world.seatCellsForTest(po);
+    expect(cells).toHaveLength(8);
+    const keys = new Set(cells.map((c) => `${c.col},${c.row}`));
+    expect(keys.size).toBe(8);
+  });
+
+  it('still enumerates four cells for a 1x1 footprint', () => {
+    const world = new CasinoWorld({ seed: 23, autoSpawn: false });
+    const po = world.place('slot-machine', 10, 10)!;
+    expect(world.seatCellsForTest(po)).toHaveLength(4);
+  });
+});

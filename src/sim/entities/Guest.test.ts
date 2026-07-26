@@ -11,9 +11,11 @@ describe('Guest', () => {
     const guest = world.spawnGuest();
     const energy = guest.needs.energy;
     const bladder = guest.needs.bladder;
+    const thirst = guest.needs.thirst;
     for (let i = 0; i < 100; i++) world.tick();
     expect(guest.needs.energy).toBeCloseTo(energy - 100 * GUEST_BALANCE.decayPerTick.energy, 3);
     expect(guest.needs.bladder).toBeCloseTo(bladder - 100 * GUEST_BALANCE.decayPerTick.bladder, 3);
+    expect(guest.needs.thirst).toBeCloseTo(thirst - 100 * GUEST_BALANCE.decayPerTick.thirst, 3);
   });
 
   it('a broke guest heads for the exit and eventually leaves', () => {
@@ -46,8 +48,39 @@ describe('Guest', () => {
     expect(peak).toBeGreaterThan(90); // service restored the need
   });
 
+  it('a thirsty wandering guest self-serves at the bar and recovers', () => {
+    const world = new CasinoWorld({ seed: 7, autoSpawn: false });
+    const po = world.place('bar', 20, 15)!;
+    world.brewDrink(po.id);
+    const guest = world.spawnGuest();
+    guest.wallet = 500;
+    guest.needs.thirst = 20;
+    guest.needs.hunger = 100;
+    guest.needs.bladder = 100;
+    let peak = guest.needs.thirst;
+    for (let i = 0; i < 1200; i++) {
+      world.tick();
+      peak = Math.max(peak, guest.needs.thirst);
+    }
+    expect(peak).toBeGreaterThan(90);
+  });
+
+  it('a guest running low on cash visits an operational cage for a one-time top-up', () => {
+    const world = new CasinoWorld({ seed: 17, autoSpawn: false });
+    world.place('cage', 20, 15);
+    world.hireStaff('cashier');
+    const guest = world.spawnGuest();
+    guest.wallet = 25; // below CASHIER_BALANCE.walletThreshold, above brokeWallet
+    const before = guest.wallet;
+    for (let i = 0; i < 1500 && guest.wallet <= before; i++) world.tick();
+    expect(guest.wallet).toBeGreaterThan(before);
+  });
+
   it('emits threshold thoughts once per cooldown', () => {
     const world = new CasinoWorld({ seed: 8, autoSpawn: false });
+    // The bathroom thought is guarded on a toilet existing — without one the
+    // guest thinks "There's nowhere to go!" instead.
+    expect(world.place('toilet', 3, 3)).not.toBeNull();
     const guest = world.spawnGuest();
     guest.wallet = 500;
     guest.needs.bladder = 20;
@@ -77,7 +110,7 @@ describe('Guest', () => {
   it('has a stable flavor name and regular archetype, and tracks netResult/favoriteGame', () => {
     const world = new CasinoWorld({ seed: 8, autoSpawn: false });
     world.place('slot-machine', 5, 5);
-    const guest = world.spawnGuest();
+    const guest = world.spawnGuest('regular');
     guest.wallet = 500;
     expect(guest.archetype).toBe('regular');
     expect(guest.name).toMatch(/^[A-Za-z ]+ [A-Z]\.$/);
@@ -87,6 +120,28 @@ describe('Guest', () => {
     for (let i = 0; i < 200; i++) world.tick(); // let it actually spin a few times
     expect(guest.favoriteGame()).toBe('slot-machine');
     expect(guest.netResult).not.toBe(0);
+  });
+
+  it('a seated, thirsty guest flags waitingForDrink without leaving their seat', () => {
+    const world = new CasinoWorld({ seed: 16, autoSpawn: false });
+    world.place('slot-machine', 5, 5);
+    const guest = world.spawnGuest();
+    guest.wallet = 5000;
+    for (let i = 0; i < 400 && guest.state !== 'play'; i++) world.tick();
+    expect(guest.state).toBe('play');
+    const seatPos = { ...guest.pos };
+    guest.needs.thirst = 10;
+    for (let i = 0; i < 5; i++) world.tick();
+    expect(guest.waitingForDrink).toBe(true);
+    expect(guest.pos).toEqual(seatPos); // never left the seat
+  });
+
+  it('accepts an explicit archetype from its constructor, defaulting to regular', () => {
+    const world = new CasinoWorld({ seed: 20, autoSpawn: false });
+    const regular = world.spawnGuest();
+    expect(regular.archetype).toBe('regular');
+    const vip = world.spawnGuest('highRoller');
+    expect(vip.archetype).toBe('highRoller');
   });
 
   it('a broke AND unhappy guest rage-quits: raging flag, faster exit, ticker line', () => {

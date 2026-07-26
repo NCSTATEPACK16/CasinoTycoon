@@ -1,5 +1,6 @@
 import { eventBus } from '../EventBus';
 import { STARTING_CASH } from '../config';
+import { world } from '../gameContext';
 import { el, formatCash } from './dom';
 import type { PanelSpec, WindowManager } from './WindowManager';
 import { makeBuildPanel } from './panels/BuildPanel';
@@ -7,6 +8,7 @@ import { makeFinancePanel } from './panels/FinancePanel';
 import { makeGuestsPanel } from './panels/GuestsPanel';
 import { makeStaffPanel } from './panels/StaffPanel';
 import { makeObjectivesPanel } from './panels/ObjectivesPanel';
+import { makeRatingPanel } from './panels/RatingPanel';
 import { makeSoundPanel } from './panels/SoundPanel';
 import { makeSavePanel } from './panels/SavePanel';
 
@@ -79,6 +81,46 @@ export class Toolbar {
     const clockValue = el('span', '', 'Day 1 · 12:00');
     clock.append(clockIcon, clockValue);
     bar.appendChild(clock);
+
+    // Polled rather than event-driven: ratingBreakdown is an
+    // O(guests + machines + objects + staff) pass, and emitting it per tick
+    // would run that ten times a second at full guest load. 500ms matches the
+    // REFRESH_MS precedent in ObjectivesPanel/GuestsPanel.
+    const REFRESH_MS = 500;
+
+    const guestsRo = el('div', 'tb-readout bevel-sunken');
+    guestsRo.title = 'Guests on the floor';
+    guestsRo.append(el('span', 'ro-icon', '👥'), el('span', '', '0'));
+    bar.appendChild(guestsRo);
+
+    const moodRo = el('div', 'tb-readout bevel-sunken');
+    moodRo.title = 'Average guest happiness';
+    moodRo.append(el('span', 'ro-icon', '😊'), el('span', '', '—'));
+    bar.appendChild(moodRo);
+
+    const ratingRo = el('div', 'tb-readout bevel-sunken');
+    ratingRo.id = 'tb-rating';
+    ratingRo.append(el('span', 'ro-icon', '⭐'), el('span', '', '0/100'));
+    ratingRo.classList.add('tb-readout-btn');
+    ratingRo.title = 'Casino rating — click for a breakdown';
+    ratingRo.addEventListener('click', () => windows.toggle('rating', makeRatingPanel));
+    bar.appendChild(ratingRo);
+
+    const syncStats = () => {
+      const breakdown = world.ratingBreakdown();
+      (guestsRo.lastChild as HTMLElement).textContent = String(world.guests.size);
+      (moodRo.lastChild as HTMLElement).textContent = `${Math.round(world.averageHappiness)}%`;
+      (ratingRo.lastChild as HTMLElement).textContent = `${breakdown.total}/100`;
+    };
+    syncStats();
+    // Toolbar lives for the lifetime of the page, so this interval is
+    // deliberately never cleared.
+    window.setInterval(syncStats, REFRESH_MS);
+
+    // A scenario change or save load must not leave a stale readout on screen
+    // for up to half a poll interval.
+    eventBus.on('worldReset', syncStats);
+    eventBus.on('worldLoaded', syncStats);
 
     let displayedCash = STARTING_CASH;
     let targetCash = STARTING_CASH;

@@ -38,6 +38,15 @@ const SINGLE_SOURCES = {
   'guest-0': 'guest varient 0.png',
   mechanic: 'mechanic.png',
   janitor: 'janitor.png',
+  bartender: 'bartender.png',
+  waitress: 'cocktail waitress.png',
+  pitBoss: 'Pitt Boss.png',
+  security: 'security guard.png',
+  dealer: 'dealer.png',
+  cashier: 'cashier.png',
+  'guest-highRoller': 'The VIP.png',
+  'guest-biker': 'The Biker.png',
+  'guest-tourist': 'the tourist.png',
 };
 
 // guest varient 0.png (only this file, of the 15+ in this drop) carries a

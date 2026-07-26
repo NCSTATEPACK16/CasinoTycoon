@@ -81,6 +81,42 @@ const OBJECTS: BoxSpec[] = [
     cols: 2,
     rows: 2,
   },
+  {
+    key: 'obj-roulette-table',
+    top: 0x1f6b3a,
+    left: 0x123f22,
+    right: 0x18512c,
+    height: 40,
+    cols: 2,
+    rows: 2,
+  },
+  {
+    key: 'obj-big-six-wheel',
+    top: 0xc23b2e,
+    left: 0x6f2019,
+    right: 0x8f2a20,
+    height: 70,
+    cols: 1,
+    rows: 1,
+  },
+  {
+    key: 'obj-poker-table',
+    top: 0x1d5b3f,
+    left: 0x113626,
+    right: 0x174730,
+    height: 38,
+    cols: 2,
+    rows: 2,
+  },
+  {
+    key: 'obj-high-limit-table',
+    top: 0x5b2a63,
+    left: 0x35183a,
+    right: 0x46204d,
+    height: 42,
+    cols: 2,
+    rows: 2,
+  },
   { key: 'obj-toilet', top: 0x2f4a5c, left: 0x203541, right: 0x283f4d, height: 56 },
   { key: 'obj-food-stall', top: 0x8a5a1e, left: 0x5c3c12, right: 0x6f4816, height: 64 },
   { key: 'obj-plant', top: 0x1f5c33, left: 0x123d21, right: 0x184a29, height: 48 },
@@ -92,6 +128,15 @@ const OBJECTS: BoxSpec[] = [
     left: 0x2c8cb0,
     right: 0x34a8d9,
     height: 56,
+    cols: 2,
+    rows: 1,
+  },
+  {
+    key: 'obj-bar',
+    top: 0x6b2a1e,
+    left: 0x481c14,
+    right: 0x5a2318,
+    height: 44,
     cols: 2,
     rows: 1,
   },
@@ -152,6 +197,87 @@ const JANITOR_PALETTE: PersonPalette = {
   pants: 0x4a4a52,
   shoes: 0x241f1a,
   accessory: 'bucket',
+};
+
+const BARTENDER_PALETTE: PersonPalette = {
+  hair: 0x1e1a16,
+  skin: 0xc98d5a,
+  shirt: 0x2f2f38,
+  shirtShade: 0x1e1e26,
+  pants: 0x1a1a20,
+  shoes: 0x0f0f12,
+};
+
+const WAITRESS_PALETTE: PersonPalette = {
+  hair: 0x3a2a1e,
+  skin: 0xe8b88a,
+  shirt: 0x7a1f3a,
+  shirtShade: 0x581529,
+  pants: 0x2b2b33,
+  shoes: 0x1a1a1e,
+};
+
+const PITBOSS_PALETTE: PersonPalette = {
+  hair: 0x1a1512,
+  skin: 0xc98d5a,
+  shirt: 0x1c1c22,
+  shirtShade: 0x101014,
+  pants: 0x1c1c22,
+  shoes: 0x0f0f12,
+};
+
+const SECURITY_PALETTE: PersonPalette = {
+  hair: 0x0f0d0b,
+  skin: 0xb87a4a,
+  shirt: 0x22262e,
+  shirtShade: 0x14171c,
+  pants: 0x14171c,
+  shoes: 0x0a0a0c,
+};
+
+const DEALER_PALETTE: PersonPalette = {
+  hair: 0x1a1a1a,
+  skin: 0xd9a066,
+  shirt: 0x141418,
+  shirtShade: 0x0a0a0c,
+  pants: 0x141418,
+  shoes: 0x0a0a0a,
+};
+
+const CASHIER_PALETTE: PersonPalette = {
+  hair: 0x2a1e16,
+  skin: 0xe8b88a,
+  shirt: 0x3ea15f,
+  shirtShade: 0x2a7341,
+  pants: 0x1c1c22,
+  shoes: 0x241f1a,
+};
+
+const HIGHROLLER_PALETTE: PersonPalette = {
+  hair: 0x2a1e16,
+  skin: 0xe8b88a,
+  shirt: 0xf2f2ea,
+  shirtShade: 0xc9c9c0,
+  pants: 0xf2f2ea,
+  shoes: 0x5a3a22,
+};
+
+const BIKER_PALETTE: PersonPalette = {
+  hair: 0x2a1a12,
+  skin: 0xc98d5a,
+  shirt: 0x2b2b2f,
+  shirtShade: 0x1a1a1c,
+  pants: 0x2e3450,
+  shoes: 0x1a1512,
+};
+
+const TOURIST_PALETTE: PersonPalette = {
+  hair: 0x3a2a1e,
+  skin: 0xe8b88a,
+  shirt: 0x3ea1c9,
+  shirtShade: 0x2a7391,
+  pants: 0xc9a95a,
+  shoes: 0xe8b88a,
 };
 
 function diamondPoints(w: number, h: number): Phaser.Types.Math.Vector2Like[] {
@@ -275,6 +401,24 @@ function makePixelPeople(scene: Phaser.Scene): void {
   makePerson(scene, 'char-mechanic-b', MECHANIC_PALETTE, 'b');
   makePerson(scene, 'char-janitor-a', JANITOR_PALETTE, 'a');
   makePerson(scene, 'char-janitor-b', JANITOR_PALETTE, 'b');
+  makePerson(scene, 'char-bartender-a', BARTENDER_PALETTE, 'a');
+  makePerson(scene, 'char-bartender-b', BARTENDER_PALETTE, 'b');
+  makePerson(scene, 'char-waitress-a', WAITRESS_PALETTE, 'a');
+  makePerson(scene, 'char-waitress-b', WAITRESS_PALETTE, 'b');
+  makePerson(scene, 'char-pitBoss-a', PITBOSS_PALETTE, 'a');
+  makePerson(scene, 'char-pitBoss-b', PITBOSS_PALETTE, 'b');
+  makePerson(scene, 'char-security-a', SECURITY_PALETTE, 'a');
+  makePerson(scene, 'char-security-b', SECURITY_PALETTE, 'b');
+  makePerson(scene, 'char-dealer-a', DEALER_PALETTE, 'a');
+  makePerson(scene, 'char-dealer-b', DEALER_PALETTE, 'b');
+  makePerson(scene, 'char-cashier-a', CASHIER_PALETTE, 'a');
+  makePerson(scene, 'char-cashier-b', CASHIER_PALETTE, 'b');
+  makePerson(scene, 'char-guest-highRoller-a', HIGHROLLER_PALETTE, 'a');
+  makePerson(scene, 'char-guest-highRoller-b', HIGHROLLER_PALETTE, 'b');
+  makePerson(scene, 'char-guest-biker-a', BIKER_PALETTE, 'a');
+  makePerson(scene, 'char-guest-biker-b', BIKER_PALETTE, 'b');
+  makePerson(scene, 'char-guest-tourist-a', TOURIST_PALETTE, 'a');
+  makePerson(scene, 'char-guest-tourist-b', TOURIST_PALETTE, 'b');
 }
 
 // P8 fx: a gold coin for jackpot bursts and a speech-bubble back for thoughts.

@@ -36,6 +36,24 @@ export abstract class CasinoGame {
     return !this.broken && this.reservedBy === null;
   }
 
+  /**
+   * Extra happiness delta applied on a losing play, on top of the global
+   * GUEST_BALANCE.happinessOnLoss. Only games that are deliberately punishing
+   * override this.
+   */
+  get extraHappinessOnLoss(): number {
+    return 0;
+  }
+
+  /**
+   * Minimum wallet a guest needs before they'll be seated, checked in
+   * world.reserveMachine on top of the universal `wallet >= costToPlay` test.
+   * 0 = no gate, so every game that doesn't override this is unaffected.
+   */
+  get minWallet(): number {
+    return 0;
+  }
+
   isPlayableBy(guestId: string): boolean {
     return !this.broken && this.reservedBy === guestId;
   }

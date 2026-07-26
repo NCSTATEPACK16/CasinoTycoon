@@ -4,7 +4,7 @@ export const GUEST_BALANCE = {
   walletMin: 40,
   walletMax: 220,
   startHappiness: 70,
-  decayPerTick: { energy: 0.02, bladder: 0.04, hunger: 0.03 },
+  decayPerTick: { energy: 0.02, bladder: 0.04, hunger: 0.03, thirst: 0.03 },
   // Below this a need sends the guest hunting for the matching service object.
   needThreshold: 25,
   // Needs this starved actively drain happiness.
@@ -37,6 +37,14 @@ export const RATING_BALANCE = {
   perMessPenalty: 3,
   perBrokenPenalty: 5,
   signageBonusCap: 10,
+} as const;
+
+// Ambient-only staff: no job-queue behavior, just floor presence for a
+// small capped rating bonus (same shape as neon-sign/marquee's ratingBonus,
+// applied to staff instead of a placed object).
+export const SECURITY_BALANCE = {
+  bonusPerStaff: 1.5,
+  bonusCap: 8,
 } as const;
 
 export interface PayoutOutcome {
@@ -102,12 +110,130 @@ export function crapsExpectedRtp(): number {
   return CRAPS_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
 }
 
+// Roulette: a wide crowd table whose point is variance. The 1.5% branch pays
+// 20x, which clears STRUT_BALANCE.payoutMultiplier and so drives the P11
+// winner-strut and chip-arc jackpot that slots otherwise trigger alone.
+export const ROULETTE_BALANCE = {
+  costToPlay: 20,
+  wearPerPlay: 0.2,
+  playIntervalTicks: 10,
+  playsMin: 4,
+  playsMax: 10,
+  seats: 6,
+  payoutTable: [
+    { p: 0.015, multiplier: 20 }, // straight-up number — the variance tail
+    { p: 0.08, multiplier: 3 }, // column/dozen
+    { p: 0.19, multiplier: 2 }, // even-money outside bet
+  ] as readonly PayoutOutcome[],
+} as const;
+
+/** Expected RTP implied by the roulette payout table (0.92 → 8% house edge). */
+export function rouletteExpectedRtp(): number {
+  return ROULETTE_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+}
+
+// Big Six: cheap, fast, standing, and by far the worst odds in the house.
+// extraHappinessOnLoss stacks on top of GUEST_BALANCE.happinessOnLoss (-1),
+// so a losing spin costs -3 happiness in total. Without it the wheel is just
+// a cheap slot with bad math and the profit-vs-happiness tension is invisible
+// until it surfaces later as an unexplained rage quit.
+export const BIG_SIX_BALANCE = {
+  costToPlay: 5,
+  wearPerPlay: 0.4,
+  spinIntervalTicks: 5,
+  spinsMin: 3,
+  spinsMax: 10,
+  extraHappinessOnLoss: -2,
+  payoutTable: [
+    { p: 0.3, multiplier: 2 },
+    { p: 0.05, multiplier: 4 },
+  ] as readonly PayoutOutcome[],
+} as const;
+
+/** Expected RTP implied by the big six payout table (0.80 → 20% house edge). */
+export function bigSixExpectedRtp(): number {
+  return BIG_SIX_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+}
+
+// Poker: guests play each other and the house takes a rake, so revenue is a
+// steady percentage of volume rather than a house edge on a payout table.
+// This is the only game that pays for guest COUNT rather than guest SPEND —
+// and the only one that earns nothing at all when under-populated.
+export const POKER_BALANCE = {
+  costToPlay: 30,
+  wearPerPlay: 0.15,
+  playIntervalTicks: 15,
+  playsMin: 6,
+  playsMax: 15,
+  seats: 6,
+  minPlayers: 2,
+  rake: 0.05,
+  // How long a guest keeps a seat at a table that can't deal yet. Without a
+  // bounded wait a lone guest vacates on its first zero-wager play attempt, so
+  // the table only ever deals when two guests happen to sit within one play
+  // interval of each other — 12 seconds of patience is what makes a poker room
+  // fill up at all.
+  maxWaitTicks: 120,
+} as const;
+
+// No expectedRtp helper — poker's return is computed from live table
+// population, not a static payout table.
+
+// High-limit: gated on wallet rather than archetype. highRollerChance is only
+// 0.015, so an archetype gate would leave the table idle almost always; a
+// wallet gate admits high rollers on arrival AND lets an ordinary guest who
+// has won big graduate into it. Best odds in the house, so the VIP treatment
+// is real rather than cosmetic.
+export const HIGH_LIMIT_BALANCE = {
+  costToPlay: 150,
+  wearPerPlay: 0.2,
+  playIntervalTicks: 14,
+  playsMin: 3,
+  playsMax: 8,
+  seats: 3,
+  minWallet: 400,
+  payoutTable: [
+    { p: 0.02, multiplier: 10 },
+    { p: 0.12, multiplier: 3 },
+    { p: 0.19, multiplier: 2 },
+  ] as readonly PayoutOutcome[],
+} as const;
+
+/** Expected RTP implied by the high-limit payout table (0.94 → 6% house edge). */
+export function highLimitExpectedRtp(): number {
+  return HIGH_LIMIT_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+}
+
 // Staff: hourly wages come out of casino cash at each hour boundary.
 export const STAFF_BALANCE = {
   moveTicksPerTile: 2,
   patrolIdleTicks: 20, // idle ticks between patrol strolls
   mechanic: { wagePerHour: 3, repairTicks: 40 },
   janitor: { wagePerHour: 2, cleanTicks: 25 },
+  bartender: { wagePerHour: 3 },
+  waitress: { wagePerHour: 3, deliverTicks: 15 },
+  pitBoss: { wagePerHour: 4 },
+  security: { wagePerHour: 3 },
+  dealer: { wagePerHour: 4 },
+  cashier: { wagePerHour: 4 },
+} as const;
+
+// Cashier + Cage: a cashier stationed at a cage lets guests running low on
+// cash (but not yet broke) get a one-time wallet top-up for a fee — same
+// "staffed booth, presence-gated" shape as the bar. No production timer
+// (unlike the bartender) — the cage just needs a cashier physically there.
+export const CASHIER_BALANCE = {
+  walletThreshold: 30, // below this (but still affordable to keep playing) triggers a visit
+  advanceAmount: 40,
+  fee: 8,
+} as const;
+
+// Dealer: cosmetic-only staff member stationed at a blackjack/craps table.
+// No sim interaction with seating/payout — just a small, capped rating bonus
+// per dealt table (a fuller-looking floor reads as more legitimate).
+export const DEALER_BALANCE = {
+  dealerBonusPerTable: 2,
+  dealerBonusCap: 10,
 } as const;
 
 // Trash and spills: unhappy guests drop them; nearby guests sour further.
@@ -143,6 +269,31 @@ export const STRUT_BALANCE = {
   payoutMultiplier: 5, // payout >= wager * this triggers the strut
   durationTicks: 30,
   happinessBump: 6,
+} as const;
+
+// Bar: bartender brews on a timer into a capped stock; waitress delivers to
+// seated guests, wandering guests self-serve like the food stall/toilet.
+export const BAR_BALANCE = {
+  maxStock: 6,
+  brewTicks: 15, // one drink added roughly every 1.5s at 10 ticks/sec
+  drinkPrice: 12,
+  drinkCost: 4, // what the casino "pays" per drink brewed, for a real margin
+  thirstRestore: 100,
+  happinessOnSelfServe: 3, // matches GUEST_BALANCE.happinessOnService
+  happinessOnDelivery: 5, // a little more — real table service feels better
+} as const;
+
+// Guest archetypes: a small independent weighted roll on spawn. biker/tourist
+// are cosmetic-only (same needs/decay/wallet as regular) — highRoller is the
+// one with real mechanical weight, via a much wider/higher wallet range so
+// they visibly spend more and stick around longer. Deliberately bounded scope
+// per the P10.6 roadmap — no new decay-rate or happiness-threshold behavior.
+export const ARCHETYPE_BALANCE = {
+  highRollerChance: 0.015,
+  bikerChance: 0.05,
+  touristChance: 0.05,
+  highRollerWalletMin: 250, // ~6x GUEST_BALANCE.walletMin
+  highRollerWalletMax: 1100, // ~5x GUEST_BALANCE.walletMax
 } as const;
 
 // Campaign score: profit-vs-goal ratio × day-efficiency × final rating,

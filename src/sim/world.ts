@@ -1,13 +1,24 @@
 import { eventBus } from '../EventBus';
 import { ENTRANCE_TILE, GRID_COLS, GRID_ROWS, HOURS_PER_DAY, JACKPOT_PAYOUT_MULT, STARTING_CASH } from '../config';
-import { GUEST_BALANCE, MESS_BALANCE, RAGE_BALANCE, RATING_BALANCE } from '../data/balance';
+import {
+  ARCHETYPE_BALANCE,
+  BAR_BALANCE,
+  CASHIER_BALANCE,
+  DEALER_BALANCE,
+  GUEST_BALANCE,
+  MESS_BALANCE,
+  RAGE_BALANCE,
+  RATING_BALANCE,
+  SECURITY_BALANCE,
+} from '../data/balance';
 import type { CampaignDef } from '../data/campaigns';
 import { getObjectDef } from '../data/objects';
 import { canPlaceObject, placeObject, sellObject, type PlaceCheck } from './build';
-import { BlackjackTable } from './entities/machines/BlackjackTable';
-import { CrapsTable } from './entities/machines/CrapsTable';
+import { createMachine, createMachineOrThrow } from './entities/machines/factory';
+import { PokerTable } from './entities/machines/PokerTable';
 import { SeatedCasinoGame } from './entities/machines/SeatedCasinoGame';
-import { Guest } from './entities/Guest';
+import { Guest, type GuestArchetype } from './entities/Guest';
+import { Bar, type BarJSON } from './entities/Bar';
 import { FoodStall, type FoodStallJSON, type FoodPurchase } from './entities/FoodStall';
 import type { Mess, MessKind } from './entities/Mess';
 import { Staff, type StaffKind } from './entities/staff/Staff';
@@ -15,7 +26,6 @@ import { Ledger, type LedgerJSON } from './economy';
 import { ScenarioManager, type ScenarioJSON } from './scenario/ScenarioManager';
 import { TimeSystem, type TimeSystemJSON } from './TimeSystem';
 import { type CasinoGame, type PlayCadence, type PlayResult } from './entities/machines/CasinoGame';
-import { SlotMachine } from './entities/machines/SlotMachine';
 import { GameState, type GameStateJSON, type PlacedObject } from './GameState';
 import { findPath, type Cell } from './grid/astar';
 import { IsoGrid, type IsoGridJSON } from './grid/IsoGrid';
@@ -68,12 +78,30 @@ interface StaffJSON {
   row: number;
 }
 
+/** The casino rating split into its contributing terms. Bonuses are positive,
+ *  penalties negative; all nine terms sum to the pre-clamp score, and `total`
+ *  is that score clamped to 0..100 and rounded. */
+export interface RatingBreakdown {
+  happiness: number;
+  machines: number;
+  variety: number;
+  cleanliness: number;
+  broken: number; // negative or zero
+  signage: number;
+  security: number;
+  dealers: number;
+  /** Decaying ding from guests who rage-quit. Negative or zero. */
+  rage: number;
+  total: number; // clamped 0..100
+}
+
 export interface CasinoWorldJSON {
   state: GameStateJSON;
   grid: IsoGridJSON;
   tickCount: number;
   machines: MachineJSON[];
   foodStalls: FoodStallJSON[];
+  bars: BarJSON[];
   messes: MessJSON[];
   nextMessNum: number;
   staff: StaffJSON[];
@@ -87,8 +115,14 @@ export class CasinoWorld {
   state: GameState;
   grid: IsoGrid;
   rng: Rng;
+  /** Separate stream for archetype selection so a guest's cosmetic archetype
+   *  roll never perturbs the shared `rng` stream's call count — every other
+   *  system's draws (payouts, spawn timing, ...) stay byte-identical to a
+   *  build with no archetypes at all, for the same world seed. */
+  private archetypeRng: Rng;
   machines = new Map<string, CasinoGame>();
   foodStalls = new Map<string, FoodStall>();
+  bars = new Map<string, Bar>();
   guests = new Map<string, Guest>();
   messes = new Map<string, Mess>();
   staff = new Map<string, Staff>();
@@ -103,12 +137,26 @@ export class CasinoWorld {
   private nextStaffNum = 1;
   /** machineId → staffId, so two mechanics never race to the same repair. */
   private repairClaims = new Map<string, string>();
+  /** guestId → staffId, so two waitresses never race to the same delivery. */
+  private drinkClaims = new Map<string, string>();
+  /** tableId → staffId, so two dealers never race for the same table. */
+  private dealerAssignments = new Map<string, string>();
+  /** cageId → staffId, so two cashiers never race for the same cage. */
+  private cashierAssignments = new Map<string, string>();
   private ragePenalty = 0;
+  /** Recomputed on every floor change and once per tick — see hasServiceObject. */
+  private serviceAvailability: Record<string, boolean> = {
+    toilet: false,
+    bar: false,
+    'food-stall': false,
+  };
 
   constructor(opts: WorldOptions = {}) {
     this.state = new GameState();
     this.grid = new IsoGrid(GRID_COLS, GRID_ROWS);
-    this.rng = new Rng(opts.seed ?? Date.now() >>> 0);
+    const seed = opts.seed ?? Date.now() >>> 0;
+    this.rng = new Rng(seed);
+    this.archetypeRng = new Rng((seed ^ 0x9e3779b9) >>> 0);
     this.autoSpawn = opts.autoSpawn ?? true;
   }
 
@@ -130,9 +178,14 @@ export class CasinoWorld {
     this.messes.clear();
     this.machines.clear();
     this.foodStalls.clear();
+    this.bars.clear();
     this.repairClaims.clear();
+    this.drinkClaims.clear();
+    this.dealerAssignments.clear();
+    this.cashierAssignments.clear();
     this.grid.clear();
     this.state.reset(startingCash);
+    this.refreshServiceAvailability();
     this.time = new TimeSystem();
     this.ledger = new Ledger();
     this.tickCount = 0;
@@ -155,10 +208,13 @@ export class CasinoWorld {
   place(defId: string, col: number, row: number): PlacedObject | null {
     if (!this.isObjectAllowed(defId)) return null;
     const po = placeObject(this.state, this.grid, defId, col, row);
-    if (po && defId === 'slot-machine') this.machines.set(po.id, new SlotMachine(po.id));
-    if (po && defId === 'blackjack-table') this.machines.set(po.id, new BlackjackTable(po.id));
-    if (po && defId === 'craps-table') this.machines.set(po.id, new CrapsTable(po.id));
+    if (po) {
+      const machine = createMachine(defId, po.id);
+      if (machine) this.machines.set(po.id, machine);
+    }
     if (po && defId === 'food-stall') this.foodStalls.set(po.id, new FoodStall(po.id));
+    if (po && defId === 'bar') this.bars.set(po.id, new Bar(po.id));
+    if (po) this.refreshServiceAvailability();
     return po;
   }
 
@@ -170,15 +226,42 @@ export class CasinoWorld {
       machine.releaseAll();
       this.machines.delete(objectId);
       this.repairClaims.delete(objectId);
+      this.dealerAssignments.delete(objectId);
     }
     this.foodStalls.delete(objectId);
-    return sellObject(this.state, this.grid, objectId);
+    this.bars.delete(objectId);
+    this.cashierAssignments.delete(objectId);
+    const refund = sellObject(this.state, this.grid, objectId);
+    this.refreshServiceAvailability();
+    return refund;
+  }
+
+  /**
+   * Whether a service object of this type exists on the floor. Backed by a
+   * cache refreshed on every floor change and at the top of each tick: guests
+   * query this every tick, and scanning all placed objects per guest would be
+   * O(objects x guests) per tick.
+   */
+  hasServiceObject(defId: string): boolean {
+    return this.serviceAvailability[defId] ?? false;
+  }
+
+  /** Rebuild the hasServiceObject cache from the current floor. */
+  private refreshServiceAvailability(): void {
+    const found: Record<string, boolean> = { toilet: false, bar: false, 'food-stall': false };
+    for (const po of this.state.allObjects()) {
+      if (po.defId in found) found[po.defId] = true;
+    }
+    this.serviceAvailability = found;
   }
 
   // ---------- simulation ----------
 
   tick(): void {
     this.tickCount++;
+    // Before guests run: they read it, and staff/scenario code may have built
+    // or sold since the last refresh.
+    this.refreshServiceAvailability();
     const t = this.time.tick();
     if (this.autoSpawn) this.maybeSpawn();
     this.applyMessEffects();
@@ -271,13 +354,20 @@ export class CasinoWorld {
     }
   }
 
-  /** Casino rating 0–100 — drives guest arrivals; shown in UI later. */
-  get rating(): number {
-    const b = RATING_BALANCE;
+  /** Mean guest happiness, or the neutral assumption when the floor is empty. */
+  get averageHappiness(): number {
     const guests = [...this.guests.values()];
-    const avgHappiness = guests.length
+    return guests.length
       ? guests.reduce((sum, g) => sum + g.needs.happiness, 0) / guests.length
-      : b.neutralHappiness;
+      : RATING_BALANCE.neutralHappiness;
+  }
+
+  /** Every contribution to the casino rating, term by term, so the UI can
+   *  explain the number instead of just showing it. Terms sum to the
+   *  pre-clamp score; `total` is that score clamped to 0..100 and rounded. */
+  ratingBreakdown(): RatingBreakdown {
+    const b = RATING_BALANCE;
+    const avgHappiness = this.averageHappiness;
     const variety = new Set([...this.machines.values()].map((m) => m.defId)).size;
     let broken = 0;
     for (const m of this.machines.values()) if (m.broken) broken++;
@@ -286,15 +376,46 @@ export class CasinoWorld {
       signageBonus += getObjectDef(po.defId)?.ratingBonus ?? 0;
     }
     signageBonus = Math.min(signageBonus, b.signageBonusCap);
+    let securityBonus = 0;
+    for (const m of this.staff.values()) {
+      if (m.kind === 'pitBoss' || m.kind === 'security') {
+        securityBonus += SECURITY_BALANCE.bonusPerStaff;
+      }
+    }
+    securityBonus = Math.min(securityBonus, SECURITY_BALANCE.bonusCap);
+    const dealerBonus = Math.min(
+      this.dealerAssignments.size * DEALER_BALANCE.dealerBonusPerTable,
+      DEALER_BALANCE.dealerBonusCap,
+    );
+
+    const terms = {
+      happiness: b.happinessWeight * avgHappiness,
+      machines: Math.min(this.machines.size * b.perMachine, b.machineCap),
+      variety: variety >= 2 ? b.varietyBonus : 0,
+      cleanliness: Math.max(0, b.cleanlinessMax - this.messes.size * b.perMessPenalty),
+      // Guard the sign so an unbroken floor reports 0, not -0.
+      broken: broken ? -(broken * b.perBrokenPenalty) : 0,
+      signage: signageBonus,
+      security: securityBonus,
+      dealers: dealerBonus,
+      rage: this.ragePenalty ? -this.ragePenalty : 0,
+    };
     const score =
-      b.happinessWeight * avgHappiness +
-      Math.min(this.machines.size * b.perMachine, b.machineCap) +
-      (variety >= 2 ? b.varietyBonus : 0) +
-      Math.max(0, b.cleanlinessMax - this.messes.size * b.perMessPenalty) -
-      broken * b.perBrokenPenalty +
-      signageBonus -
-      this.ragePenalty;
-    return Math.round(Math.min(100, Math.max(0, score)));
+      terms.happiness +
+      terms.machines +
+      terms.variety +
+      terms.cleanliness +
+      terms.broken +
+      terms.signage +
+      terms.security +
+      terms.dealers +
+      terms.rage;
+    return { ...terms, total: Math.round(Math.min(100, Math.max(0, score))) };
+  }
+
+  /** Casino rating 0–100 — drives guest arrivals; shown in UI later. */
+  get rating(): number {
+    return this.ratingBreakdown().total;
   }
 
   private maybeSpawn(): void {
@@ -304,13 +425,29 @@ export class CasinoWorld {
     this.spawnGuest();
   }
 
-  spawnGuest(): Guest {
+  spawnGuest(archetypeOverride?: GuestArchetype): Guest {
     const id = `g-${this.nextGuestNum++}`;
-    const wallet = this.rng.int(GUEST_BALANCE.walletMin, GUEST_BALANCE.walletMax);
-    const guest = new Guest(id, wallet, this.entranceTile);
+    const archetype = archetypeOverride ?? this.rollArchetype();
+    const wallet =
+      archetype === 'highRoller'
+        ? this.rng.int(ARCHETYPE_BALANCE.highRollerWalletMin, ARCHETYPE_BALANCE.highRollerWalletMax)
+        : this.rng.int(GUEST_BALANCE.walletMin, GUEST_BALANCE.walletMax);
+    const guest = new Guest(id, wallet, this.entranceTile, archetype);
     this.guests.set(id, guest);
     eventBus.emit('guestSpawned', { id, archetype: guest.archetype });
     return guest;
+  }
+
+  /** Single bucketed roll on the dedicated archetypeRng (see its field
+   *  comment) — every archetype is independently weighted by its slice of
+   *  the [0,1) range. */
+  private rollArchetype(): GuestArchetype {
+    const b = ARCHETYPE_BALANCE;
+    const roll = this.archetypeRng.next();
+    if (roll < b.highRollerChance) return 'highRoller';
+    if (roll < b.highRollerChance + b.bikerChance) return 'biker';
+    if (roll < b.highRollerChance + b.bikerChance + b.touristChance) return 'tourist';
+    return 'regular';
   }
 
   // ---------- staff ----------
@@ -361,11 +498,26 @@ export class CasinoWorld {
       }
       return null;
     }
-    for (const mess of this.messes.values()) {
-      if (mess.claimedBy) continue;
-      mess.claimedBy = member.id;
-      return { jobId: mess.id, cell: { col: mess.col, row: mess.row } };
+    if (member.kind === 'waitress') {
+      for (const guest of this.guests.values()) {
+        if (guest.state !== 'play' || !guest.waitingForDrink || this.drinkClaims.has(guest.id)) {
+          continue;
+        }
+        this.drinkClaims.set(guest.id, member.id);
+        return { jobId: guest.id, cell: { ...guest.pos } };
+      }
+      return null;
     }
+    if (member.kind === 'janitor') {
+      for (const mess of this.messes.values()) {
+        if (mess.claimedBy) continue;
+        mess.claimedBy = member.id;
+        return { jobId: mess.id, cell: { col: mess.col, row: mess.row } };
+      }
+      return null;
+    }
+    // bartender never calls this (see Staff.actBartender); pitBoss/security
+    // are pure ambient patrol and never claim a job either.
     return null;
   }
 
@@ -375,6 +527,17 @@ export class CasinoWorld {
       const machine = this.machines.get(member.jobId);
       return !!machine && machine.broken && this.repairClaims.get(member.jobId) === member.id;
     }
+    if (member.kind === 'waitress') {
+      const guest = this.guests.get(member.jobId);
+      return (
+        !!guest &&
+        guest.state === 'play' &&
+        guest.waitingForDrink &&
+        this.drinkClaims.get(member.jobId) === member.id
+      );
+    }
+    // Only janitor reaches here — pitBoss/security never hold a jobId, so the
+    // `if (!member.jobId) return false;` guard above already excludes them.
     return this.messes.get(member.jobId)?.claimedBy === member.id;
   }
 
@@ -390,6 +553,22 @@ export class CasinoWorld {
       eventBus.emit('tickerMessage', { text: 'A machine has been repaired!' });
       return;
     }
+    if (member.kind === 'waitress') {
+      const guestId = member.jobId;
+      this.drinkClaims.delete(guestId);
+      const guest = this.guests.get(guestId);
+      const bar = this.findBar();
+      if (!guest || !guest.waitingForDrink || !bar) return; // try again later
+      const purchase = this.buyDrink(bar.barId, guest.wallet);
+      if (!purchase) return;
+      guest.wallet -= purchase.price;
+      guest.needs.thirst = BAR_BALANCE.thirstRestore;
+      guest.adjustHappiness(BAR_BALANCE.happinessOnDelivery);
+      guest.waitingForDrink = false;
+      return;
+    }
+    // Only janitor reaches here — pitBoss/security never claim a job in the
+    // first place (see claimJobFor), so completeJob is unreachable for them.
     this.cleanMess(member.jobId);
   }
 
@@ -397,9 +576,107 @@ export class CasinoWorld {
     for (const [machineId, claimant] of this.repairClaims) {
       if (claimant === staffId) this.repairClaims.delete(machineId);
     }
+    for (const [guestId, claimant] of this.drinkClaims) {
+      if (claimant === staffId) this.drinkClaims.delete(guestId);
+    }
+    for (const [tableId, claimant] of this.dealerAssignments) {
+      if (claimant === staffId) this.dealerAssignments.delete(tableId);
+    }
+    for (const [cageId, claimant] of this.cashierAssignments) {
+      if (claimant === staffId) this.cashierAssignments.delete(cageId);
+    }
     for (const mess of this.messes.values()) {
       if (mess.claimedBy === staffId) mess.claimedBy = null;
     }
+  }
+
+  /** Claim the nearest dealable table without a dealer already assigned.
+   * "Dealable" is a capability, not a list of defIds: any SeatedCasinoGame
+   * qualifies, so every communal table (blackjack, craps, roulette, poker,
+   * high-limit) is covered and the standing Big Six wheel correctly is not.
+   * Claims immediately (before the caller attempts to path to it), mirroring
+   * claimJobFor's shape, so two dealers evaluated in the same tick never
+   * claim the same table — staff tick sequentially within a tick, so the
+   * second dealer's scan already sees the first's claim. */
+  claimDealerTable(staffId: string): { tableId: string; stand: Cell } | null {
+    for (const po of this.state.allObjects()) {
+      if (!(this.machines.get(po.id) instanceof SeatedCasinoGame)) continue;
+      if (this.dealerAssignments.has(po.id)) continue;
+      const stand = this.standTileFor(po);
+      if (!stand) continue;
+      this.dealerAssignments.set(po.id, staffId);
+      return { tableId: po.id, stand };
+    }
+    return null;
+  }
+
+  /** False once the table is sold (sell() clears the entry) or reassigned —
+   * tells a dealer its claim on `tableId` no longer holds. */
+  isDealerAssignmentValid(staffId: string, tableId: string): boolean {
+    return this.dealerAssignments.get(tableId) === staffId;
+  }
+
+  /** Put a just-claimed-but-unreachable table's claim back. */
+  releaseDealerClaim(tableId: string): void {
+    this.dealerAssignments.delete(tableId);
+  }
+
+  /** Claim the nearest cage without a cashier already stationed — same
+   * immediate-claim shape as claimDealerTable, for the same reason. */
+  claimCashierCage(staffId: string): { cageId: string; stand: Cell } | null {
+    for (const po of this.state.allObjects()) {
+      if (po.defId !== 'cage') continue;
+      if (this.cashierAssignments.has(po.id)) continue;
+      const stand = this.standTileFor(po);
+      if (!stand) continue;
+      this.cashierAssignments.set(po.id, staffId);
+      return { cageId: po.id, stand };
+    }
+    return null;
+  }
+
+  /** False once the cage is sold or reassigned. */
+  isCashierAssignmentValid(staffId: string, cageId: string): boolean {
+    return this.cashierAssignments.get(cageId) === staffId;
+  }
+
+  /** Put a just-claimed-but-unreachable cage's claim back. */
+  releaseCashierClaim(cageId: string): void {
+    this.cashierAssignments.delete(cageId);
+  }
+
+  /** An operational cage: has a cashier actually stationed there right now
+   * (mirrors findBar's stock gate — presence instead of stock; unlike
+   * dealerAssignments/repairClaims-style "claimed" checks, this specifically
+   * requires the assigned staffer to have arrived, not just be en route) and
+   * a walkable stand tile. */
+  findCage(): { cageId: string; stand: Cell } | null {
+    for (const po of this.state.allObjects()) {
+      if (po.defId !== 'cage') continue;
+      const staffId = this.cashierAssignments.get(po.id);
+      if (!staffId || this.staff.get(staffId)?.state !== 'stationed') continue;
+      const stand = this.standTileFor(po);
+      if (!stand) continue;
+      return { cageId: po.id, stand };
+    }
+    return null;
+  }
+
+  /** One-time wallet top-up net of the fee; null if the wallet can't cover
+   * the fee at all. */
+  useCage(wallet: number): { advance: number } | null {
+    if (wallet < CASHIER_BALANCE.fee) return null;
+    this.state.cash += CASHIER_BALANCE.fee;
+    this.ledger.addRevenue(CASHIER_BALANCE.fee);
+    eventBus.emit('moneyChanged', { cash: this.state.cash, delta: CASHIER_BALANCE.fee });
+    return { advance: CASHIER_BALANCE.advanceAmount };
+  }
+
+  /** Public wrapper so Staff.ts (cashier) can reach a cage's stand tile,
+   * mirroring barStandTile. */
+  cageStandTile(cageId: string): Cell | null {
+    const po = this.state.getObject(cageId);
+    return po ? this.standTileFor(po) : null;
   }
 
   /** One-time rating ding from a rage quit; decays over subsequent hours. */
@@ -442,6 +719,9 @@ export class CasinoWorld {
   reserveMachine(guestId: string, wallet: number): { machineId: string; stand: Cell } | null {
     for (const machine of this.machines.values()) {
       if (!machine.isAvailable || wallet < machine.costToPlay) continue;
+      // Per-game wallet floor on top of the affordability test above. Defaults
+      // to 0 on CasinoGame, so this can never exclude an ungated game.
+      if (wallet < machine.minWallet) continue;
       const po = this.state.getObject(machine.id);
       if (!po) continue;
       if (machine instanceof SeatedCasinoGame) {
@@ -450,7 +730,11 @@ export class CasinoWorld {
         for (let seat = 0; seat < cells.length; seat++) {
           const cell = cells[seat]!;
           if (!machine.isSeatFree(seat) || !this.grid.isWalkable(cell.col, cell.row)) continue;
-          machine.claimSeat(guestId, seat);
+          // seatCellsFor enumerates the whole perimeter, which is more cells
+          // than most tables have seats, so this can be handed an index the
+          // table doesn't have. isSeatFree already rejects those, but don't
+          // rely on that alone to keep the guest off a seat it never claimed.
+          if (machine.claimSeat(guestId, seat) === null) continue;
           return { machineId: machine.id, stand: cell };
         }
         continue;
@@ -476,6 +760,19 @@ export class CasinoWorld {
     return this.machines.get(machineId)?.costToPlay ?? Infinity;
   }
 
+  /** True when this is a poker table that can't deal yet. An empty table
+   * answers true as well — it genuinely is waiting for players — but the
+   * caller that matters is a guest asking about the table it's sitting at. */
+  isTableWaitingForPlayers(machineId: string): boolean {
+    const machine = this.machines.get(machineId);
+    return machine instanceof PokerTable && !machine.canDeal;
+  }
+
+  /** Per-game happiness penalty added to GUEST_BALANCE.happinessOnLoss on a loss. */
+  machineExtraHappinessOnLoss(machineId: string): number {
+    return this.machines.get(machineId)?.extraHappinessOnLoss ?? 0;
+  }
+
   machineDefId(machineId: string): string | null {
     return this.machines.get(machineId)?.defId ?? null;
   }
@@ -488,7 +785,11 @@ export class CasinoWorld {
     const machine = this.machines.get(machineId);
     if (!machine || machine.broken) return null;
     const result = machine.play(this.rng);
-    if (result.wager === 0) return null;
+    // A zero wager means the table couldn't deal (poker below minPlayers). No
+    // money moved and there is nothing to record, but the caller still gets a
+    // result: `null` is reserved for "there is no machine to play", which is
+    // what tells a guest to give its seat up.
+    if (result.wager === 0) return result;
     const delta = result.wager - result.payout;
     this.state.cash += delta;
     this.ledger.addRevenue(delta);
@@ -537,6 +838,45 @@ export class CasinoWorld {
     return purchase;
   }
 
+  /** An operational bar: has stock and a walkable stand tile. */
+  findBar(): { barId: string; stand: Cell } | null {
+    for (const po of this.state.allObjects()) {
+      if (po.defId !== 'bar') continue;
+      const bar = this.bars.get(po.id);
+      if (!bar || !bar.hasStock()) continue;
+      const stand = this.standTileFor(po);
+      if (!stand) continue;
+      return { barId: po.id, stand };
+    }
+    return null;
+  }
+
+  /** Bartender production: one drink into stock, charged as an expense. */
+  brewDrink(barId: string): void {
+    const bar = this.bars.get(barId);
+    if (!bar) return;
+    bar.brew();
+    this.ledger.addExpense(BAR_BALANCE.drinkCost);
+  }
+
+  /** Self-serve or delivered sale: null if unaffordable or out of stock. */
+  buyDrink(barId: string, wallet: number): { price: number } | null {
+    const bar = this.bars.get(barId);
+    if (!bar || !bar.hasStock() || wallet < BAR_BALANCE.drinkPrice) return null;
+    if (!bar.takeDrink()) return null;
+    this.state.cash += BAR_BALANCE.drinkPrice;
+    this.ledger.addRevenue(BAR_BALANCE.drinkPrice);
+    eventBus.emit('moneyChanged', { cash: this.state.cash, delta: BAR_BALANCE.drinkPrice });
+    return { price: BAR_BALANCE.drinkPrice };
+  }
+
+  /** Public wrapper so Staff.ts (bartender) can reach a bar's stand tile
+   * without standTileFor (private, keyed on a PlacedObject) leaking out. */
+  barStandTile(barId: string): Cell | null {
+    const po = this.state.getObject(barId);
+    return po ? this.standTileFor(po) : null;
+  }
+
   findService(defId: 'toilet'): { stand: Cell } | null {
     for (const po of this.state.allObjects()) {
       if (po.defId !== defId) continue;
@@ -546,16 +886,46 @@ export class CasinoWorld {
     return null;
   }
 
-  /** One seat cell per table seat: the midpoints of the four footprint sides. */
+  /**
+   * Cells a guest can stand in to occupy a seat. The first four entries are
+   * the historical one-per-side cells and MUST keep their order — Blackjack
+   * and Craps declare 4 seats and would otherwise have guests relocate. The
+   * remainder fill out the rest of the footprint perimeter so tables with
+   * more than four seats (Roulette, Poker) have reachable cells for them.
+   */
   private seatCellsFor(po: PlacedObject): Cell[] {
     const def = getObjectDef(po.defId);
     const { w, h } = def?.footprint ?? { w: 1, h: 1 };
-    return [
+
+    const cells: Cell[] = [
       { col: po.col - 1, row: po.row }, // west
       { col: po.col, row: po.row - 1 }, // north
       { col: po.col + w, row: po.row + h - 1 }, // east
       { col: po.col + w - 1, row: po.row + h }, // south
     ];
+    const seen = new Set(cells.map((c) => `${c.col},${c.row}`));
+
+    const push = (col: number, row: number) => {
+      const key = `${col},${row}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      cells.push({ col, row });
+    };
+
+    for (let i = 0; i < h; i++) {
+      push(po.col - 1, po.row + i); // west run
+      push(po.col + w, po.row + i); // east run
+    }
+    for (let i = 0; i < w; i++) {
+      push(po.col + i, po.row - 1); // north run
+      push(po.col + i, po.row + h); // south run
+    }
+    return cells;
+  }
+
+  /** Test-only accessor for the seat-cell enumeration. */
+  seatCellsForTest(po: PlacedObject): Cell[] {
+    return this.seatCellsFor(po);
   }
 
   /** First walkable cell on the perimeter of an object's footprint. */
@@ -588,6 +958,7 @@ export class CasinoWorld {
         broken: m.broken,
       })),
       foodStalls: [...this.foodStalls.values()].map((f) => f.toJSON()),
+      bars: [...this.bars.values()].map((b) => b.toJSON()),
       messes: [...this.messes.values()].map((m) => ({
         id: m.id,
         kind: m.kind,
@@ -610,28 +981,32 @@ export class CasinoWorld {
 
   /** In-place restore from a save — `state`/`grid` keep identity (gameContext aliases them). */
   loadJSON(data: CasinoWorldJSON): void {
+    // Build every machine BEFORE touching live state. An unrecognized defId
+    // (corrupt or newer-than-this-build save) must throw while the player's
+    // current casino is still intact — the clearing below is unrecoverable,
+    // so a throw partway through it would leave a wiped, half-loaded world.
+    const loadedMachines = data.machines.map((m) => {
+      const machine = createMachineOrThrow(m.defId, m.id, m.costToPlay);
+      machine.reliability = m.reliability;
+      machine.lifetimeProfit = m.lifetimeProfit;
+      machine.broken = m.broken;
+      return machine;
+    });
     this.guests.clear();
     this.repairClaims.clear();
+    this.dealerAssignments.clear();
+    this.cashierAssignments.clear();
     this.machines.clear();
     this.foodStalls.clear();
+    this.bars.clear();
     this.messes.clear();
     this.staff.clear();
     this.state.load(data.state);
     this.grid.load(data.grid);
     this.tickCount = data.tickCount;
-    for (const m of data.machines) {
-      const machine =
-        m.defId === 'blackjack-table'
-          ? new BlackjackTable(m.id, m.costToPlay)
-          : m.defId === 'craps-table'
-            ? new CrapsTable(m.id, m.costToPlay)
-            : new SlotMachine(m.id, m.costToPlay);
-      machine.reliability = m.reliability;
-      machine.lifetimeProfit = m.lifetimeProfit;
-      machine.broken = m.broken;
-      this.machines.set(m.id, machine);
-    }
+    for (const machine of loadedMachines) this.machines.set(machine.id, machine);
     for (const f of data.foodStalls) this.foodStalls.set(f.id, FoodStall.fromJSON(f));
+    for (const b of data.bars) this.bars.set(b.id, Bar.fromJSON(b));
     for (const m of data.messes) this.messes.set(m.id, { ...m, claimedBy: null });
     this.nextMessNum = data.nextMessNum;
     for (const s of data.staff)
@@ -641,6 +1016,7 @@ export class CasinoWorld {
     this.time = TimeSystem.fromJSON(data.time);
     this.ledger = Ledger.fromJSON(data.ledger);
     this.scenario = data.scenario ? ScenarioManager.fromJSON(data.scenario) : null;
+    this.refreshServiceAvailability();
     const scenarioId = this.scenario?.def.id ?? null;
     eventBus.emit('worldReset', { scenarioId });
     eventBus.emit('worldLoaded', { scenarioId });

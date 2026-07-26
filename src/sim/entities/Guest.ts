@@ -1,12 +1,23 @@
 import { eventBus } from '../../EventBus';
-import { FOOD_BALANCE, GUEST_BALANCE, MESS_BALANCE, RAGE_BALANCE, STRUT_BALANCE } from '../../data/balance';
+import {
+  BAR_BALANCE,
+  CASHIER_BALANCE,
+  FOOD_BALANCE,
+  GUEST_BALANCE,
+  MESS_BALANCE,
+  POKER_BALANCE,
+  RAGE_BALANCE,
+  STRUT_BALANCE,
+} from '../../data/balance';
 import { flavorName } from '../../data/names';
+import { getObjectDef } from '../../data/objects';
 import { THOUGHTS } from '../../data/thoughts';
+import type { ThoughtContext } from '../../data/thoughts';
 import type { Cell } from '../grid/astar';
 import type { CasinoWorld } from '../world';
 import { Walker } from './Walker';
 
-export type GuestArchetype = 'regular';
+export type GuestArchetype = 'regular' | 'highRoller' | 'biker' | 'tourist';
 
 export type GuestState = 'wander' | 'seekGame' | 'play' | 'service' | 'leaving' | 'gone';
 
@@ -14,6 +25,7 @@ export interface GuestNeeds {
   energy: number;
   bladder: number;
   hunger: number;
+  thirst: number;
   happiness: number;
 }
 
@@ -33,13 +45,21 @@ export class Guest extends Walker {
   thoughts: GuestThought[] = [];
   /** Set by the world's mess pass each tick; read by the thought predicates. */
   nearMess = false;
-  readonly archetype: GuestArchetype = 'regular';
+  readonly archetype: GuestArchetype;
   readonly name: string;
   /** Running total of payout − wager across every play this guest has made
    *  since the last time the session folded into the day's report. */
   netResult = 0;
   raging = false;
   celebrating = false;
+  waitingForDrink = false;
+  /** Consecutive losing plays at the current machine; reset when it changes. */
+  lossStreak = 0;
+  /** Consecutive winning plays at the current machine; reset when it changes. */
+  winStreak = 0;
+  /** Ticks spent seated at a table that couldn't deal, bounded by
+   *  POKER_BALANCE.maxWaitTicks. Zero at every other game. */
+  waitingForPlayersTicks = 0;
   private celebrateTicksLeft = 0;
   private wagersByGame = new Map<string, number>();
   private thoughtLast = new Map<string, number>();
@@ -47,19 +67,25 @@ export class Guest extends Walker {
   private spinsLeft = 0;
   private spinTimer = 0;
   private spinEveryTicks = 8; // from the machine's cadence at sit-down
-  private serviceKind: 'toilet' | 'food-stall' | null = null;
+  private serviceKind: 'toilet' | 'food-stall' | 'bar' | 'cage' | null = null;
+  /** Once true, never visits a cage again this session — a one-time top-up. */
+  private usedCashAdvance = false;
   private serviceTimer = 0;
   private foodStallId: string | null = null;
+  private barId: string | null = null;
+  private cageId: string | null = null;
 
-  constructor(id: string, wallet: number, start: Cell) {
+  constructor(id: string, wallet: number, start: Cell, archetype: GuestArchetype = 'regular') {
     super(start);
     this.id = id;
     this.wallet = wallet;
+    this.archetype = archetype;
     this.name = flavorName(id);
     this.needs = {
       energy: 100,
       bladder: 100,
       hunger: 100,
+      thirst: 100,
       happiness: GUEST_BALANCE.startHappiness,
     };
   }
@@ -73,7 +99,7 @@ export class Guest extends Walker {
     if (this.state === 'gone') return;
     this.decayNeeds();
     this.maybeDropMess(world);
-    this.updateThoughts(world.tickCount);
+    this.updateThoughts(world.tickCount, world);
     if (this.celebrateTicksLeft > 0) {
       this.celebrateTicksLeft--;
       if (this.celebrateTicksLeft === 0) this.celebrating = false;
@@ -94,25 +120,56 @@ export class Guest extends Walker {
     this.needs.energy = Math.max(0, this.needs.energy - b.decayPerTick.energy);
     this.needs.bladder = Math.max(0, this.needs.bladder - b.decayPerTick.bladder);
     this.needs.hunger = Math.max(0, this.needs.hunger - b.decayPerTick.hunger);
-    if (this.needs.bladder < b.criticalThreshold || this.needs.hunger < b.criticalThreshold) {
+    this.needs.thirst = Math.max(0, this.needs.thirst - b.decayPerTick.thirst);
+    if (
+      this.needs.bladder < b.criticalThreshold ||
+      this.needs.hunger < b.criticalThreshold ||
+      this.needs.thirst < b.criticalThreshold
+    ) {
       this.adjustHappiness(-b.criticalHappinessDrainPerTick);
     }
   }
 
-  private updateThoughts(tick: number): void {
-    const ctx = { wallet: this.wallet, nearMess: this.nearMess, ...this.needs };
+  private thoughtContext(world: CasinoWorld): ThoughtContext {
+    const defId = this.machineId ? world.machineDefId(this.machineId) : null;
+    const def = defId ? getObjectDef(defId) : undefined;
+    return {
+      wallet: this.wallet,
+      nearMess: this.nearMess,
+      ...this.needs,
+      currentGame:
+        def && this.machineId
+          ? { defId: def.id, name: def.name, costToPlay: world.machineCost(this.machineId) }
+          : null,
+      lossStreak: this.lossStreak,
+      winStreak: this.winStreak,
+      hasToilet: world.hasServiceObject('toilet'),
+      hasBar: world.hasServiceObject('bar'),
+      hasFoodStall: world.hasServiceObject('food-stall'),
+      waitingForPlayers: this.machineId
+        ? world.isTableWaitingForPlayers(this.machineId)
+        : false,
+    };
+  }
+
+  private updateThoughts(tick: number, world: CasinoWorld): void {
+    const ctx = this.thoughtContext(world);
     for (const def of THOUGHTS) {
       if (!def.when(ctx)) continue;
-      const last = this.thoughtLast.get(def.id);
+      // Cooldowns key on id+subject so a thought about one game can't mute the
+      // same thought about another.
+      const key = def.subject ? `${def.id}:${def.subject(ctx)}` : def.id;
+      const last = this.thoughtLast.get(key);
       if (last !== undefined && tick - last < def.cooldownTicks) continue;
-      this.recordThought(tick, def.id, def.text);
+      const text = typeof def.text === 'function' ? def.text(ctx) : def.text;
+      this.recordThought(tick, def.id, text, key);
     }
   }
 
   /** Push a thought (subject to its own cooldown) — shared by polled THOUGHTS
    * predicates and one-off event-triggered reactions like a rip-off purchase. */
-  private recordThought(tick: number, id: string, text: string): void {
-    this.thoughtLast.set(id, tick);
+  private recordThought(tick: number, id: string, text: string, cooldownKey: string = id): void {
+    this.thoughtLast.set(cooldownKey, tick);
     this.thoughts.push({ text, atTick: tick });
     if (this.thoughts.length > MAX_THOUGHTS) this.thoughts.shift();
     eventBus.emit('guestThought', { guestId: this.id, thoughtId: id, text });
@@ -125,8 +182,13 @@ export class Guest extends Walker {
     }
     world.releaseMachines(this.id);
     this.machineId = null;
+    this.lossStreak = 0;
+    this.winStreak = 0;
+    this.waitingForPlayersTicks = 0;
     this.serviceKind = null;
     this.foodStallId = null;
+    this.barId = null;
+    this.cageId = null;
     this.state = 'wander';
   }
 
@@ -177,6 +239,26 @@ export class Guest extends Walker {
         return;
       }
     }
+    if (this.needs.thirst < b.needThreshold) {
+      const svc = world.findBar();
+      if (svc && this.goTo(world, svc.stand)) {
+        this.state = 'service';
+        this.serviceKind = 'bar';
+        this.barId = svc.barId;
+        this.serviceTimer = 0;
+        return;
+      }
+    }
+    if (!this.usedCashAdvance && this.wallet < CASHIER_BALANCE.walletThreshold) {
+      const svc = world.findCage();
+      if (svc && this.goTo(world, svc.stand)) {
+        this.state = 'service';
+        this.serviceKind = 'cage';
+        this.cageId = svc.cageId;
+        this.serviceTimer = 0;
+        return;
+      }
+    }
     const res = world.reserveMachine(this.id, this.wallet);
     if (res) {
       if (this.goTo(world, res.stand)) {
@@ -213,21 +295,45 @@ export class Guest extends Walker {
       this.stopPlaying(world);
       return;
     }
+    if (!this.waitingForDrink && this.needs.thirst < b.needThreshold) {
+      this.waitingForDrink = true;
+    }
     this.spinTimer++;
     if (this.spinTimer < this.spinEveryTicks) return;
     this.spinTimer = 0;
     const res = world.playMachine(this.machineId, this.id);
     if (!res) {
+      // No machine to play any more (sold, or broken down under us).
       this.stopPlaying(world);
       return;
     }
+    if (res.wager === 0) {
+      // The table is short of players. Hold the seat — a poker room only ever
+      // fills if the first guest waits for the second — but not forever.
+      // spinEveryTicks is exactly the ticks elapsed since the last attempt.
+      this.waitingForPlayersTicks += this.spinEveryTicks;
+      if (this.waitingForPlayersTicks >= POKER_BALANCE.maxWaitTicks) this.stopPlaying(world);
+      return;
+    }
+    this.waitingForPlayersTicks = 0;
     this.wallet += res.payout - res.wager;
     this.netResult += res.payout - res.wager;
     if (this.machineId) {
       const defId = world.machineDefId(this.machineId);
       if (defId) this.wagersByGame.set(defId, (this.wagersByGame.get(defId) ?? 0) + res.wager);
     }
-    this.adjustHappiness(res.payout > 0 ? b.happinessOnWin : b.happinessOnLoss);
+    if (res.payout > 0) {
+      this.winStreak++;
+      this.lossStreak = 0;
+      this.adjustHappiness(b.happinessOnWin);
+    } else {
+      this.lossStreak++;
+      this.winStreak = 0;
+      // Per-game sting stacks on the global loss penalty rather than replacing
+      // it: a Big Six loss is happinessOnLoss (-1) plus its own -2, i.e. -3.
+      const extra = this.machineId ? world.machineExtraHappinessOnLoss(this.machineId) : 0;
+      this.adjustHappiness(b.happinessOnLoss + extra);
+    }
     if (res.payout >= res.wager * STRUT_BALANCE.payoutMultiplier) this.startCelebrating(world);
     this.spinsLeft--;
     if (this.spinsLeft <= 0) this.stopPlaying(world);
@@ -243,6 +349,12 @@ export class Guest extends Walker {
   private stopPlaying(world: CasinoWorld): void {
     world.releaseMachines(this.id);
     this.machineId = null;
+    this.waitingForDrink = false;
+    // Reset before evaluate() — it may seat this guest at the next machine in
+    // the same call, and a streak must never carry across games.
+    this.lossStreak = 0;
+    this.winStreak = 0;
+    this.waitingForPlayersTicks = 0;
     this.evaluate(world);
   }
 
@@ -270,6 +382,21 @@ export class Guest extends Walker {
         }
       }
       this.foodStallId = null;
+    } else if (this.serviceKind === 'bar') {
+      const purchase = this.barId ? world.buyDrink(this.barId, this.wallet) : null;
+      if (purchase) {
+        this.wallet -= purchase.price;
+        this.needs.thirst = BAR_BALANCE.thirstRestore;
+        this.adjustHappiness(BAR_BALANCE.happinessOnSelfServe);
+      }
+      this.barId = null;
+    } else if (this.serviceKind === 'cage') {
+      const result = this.cageId ? world.useCage(this.wallet) : null;
+      if (result) {
+        this.wallet += result.advance - CASHIER_BALANCE.fee;
+        this.usedCashAdvance = true;
+      }
+      this.cageId = null;
     }
     this.serviceKind = null;
     this.evaluate(world);
