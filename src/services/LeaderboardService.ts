@@ -13,10 +13,20 @@ export interface LeaderboardEntry {
   score: number | null;
 }
 
+/** A ranked row for display. Cloud joins the name; local reports "You". */
+export interface LeaderboardRow {
+  rank: number;
+  displayName: string;
+  score: number;
+  bestDailyProfit: number;
+  completedInDays: number;
+}
+
 export interface LeaderboardService {
   record(win: { campaignId: string; dailyProfit: number; day: number; score: number }): Promise<void>;
   getBest(campaignId: string): Promise<LeaderboardEntry | null>;
   getAll(): Promise<LeaderboardEntry[]>;
+  getTop(campaignId: string, limit: number): Promise<LeaderboardRow[]>;
 }
 
 export class LocalLeaderboard implements LeaderboardService {
@@ -40,6 +50,21 @@ export class LocalLeaderboard implements LeaderboardService {
 
   async getAll(): Promise<LeaderboardEntry[]> {
     return Object.values(this.readAll());
+  }
+
+  // A leaderboard of one, so the panel needs no signed-in/out branch.
+  async getTop(campaignId: string, limit: number): Promise<LeaderboardRow[]> {
+    const mine = this.readAll()[campaignId];
+    if (!mine || mine.score === null) return [];
+    return [
+      {
+        rank: 1,
+        displayName: 'You',
+        score: mine.score,
+        bestDailyProfit: mine.bestDailyProfit,
+        completedInDays: mine.completedInDays,
+      },
+    ].slice(0, limit);
   }
 
   private readAll(): Record<string, LeaderboardEntry> {
@@ -68,4 +93,5 @@ export const leaderboard: LeaderboardService = {
   record: (win) => lbBackend.record(win),
   getBest: (id) => lbBackend.getBest(id),
   getAll: () => lbBackend.getAll(),
+  getTop: (id, limit) => lbBackend.getTop(id, limit),
 };
