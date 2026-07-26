@@ -1,0 +1,13 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Single-page app: the magic-link return lands on / with a hash, but any
+# other path should still serve the app rather than a 404.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

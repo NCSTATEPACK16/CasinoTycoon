@@ -4,6 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <title>Casino Tycoon</title>
+    <meta name="description" content="Build and run a neon casino. An isometric tycoon game." />
+    <meta property="og:title" content="Casino Tycoon" />
+    <meta property="og:description" content="Build and run a neon casino." />
+    <meta property="og:type" content="website" />
+    <!-- Inline SVG favicon: also clears the 404 every prior phase's console
+         check has had to explain away. -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎰</text></svg>"
+    />
     <style>
       html,
       body {
@@ -24,9 +34,30 @@
         pointer-events: none;
         z-index: 10;
       }
+      /* Boot cover. Deliberately inline rather than in theme.css: that
+         stylesheet is imported by the JS bundle, so a #loading rule there
+         would not apply until the very bundle this screen exists to hide. */
+      #loading {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: #14101c;
+        color: #f0e7d0;
+        font: bold 24px/1.4 Verdana, Geneva, 'DejaVu Sans', sans-serif;
+        z-index: 9999;
+        transition: opacity 0.4s ease;
+      }
+      #loading.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
     </style>
   </head>
   <body>
+    <div id="loading">
+      <div class="loading-inner">🎰 Casino Tycoon</div>
+    </div>
     <div id="game"></div>
     <div id="ui-root"></div>
     <script type="module" src="/src/main.ts"></script>

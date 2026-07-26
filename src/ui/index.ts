@@ -93,6 +93,11 @@ export function initUI(): void {
 
   // Boot straight into the scenario picker.
   showScenarioSelect(uiRoot);
+
+  // The UI is mounted and the picker covers the canvas, so the boot cover has
+  // nothing left to hide. It fades via a CSS transition, then stops taking
+  // input; it is never removed, so a reload path could show it again.
+  document.getElementById('loading')?.classList.add('hidden');
 }
 
 function makeEndCard(
