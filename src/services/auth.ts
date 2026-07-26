@@ -1,6 +1,7 @@
 import { eventBus } from '../EventBus';
 import { CLOUD_ENABLED, getSupabase } from './supabase';
-import { LocalSaveService, setSaveBackend } from './SaveService';
+import { LocalSaveService, MANUAL_SLOTS, setSaveBackend, type SaveService } from './SaveService';
+import { hashPayload, planReconcile, type ReconcilePlan, type SlotSnapshot } from './reconcile';
 import { LocalLeaderboard, setLeaderboardBackend } from './LeaderboardService';
 import { SyncedSaveService } from './SyncedSaveService';
 import { makeSaveTableClient, SupabaseSaveService } from './SupabaseSaveService';
@@ -115,4 +116,63 @@ export async function claimDisplayName(
   if (error.message.includes('display_name_blocked')) return 'blocked';
   if (error.code === '23505') return 'taken'; // unique index on lower(display_name)
   return 'error';
+}
+
+/** Gathers both sides into the shape planReconcile wants. Pure I/O, no logic. */
+async function snapshotsOf(svc: SaveService): Promise<SlotSnapshot[]> {
+  const infos = await svc.list();
+  const snaps: SlotSnapshot[] = [];
+  for (const info of infos) {
+    if (!(MANUAL_SLOTS as readonly string[]).includes(info.slot)) continue;
+    const world = await svc.load(info.slot);
+    if (!world) continue;
+    snaps.push({
+      slot: info.slot,
+      savedAt: info.savedAt,
+      day: info.day,
+      cash: info.cash,
+      hash: hashPayload(JSON.stringify(world)),
+    });
+  }
+  return snaps;
+}
+
+/**
+ * Runs once on first sign-in for a device. Uploads/pulls the unambiguous
+ * slots immediately and returns any conflicts for the UI to resolve.
+ * Non-destructive: a throw anywhere leaves local untouched.
+ */
+export async function reconcileSaves(
+  local: SaveService,
+  cloud: SaveService,
+): Promise<ReconcilePlan> {
+  const [localSnaps, cloudSnaps] = await Promise.all([snapshotsOf(local), snapshotsOf(cloud)]);
+  const plan = planReconcile(localSnaps, cloudSnaps);
+
+  for (const slot of plan.uploads) {
+    const world = await local.load(slot);
+    if (world) await cloud.save(slot, world);
+  }
+  for (const slot of plan.pulls) {
+    const world = await cloud.load(slot);
+    if (world) await local.save(slot, world);
+  }
+  return plan; // conflicts left for the caller to resolve
+}
+
+/** Applies the player's per-slot choices from the conflict dialog. */
+export async function resolveConflicts(
+  local: SaveService,
+  cloud: SaveService,
+  choices: Record<string, 'local' | 'cloud'>,
+): Promise<void> {
+  for (const [slot, side] of Object.entries(choices)) {
+    if (side === 'local') {
+      const world = await local.load(slot);
+      if (world) await cloud.save(slot, world);
+    } else {
+      const world = await cloud.load(slot);
+      if (world) await local.save(slot, world);
+    }
+  }
 }
