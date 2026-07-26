@@ -78,6 +78,9 @@ describe('Guest', () => {
 
   it('emits threshold thoughts once per cooldown', () => {
     const world = new CasinoWorld({ seed: 8, autoSpawn: false });
+    // The bathroom thought is guarded on a toilet existing — without one the
+    // guest thinks "There's nowhere to go!" instead.
+    expect(world.place('toilet', 3, 3)).not.toBeNull();
     const guest = world.spawnGuest();
     guest.wallet = 500;
     guest.needs.bladder = 20;

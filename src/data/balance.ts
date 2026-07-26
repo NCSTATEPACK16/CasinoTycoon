@@ -110,6 +110,100 @@ export function crapsExpectedRtp(): number {
   return CRAPS_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
 }
 
+// Roulette: a wide crowd table whose point is variance. The 1.5% branch pays
+// 20x, which clears STRUT_BALANCE.payoutMultiplier and so drives the P11
+// winner-strut and chip-arc jackpot that slots otherwise trigger alone.
+export const ROULETTE_BALANCE = {
+  costToPlay: 20,
+  wearPerPlay: 0.2,
+  playIntervalTicks: 10,
+  playsMin: 4,
+  playsMax: 10,
+  seats: 6,
+  payoutTable: [
+    { p: 0.015, multiplier: 20 }, // straight-up number — the variance tail
+    { p: 0.08, multiplier: 3 }, // column/dozen
+    { p: 0.19, multiplier: 2 }, // even-money outside bet
+  ] as readonly PayoutOutcome[],
+} as const;
+
+/** Expected RTP implied by the roulette payout table (0.92 → 8% house edge). */
+export function rouletteExpectedRtp(): number {
+  return ROULETTE_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+}
+
+// Big Six: cheap, fast, standing, and by far the worst odds in the house.
+// extraHappinessOnLoss stacks on top of GUEST_BALANCE.happinessOnLoss (-1),
+// so a losing spin costs -3 happiness in total. Without it the wheel is just
+// a cheap slot with bad math and the profit-vs-happiness tension is invisible
+// until it surfaces later as an unexplained rage quit.
+export const BIG_SIX_BALANCE = {
+  costToPlay: 5,
+  wearPerPlay: 0.4,
+  spinIntervalTicks: 5,
+  spinsMin: 3,
+  spinsMax: 10,
+  extraHappinessOnLoss: -2,
+  payoutTable: [
+    { p: 0.3, multiplier: 2 },
+    { p: 0.05, multiplier: 4 },
+  ] as readonly PayoutOutcome[],
+} as const;
+
+/** Expected RTP implied by the big six payout table (0.80 → 20% house edge). */
+export function bigSixExpectedRtp(): number {
+  return BIG_SIX_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+}
+
+// Poker: guests play each other and the house takes a rake, so revenue is a
+// steady percentage of volume rather than a house edge on a payout table.
+// This is the only game that pays for guest COUNT rather than guest SPEND —
+// and the only one that earns nothing at all when under-populated.
+export const POKER_BALANCE = {
+  costToPlay: 30,
+  wearPerPlay: 0.15,
+  playIntervalTicks: 15,
+  playsMin: 6,
+  playsMax: 15,
+  seats: 6,
+  minPlayers: 2,
+  rake: 0.05,
+  // How long a guest keeps a seat at a table that can't deal yet. Without a
+  // bounded wait a lone guest vacates on its first zero-wager play attempt, so
+  // the table only ever deals when two guests happen to sit within one play
+  // interval of each other — 12 seconds of patience is what makes a poker room
+  // fill up at all.
+  maxWaitTicks: 120,
+} as const;
+
+// No expectedRtp helper — poker's return is computed from live table
+// population, not a static payout table.
+
+// High-limit: gated on wallet rather than archetype. highRollerChance is only
+// 0.015, so an archetype gate would leave the table idle almost always; a
+// wallet gate admits high rollers on arrival AND lets an ordinary guest who
+// has won big graduate into it. Best odds in the house, so the VIP treatment
+// is real rather than cosmetic.
+export const HIGH_LIMIT_BALANCE = {
+  costToPlay: 150,
+  wearPerPlay: 0.2,
+  playIntervalTicks: 14,
+  playsMin: 3,
+  playsMax: 8,
+  seats: 3,
+  minWallet: 400,
+  payoutTable: [
+    { p: 0.02, multiplier: 10 },
+    { p: 0.12, multiplier: 3 },
+    { p: 0.19, multiplier: 2 },
+  ] as readonly PayoutOutcome[],
+} as const;
+
+/** Expected RTP implied by the high-limit payout table (0.94 → 6% house edge). */
+export function highLimitExpectedRtp(): number {
+  return HIGH_LIMIT_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+}
+
 // Staff: hourly wages come out of casino cash at each hour boundary.
 export const STAFF_BALANCE = {
   moveTicksPerTile: 2,

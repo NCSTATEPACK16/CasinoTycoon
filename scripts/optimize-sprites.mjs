@@ -87,12 +87,88 @@ const TARGETS = [
   // leak, per the tolerance bisection in PLAN.md's P10.5 log).
   { file: 'sprites/food-stall.png', target: [380, 316], bgTolerance: 30 },
   { file: 'sprites/cage.png', target: [440, 322] },
+  // The delivered art carries a Gemini watermark in the bottom-right. The rect
+  // below was measured to contain only watermark (~3.4k non-background px) and
+  // no art on all three tables: in those rows the artwork stops at x2428 or
+  // further left. It must be erased rather than cropped — roulette's table
+  // extends to x2584 at OTHER rows, so a vertical crop would cut real art.
+  {
+    file: 'sprites/roulette-table.png',
+    target: [440, 330],
+    sourceSize: [2816, 1536],
+    preErase: { x: 2510, y: 1230, w: 306, h: 170 },
+  },
+  {
+    file: 'sprites/poker-table.png',
+    target: [440, 320],
+    sourceSize: [2816, 1536],
+    preErase: { x: 2510, y: 1230, w: 306, h: 170 },
+  },
+  {
+    file: 'sprites/high-limit-table.png',
+    target: [440, 320],
+    sourceSize: [2816, 1536],
+    preErase: { x: 2510, y: 1230, w: 306, h: 170 },
+  },
+  // Delivered as a 2-up sheet: a 3/4 iso wheel on a stand and a straight-on
+  // front view, split by a measured empty column run at x525..787. Only the iso
+  // view matches the game's projection. Cropping at x0 rather than at the
+  // wheel's left edge (x119) keeps the original top-left pixel, which is what
+  // recoverAlpha samples as the background reference; cropToContent trims the
+  // left margin immediately afterwards. The watermark sits in the discarded
+  // right half, so no preErase is needed here.
+  {
+    file: 'sprites/big-six-wheel.png',
+    target: [180, 280],
+    sourceSize: [1456, 720],
+    preCrop: { x: 0, y: 0, w: 526, h: 720 },
+  },
 ];
 
-async function optimizeOne({ file, target, walkGradient, bgTolerance }) {
+/** Paint a rect with the image's top-left background color (pre-alpha-recovery). */
+function eraseRect(png, { x, y, w, h }) {
+  const bg = [png.data[0], png.data[1], png.data[2], png.data[3]];
+  for (let row = y; row < Math.min(y + h, png.height); row++) {
+    for (let col = x; col < Math.min(x + w, png.width); col++) {
+      const i = (row * png.width + col) * 4;
+      png.data[i] = bg[0];
+      png.data[i + 1] = bg[1];
+      png.data[i + 2] = bg[2];
+      png.data[i + 3] = bg[3];
+    }
+  }
+  return png;
+}
+
+/** Hard crop to a source-space rect (used to pick one sprite off a 2-up sheet). */
+function cropRect(png, { x, y, w, h }) {
+  const out = new PNG({ width: w, height: h });
+  for (let row = 0; row < h; row++) {
+    for (let col = 0; col < w; col++) {
+      const src = ((y + row) * png.width + (x + col)) * 4;
+      const dst = (row * w + col) * 4;
+      out.data[dst] = png.data[src];
+      out.data[dst + 1] = png.data[src + 1];
+      out.data[dst + 2] = png.data[src + 2];
+      out.data[dst + 3] = png.data[src + 3];
+    }
+  }
+  return out;
+}
+
+// preErase / preCrop are applied ONLY when the file still has its original
+// source dimensions, which makes them idempotent: after the first run the image
+// has been cropped and downscaled, so the source-space coordinates no longer
+// apply and must not be re-applied to a different region.
+async function optimizeOne({ file, target, walkGradient, bgTolerance, sourceSize, preErase, preCrop }) {
   const abs = path.join(ROOT, 'public', file);
   const before = await readFile(abs);
   let png = PNG.sync.read(before);
+
+  const isPristine = !sourceSize || (png.width === sourceSize[0] && png.height === sourceSize[1]);
+
+  if (isPristine && preErase) png = eraseRect(png, preErase);
+  if (isPristine && preCrop) png = cropRect(png, preCrop);
 
   const recovered = recoverAlpha(png, { walkGradient, bgTolerance });
   if (recovered) png = cropToContent(png);
@@ -101,7 +177,10 @@ async function optimizeOne({ file, target, walkGradient, bgTolerance }) {
   const resized = downscale(png, maxW, maxH);
   const changedSize = resized !== png;
 
-  if (!recovered && !changedSize) {
+  // A pre-pass that changed pixels must be written even if nothing else did —
+  // otherwise the file stays pristine-sized and the pre-pass reruns forever.
+  const prePassed = isPristine && (Boolean(preErase) || Boolean(preCrop));
+  if (!recovered && !changedSize && !prePassed) {
     console.log(`${file}: already optimized (${(before.length / 1024).toFixed(0)}KB) — skipped`);
     return;
   }

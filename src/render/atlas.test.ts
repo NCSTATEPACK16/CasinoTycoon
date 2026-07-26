@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { OBJECT_CATALOG } from '../data/objects';
 import { FILE_ASSETS, preloadFileAssets } from './atlas';
 
 describe('FILE_ASSETS', () => {
@@ -20,6 +21,17 @@ describe('FILE_ASSETS', () => {
     expect(keys).toContain('img-slot-machine');
     expect(keys).toContain('img-blackjack-table');
     expect(keys).toContain('img-craps-table');
+  });
+
+  // The failure this guards is invisible to every other test: a catalog entry
+  // pointing at an img- key nobody preloads renders as a missing texture in
+  // the real game only. Same "added to one path, forgotten in the other" shape
+  // the machine factory exists to prevent.
+  it('preloads every img- sprite key the object catalog points at', () => {
+    const keys = new Set(FILE_ASSETS.map((a) => a.key));
+    for (const def of OBJECT_CATALOG) {
+      if (def.spriteKey.startsWith('img-')) expect(keys, def.id).toContain(def.spriteKey);
+    }
   });
 
   it('includes the five chip sprites', () => {

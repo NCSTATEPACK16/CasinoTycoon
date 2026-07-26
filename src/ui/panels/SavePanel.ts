@@ -48,14 +48,21 @@ export function makeSavePanel(): PanelSpec {
       if (info) {
         const load = el('button', 'p-tool', 'Load');
         load.addEventListener('click', () => {
-          void saveService.load(slot).then((data) => {
-            if (!data) {
-              eventBus.emit('tickerMessage', { text: 'That save could not be read.' });
-              return;
-            }
-            world.loadJSON(data);
-            eventBus.emit('tickerMessage', { text: `Loaded ${slotLabel(slot)}.` });
-          });
+          void saveService
+            .load(slot)
+            .then((data) => {
+              if (!data) {
+                eventBus.emit('tickerMessage', { text: 'That save could not be read.' });
+                return;
+              }
+              world.loadJSON(data);
+              eventBus.emit('tickerMessage', { text: `Loaded ${slotLabel(slot)}.` });
+            })
+            .catch(() => {
+              // loadJSON rejects an unrecognized machine defId without mutating
+              // the world, so the current session is still playable here.
+              eventBus.emit('tickerMessage', { text: 'Load failed! Save not compatible.' });
+            });
         });
         btns.appendChild(load);
         const del = el('button', 'p-tool', 'Delete'); // labeled, never a bare ✕ (P6 gotcha)
