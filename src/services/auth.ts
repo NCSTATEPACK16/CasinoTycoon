@@ -160,6 +160,51 @@ export async function reconcileSaves(
   return plan; // conflicts left for the caller to resolve
 }
 
+/**
+ * The (local, cloud) pair for the signed-in user, so callers never have to
+ * build a SupabaseSaveService themselves. Null whenever cloud sync does not
+ * apply — signed out, no name claimed yet, or no client configured.
+ */
+function cloudPair(): { local: SaveService; cloud: SaveService } | null {
+  const client = getSupabase();
+  if (state.status !== 'signed-in' || !client || !state.userId) return null;
+  return {
+    local: new LocalSaveService(),
+    cloud: new SupabaseSaveService(makeSaveTableClient(client), state.userId),
+  };
+}
+
+// Once per user per page session. Re-running is harmless (identical hashes
+// produce an empty plan) but it re-downloads every slot, and the sign-in
+// listener can fire more than once per session — on token refresh, for one.
+const reconciled = new Set<string>();
+
+/**
+ * Reconciles this device's manual slots against the account's on sign-in.
+ * Returns null when there is nothing to do; conflicts come back for the UI
+ * to resolve. A failure un-marks the user so a later attempt can retry.
+ */
+export async function reconcileForCurrentUser(): Promise<ReconcilePlan | null> {
+  const pair = cloudPair();
+  const userId = state.userId;
+  if (!pair || !userId || reconciled.has(userId)) return null;
+  reconciled.add(userId);
+  try {
+    return await reconcileSaves(pair.local, pair.cloud);
+  } catch {
+    reconciled.delete(userId);
+    return null;
+  }
+}
+
+/** Applies conflict-dialog choices against the current user's slot pair. */
+export async function resolveConflictsForCurrentUser(
+  choices: Record<string, 'local' | 'cloud'>,
+): Promise<void> {
+  const pair = cloudPair();
+  if (pair) await resolveConflicts(pair.local, pair.cloud, choices);
+}
+
 /** Applies the player's per-slot choices from the conflict dialog. */
 export async function resolveConflicts(
   local: SaveService,

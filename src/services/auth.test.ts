@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { reconcileSaves, reduceAuthState, resolveConflicts } from './auth';
+import {
+  reconcileForCurrentUser,
+  reconcileSaves,
+  reduceAuthState,
+  resolveConflicts,
+  resolveConflictsForCurrentUser,
+} from './auth';
 import { LocalSaveService, type KVStore } from './SaveService';
 import { CasinoWorld } from '../sim/world';
 
@@ -103,5 +109,14 @@ describe('reconcileSaves', () => {
 
     expect(plan).toEqual({ uploads: [], pulls: [], conflicts: [] });
     expect(await cloud.load('autosave')).toBeNull();
+  });
+});
+
+describe('reconcileForCurrentUser', () => {
+  it('does nothing while signed out, so an offline build never reaches the network', async () => {
+    // The module starts signed out and no client is configured under Vitest,
+    // so cloudPair() returns null and the reconcile is skipped outright.
+    expect(await reconcileForCurrentUser()).toBeNull();
+    await expect(resolveConflictsForCurrentUser({ 'slot-1': 'cloud' })).resolves.toBeUndefined();
   });
 });

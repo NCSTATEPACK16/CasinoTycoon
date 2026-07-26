@@ -8,6 +8,12 @@ import { Toolbar } from './Toolbar';
 import { WindowManager, type PanelSpec } from './WindowManager';
 import { makeFoodStallPanel } from './panels/FoodStallPanel';
 import { makeMachineInspector } from './panels/MachineInspector';
+import { makeConflictDialog } from './panels/ConflictDialog';
+import {
+  onAuthChange,
+  reconcileForCurrentUser,
+  resolveConflictsForCurrentUser,
+} from '../services/auth';
 
 // Mounts the DOM UI overlay (toolbar, ticker, window layer) into #ui-root.
 // The root stays pointer-events:none; widgets opt back in, so the Phaser
@@ -41,6 +47,23 @@ export function initUI(): void {
   });
   // A world reset invalidates any in-flight build tool.
   eventBus.on('worldReset', () => eventBus.emit('buildModeChanged', { mode: 'off' }));
+
+  // Signing in reconciles this device's three manual slots against the
+  // account's. Unambiguous slots sync silently; a slot that differs on both
+  // sides is the player's call, so it goes to one dialog covering all of them.
+  onAuthChange((auth) => {
+    if (auth.status !== 'signed-in') return;
+    void reconcileForCurrentUser().then((plan) => {
+      if (!plan || plan.conflicts.length === 0) return;
+      windows.open(
+        'save-conflict',
+        makeConflictDialog(plan.conflicts, (choices) => {
+          windows.close('save-conflict');
+          void resolveConflictsForCurrentUser(choices);
+        }),
+      );
+    });
+  });
 
   // Scenario end cards.
   const endCard = (spec: PanelSpec) => {
