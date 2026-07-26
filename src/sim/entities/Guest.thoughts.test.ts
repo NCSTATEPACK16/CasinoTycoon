@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { eventBus } from '../../EventBus';
 import { POKER_BALANCE } from '../../data/balance';
-import { THOUGHTS } from '../../data/thoughts';
+import { EVENT_THOUGHT_IDS, THOUGHTS, THOUGHT_EMOJI } from '../../data/thoughts';
 import type { ThoughtContext, ThoughtDef } from '../../data/thoughts';
 import { CasinoWorld } from '../world';
 import type { PokerTable } from './machines/PokerTable';
@@ -292,6 +292,21 @@ describe('object-aware thoughts', () => {
   it('gives every thought a unique id', () => {
     const ids = THOUGHTS.map((t) => t.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  // Without this, a thought added without a glyph falls back to a generic 💭
+  // and nothing fails — the defect is visible in the running game only.
+  it('gives every thought id a bubble glyph', () => {
+    for (const id of [...THOUGHTS.map((t) => t.id), ...EVENT_THOUGHT_IDS]) {
+      expect(THOUGHT_EMOJI[id], id).toBeTruthy();
+    }
+  });
+
+  it('has no glyph for an id no thought emits', () => {
+    const emitted = new Set([...THOUGHTS.map((t) => t.id), ...EVENT_THOUGHT_IDS]);
+    for (const id of Object.keys(THOUGHT_EMOJI)) {
+      expect(emitted.has(id), `${id} has a glyph but is never emitted`).toBe(true);
+    }
   });
 
   it('fires the absence thoughts end to end on an empty floor', () => {

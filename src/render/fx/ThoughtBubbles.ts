@@ -1,5 +1,9 @@
 import Phaser from 'phaser';
 import { eventBus } from '../../EventBus';
+// Glyphs live in data/thoughts.ts alongside the thoughts themselves, so a sim
+// test can pin coverage — this file imports Phaser and nothing under src/sim
+// can reach it.
+import { THOUGHT_EMOJI } from '../../data/thoughts';
 import type { GuestViews } from '../views/GuestViews';
 
 const DEPTH_BUBBLE = 20000;
@@ -7,31 +11,6 @@ const HOLD_MS = 1500;
 const POP_MS = 220;
 const FADE_MS = 260;
 const MAX_ACTIVE = 40;
-
-// Presentation-side glyphs for the sim's thought ids (data/thoughts.ts).
-const EMOJI: Record<string, string> = {
-  bathroom: '🚽',
-  hungry: '🍔',
-  thirsty: '🍸',
-  tired: '😴',
-  'low-cash': '💸',
-  broke: '💰',
-  great: '🤩',
-  awful: '😠',
-  filthy: '🤢',
-  raging: '😡',
-  celebrate: '💰',
-  'game-rigged': '🤬',
-  'game-love': '😍',
-  'too-rich': '😬',
-  'waiting-for-players': '⏳',
-  'no-toilet': '🚻',
-  'no-food': '🍽️',
-  'no-bar': '🍹',
-  flush: '🍀',
-  'worn-out': '🪑',
-  content: '🙂',
-};
 
 interface Bubble {
   container: Phaser.GameObjects.Container;
@@ -53,7 +32,7 @@ export class ThoughtBubbles {
     this.scene = scene;
     this.views = views;
     eventBus.on('guestThought', ({ guestId, thoughtId }) => {
-      this.show(guestId, EMOJI[thoughtId] ?? '💭');
+      this.show(guestId, THOUGHT_EMOJI[thoughtId] ?? '💭');
     });
     eventBus.on('guestLeft', ({ id }) => this.dismiss(id));
     eventBus.on('worldReset', () => {

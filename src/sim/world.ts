@@ -79,8 +79,8 @@ interface StaffJSON {
 }
 
 /** The casino rating split into its contributing terms. Bonuses are positive,
- *  penalties negative; the eight scoring terms plus `rage` sum to the pre-clamp
- *  score, and `total` is that score clamped to 0..100 and rounded. */
+ *  penalties negative; all nine terms sum to the pre-clamp score, and `total`
+ *  is that score clamped to 0..100 and rounded. */
 export interface RatingBreakdown {
   happiness: number;
   machines: number;
@@ -730,7 +730,11 @@ export class CasinoWorld {
         for (let seat = 0; seat < cells.length; seat++) {
           const cell = cells[seat]!;
           if (!machine.isSeatFree(seat) || !this.grid.isWalkable(cell.col, cell.row)) continue;
-          machine.claimSeat(guestId, seat);
+          // seatCellsFor enumerates the whole perimeter, which is more cells
+          // than most tables have seats, so this can be handed an index the
+          // table doesn't have. isSeatFree already rejects those, but don't
+          // rely on that alone to keep the guest off a seat it never claimed.
+          if (machine.claimSeat(guestId, seat) === null) continue;
           return { machineId: machine.id, stand: cell };
         }
         continue;

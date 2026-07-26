@@ -1,30 +1,14 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { eventBus } from '../EventBus';
 import { RATING_BALANCE } from '../data/balance';
-import { CasinoWorld } from './world';
+import { CasinoWorld, type RatingBreakdown } from './world';
 
 afterEach(() => eventBus.clear());
 
-const sumTerms = (b: {
-  happiness: number;
-  machines: number;
-  variety: number;
-  cleanliness: number;
-  broken: number;
-  signage: number;
-  security: number;
-  dealers: number;
-  rage: number;
-}) =>
-  b.happiness +
-  b.machines +
-  b.variety +
-  b.cleanliness +
-  b.broken +
-  b.signage +
-  b.security +
-  b.dealers +
-  b.rage;
+// Sums every term structurally rather than by name, so a tenth rating term
+// added without updating this file still has to reconcile with the total.
+const sumTerms = (b: RatingBreakdown) =>
+  Object.entries(b).reduce((sum, [key, value]) => (key === 'total' ? sum : sum + value), 0);
 
 const populate = (world: CasinoWorld) => {
   world.state.cash = 100_000;

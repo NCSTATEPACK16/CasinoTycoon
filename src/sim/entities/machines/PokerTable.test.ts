@@ -112,3 +112,37 @@ describe('world.isTableWaitingForPlayers', () => {
     expect(world.isTableWaitingForPlayers('nope')).toBe(false);
   });
 });
+
+describe('PokerTable.testSpin', () => {
+  // The only testSpin in the codebase with non-trivial logic: it floors the
+  // player count at minPlayers so the Machine Inspector's Free Play shows a
+  // representative pot rather than nothing at an empty table.
+  it('pays a two-player pot at an empty table', () => {
+    const t = new PokerTable('p-empty');
+    const rng = new Rng(5);
+    const outcomes = new Set<number>();
+    for (let i = 0; i < 2000; i++) outcomes.add(t.testSpin(rng));
+    const twoPlayerPot = Math.round(
+      POKER_BALANCE.costToPlay * POKER_BALANCE.minPlayers * (1 - POKER_BALANCE.rake),
+    );
+    expect([...outcomes].sort((a, b) => a - b)).toEqual([0, twoPlayerPot]);
+  });
+
+  it('scales the pot with the seated count once past minPlayers', () => {
+    const t = new PokerTable('p-full');
+    for (let i = 0; i < 4; i++) t.claimSeat(`g${i}`);
+    const rng = new Rng(5);
+    const outcomes = new Set<number>();
+    for (let i = 0; i < 2000; i++) outcomes.add(t.testSpin(rng));
+    const fourPlayerPot = Math.round(POKER_BALANCE.costToPlay * 4 * (1 - POKER_BALANCE.rake));
+    expect([...outcomes].sort((a, b) => a - b)).toEqual([0, fourPlayerPot]);
+  });
+
+  it('moves no money and applies no wear, unlike play()', () => {
+    const t = new PokerTable('p-free');
+    const rng = new Rng(9);
+    for (let i = 0; i < 100; i++) t.testSpin(rng);
+    expect(t.reliability).toBe(100);
+    expect(t.lifetimeProfit).toBe(0);
+  });
+});

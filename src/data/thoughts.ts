@@ -38,6 +38,44 @@ export interface ThoughtDef {
   subject?: (ctx: ThoughtContext) => string;
 }
 
+/**
+ * Thought ids emitted directly by Guest rather than polled from THOUGHTS —
+ * one-off reactions to an event. They still need a bubble glyph, so
+ * THOUGHT_EMOJI's coverage test has to know about them.
+ */
+export const EVENT_THOUGHT_IDS = ['celebrate', 'ripoff', 'raging'] as const;
+
+/**
+ * Bubble glyph per thought id. Lives here rather than next to the bubble
+ * renderer so a sim test can assert coverage — the renderer imports Phaser, so
+ * nothing under src/sim can reach it, and a thought added without a glyph would
+ * otherwise degrade silently to the generic fallback in the real game only.
+ */
+export const THOUGHT_EMOJI: Record<string, string> = {
+  bathroom: '🚽',
+  hungry: '🍔',
+  thirsty: '🍸',
+  tired: '😴',
+  'low-cash': '💸',
+  broke: '💰',
+  great: '🤩',
+  awful: '😠',
+  filthy: '🤢',
+  raging: '😡',
+  celebrate: '💰',
+  ripoff: '🤬',
+  'game-rigged': '🤬',
+  'game-love': '😍',
+  'too-rich': '😬',
+  'waiting-for-players': '⏳',
+  'no-toilet': '🚻',
+  'no-food': '🍽️',
+  'no-bar': '🍹',
+  flush: '🍀',
+  'worn-out': '🪑',
+  content: '🙂',
+};
+
 export const THOUGHTS: readonly ThoughtDef[] = [
   // The three need thoughts are guarded on the facility existing — otherwise a
   // guest asks for a bathroom in a casino that has three, and the player is

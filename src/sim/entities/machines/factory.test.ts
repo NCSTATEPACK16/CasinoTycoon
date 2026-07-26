@@ -1,15 +1,55 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { eventBus } from '../../../EventBus';
+import { SLOT_BALANCE } from '../../../data/balance';
+import { OBJECT_CATALOG } from '../../../data/objects';
+import { BigSixWheel } from './BigSixWheel';
 import { BlackjackTable } from './BlackjackTable';
 import { CrapsTable } from './CrapsTable';
+import { HighLimitTable } from './HighLimitTable';
+import { PokerTable } from './PokerTable';
+import { RouletteTable } from './RouletteTable';
 import { SlotMachine } from './SlotMachine';
 import { CasinoWorld } from '../../world';
-import { createMachine, createMachineOrThrow } from './factory';
+import { createMachine, createMachineOrThrow, isMachineDefId } from './factory';
+
+afterEach(() => eventBus.clear());
+
+// Derived from the catalog rather than hand-listed: a new game added to the
+// catalog and the factory but forgotten here would otherwise go untested.
+const GAME_CLASSES: Record<string, unknown> = {
+  'slot-machine': SlotMachine,
+  'blackjack-table': BlackjackTable,
+  'craps-table': CrapsTable,
+  'roulette-table': RouletteTable,
+  'big-six-wheel': BigSixWheel,
+  'poker-table': PokerTable,
+  'high-limit-table': HighLimitTable,
+};
 
 describe('createMachine', () => {
-  it('builds each known game type', () => {
-    expect(createMachine('slot-machine', 'm1')).toBeInstanceOf(SlotMachine);
-    expect(createMachine('blackjack-table', 'm2')).toBeInstanceOf(BlackjackTable);
-    expect(createMachine('craps-table', 'm3')).toBeInstanceOf(CrapsTable);
+  const gameDefIds = OBJECT_CATALOG.filter((d) => d.category === 'game').map((d) => d.id);
+
+  it('can build every catalog game, and every buildable defId is a catalog game', () => {
+    for (const defId of gameDefIds) {
+      expect(isMachineDefId(defId), defId).toBe(true);
+    }
+    // The other direction: nothing the factory can build is missing from the
+    // catalog, or it would be unplaceable and unsaveable.
+    for (const defId of Object.keys(GAME_CLASSES)) {
+      expect(gameDefIds, defId).toContain(defId);
+    }
+  });
+
+  it.each(Object.keys(GAME_CLASSES))('builds %s as its own class', (defId) => {
+    expect(createMachine(defId, 'm-' + defId)).toBeInstanceOf(
+      GAME_CLASSES[defId] as new (...args: never[]) => unknown,
+    );
+  });
+
+  it('has a class mapping for every catalog game', () => {
+    for (const defId of gameDefIds) {
+      expect(GAME_CLASSES[defId], defId).toBeDefined();
+    }
   });
 
   it('returns null for a non-game object', () => {
@@ -21,7 +61,7 @@ describe('createMachine', () => {
   });
 
   it('falls back to the balance default when cost is omitted', () => {
-    expect(createMachine('slot-machine', 'm6')?.costToPlay).toBe(10);
+    expect(createMachine('slot-machine', 'm6')?.costToPlay).toBe(SLOT_BALANCE.costToPlay);
   });
 
   it('throws on an unknown defId instead of substituting a slot machine', () => {
