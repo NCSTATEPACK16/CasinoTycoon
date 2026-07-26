@@ -13,10 +13,20 @@ export interface LeaderboardEntry {
   score: number | null;
 }
 
+/** A ranked row for display. Cloud joins the name; local reports "You". */
+export interface LeaderboardRow {
+  rank: number;
+  displayName: string;
+  score: number;
+  bestDailyProfit: number;
+  completedInDays: number;
+}
+
 export interface LeaderboardService {
   record(win: { campaignId: string; dailyProfit: number; day: number; score: number }): Promise<void>;
   getBest(campaignId: string): Promise<LeaderboardEntry | null>;
   getAll(): Promise<LeaderboardEntry[]>;
+  getTop(campaignId: string, limit: number): Promise<LeaderboardRow[]>;
 }
 
 export class LocalLeaderboard implements LeaderboardService {
@@ -42,6 +52,21 @@ export class LocalLeaderboard implements LeaderboardService {
     return Object.values(this.readAll());
   }
 
+  // A leaderboard of one, so the panel needs no signed-in/out branch.
+  async getTop(campaignId: string, limit: number): Promise<LeaderboardRow[]> {
+    const mine = this.readAll()[campaignId];
+    if (!mine || mine.score === null) return [];
+    return [
+      {
+        rank: 1,
+        displayName: 'You',
+        score: mine.score,
+        bestDailyProfit: mine.bestDailyProfit,
+        completedInDays: mine.completedInDays,
+      },
+    ].slice(0, limit);
+  }
+
   private readAll(): Record<string, LeaderboardEntry> {
     const raw = this.store.getItem(STORE_KEY);
     if (!raw) return {};
@@ -53,4 +78,20 @@ export class LocalLeaderboard implements LeaderboardService {
   }
 }
 
-export const leaderboard: LeaderboardService = new LocalLeaderboard();
+// Same swappable-facade shape as `saveService` — see SaveService.ts.
+let lbBackend: LeaderboardService = new LocalLeaderboard();
+
+export function setLeaderboardBackend(inner: LeaderboardService): void {
+  lbBackend = inner;
+}
+
+export function getLeaderboardBackend(): LeaderboardService {
+  return lbBackend;
+}
+
+export const leaderboard: LeaderboardService = {
+  record: (win) => lbBackend.record(win),
+  getBest: (id) => lbBackend.getBest(id),
+  getAll: () => lbBackend.getAll(),
+  getTop: (id, limit) => lbBackend.getTop(id, limit),
+};

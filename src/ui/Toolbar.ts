@@ -11,6 +11,8 @@ import { makeObjectivesPanel } from './panels/ObjectivesPanel';
 import { makeRatingPanel } from './panels/RatingPanel';
 import { makeSoundPanel } from './panels/SoundPanel';
 import { makeSavePanel } from './panels/SavePanel';
+import { makeLoginPanel } from './panels/LoginPanel';
+import { makeLeaderboardPanel } from './panels/LeaderboardPanel';
 
 interface ToolbarButton {
   id: string;
@@ -30,6 +32,8 @@ export class Toolbar {
       { id: 'objectives', label: 'Objectives', icon: '🎯', make: makeObjectivesPanel },
       { id: 'sound', label: 'Sound', icon: '🔊', make: makeSoundPanel },
       { id: 'save', label: 'Save', icon: '💾', make: makeSavePanel },
+      { id: 'account', label: 'Account', icon: '👤', make: makeLoginPanel },
+      { id: 'leaderboard', label: 'Ranks', icon: '🏆', make: makeLeaderboardPanel },
     ];
 
     const bar = el('div', 'ui-toolbar bevel-raised');
