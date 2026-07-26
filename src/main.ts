@@ -9,6 +9,7 @@ import { wireAutosave } from './services/autosave';
 import { leaderboard } from './services/LeaderboardService';
 import { getCampaign } from './data/campaigns';
 import { computeCampaignScore } from './data/score';
+import { initAuth } from './services/auth';
 
 // Dev-only test affordance: Playwright drivers reach the sim through this.
 // Stripped from production builds by Vite's dead-code elimination.
@@ -28,6 +29,7 @@ if (import.meta.env.DEV) {
 }
 
 initUI();
+initAuth(); // no-op when cloud env vars are absent
 
 // Dawn autosave — armed only after a scenario is picked or a save is loaded
 // this session, so the sim ticking behind the boot picker can't clobber the
