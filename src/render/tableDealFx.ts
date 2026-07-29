@@ -79,12 +79,15 @@ export class TableDealFx {
       y1: this.spec.anchor.y + offsetY + 1,
     };
     const pos = overlayPlacement(this.cabinetX, this.cabinetY, this.scale, this.spec.nativeW, this.spec.nativeH, box);
+    const targetW = w * this.scale;
+    const targetH = h * this.scale;
     return this.scene.add
       .image(pos.x, pos.y, key)
-      .setDisplaySize(w * this.scale, h * this.scale)
+      .setDisplaySize(targetW * 0.4, targetH * 0.4)
       .setDepth(this.depth + 1)
       .setAlpha(0)
-      .setScale(0.4);
+      .setData('targetW', targetW)
+      .setData('targetH', targetH);
   }
 
   private dealCycle(): void {
@@ -97,7 +100,8 @@ export class TableDealFx {
       this.scene.tweens.add({
         targets: card,
         alpha: 1,
-        scale: this.scale,
+        displayWidth: card.getData('targetW') as number,
+        displayHeight: card.getData('targetH') as number,
         duration: 200,
         delay: i * 120,
         ease: 'Back.easeOut',
@@ -111,7 +115,8 @@ export class TableDealFx {
       this.scene.tweens.add({
         targets: chip,
         alpha: 1,
-        scale: this.scale,
+        displayWidth: chip.getData('targetW') as number,
+        displayHeight: chip.getData('targetH') as number,
         duration: 180,
         delay: 260 + i * 90,
         ease: 'Back.easeOut',
@@ -125,7 +130,8 @@ export class TableDealFx {
       this.scene.tweens.add({
         targets: pieces,
         alpha: 0,
-        scale: 0.4,
+        displayWidth: (target: Phaser.GameObjects.Image) => target.displayWidth * 0.4,
+        displayHeight: (target: Phaser.GameObjects.Image) => target.displayHeight * 0.4,
         duration: 220,
         ease: 'Quad.easeIn',
         onComplete: () => {
