@@ -13,6 +13,11 @@ export interface FileAsset {
 // which already no-ops for any key that already exists.
 export const FILE_ASSETS: readonly FileAsset[] = [
   { key: 'img-slot-machine', url: 'sprites/slot-machine.png' },
+  { key: 'img-slot-machine-marquee', url: 'sprites/slot-machine-marquee.png' },
+  { key: 'img-slot-machine-lights-a', url: 'sprites/slot-machine-lights-a.png' },
+  { key: 'img-slot-machine-lights-b', url: 'sprites/slot-machine-lights-b.png' },
+  { key: 'img-slot-machine-lights-c', url: 'sprites/slot-machine-lights-c.png' },
+  { key: 'img-slot-machine-reel', url: 'sprites/slot-machine-reel.png' },
   { key: 'img-blackjack-table', url: 'sprites/blackjack-table.png' },
   { key: 'img-craps-table', url: 'sprites/craps-table.png' },
   { key: 'img-roulette-table', url: 'sprites/roulette-table.png' },
@@ -26,6 +31,32 @@ export const FILE_ASSETS: readonly FileAsset[] = [
   { key: 'img-chip-red', url: 'sprites/chips/chip_red.png' },
   { key: 'img-chip-green', url: 'sprites/chips/chip_green.png' },
   { key: 'img-chip-black', url: 'sprites/chips/chip_black.png' },
+  // Playing cards for table-game dealing FX. Sliced from a 3x7 Gemini sheet
+  // (assets/playingcards.png) that came up 2 cards short (no jack of spades
+  // or hearts — the generation put duplicate/garbled diamond cells in their
+  // place instead) so this set covers 18 of 52 faces plus the back. Fine for
+  // ambient "table looks busy" dealing animation, not a rules-accurate deck.
+  { key: 'img-card-back', url: 'sprites/cards/back.png' },
+  { key: 'img-card-A-spade', url: 'sprites/cards/A-spade.png' },
+  { key: 'img-card-K-spade', url: 'sprites/cards/K-spade.png' },
+  { key: 'img-card-Q-spade', url: 'sprites/cards/Q-spade.png' },
+  { key: 'img-card-10-spade', url: 'sprites/cards/10-spade.png' },
+  { key: 'img-card-A-club', url: 'sprites/cards/A-club.png' },
+  { key: 'img-card-K-club', url: 'sprites/cards/K-club.png' },
+  { key: 'img-card-Q-club', url: 'sprites/cards/Q-club.png' },
+  { key: 'img-card-J-club', url: 'sprites/cards/J-club.png' },
+  { key: 'img-card-10-club', url: 'sprites/cards/10-club.png' },
+  { key: 'img-card-A-heart', url: 'sprites/cards/A-heart.png' },
+  { key: 'img-card-K-heart', url: 'sprites/cards/K-heart.png' },
+  { key: 'img-card-Q-heart', url: 'sprites/cards/Q-heart.png' },
+  { key: 'img-card-10-heart', url: 'sprites/cards/10-heart.png' },
+  { key: 'img-card-A-diamond', url: 'sprites/cards/A-diamond.png' },
+  { key: 'img-card-K-diamond', url: 'sprites/cards/K-diamond.png' },
+  { key: 'img-card-Q-diamond', url: 'sprites/cards/Q-diamond.png' },
+  { key: 'img-card-J-diamond', url: 'sprites/cards/J-diamond.png' },
+  { key: 'img-card-10-diamond', url: 'sprites/cards/10-diamond.png' },
+  { key: 'img-roulette-disc', url: 'sprites/wheels/roulette-disc.png' },
+  { key: 'img-big-six-disc', url: 'sprites/wheels/big-six-disc.png' },
   { key: 'img-wall-panel', url: 'sprites/wall-panel.png' },
   { key: 'img-neon-sign', url: 'sprites/neon-sign.png' },
   { key: 'img-marquee', url: 'sprites/marquee.png' },

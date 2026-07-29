@@ -4,7 +4,14 @@ import { eventBus } from '../../EventBus';
 import { getObjectDef, type ObjectDef } from '../../data/objects';
 import { gameState } from '../../gameContext';
 import { gridToScreen } from '../iso';
+import { SlotMachineFx } from '../slotMachineFx';
+import { TableDealFx, POKER_DEAL, HIGH_LIMIT_DEAL, BLACKJACK_DEAL } from '../tableDealFx';
+import { WheelFx, ROULETTE_WHEEL, BIG_SIX_WHEEL } from '../wheelFx';
 import type WorldScene from '../WorldScene';
+
+interface Destroyable {
+  destroy(): void;
+}
 
 /**
  * Screen placement for an object anchored at footprint origin (col,row):
@@ -28,6 +35,7 @@ export class ObjectViews {
   private scene: Phaser.Scene;
   private sprites = new Map<string, Phaser.GameObjects.Image>();
   private glows = new Map<string, Phaser.GameObjects.Image>();
+  private extraFx = new Map<string, Destroyable>();
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -43,6 +51,8 @@ export class ObjectViews {
         glow.destroy();
       }
       this.glows.clear();
+      for (const fx of this.extraFx.values()) fx.destroy();
+      this.extraFx.clear();
     });
     eventBus.on('worldLoaded', () => {
       for (const po of gameState.allObjects()) this.spawn(po.id, po.defId, po.col, po.row, false);
@@ -72,6 +82,8 @@ export class ObjectViews {
     const img = this.scene.add.image(t.x, t.y, def.spriteKey).setOrigin(0.5, 1).setDepth(t.depth);
     if (def.displaySize) img.setDisplaySize(def.displaySize.w, def.displaySize.h);
     this.sprites.set(id, img);
+
+    if (def.displaySize) this.spawnExtraFx(id, defId, t.x, t.y, t.depth, def.displaySize.w);
     if (animate) {
       // Bounce in toward whatever scale setDisplaySize established above (1 for
       // placeholders, whose native texture size already matches, or the ratio
@@ -90,6 +102,36 @@ export class ObjectViews {
     }
   }
 
+  private spawnExtraFx(
+    id: string,
+    defId: string,
+    x: number,
+    y: number,
+    depth: number,
+    displayW: number,
+  ): void {
+    switch (defId) {
+      case 'slot-machine':
+        this.extraFx.set(id, new SlotMachineFx(this.scene, x, y, depth, displayW));
+        break;
+      case 'roulette-table':
+        this.extraFx.set(id, new WheelFx(this.scene, x, y, depth, displayW, ROULETTE_WHEEL));
+        break;
+      case 'big-six-wheel':
+        this.extraFx.set(id, new WheelFx(this.scene, x, y, depth, displayW, BIG_SIX_WHEEL));
+        break;
+      case 'poker-table':
+        this.extraFx.set(id, new TableDealFx(this.scene, x, y, depth, displayW, POKER_DEAL));
+        break;
+      case 'high-limit-table':
+        this.extraFx.set(id, new TableDealFx(this.scene, x, y, depth, displayW, HIGH_LIMIT_DEAL));
+        break;
+      case 'blackjack-table':
+        this.extraFx.set(id, new TableDealFx(this.scene, x, y, depth, displayW, BLACKJACK_DEAL));
+        break;
+    }
+  }
+
   private despawn(id: string): void {
     const img = this.sprites.get(id);
     if (!img) return;
@@ -99,6 +141,11 @@ export class ObjectViews {
       this.glows.delete(id);
       (this.scene as unknown as WorldScene).getGlowPool().remove(glow);
       glow.destroy();
+    }
+    const fx = this.extraFx.get(id);
+    if (fx) {
+      this.extraFx.delete(id);
+      fx.destroy();
     }
     this.scene.tweens.add({
       targets: img,
