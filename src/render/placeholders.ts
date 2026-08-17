@@ -446,6 +446,61 @@ function makeThoughtBubble(scene: Phaser.Scene): void {
   g.destroy();
 }
 
+// Six dice faces for the craps table's throw FX. Drawn at 4x the on-table
+// footprint so the pips survive being scaled down onto the felt.
+const DIE_PIPS: ReadonlyArray<ReadonlyArray<[number, number]>> = [
+  [[1, 1]],
+  [
+    [0, 0],
+    [2, 2],
+  ],
+  [
+    [0, 0],
+    [1, 1],
+    [2, 2],
+  ],
+  [
+    [0, 0],
+    [2, 0],
+    [0, 2],
+    [2, 2],
+  ],
+  [
+    [0, 0],
+    [2, 0],
+    [1, 1],
+    [0, 2],
+    [2, 2],
+  ],
+  [
+    [0, 0],
+    [2, 0],
+    [0, 1],
+    [2, 1],
+    [0, 2],
+    [2, 2],
+  ],
+];
+
+function makeDice(scene: Phaser.Scene): void {
+  const size = 28;
+  const inset = 6;
+  const step = (size - inset * 2) / 2;
+  DIE_PIPS.forEach((pips, i) => {
+    const key = `fx-die-${i + 1}`;
+    if (scene.textures.exists(key)) return;
+    const g = scene.make.graphics({ x: 0, y: 0 }, false);
+    g.fillStyle(0x8a1f1f, 1); // casino-red die body with a lighter face
+    g.fillRoundedRect(0, 0, size, size, 5);
+    g.fillStyle(0xc93333, 1);
+    g.fillRoundedRect(1, 1, size - 3, size - 3, 5);
+    g.fillStyle(0xfdf6ee, 1);
+    for (const [px, py] of pips) g.fillCircle(inset + px * step, inset + py * step, 2.6);
+    g.generateTexture(key, size, size);
+    g.destroy();
+  });
+}
+
 // Floor decals for messes: a dark spill puddle and scattered trash bits.
 function makeMessTextures(scene: Phaser.Scene): void {
   if (!scene.textures.exists('fx-mess-spill')) {
@@ -484,5 +539,6 @@ export function generatePlaceholders(scene: Phaser.Scene): void {
   if (!scene.textures.exists('fx-smoke')) makeSmoke(scene);
   if (!scene.textures.exists('fx-coin')) makeCoin(scene);
   if (!scene.textures.exists('fx-bubble')) makeThoughtBubble(scene);
+  makeDice(scene);
   makeMessTextures(scene);
 }
