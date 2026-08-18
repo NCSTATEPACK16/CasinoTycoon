@@ -1,7 +1,10 @@
 import { eventBus } from '../../EventBus';
+import type { CompKind } from '../../data/balance';
 import {
   BAR_BALANCE,
   CASHIER_BALANCE,
+  COMPS,
+  expectedRtpFor,
   FOOD_BALANCE,
   GUEST_BALANCE,
   MESS_BALANCE,
@@ -39,6 +42,14 @@ export interface GuestThought {
 
 const MAX_THOUGHTS = 6;
 
+/** What a comped guest says about it — the whole point of targeting is that
+ *  the player sees this guest react. */
+const COMP_THOUGHT: Record<CompKind, string> = {
+  drink: 'On the house? Very civilised.',
+  meal: 'They fed me. I am not leaving.',
+  matchPlay: 'Free chips! One more round.',
+};
+
 export class Guest extends Walker {
   readonly id: string;
   wallet: number;
@@ -64,6 +75,14 @@ export class Guest extends Walker {
    *  POKER_BALANCE.maxWaitTicks. Zero at every other game. */
   waitingForPlayersTicks = 0;
   private celebrateTicksLeft = 0;
+  /** Wallet this guest arrived with. The comp cap is a fraction of it, so a
+   *  high roller's comp budget scales with the session they can actually play. */
+  private readonly startingWallet: number;
+  /** Comp dollars issued so far this session — the figure the cap bounds. */
+  compsReceived = 0;
+  /** World tick at the moment of the last comp, so the comp's thought is
+   *  stamped with the time it happened rather than a stale one. */
+  lastCompTick = 0;
   private wagersByGame = new Map<string, number>();
   private thoughtLast = new Map<string, number>();
   private machineId: string | null = null;
@@ -82,6 +101,7 @@ export class Guest extends Walker {
     super(start);
     this.id = id;
     this.wallet = wallet;
+    this.startingWallet = wallet;
     this.archetype = archetype;
     this.name = flavorName(id);
     this.needs = {
@@ -100,7 +120,7 @@ export class Guest extends Walker {
 
   tick(world: CasinoWorld): void {
     if (this.state === 'gone') return;
-    this.decayNeeds();
+    this.decayNeeds(world);
     this.maybeDropMess(world);
     this.updateThoughts(world.tickCount, world);
     if (this.celebrateTicksLeft > 0) {
@@ -118,12 +138,17 @@ export class Guest extends Walker {
     world.dropMess(this.pos.col, this.pos.row, world.rng.chance(0.5) ? 'spill' : 'trash');
   }
 
-  private decayNeeds(): void {
+  private decayNeeds(world: CasinoWorld): void {
     const b = GUEST_BALANCE;
     this.needs.energy = Math.max(0, this.needs.energy - b.decayPerTick.energy);
     this.needs.bladder = Math.max(0, this.needs.bladder - b.decayPerTick.bladder);
     this.needs.hunger = Math.max(0, this.needs.hunger - b.decayPerTick.hunger);
-    this.needs.thirst = Math.max(0, this.needs.thirst - b.decayPerTick.thirst);
+    // A5 'heat wave' is the only modifier that touches a decay rate, and it
+    // reads at the point of use so it can never drift out of sync.
+    this.needs.thirst = Math.max(
+      0,
+      this.needs.thirst - b.decayPerTick.thirst * world.modifiers.thirstDecayMult(),
+    );
     if (
       this.needs.bladder < b.criticalThreshold ||
       this.needs.hunger < b.criticalThreshold ||
@@ -434,6 +459,72 @@ export class Guest extends Walker {
    *  ledger stays owned by the guest. */
   wagers(): ReadonlyMap<string, number> {
     return new Map(this.wagersByGame);
+  }
+
+  /** Theoretical win this session: Σ wagered[game] × (1 − expectedRtp(game)).
+   *
+   *  This is what a casino actually rates a player on — not what they lost.
+   *  A guest who wagered $500 and got lucky is still worth comping; a guest
+   *  who lost $50 on one bad hand is not. Games with no static payout table
+   *  (poker, whose return is the rake on live population) contribute nothing,
+   *  because there is no honest edge to weight them by. */
+  theo(): number {
+    let sum = 0;
+    for (const [defId, wagered] of this.wagersByGame) {
+      const rtp = expectedRtpFor(defId);
+      if (rtp === null) continue;
+      sum += wagered * (1 - rtp);
+    }
+    return sum;
+  }
+
+  /** Comp value this guest may still be issued this session.
+   *
+   *  Floored so the budget always admits at least one of the priciest comp:
+   *  a percentage alone leaves a guest who walked in with $40 unable to accept
+   *  a $25 match play, which turns the cap from a bound on propping someone up
+   *  into a bar on comping them at all. */
+  compHeadroom(): number {
+    const budget = Math.max(
+      this.startingWallet * COMPS.maxSessionExtensionPct,
+      COMPS.compUnit.matchPlay,
+    );
+    return Math.max(0, budget - this.compsReceived);
+  }
+
+  /** Whether this guest has played enough to be worth comping. */
+  get compEligible(): boolean {
+    return this.theo() >= COMPS.theoFloorToComp;
+  }
+
+  /**
+   * Accept a comp the player targeted at this guest.
+   *
+   * Returns false when the guest is not yet eligible or the session cap leaves
+   * no room, so the caller can refuse the charge rather than take money for
+   * nothing. Match play lands in the wallet as chips; a drink or a meal
+   * restores the need it addresses. All three carry goodwill.
+   */
+  receiveComp(kind: CompKind): boolean {
+    const cost = COMPS.compUnit[kind];
+    if (!this.compEligible) return false;
+    if (cost > this.compHeadroom()) return false;
+    this.compsReceived += cost;
+    if (kind === 'matchPlay') {
+      this.wallet += cost;
+    } else {
+      const need = kind === 'drink' ? 'thirst' : 'hunger';
+      this.needs[need] = Math.min(100, this.needs[need] + COMPS.needRestored[kind]);
+    }
+    this.adjustHappiness(cost * COMPS.happinessPerDollar);
+    this.recordThought(this.lastCompTick, `comped-${kind}`, COMP_THOUGHT[kind]);
+    return true;
+  }
+
+  /** True for a guest heading out in good spirits — reputation's positive
+   *  signal, and the counterweight to rage quits. */
+  get leavingContent(): boolean {
+    return !this.raging && this.needs.happiness >= GUEST_BALANCE.startHappiness;
   }
 
   /** The defId this guest has wagered the most on, or null if it never played. */

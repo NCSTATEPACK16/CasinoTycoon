@@ -87,6 +87,10 @@ const ICONS = {
   mute: 'volume-x',
   celebrate: 'party-popper',
   fail: 'trending-down',
+  // Track 2 — daily conditions, reputation, comps
+  modifier: 'cloud-lightning',
+  reputation: 'megaphone',
+  comp: 'gift',
 };
 
 /** Strips the wrapper <svg> down to its drawing content. Presentation

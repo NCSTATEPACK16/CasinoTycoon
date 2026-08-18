@@ -3,6 +3,7 @@ import { eventBus } from '../EventBus';
 import { audio } from '../services/AudioService';
 import { el, formatCash } from './dom';
 import { showScenarioSelect } from './ScenarioSelect';
+import { ConditionsBanner } from './ConditionsBanner';
 import { Ticker } from './Ticker';
 import { Toolbar } from './Toolbar';
 import { WindowManager, type PanelSpec } from './WindowManager';
@@ -25,6 +26,7 @@ export function initUI(): void {
   if (!uiRoot) throw new Error('#ui-root missing from index.html');
   const windows = new WindowManager(uiRoot);
   new Ticker(uiRoot);
+  new ConditionsBanner(uiRoot);
   new Toolbar(uiRoot, windows);
   // Every DOM button click gets a soft tick (capture phase so stopPropagation
   // in a panel handler can't swallow it).

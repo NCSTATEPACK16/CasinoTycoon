@@ -865,3 +865,90 @@ label.p-mute input {
     scroll-behavior: auto !important;
   }
 }
+
+/* ---------- A5 conditions banner ---------- */
+
+/* Top-left, opposite the toolbar, so it never competes with the controls and
+   never covers the entrance. Hidden outright on a day with no conditions. */
+.conditions {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-width: 40vw;
+  pointer-events: none;
+  z-index: 15;
+}
+
+.cond-chip {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  /* Same warning edge the ticker uses for a warn-severity line — a condition
+     and its announcement should read as the same kind of thing. */
+  border-left: 4px solid var(--warning);
+  box-shadow: 2px 2px 0 var(--shadow-hard);
+  font-size: 12px;
+}
+
+.cond-icon {
+  align-self: center;
+  color: var(--warning);
+  flex: none;
+}
+
+.cond-name {
+  font-weight: bold;
+  color: var(--warning);
+  white-space: nowrap;
+}
+
+.cond-blurb {
+  color: var(--text-secondary);
+}
+
+/* Modifier chips in the daily report, where they are history rather than an
+   active warning — same idea, quieter register. */
+.cond-tag {
+  display: inline-block;
+  margin: 0 var(--space-1) var(--space-1) 0;
+  padding: 0 var(--space-2);
+  border-left: 3px solid var(--warning);
+  background: var(--panel-well);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+/* ---------- A1a comps ---------- */
+
+.g-comps {
+  display: flex;
+  gap: var(--space-1);
+  margin: var(--space-2) 0;
+}
+
+/* `display: flex` outranks the [hidden] attribute's UA `display: none`, so the
+   row has to opt back out explicitly or it shows with no guest selected. */
+.g-comps[hidden] {
+  display: none;
+}
+
+.g-comps .p-tool {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Ineligible is a real state with a reason, not a dead button: the tooltip
+   carries the why, matching the blocked-action treatment used elsewhere. */
+.g-comps .p-tool[disabled] {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+.g-comp-note {
+  color: var(--text-secondary);
+  font-size: 11px;
+}

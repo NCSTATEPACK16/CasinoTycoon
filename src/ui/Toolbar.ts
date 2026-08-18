@@ -149,6 +149,14 @@ export class Toolbar {
     moodRo.append(icon('mood', 'ro-icon'), el('span', '', '—'));
     bar.appendChild(moodRo);
 
+    // A12: reputation sits beside rating because they are easy to confuse and
+    // the difference matters — rating is the floor right now, reputation is
+    // what the town remembers. The band label carries the meaning; the raw
+    // scalar alone tells the player nothing.
+    const repRo = el('div', 'tb-readout bevel-sunken');
+    repRo.append(icon('reputation', 'ro-icon'), el('span', '', '—'));
+    bar.appendChild(repRo);
+
     const ratingRo = el('div', 'tb-readout bevel-sunken');
     ratingRo.id = 'tb-rating';
     ratingRo.append(icon('rating', 'ro-icon'), el('span', '', '0/100'));
@@ -162,6 +170,9 @@ export class Toolbar {
       (guestsRo.lastChild as HTMLElement).textContent = String(world.guests.size);
       (moodRo.lastChild as HTMLElement).textContent = `${Math.round(world.averageHappiness)}%`;
       (ratingRo.lastChild as HTMLElement).textContent = `${breakdown.total}/100`;
+      const rep = world.reputation;
+      (repRo.lastChild as HTMLElement).textContent = rep.label;
+      repRo.title = `Reputation ${Math.round(rep.value)}/100 — shapes who walks in tomorrow`;
     };
     syncStats();
     // Toolbar lives for the lifetime of the page, so this interval is

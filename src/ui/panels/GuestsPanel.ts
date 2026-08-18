@@ -1,5 +1,6 @@
 import { world } from '../../gameContext';
 import { eventBus } from '../../EventBus';
+import { COMPS, type CompKind } from '../../data/balance';
 import { getObjectDef } from '../../data/objects';
 import type { GuestArchetype, GuestState } from '../../sim/entities/Guest';
 import { el, formatCash, row } from '../dom';
@@ -25,6 +26,14 @@ const ARCHETYPE: Record<GuestArchetype, { icon: IconName; label: string } | null
   tourist: { icon: 'tourist', label: 'Tourist' },
 };
 
+// A1a — the three comps the player can send, cheapest first so the common
+// gesture is the leftmost button.
+const COMP_BUTTONS: { kind: CompKind; label: string; icon: IconName }[] = [
+  { kind: 'drink', label: 'Drink', icon: 'bar' },
+  { kind: 'meal', label: 'Meal', icon: 'food-stall' },
+  { kind: 'matchPlay', label: 'Match play', icon: 'freePlay' },
+];
+
 const moodIcon = (happiness: number): IconName =>
   happiness >= 70 ? 'moodHappy' : happiness >= 40 ? 'moodNeutral' : 'moodSad';
 
@@ -41,7 +50,22 @@ export function makeGuestsPanel(): PanelSpec {
     if (!selectedId) return;
     eventBus.emit('followGuest', { guestId: followingId === selectedId ? null : selectedId });
   });
-  content.append(heading, list, follow, detail);
+  // Built once and re-synced for the same reason as the follow button: at a
+  // 500ms refresh, a button rebuilt every tick is a button that eats clicks.
+  const comps = el('div', 'g-comps');
+  const compButtons = COMP_BUTTONS.map(({ kind, label, icon: iconName }) => {
+    const btn = el('button', 'p-tool');
+    btn.appendChild(iconLabel(iconName, `${label} $${COMPS.compUnit[kind]}`));
+    btn.addEventListener('click', () => {
+      if (!selectedId) return;
+      world.sendComp(selectedId, kind);
+      render();
+    });
+    comps.appendChild(btn);
+    return { kind, btn };
+  });
+  const compNote = el('div', 'g-comp-note');
+  content.append(heading, list, follow, comps, compNote, detail);
   let selectedId: string | null = null;
   let followingId: string | null = null;
 
@@ -109,6 +133,28 @@ export function makeGuestsPanel(): PanelSpec {
     detail.textContent = '';
     const sel = selectedId ? world.guests.get(selectedId) : undefined;
     follow.hidden = !sel;
+    comps.hidden = !sel;
+    compNote.hidden = !sel;
+    if (sel) {
+      // Theo, not net result, is what a casino rates a player on — a guest who
+      // wagered heavily and got lucky is still worth comping. Showing it is
+      // what makes the spend a judgement rather than a guess.
+      const theo = sel.theo();
+      const headroom = sel.compHeadroom();
+      for (const { kind, btn } of compButtons) {
+        const cost = COMPS.compUnit[kind];
+        const reason = !sel.compEligible
+          ? `${sel.name} hasn't played enough yet — needs $${COMPS.theoFloorToComp} of theoretical win`
+          : cost > headroom
+            ? `${sel.name} has had their fill this visit`
+            : '';
+        btn.disabled = reason !== '';
+        btn.title = reason || `Send ${sel.name} a comp worth $${cost}`;
+      }
+      compNote.textContent = sel.compEligible
+        ? `Theoretical win $${theo.toFixed(2)} · comped $${sel.compsReceived.toFixed(2)} of $${(sel.compsReceived + headroom).toFixed(2)}`
+        : `Theoretical win $${theo.toFixed(2)} of $${COMPS.theoFloorToComp} needed to comp`;
+    }
     if (sel) {
       const on = followingId === sel.id;
       follow.replaceChildren(

@@ -26,6 +26,10 @@ const record = (day: number, profit: number) => ({
   guestCount: 0,
   jackpotCount: 0,
   rageQuitCount: 0,
+  compSpend: 0,
+  reputation: 50,
+  reputationDelta: 0,
+  modifierIds: [],
 });
 
 describe('ScenarioManager', () => {

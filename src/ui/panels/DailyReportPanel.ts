@@ -1,3 +1,4 @@
+import { MODIFIERS } from '../../data/balance';
 import type { DailyRecord } from '../../sim/economy';
 import { el, formatCash, row } from '../dom';
 import type { PanelSpec } from '../WindowManager';
@@ -22,6 +23,35 @@ export function makeDailyReportPanel(record: DailyRecord): PanelSpec {
   content.appendChild(row('Guests', String(record.guestCount)));
   content.appendChild(row('Jackpots', String(record.jackpotCount)));
   content.appendChild(row('Rage quits', String(record.rageQuitCount)));
+  // Comps are already inside `expenses`; breaking them out is what makes the
+  // spend legible as a decision rather than as overhead.
+  if (record.compSpend > 0) content.appendChild(row('Comps', formatCash(record.compSpend)));
+
+  // A12: the movement, not just the level — a player needs to see that
+  // yesterday's play is what moved it.
+  const repDelta = record.reputationDelta;
+  const repRow = el('div', 'p-row');
+  repRow.appendChild(el('span', '', 'Reputation'));
+  const repVal = el('span', `val ${repDelta > 0 ? 'up' : repDelta < 0 ? 'down' : ''}`);
+  const sign = repDelta > 0 ? '+' : '';
+  repVal.textContent =
+    repDelta === 0
+      ? `${Math.round(record.reputation)}/100`
+      : `${Math.round(record.reputation)}/100 (${sign}${repDelta.toFixed(1)})`;
+  repRow.appendChild(repVal);
+  content.appendChild(repRow);
+
+  // A5: which conditions this day was played under. Resolved by id against the
+  // catalog, so a retired modifier degrades to nothing rather than a raw slug.
+  if (record.modifierIds.length > 0) {
+    content.appendChild(el('div', 'p-heading', 'Conditions'));
+    const tags = el('div');
+    for (const id of record.modifierIds) {
+      const def = MODIFIERS.catalog.find((m) => m.id === id);
+      if (def) tags.appendChild(el('span', 'cond-tag', def.name));
+    }
+    content.appendChild(tags);
+  }
 
   const winners = record.winners.filter((w) => w.net > 0);
   content.appendChild(el('div', 'p-heading', 'Top winners'));

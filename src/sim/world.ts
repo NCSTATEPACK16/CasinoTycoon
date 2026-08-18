@@ -4,6 +4,8 @@ import {
   ARCHETYPE_BALANCE,
   BAR_BALANCE,
   CASHIER_BALANCE,
+  COMPS,
+  type CompKind,
   DEALER_BALANCE,
   GUEST_BALANCE,
   MESS_BALANCE,
@@ -23,6 +25,8 @@ import { FoodStall, type FoodStallJSON, type FoodPurchase } from './entities/Foo
 import type { Mess, MessKind } from './entities/Mess';
 import { Staff, type StaffKind } from './entities/staff/Staff';
 import { Ledger, type LedgerJSON } from './economy';
+import { ModifierSystem, type ModifierSystemJSON } from './modifiers';
+import { Reputation, type ReputationJSON } from './reputation';
 import { ScenarioManager, type ScenarioJSON } from './scenario/ScenarioManager';
 import { TimeSystem, type TimeSystemJSON } from './TimeSystem';
 import { type CasinoGame, type PlayCadence, type PlayResult } from './entities/machines/CasinoGame';
@@ -109,6 +113,8 @@ export interface CasinoWorldJSON {
   time: TimeSystemJSON;
   ledger: LedgerJSON;
   scenario: ScenarioJSON | null;
+  modifiers: ModifierSystemJSON;
+  reputation: ReputationJSON;
 }
 
 export class CasinoWorld {
@@ -120,6 +126,10 @@ export class CasinoWorld {
    *  system's draws (payouts, spawn timing, ...) stay byte-identical to a
    *  build with no archetypes at all, for the same world seed. */
   private archetypeRng: Rng;
+  /** Same reasoning as archetypeRng: the once-a-day modifier draw must not
+   *  shift the call count of the shared stream, or every payout and spawn in
+   *  the game changes the moment A5 lands. */
+  private modifierRng: Rng;
   machines = new Map<string, CasinoGame>();
   foodStalls = new Map<string, FoodStall>();
   bars = new Map<string, Bar>();
@@ -128,6 +138,11 @@ export class CasinoWorld {
   staff = new Map<string, Staff>();
   time = new TimeSystem();
   ledger = new Ledger();
+  /** A5 — the day's conditions. Queried at the point of use by spawn, wallet,
+   *  cage, and thirst code; it owns no simulation of its own. */
+  modifiers = new ModifierSystem();
+  /** A12 — the persistent scalar that makes yesterday visible in today's mix. */
+  reputation = new Reputation();
   scenario: ScenarioManager | null = null;
   tickCount = 0;
   entranceTile: Cell = { ...ENTRANCE_TILE };
@@ -144,6 +159,12 @@ export class CasinoWorld {
   /** cageId → staffId, so two cashiers never race for the same cage. */
   private cashierAssignments = new Map<string, string>();
   private ragePenalty = 0;
+  /** Hourly cleanliness samples for the day in progress. The A5 health
+   *  inspection grades the day, not the midnight instant: with only five mess
+   *  slots on the scale, a snapshot fails on a single spill the janitor was
+   *  three tiles away from, which is the "unwinnable regardless of play"
+   *  outcome the modifier is explicitly not allowed to have. */
+  private cleanlinessSamples: number[] = [];
   /** Recomputed on every floor change and once per tick — see hasServiceObject. */
   private serviceAvailability: Record<string, boolean> = {
     toilet: false,
@@ -157,6 +178,7 @@ export class CasinoWorld {
     const seed = opts.seed ?? Date.now() >>> 0;
     this.rng = new Rng(seed);
     this.archetypeRng = new Rng((seed ^ 0x9e3779b9) >>> 0);
+    this.modifierRng = new Rng((seed ^ 0x85ebca6b) >>> 0);
     this.autoSpawn = opts.autoSpawn ?? true;
   }
 
@@ -166,6 +188,9 @@ export class CasinoWorld {
   startScenario(def: CampaignDef | null): void {
     this.reset(def?.startingCash ?? STARTING_CASH);
     this.scenario = def ? new ScenarioManager(def) : null;
+    // Day 1 gets conditions too. Without this the first day is always the
+    // quiet baseline, which teaches the player that modifiers are rare.
+    this.modifiers.drawForDay(this.time.day, this.modifierRng);
     eventBus.emit('worldReset', { scenarioId: def?.id ?? null });
     eventBus.emit('moneyChanged', { cash: this.state.cash, delta: 0 });
     eventBus.emit('hourPassed', { hour: this.time.hour, day: this.time.day });
@@ -188,6 +213,9 @@ export class CasinoWorld {
     this.refreshServiceAvailability();
     this.time = new TimeSystem();
     this.ledger = new Ledger();
+    this.cleanlinessSamples = [];
+    this.modifiers = new ModifierSystem();
+    this.reputation = new Reputation();
     this.tickCount = 0;
     this.nextGuestNum = 1;
     this.nextMessNum = 1;
@@ -268,6 +296,8 @@ export class CasinoWorld {
     for (const guest of this.guests.values()) guest.tick(this);
     for (const [id, guest] of [...this.guests]) {
       if (guest.state === 'gone') {
+        // Read before the fold: foldGuestSession zeroes the session.
+        if (guest.leavingContent) this.reputation.onContentLeaver();
         this.foldGuestSession(guest);
         this.guests.delete(id);
         eventBus.emit('guestLeft', { id });
@@ -284,6 +314,7 @@ export class CasinoWorld {
     const closedHour = this.time.hour === 0 ? HOURS_PER_DAY - 1 : this.time.hour - 1;
     const closedDay = this.time.hour === 0 ? this.time.day - 1 : this.time.day;
     this.chargeWages();
+    this.cleanlinessSamples.push(this.cleanlinessPct);
     if (midnight) {
       this.chargeUpkeep();
       for (const guest of this.guests.values()) this.foldGuestSession(guest);
@@ -291,8 +322,31 @@ export class CasinoWorld {
     this.ledger.closeHour(closedDay, closedHour, this.guests.size);
     eventBus.emit('hourPassed', { hour: this.time.hour, day: this.time.day });
     if (midnight) {
-      const record = this.ledger.closeDay(closedDay);
+      // Settle the closing day's conditions before the books close, so a fine
+      // lands in the day that earned it rather than the one that follows.
+      const modifierIds = this.modifiers.activeModifiers.map((m) => m.id);
+      const { penalty, reasons } = this.modifiers.settleDay(this.dayCleanlinessPct);
+      this.cleanlinessSamples = [];
+      if (penalty > 0) {
+        this.state.cash -= penalty;
+        this.ledger.addExpense(penalty);
+        eventBus.emit('moneyChanged', { cash: this.state.cash, delta: -penalty });
+        eventBus.emit('tickerMessage', {
+          text: `${reasons.join(' and ')} failed — ${formatDollarAmount(penalty)} in fines.`,
+          severity: 'alert',
+        });
+      }
+      const repDelta = this.reputation.closeDay();
+      eventBus.emit('reputationChanged', { value: this.reputation.value, delta: repDelta });
+      const record = this.ledger.closeDay(closedDay, {
+        reputation: this.reputation.value,
+        reputationDelta: repDelta,
+        modifierIds,
+      });
       this.scenario?.onDayEnded(record);
+      // Draw for the day that just began, after the close so the report shows
+      // the conditions the closed day was played under.
+      this.modifiers.drawForDay(this.time.day, this.modifierRng);
       eventBus.emit('dayEnded', { day: record.day, profit: record.profit });
       const top = record.winners[0];
       if (top && top.net > 0) {
@@ -413,6 +467,22 @@ export class CasinoWorld {
     return { ...terms, total: Math.round(Math.min(100, Math.max(0, score))) };
   }
 
+  /** Cleanliness as a 0–100 percentage rather than a rating term, which is
+   *  what the A5 health inspection is specified against. */
+  get cleanlinessPct(): number {
+    const b = RATING_BALANCE;
+    const term = Math.max(0, b.cleanlinessMax - this.messes.size * b.perMessPenalty);
+    return (term / b.cleanlinessMax) * 100;
+  }
+
+  /** Mean cleanliness across the hours of the day so far. Falls back to the
+   *  live figure before the first hour boundary has been crossed. */
+  get dayCleanlinessPct(): number {
+    if (this.cleanlinessSamples.length === 0) return this.cleanlinessPct;
+    const sum = this.cleanlinessSamples.reduce((a, b) => a + b, 0);
+    return sum / this.cleanlinessSamples.length;
+  }
+
   /** Casino rating 0–100 — drives guest arrivals; shown in UI later. */
   get rating(): number {
     return this.ratingBreakdown().total;
@@ -420,7 +490,8 @@ export class CasinoWorld {
 
   private maybeSpawn(): void {
     if (this.guests.size >= GUEST_BALANCE.maxGuests) return;
-    if (!this.rng.chance(spawnChance(this.rating, this.machines.size))) return;
+    const chance = spawnChance(this.rating, this.machines.size) * this.modifiers.spawnMult();
+    if (!this.rng.chance(chance)) return;
     if (!this.grid.isWalkable(this.entranceTile.col, this.entranceTile.row)) return;
     this.spawnGuest();
   }
@@ -428,10 +499,13 @@ export class CasinoWorld {
   spawnGuest(archetypeOverride?: GuestArchetype): Guest {
     const id = `g-${this.nextGuestNum++}`;
     const archetype = archetypeOverride ?? this.rollArchetype();
-    const wallet =
+    const baseWallet =
       archetype === 'highRoller'
         ? this.rng.int(ARCHETYPE_BALANCE.highRollerWalletMin, ARCHETYPE_BALANCE.highRollerWalletMax)
         : this.rng.int(GUEST_BALANCE.walletMin, GUEST_BALANCE.walletMax);
+    // Floored at 1 so a stacked wallet penalty can never spawn a guest who is
+    // broke on arrival and walks straight back out.
+    const wallet = Math.max(1, Math.round(baseWallet * this.modifiers.walletMult()));
     const guest = new Guest(id, wallet, this.entranceTile, archetype);
     this.guests.set(id, guest);
     eventBus.emit('guestSpawned', { id, archetype: guest.archetype });
@@ -443,10 +517,21 @@ export class CasinoWorld {
    *  the [0,1) range. */
   private rollArchetype(): GuestArchetype {
     const b = ARCHETYPE_BALANCE;
+    // A5 conditions and A12 reputation both bias the same roll, multiplicatively
+    // — a convention during a strong reputation stacks, which is the point.
+    const bias = (a: GuestArchetype) =>
+      this.modifiers.archetypeBias(a) * this.reputation.archetypeMultiplier(a);
+    const highRoller = b.highRollerChance * bias('highRoller');
+    const biker = b.bikerChance * bias('biker');
+    const tourist = b.touristChance * bias('tourist');
+    // Renormalize when the biased weights would overflow the roll's range, so
+    // 'regular' degrades smoothly instead of vanishing at a cliff.
+    const total = highRoller + biker + tourist;
+    const scale = total > 1 ? 1 / total : 1;
     const roll = this.archetypeRng.next();
-    if (roll < b.highRollerChance) return 'highRoller';
-    if (roll < b.highRollerChance + b.bikerChance) return 'biker';
-    if (roll < b.highRollerChance + b.bikerChance + b.touristChance) return 'tourist';
+    if (roll < highRoller * scale) return 'highRoller';
+    if (roll < (highRoller + biker) * scale) return 'biker';
+    if (roll < (highRoller + biker + tourist) * scale) return 'tourist';
     return 'regular';
   }
 
@@ -669,7 +754,10 @@ export class CasinoWorld {
     this.state.cash += CASHIER_BALANCE.fee;
     this.ledger.addRevenue(CASHIER_BALANCE.fee);
     eventBus.emit('moneyChanged', { cash: this.state.cash, delta: CASHIER_BALANCE.fee });
-    return { advance: CASHIER_BALANCE.advanceAmount };
+    // A5 'chip shortage' thins the advance. The fee is unchanged: the cage
+    // still charges full price for less money, which is the whole bite.
+    const advance = Math.round(CASHIER_BALANCE.advanceAmount * this.modifiers.cageCapacityMult());
+    return { advance };
   }
 
   /** Public wrapper so Staff.ts (cashier) can reach a cage's stand tile,
@@ -683,6 +771,7 @@ export class CasinoWorld {
   applyRageQuitPenalty(): void {
     this.ragePenalty = Math.min(RAGE_BALANCE.maxRatingPenalty, this.ragePenalty + RAGE_BALANCE.ratingDing);
     this.ledger.recordRageQuit();
+    this.reputation.onRageQuit();
   }
 
   // ---------- mess ----------
@@ -794,7 +883,11 @@ export class CasinoWorld {
     this.state.cash += delta;
     this.ledger.addRevenue(delta);
     this.ledger.recordPlay(result.wager, result.payout);
-    if (result.payout >= result.wager * JACKPOT_PAYOUT_MULT) this.ledger.recordJackpot();
+    if (result.payout >= result.wager * JACKPOT_PAYOUT_MULT) {
+      this.ledger.recordJackpot();
+      // A jackpot is the loudest word-of-mouth event a casino has.
+      this.reputation.onJackpotPayout();
+    }
     eventBus.emit('moneyChanged', { cash: this.state.cash, delta });
     eventBus.emit('machinePlayed', {
       machineId,
@@ -809,6 +902,25 @@ export class CasinoWorld {
     this.state.cash += amount;
     this.ledger.addRevenue(amount);
     eventBus.emit('moneyChanged', { cash: this.state.cash, delta: amount });
+  }
+
+  /**
+   * A1a — send one comp to one guest. The player's call, not the sim's.
+   *
+   * Returns false without charging when the guest is gone, has not played
+   * enough to be comp-eligible, or has already taken their session's fill.
+   */
+  sendComp(guestId: string, kind: CompKind): boolean {
+    const guest = this.guests.get(guestId);
+    if (!guest) return false;
+    guest.lastCompTick = this.tickCount;
+    if (!guest.receiveComp(kind)) return false;
+    const cost = COMPS.compUnit[kind];
+    this.state.cash -= cost;
+    this.ledger.addComp(cost);
+    eventBus.emit('moneyChanged', { cash: this.state.cash, delta: -cost });
+    eventBus.emit('compSent', { guestId, kind, cost });
+    return true;
   }
 
   /** An operational food stall: has at least one unlocked item the wallet can afford. */
@@ -976,6 +1088,8 @@ export class CasinoWorld {
       time: this.time.toJSON(),
       ledger: this.ledger.toJSON(),
       scenario: this.scenario ? this.scenario.toJSON() : null,
+      modifiers: this.modifiers.toJSON(),
+      reputation: this.reputation.toJSON(),
     };
   }
 
@@ -1016,12 +1130,18 @@ export class CasinoWorld {
     this.time = TimeSystem.fromJSON(data.time);
     this.ledger = Ledger.fromJSON(data.ledger);
     this.scenario = data.scenario ? ScenarioManager.fromJSON(data.scenario) : null;
+    this.modifiers = ModifierSystem.fromJSON(data.modifiers);
+    this.reputation = Reputation.fromJSON(data.reputation);
     this.refreshServiceAvailability();
     const scenarioId = this.scenario?.def.id ?? null;
     eventBus.emit('worldReset', { scenarioId });
     eventBus.emit('worldLoaded', { scenarioId });
     eventBus.emit('moneyChanged', { cash: this.state.cash, delta: 0 });
     eventBus.emit('hourPassed', { hour: this.time.hour, day: this.time.day });
+    eventBus.emit('modifiersChanged', {
+      ids: this.modifiers.activeModifiers.map((m) => m.id),
+    });
+    eventBus.emit('reputationChanged', { value: this.reputation.value, delta: 0 });
   }
 
   static fromJSON(data: CasinoWorldJSON): CasinoWorld {

@@ -19,6 +19,14 @@ export interface DailyRecord {
   guestCount: number;
   jackpotCount: number;
   rageQuitCount: number;
+  /** A1a: comp dollars issued today. Already counted inside `expenses` — this
+   *  breaks out how much of the day's cost was reinvestment. */
+  compSpend: number;
+  /** A12: reputation after this day's roll, and the movement that produced it. */
+  reputation: number;
+  reputationDelta: number;
+  /** A5: ids of the conditions that were in force for this day. */
+  modifierIds: string[];
 }
 
 export interface HourlySample {
@@ -47,7 +55,16 @@ export interface LedgerJSON {
   dayGuestCount?: number;
   dayJackpotCount?: number;
   dayRageQuitCount?: number;
+  dayCompSpend?: number;
   daySessions?: GuestSession[];
+}
+
+/** Day-close facts the ledger records but does not own. Passed in rather than
+ *  wired as dependencies so the Ledger stays a pure book. */
+export interface DayCloseContext {
+  reputation?: number;
+  reputationDelta?: number;
+  modifierIds?: string[];
 }
 
 const MAX_DAILY_RECORDS = 60;
@@ -66,6 +83,7 @@ export class Ledger {
   private dayGuestCount = 0;
   private dayJackpotCount = 0;
   private dayRageQuitCount = 0;
+  private dayCompSpend = 0;
   private daySessions: GuestSession[] = [];
 
   /** Negative amounts are fine — a jackpot payout is negative revenue. */
@@ -93,6 +111,20 @@ export class Ledger {
     this.dayRageQuitCount++;
   }
 
+  /** A comp issued to a guest: a real expense, tracked separately so the daily
+   *  report can show reinvestment rather than burying it in overheads. */
+  addComp(amount: number): void {
+    if (amount <= 0) return;
+    this.dayCompSpend += amount;
+    this.addExpense(amount);
+  }
+
+  /** Comp dollars issued so far today — the live figure the dial's readout
+   *  needs, since `closeDay` is the only other place it surfaces. */
+  get todayCompSpend(): number {
+    return this.dayCompSpend;
+  }
+
   /** A guest's session folds in here on leave or at midnight. */
   recordGuestSession(session: GuestSession): void {
     this.daySessions.push(session);
@@ -113,7 +145,7 @@ export class Ledger {
     this.hourExpenses = 0;
   }
 
-  closeDay(day: number): DailyRecord {
+  closeDay(day: number, ctx: DayCloseContext = {}): DailyRecord {
     const sorted = [...this.daySessions].sort((a, b) => b.netResult - a.netResult);
     const toEntry = (s: GuestSession): WinnerLoserEntry => ({
       name: s.name,
@@ -139,6 +171,10 @@ export class Ledger {
       guestCount: this.dayGuestCount,
       jackpotCount: this.dayJackpotCount,
       rageQuitCount: this.dayRageQuitCount,
+      compSpend: this.dayCompSpend,
+      reputation: ctx.reputation ?? 0,
+      reputationDelta: ctx.reputationDelta ?? 0,
+      modifierIds: ctx.modifierIds ?? [],
     };
     this.history.push(record);
     if (this.history.length > MAX_DAILY_RECORDS) this.history.shift();
@@ -149,6 +185,7 @@ export class Ledger {
     this.dayGuestCount = 0;
     this.dayJackpotCount = 0;
     this.dayRageQuitCount = 0;
+    this.dayCompSpend = 0;
     this.daySessions = [];
     return record;
   }
@@ -171,6 +208,7 @@ export class Ledger {
       dayGuestCount: this.dayGuestCount,
       dayJackpotCount: this.dayJackpotCount,
       dayRageQuitCount: this.dayRageQuitCount,
+      dayCompSpend: this.dayCompSpend,
       daySessions: [...this.daySessions],
     };
   }
@@ -190,6 +228,10 @@ export class Ledger {
       guestCount: r.guestCount ?? 0,
       jackpotCount: r.jackpotCount ?? 0,
       rageQuitCount: r.rageQuitCount ?? 0,
+      compSpend: r.compSpend ?? 0,
+      reputation: r.reputation ?? 0,
+      reputationDelta: r.reputationDelta ?? 0,
+      modifierIds: r.modifierIds ?? [],
     }));
     ledger.hourly = data.hourly.map((s) => ({ ...s }));
     ledger.dayPaidOut = data.dayPaidOut ?? 0;
@@ -197,6 +239,7 @@ export class Ledger {
     ledger.dayGuestCount = data.dayGuestCount ?? 0;
     ledger.dayJackpotCount = data.dayJackpotCount ?? 0;
     ledger.dayRageQuitCount = data.dayRageQuitCount ?? 0;
+    ledger.dayCompSpend = data.dayCompSpend ?? 0;
     ledger.daySessions = data.daySessions ? data.daySessions.map((s) => ({ ...s })) : [];
     return ledger;
   }

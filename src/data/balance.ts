@@ -304,3 +304,157 @@ export const SCORE_BALANCE = {
   dayEfficiencyFloor: 0.5, // never let a last-day win score below half credit
   ratingWeight: 0.01, // rating is 0-100; this keeps its influence proportional
 } as const;
+
+// ---------------------------------------------------------------------------
+// Track 2 — the depth spine (A5 modifiers, A1a comps, A12 reputation).
+//
+// Sourcing convention from the research report: [industry] traces to casino
+// operations sources; [design guess] has no authoritative basis and exists
+// only to be tuned. Do not defend a design guess in review as though it were
+// researched.
+// ---------------------------------------------------------------------------
+
+/** Per-defId expected return-to-player, so theoretical win can be weighted by
+ *  each game's own house edge rather than one blended number.
+ *
+ *  Poker is absent on purpose: its return comes from the rake on live table
+ *  population, not a static payout table, so it has no meaningful RTP. Callers
+ *  fall back to `defaultHouseEdge` for anything missing here — a game with no
+ *  entry earns comps at the fallback rate rather than none at all. */
+export function expectedRtpFor(defId: string): number | null {
+  switch (defId) {
+    case 'slot-machine':
+      return slotExpectedRtp();
+    case 'blackjack-table':
+      return blackjackExpectedRtp();
+    case 'craps-table':
+      return crapsExpectedRtp();
+    case 'roulette-table':
+      return rouletteExpectedRtp();
+    case 'big-six-wheel':
+      return bigSixExpectedRtp();
+    case 'high-limit-table':
+      return highLimitExpectedRtp();
+    default:
+      return null;
+  }
+}
+
+// A1a — targeted comps.
+//
+// theo = Σ_game wagered[game] × (1 − expectedRtp(game)). The player sends a
+// specific guest a specific comp and watches that guest respond.
+//
+// This is §G's stated fallback, taken deliberately. The global reinvestment
+// dial it replaces measured as a pure tax: match play a guest recycles returns
+// ≈100% of itself to the house as theo, and the happiness channel clamps at
+// 100 within ~$50 of comps, so both upside channels saturate and only the cost
+// remains. No value of a reinvestment rate produced the required "peak, then
+// negative near 30%" curve, because nothing in the model made moderate
+// comping pay. Discrete comps sidestep that: the spend is small, chosen, and
+// legibly attached to one guest — the distinction RCT players drew between
+// targeted coupons and diffuse marketing.
+export const COMPS = {
+  /** What each comp costs the house. [design guess] */
+  compUnit: { drink: 4, meal: 14, matchPlay: 25 },
+  /** Session theo a guest must generate before they are comp-eligible. Keeps
+   *  the player from comping someone who has not played. */
+  theoFloorToComp: 15, // [design guess]
+  /** Need restored by the comp that targets it, out of 100. */
+  needRestored: { drink: 45, meal: 55 },
+  /** Happiness per comp dollar, applied on top of the need it restores. */
+  happinessPerDollar: 0.6, // [design guess]
+  /** Cap on comp value per guest per session, as a multiple of the wallet they
+   *  arrived with. Bounds how far a single guest can be propped up. */
+  maxSessionExtensionPct: 0.35, // [design guess]
+} as const;
+
+export type CompKind = keyof typeof COMPS.compUnit;
+
+// A5 — challenge modifiers. All [design guess]; no external source applies.
+export interface ModifierEffects {
+  /** Multiplies the per-tick spawn chance. */
+  spawnMult?: number;
+  /** Multiplies an archetype's slice of the arrival roll. */
+  archetypeBias?: Partial<Record<GuestArchetypeId, number>>;
+  /** Multiplies a new guest's starting wallet. */
+  walletMult?: number;
+  /** Multiplies the cage's one-time advance amount. */
+  cageCapacityMult?: number;
+  /** Multiplies the per-tick thirst decay. */
+  thirstDecayMult?: number;
+  /** Charged at midnight unless the cleanliness floor was held all day. */
+  requiresCleanliness?: number;
+  failPenalty?: number;
+}
+
+export interface ModifierDef extends ModifierEffects {
+  id: string;
+  name: string;
+  /** One line, player-facing — this is the whole banner. */
+  blurb: string;
+}
+
+type GuestArchetypeId = 'regular' | 'highRoller' | 'biker' | 'tourist';
+
+export const MODIFIERS = {
+  maxActivePerDay: 2,
+  drawChance: 0.55,
+  catalog: [
+    {
+      id: 'convention',
+      name: 'Convention in town',
+      blurb: 'The hotel next door is full. Expect a crowd, and expect it to bet big.',
+      spawnMult: 1.45,
+      archetypeBias: { highRoller: 3.0 },
+    },
+    {
+      id: 'health-inspection',
+      name: 'Health inspection',
+      blurb: 'An inspector walks the floor at midnight. Keep it clean or pay the fine.',
+      requiresCleanliness: 80,
+      failPenalty: 400,
+    },
+    {
+      id: 'chip-shortage',
+      name: 'Chip shortage',
+      blurb: 'The cage is running light. Advances are half what they should be.',
+      cageCapacityMult: 0.5,
+    },
+    {
+      id: 'bus-junket',
+      name: 'Bus junket',
+      blurb: 'Two coaches of day-trippers. Lots of them, and not much in their pockets.',
+      spawnMult: 1.8,
+      archetypeBias: { tourist: 2.5 },
+      walletMult: 0.7,
+    },
+    {
+      id: 'heat-wave',
+      name: 'Heat wave',
+      blurb: 'Nobody can stop drinking. Stock the bar.',
+      thirstDecayMult: 1.6,
+    },
+  ] as readonly ModifierDef[],
+} as const;
+
+// A12 — reputation memory. All [design guess]. One persistent scalar, no
+// registry: the whole feature is "yesterday is visible in today's arrivals".
+export const REPUTATION = {
+  start: 50,
+  min: 0,
+  max: 100,
+  deltaPerRageQuit: -0.8,
+  deltaPerJackpotPayout: 0.5,
+  deltaPerContentLeaver: 0.15,
+  /** Fraction of the distance back to `start` closed each midnight. Without
+   *  this the scalar is absorbing at both ends. */
+  dailyDriftToMean: 0.05,
+  /** Hard cap on one day's net movement. The drift term alone does not stop a
+   *  death spiral — a bad day has to be survivable, not just recoverable. */
+  maxDailyDelta: 8,
+  /** Archetype arrival multipliers at reputation = max. Below `start` the
+   *  reciprocal applies, so a ruined reputation inverts the mix rather than
+   *  merely flattening it. */
+  archetypeBiasAtMax: { highRoller: 2.0, tourist: 1.6, biker: 0.5 },
+} as const;

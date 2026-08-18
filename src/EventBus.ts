@@ -30,6 +30,12 @@ export interface GameEvents {
   worldReset: { scenarioId: string | null };
   worldLoaded: { scenarioId: string | null };
   speedChanged: { speed: number };
+  /** A5: the day's conditions changed (midnight draw, or a save load). */
+  modifiersChanged: { ids: string[] };
+  /** A12: reputation rolled over at midnight. */
+  reputationChanged: { value: number; delta: number };
+  /** A1a: the player comped a specific guest. */
+  compSent: { guestId: string; kind: string; cost: number };
   // Extended as systems land (guestSpawned, machineBroke, ...). See PLAN.md catalog.
 }
 

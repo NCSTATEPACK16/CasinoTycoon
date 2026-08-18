@@ -7,7 +7,7 @@ import type { CasinoWorldJSON } from '../sim/world';
 // with null, the player saw an *empty slot* rather than an error. Every schema
 // change lands here in the same commit that bumps the version.
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 /** Loosely-typed world JSON. Migrations run on shapes older than the current
  *  CasinoWorldJSON, so they cannot be typed against it. */
@@ -24,7 +24,18 @@ export type Migration = (world: SaveWorld) => SaveWorld;
  * Migrations must tolerate missing keys, nulls, and empty arrays. Files in the
  * wild are never as well-formed as the ones you wrote the migration against.
  */
-export const MIGRATIONS: Record<number, Migration> = {};
+export const MIGRATIONS: Record<number, Migration> = {
+  // 2 → 3: Track 2's depth spine. A5 gives the world a modifier system and
+  // A12 a reputation scalar; both are persistent, so a v2 file needs them
+  // defaulted rather than absent. A v2 save has no history of either, so the
+  // honest default is a clean slate: no conditions in force, reputation at
+  // the neutral start.
+  3: (w) => ({
+    ...w,
+    modifiers: { activeIds: [], drawnForDay: 0 },
+    reputation: { value: 50, pendingDelta: 0 },
+  }),
+};
 
 /**
  * Replays every step from `from` to `to`. A v2 file reaching v5 runs 3, then 4,
