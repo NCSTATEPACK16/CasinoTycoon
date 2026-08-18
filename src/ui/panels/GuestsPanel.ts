@@ -1,6 +1,8 @@
 import { world } from '../../gameContext';
+import { eventBus } from '../../EventBus';
+import { getObjectDef } from '../../data/objects';
 import type { GuestArchetype, GuestState } from '../../sim/entities/Guest';
-import { el } from '../dom';
+import { el, formatCash, row } from '../dom';
 import type { PanelSpec } from '../WindowManager';
 import { iconLabel, type IconName } from '../icons';
 
@@ -32,31 +34,88 @@ export function makeGuestsPanel(): PanelSpec {
   const heading = el('div', 'p-heading', 'Guests: 0 in casino');
   const list = el('div');
   const detail = el('div');
-  content.append(heading, list, detail);
+  // Built once and re-synced, not rebuilt: at a 500ms refresh a button that is
+  // replaced on every tick is a button you cannot reliably press.
+  const follow = el('button', 'p-tool g-follow');
+  follow.addEventListener('click', () => {
+    if (!selectedId) return;
+    eventBus.emit('followGuest', { guestId: followingId === selectedId ? null : selectedId });
+  });
+  content.append(heading, list, follow, detail);
   let selectedId: string | null = null;
+  let followingId: string | null = null;
+
+  interface Row {
+    el: HTMLButtonElement;
+    label: HTMLSpanElement;
+    value: HTMLSpanElement;
+    mood: IconName;
+  }
+  const rows = new Map<string, Row>();
+  const more = el('div', 'p-note');
+
+  // Delegated, because the list is rebuilt on every refresh: a handler bound to
+  // a row would be clicking a node that is about to be detached.
+  list.addEventListener('click', (e) => {
+    const row = (e.target as HTMLElement).closest<HTMLElement>('.g-row');
+    const id = row?.dataset.guestId;
+    if (!id) return;
+    selectedId = selectedId === id ? null : id;
+    render();
+  });
 
   const render = () => {
     const guests = [...world.guests.values()];
     heading.textContent = `Guests: ${guests.length} in casino`;
     if (selectedId && !world.guests.has(selectedId)) selectedId = null;
 
-    list.textContent = '';
-    for (const g of guests.slice(0, MAX_ROWS)) {
-      const row = el('button', `p-row g-row${g.id === selectedId ? ' selected' : ''}`);
-      row.appendChild(iconLabel(moodIcon(g.needs.happiness), `Guest #${g.id.slice(2)}`));
-      row.appendChild(el('span', 'val', `$${Math.round(g.wallet)}`));
-      row.addEventListener('click', () => {
-        selectedId = selectedId === g.id ? null : g.id;
-        render();
-      });
-      list.appendChild(row);
+    // Rows are reused across refreshes rather than rebuilt. At twice a second,
+    // replacing the list wholesale would throw away focus, hover, and any
+    // in-progress click twice per second.
+    const shown = guests.slice(0, MAX_ROWS);
+    for (const g of shown) {
+      let row = rows.get(g.id);
+      if (!row) {
+        const el_ = el('button', 'p-row g-row');
+        el_.dataset.guestId = g.id;
+        const label = iconLabel(moodIcon(g.needs.happiness), g.name);
+        const value = el('span', 'val');
+        el_.append(label, value);
+        row = { el: el_, label, value, mood: moodIcon(g.needs.happiness) };
+        rows.set(g.id, row);
+      }
+      const mood = moodIcon(g.needs.happiness);
+      if (mood !== row.mood) {
+        row.mood = mood;
+        row.label.replaceWith((row.label = iconLabel(mood, g.name)));
+      }
+      row.value.textContent = `$${Math.round(g.wallet)}`;
+      row.el.classList.toggle('selected', g.id === selectedId);
     }
-    if (guests.length > MAX_ROWS) {
-      list.appendChild(el('div', 'p-note', `…and ${guests.length - MAX_ROWS} more`));
+    for (const [id, row] of rows) {
+      if (!shown.some((g) => g.id === id)) {
+        row.el.remove();
+        rows.delete(id);
+      }
     }
+    // Re-append in rank order; appending an existing child moves it.
+    for (const g of shown) list.appendChild(rows.get(g.id)!.el);
+
+    more.textContent =
+      guests.length > MAX_ROWS ? `…and ${guests.length - MAX_ROWS} more` : '';
+    if (guests.length > MAX_ROWS) list.appendChild(more);
+    else more.remove();
 
     detail.textContent = '';
     const sel = selectedId ? world.guests.get(selectedId) : undefined;
+    follow.hidden = !sel;
+    if (sel) {
+      const on = followingId === sel.id;
+      follow.replaceChildren(
+        iconLabel('rating', on ? 'Following — click to stop' : 'Follow camera'),
+      );
+      follow.classList.toggle('pressed', on);
+    }
     if (!sel) {
       detail.appendChild(
         el(
@@ -69,12 +128,30 @@ export function makeGuestsPanel(): PanelSpec {
       );
       return;
     }
-    const head = el('div', 'p-heading', `Guest #${sel.id.slice(2)} — ${STATE_LABEL[sel.state]}`);
+    const head = el('div', 'p-heading', `${sel.name} — ${STATE_LABEL[sel.state]}`);
     const arch = ARCHETYPE[sel.archetype];
     // Archetype rides as a chip rather than more text in the heading: it is the
     // one attribute worth spotting at a glance in a list of 130.
     if (arch) head.appendChild(iconLabel(arch.icon, arch.label, 'g-arch'));
     detail.appendChild(head);
+
+    // The session ledger. Every field below already existed on Guest — this
+    // panel is pure surfacing, which is why it costs nothing to show.
+    detail.appendChild(row('Wallet', formatCash(sel.wallet)));
+    const net = el('div', 'p-row');
+    // "Today", not "session": world.foldGuestSession() banks netResult into the
+    // day's ledger and zeroes it at midnight, so after a rollover this reads $0
+    // even for a guest who has been playing for hours.
+    net.appendChild(el('span', '', 'Net today'));
+    const netVal = el('span', `val ${sel.netResult >= 0 ? 'up' : 'down'}`);
+    // Signed from the guest's side: a guest up $40 is the house down $40.
+    netVal.textContent = `${sel.netResult >= 0 ? '+' : '-'}${formatCash(Math.abs(sel.netResult))}`;
+    net.appendChild(netVal);
+    detail.appendChild(net);
+    detail.appendChild(row('Wagered', formatCash(sel.totalWagered())));
+    const fav = sel.favoriteGame();
+    if (fav) detail.appendChild(row('Favorite game', getObjectDef(fav)?.name ?? fav));
+
     const bars: [string, number][] = [
       ['Energy', sel.needs.energy],
       ['Bladder', sel.needs.bladder],
@@ -105,5 +182,20 @@ export function makeGuestsPanel(): PanelSpec {
 
   render();
   const timer = window.setInterval(render, REFRESH_MS);
-  return { title: 'Guests', width: 300, content, onClose: () => window.clearInterval(timer) };
+  // The scene clears the follow itself when the guest leaves or the player
+  // grabs the camera, so the button state comes from the event, not from here.
+  const offFollow = eventBus.on('followGuest', ({ guestId }) => {
+    followingId = guestId;
+    render();
+  });
+  return {
+    title: 'Guests',
+    width: 320,
+    content,
+    onClose: () => {
+      window.clearInterval(timer);
+      offFollow();
+      if (followingId) eventBus.emit('followGuest', { guestId: null });
+    },
+  };
 }

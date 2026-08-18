@@ -20,6 +20,7 @@ const CELEBRATE_BOB_MULT = 2.2; // bigger bob than the normal seated bob
 export class GuestViews {
   private scene: Phaser.Scene;
   private sprites = new Map<string, Phaser.GameObjects.Image>();
+
   private baseKeys = new Map<string, string>();
   private facingLeft = new Map<string, boolean>();
   private pool: Phaser.GameObjects.Image[] = [];
@@ -108,5 +109,14 @@ export class GuestViews {
     }
     img.setVisible(false).setActive(false);
     this.pool.push(img);
+  }
+
+  /** Interpolated world position of a guest's sprite, or null if not drawn.
+   *  The camera follow in WorldScene reads this rather than recomputing the
+   *  iso projection, so the camera tracks the same smoothed position the
+   *  player sees instead of the raw tile. */
+  positionOf(guestId: string): { x: number; y: number } | null {
+    const img = this.sprites.get(guestId);
+    return img ? { x: img.x, y: img.y } : null;
   }
 }

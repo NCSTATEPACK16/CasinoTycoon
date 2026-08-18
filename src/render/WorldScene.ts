@@ -31,6 +31,9 @@ export default class WorldScene extends Phaser.Scene {
   private cameraController!: CameraController;
   private buildController!: BuildController;
   private guestViews!: GuestViews;
+  /** Guest the camera is tracking, or null. Cleared when the guest leaves or
+   *  the player takes manual camera control. */
+  private followingGuestId: string | null = null;
   private staffViews!: StaffViews;
   private thoughtBubbles!: ThoughtBubbles;
   private pincer!: PincerController;
@@ -112,6 +115,10 @@ export default class WorldScene extends Phaser.Scene {
     );
 
     eventBus.on('speedChanged', ({ speed }) => (this.speed = speed));
+    eventBus.on('followGuest', ({ guestId }) => {
+      this.followingGuestId = guestId;
+      if (!guestId) this.cameras.main.stopFollow();
+    });
   }
 
   getGlowPool(): GlowPool {
@@ -127,6 +134,7 @@ export default class WorldScene extends Phaser.Scene {
       world.tick();
     }
     this.cameraController.update();
+    this.updateFollow();
     // Camera may move without the pointer moving (edge scroll, drag) — re-derive hover.
     this.updateHover(this.input.activePointer);
     this.buildController.refresh(this.input.activePointer);
@@ -135,6 +143,30 @@ export default class WorldScene extends Phaser.Scene {
     this.thoughtBubbles.update();
     this.staffViews.update(frameAlpha, this.pincer.carriedStaffId);
     this.pincer.refresh(this.input.activePointer);
+  }
+
+  /** Keeps the camera on a followed guest. Runs after cameraController so a
+   *  manual drag wins for that frame and then releases the follow — grabbing
+   *  the camera should always mean you get the camera. */
+  private updateFollow(): void {
+    if (!this.followingGuestId) return;
+    if (this.cameraController.isDragging) {
+      this.stopFollowing();
+      return;
+    }
+    const pos = this.guestViews.positionOf(this.followingGuestId);
+    if (!pos) {
+      // Guest left the casino. Stop rather than stranding the camera.
+      this.stopFollowing();
+      return;
+    }
+    this.cameras.main.pan(pos.x, pos.y, 120, 'Linear', true);
+  }
+
+  private stopFollowing(): void {
+    if (!this.followingGuestId) return;
+    this.followingGuestId = null;
+    eventBus.emit('followGuest', { guestId: null });
   }
 
   private updateHover(p: Phaser.Input.Pointer): void {

@@ -745,6 +745,49 @@ label.p-mute input {
 .p-save-row + .p-save-row {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
+/* Thoughts aggregation: a bar scaled to the loudest complaint, so the shape of
+   the problem reads before the numbers do. */
+.th-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: 'text count' 'bar bar';
+  gap: var(--space-1) var(--space-2);
+  align-items: center;
+}
+.th-row > :first-child {
+  grid-area: text;
+}
+.th-row .val {
+  grid-area: count;
+}
+.th-bar {
+  grid-area: bar;
+  height: 4px;
+  background: var(--panel-well);
+  border: 1px solid var(--bevel-dark);
+}
+.th-bar > i {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+}
+
+.g-follow {
+  width: 100%;
+  margin-bottom: var(--space-2);
+}
+.g-arch {
+  margin-left: var(--space-2);
+  color: var(--gold);
+  font-weight: normal;
+}
+.p-row .val.up {
+  color: var(--profit);
+}
+.p-row .val.down {
+  color: var(--loss);
+}
+
 .p-save-label {
   font-weight: bold;
 }

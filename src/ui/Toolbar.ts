@@ -6,6 +6,7 @@ import type { PanelSpec, WindowManager } from './WindowManager';
 import { makeBuildPanel } from './panels/BuildPanel';
 import { makeFinancePanel } from './panels/FinancePanel';
 import { makeGuestsPanel } from './panels/GuestsPanel';
+import { makeThoughtsPanel } from './panels/ThoughtsPanel';
 import { makeStaffPanel } from './panels/StaffPanel';
 import { makeObjectivesPanel } from './panels/ObjectivesPanel';
 import { makeRatingPanel } from './panels/RatingPanel';
@@ -29,6 +30,7 @@ export class Toolbar {
       { id: 'build', label: 'Build', icon: 'build', make: makeBuildPanel },
       { id: 'finance', label: 'Finance', icon: 'finance', make: () => makeFinancePanel(windows) },
       { id: 'guests', label: 'Guests', icon: 'guests', make: makeGuestsPanel },
+      { id: 'thoughts', label: 'Thoughts', icon: 'thought', make: makeThoughtsPanel },
       { id: 'staff', label: 'Staff', icon: 'staff', make: makeStaffPanel },
       { id: 'objectives', label: 'Objectives', icon: 'objectives', make: makeObjectivesPanel },
       { id: 'sound', label: 'Sound', icon: 'sound', make: makeSoundPanel },

@@ -12,6 +12,8 @@ export interface GameEvents {
   guestSpawned: { id: string; archetype: import('./sim/entities/Guest').GuestArchetype };
   guestLeft: { id: string };
   guestThought: { guestId: string; thoughtId: string; text: string };
+  /** null stops following. The camera resumes normal drag/edge control. */
+  followGuest: { guestId: string | null };
   machinePlayed: { machineId: string; guestId: string; wager: number; payout: number };
   machineBroke: { machineId: string };
   machineFixed: { machineId: string };

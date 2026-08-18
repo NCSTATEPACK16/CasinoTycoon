@@ -30,6 +30,9 @@ export interface GuestNeeds {
 }
 
 export interface GuestThought {
+  /** Stable THOUGHTS id. Kept alongside the text because the text can name its
+   *  subject ("the Roulette Table is a ripoff"), so it is not a grouping key. */
+  id: string;
   text: string;
   atTick: number;
 }
@@ -170,7 +173,7 @@ export class Guest extends Walker {
    * predicates and one-off event-triggered reactions like a rip-off purchase. */
   private recordThought(tick: number, id: string, text: string, cooldownKey: string = id): void {
     this.thoughtLast.set(cooldownKey, tick);
-    this.thoughts.push({ text, atTick: tick });
+    this.thoughts.push({ id, text, atTick: tick });
     if (this.thoughts.length > MAX_THOUGHTS) this.thoughts.shift();
     eventBus.emit('guestThought', { guestId: this.id, thoughtId: id, text });
   }
@@ -417,6 +420,20 @@ export class Guest extends Walker {
 
   adjustHappiness(delta: number): void {
     this.needs.happiness = Math.min(100, Math.max(0, this.needs.happiness + delta));
+  }
+
+  /** Total wagered this session, across every game. */
+  totalWagered(): number {
+    let sum = 0;
+    for (const wager of this.wagersByGame.values()) sum += wager;
+    return sum;
+  }
+
+  /** Per-game wagers, for callers that need the breakdown (theoretical-value
+   *  math weights each game by its own house edge). Copied so the internal
+   *  ledger stays owned by the guest. */
+  wagers(): ReadonlyMap<string, number> {
+    return new Map(this.wagersByGame);
   }
 
   /** The defId this guest has wagered the most on, or null if it never played. */
