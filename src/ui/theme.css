@@ -6,26 +6,79 @@
  */
 
 :root {
+  /* Authoritative token set — mirrors casino-tycoon-ui-mockup.html's :root.
+     Keep the two in step; the mockup is the visual spec for these values. */
+
+  /* Type */
   --ui-font: Verdana, Geneva, 'DejaVu Sans', sans-serif;
+  --fs-caption: 11px;
+  --fs-body: 13px;
+  --fs-label: 13px;
+  --fs-subtitle: 15px;
+  --fs-title: 17px;
+  --fs-readout: 18px;
+
+  /* Surfaces */
   --panel: #4a4335;
-  --panel-light: #6e6550;
-  --panel-dark: #2b2619;
-  --panel-face: #575039;
-  --ink: #f0e7d0;
-  --ink-dim: #b5ab8e;
+  --panel-raised: #554d3d;
+  --panel-well: #3b3529;
+
+  /* Bevel — the faux-3D idiom stays; the values sharpen */
+  --bevel-light: #7d7358;
+  --bevel-dark: #211d13;
+  --shadow-hard: rgba(0, 0, 0, 0.45);
+
+  /* Titlebar */
+  --title-top: #86343c;
+  --title-bot: #5a1f24;
+
+  /* Accents */
   --gold: #e8b93c;
+  --gold-hover: #f6cd5a;
   --gold-dark: #9c7a1c;
   --felt: #1e5c38;
-  --danger: #c0392b;
-  --titlebar-a: #5a1f24;
-  --titlebar-b: #86343c;
-  --shadow: rgba(0, 0, 0, 0.45);
+
+  /* Text — the legibility fix; the old khaki-on-khaki was the weakest link */
+  --text-primary: #f4efe2;
+  --text-secondary: #c9bfa4;
+  --text-disabled: #8a8069;
+
+  /* Semantic data colors */
+  --profit: #4caf6a;
+  --loss: #d5514e;
+  --warning: #e0a53a;
+
+  /* 4px spacing grid */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* Minimum interactive target. Touch wants 44px — a Capacitor build swaps
+     this one value rather than auditing every button. */
+  --target-min: 28px;
+
+  /* Motion */
+  --ease-overshoot: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-window: 280ms;
+
+  /* Heat ramps — single hue per B3 */
+  --heat-traffic-lo: #1e5c38;
+  --heat-traffic-hi: #7be3a1;
+  --heat-profit-lo: #5a4410;
+  --heat-profit-hi: #f6cd5a;
 }
 
 #ui-root {
   font-family: var(--ui-font);
   font-size: 12px;
-  color: var(--ink);
+  color: var(--text-primary);
   user-select: none;
   -webkit-user-select: none;
 }
@@ -61,13 +114,13 @@
 .bevel-raised {
   background: var(--panel);
   border: 2px solid;
-  border-color: var(--panel-light) var(--panel-dark) var(--panel-dark) var(--panel-light);
+  border-color: var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light);
 }
 
 .bevel-sunken {
-  background: var(--panel-dark);
+  background: var(--bevel-dark);
   border: 2px solid;
-  border-color: var(--panel-dark) var(--panel-light) var(--panel-light) var(--panel-dark);
+  border-color: var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark);
 }
 
 /* ---------- toolbar ---------- */
@@ -79,7 +132,7 @@
   height: 46px;
   padding: 4px 8px;
   box-sizing: border-box;
-  box-shadow: 0 -2px 6px var(--shadow);
+  box-shadow: 0 -2px 6px var(--shadow-hard);
 }
 
 .tb-group {
@@ -95,10 +148,10 @@
   font-family: inherit;
   font-size: 11px;
   font-weight: bold;
-  color: var(--ink);
-  background: var(--panel-face);
+  color: var(--text-primary);
+  background: var(--panel-raised);
   border: 2px solid;
-  border-color: var(--panel-light) var(--panel-dark) var(--panel-dark) var(--panel-light);
+  border-color: var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light);
   padding: 2px 10px;
   cursor: pointer;
   display: flex;
@@ -119,8 +172,8 @@
 }
 
 .tb-btn.pressed {
-  background: var(--panel-dark);
-  border-color: var(--panel-dark) var(--panel-light) var(--panel-light) var(--panel-dark);
+  background: var(--bevel-dark);
+  border-color: var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark);
   color: var(--gold);
 }
 
@@ -181,18 +234,18 @@
   pointer-events: auto;
   background: var(--panel);
   border: 2px solid;
-  border-color: var(--panel-light) var(--panel-dark) var(--panel-dark) var(--panel-light);
-  box-shadow: 3px 3px 0 var(--shadow);
+  border-color: var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light);
+  box-shadow: 3px 3px 0 var(--shadow-hard);
   display: flex;
   flex-direction: column;
 }
 
 .ui-window.win-opening {
-  animation: win-pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: win-pop var(--dur-window) var(--ease-overshoot);
 }
 
 .ui-window.win-closing {
-  animation: win-shrink 0.15s ease-in forwards;
+  animation: win-shrink 0.15s var(--ease-exit) forwards;
 }
 
 @keyframes win-pop {
@@ -218,8 +271,8 @@
   align-items: center;
   gap: 4px;
   padding: 3px 4px 3px 8px;
-  background: linear-gradient(180deg, var(--titlebar-b), var(--titlebar-a));
-  border-bottom: 2px solid var(--panel-dark);
+  background: linear-gradient(180deg, var(--title-top), var(--title-bot));
+  border-bottom: 2px solid var(--bevel-dark);
   cursor: grab;
   touch-action: none;
 }
@@ -246,20 +299,20 @@
   line-height: 1;
   width: 18px;
   height: 18px;
-  color: var(--ink);
-  background: var(--panel-face);
+  color: var(--text-primary);
+  background: var(--panel-raised);
   border: 2px solid;
-  border-color: var(--panel-light) var(--panel-dark) var(--panel-dark) var(--panel-light);
+  border-color: var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light);
   cursor: pointer;
   padding: 0;
 }
 
 .win-btn:active {
-  border-color: var(--panel-dark) var(--panel-light) var(--panel-light) var(--panel-dark);
+  border-color: var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark);
 }
 
 .win-btn.win-close:hover {
-  background: var(--danger);
+  background: var(--loss);
 }
 
 .win-body {
@@ -275,7 +328,7 @@
 /* ---------- panel stub content ---------- */
 
 .p-note {
-  color: var(--ink-dim);
+  color: var(--text-secondary);
   font-style: italic;
   font-size: 11px;
   margin-top: 8px;
@@ -288,7 +341,7 @@
   gap: 8px;
   padding: 4px 6px;
   margin-bottom: 3px;
-  background: var(--panel-dark);
+  background: var(--bevel-dark);
   font-variant-numeric: tabular-nums;
 }
 
@@ -318,13 +371,13 @@
   align-items: center;
   gap: 2px;
   padding: 6px 2px;
-  background: var(--panel-face);
+  background: var(--panel-raised);
   border: 2px solid;
-  border-color: var(--panel-light) var(--panel-dark) var(--panel-dark) var(--panel-light);
+  border-color: var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light);
   text-align: center;
   font-size: 10px;
   font-family: inherit;
-  color: var(--ink);
+  color: var(--text-primary);
   cursor: pointer;
 }
 
@@ -333,8 +386,8 @@
 }
 
 .p-tile.selected {
-  background: var(--panel-dark);
-  border-color: var(--panel-dark) var(--panel-light) var(--panel-light) var(--panel-dark);
+  background: var(--bevel-dark);
+  border-color: var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark);
   color: var(--gold);
 }
 
@@ -344,7 +397,7 @@
 }
 
 .p-tile.disabled:hover {
-  background: var(--panel-face);
+  background: var(--panel-raised);
 }
 
 .p-tool {
@@ -355,10 +408,10 @@
   font-family: inherit;
   font-size: 11px;
   font-weight: bold;
-  color: var(--ink);
-  background: var(--panel-face);
+  color: var(--text-primary);
+  background: var(--panel-raised);
   border: 2px solid;
-  border-color: var(--panel-light) var(--panel-dark) var(--panel-dark) var(--panel-light);
+  border-color: var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light);
   cursor: pointer;
 }
 
@@ -367,8 +420,8 @@
 }
 
 .p-tool.selected {
-  background: var(--panel-dark);
-  border-color: var(--panel-dark) var(--panel-light) var(--panel-light) var(--panel-dark);
+  background: var(--bevel-dark);
+  border-color: var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark);
   color: var(--gold);
 }
 
@@ -385,7 +438,7 @@
   flex: 1;
   height: 8px;
   background: #171410;
-  border: 1px solid var(--panel-dark);
+  border: 1px solid var(--bevel-dark);
 }
 
 .p-bar > i {
@@ -395,14 +448,14 @@
 }
 
 .p-bar.low > i {
-  background: var(--danger);
+  background: var(--loss);
 }
 
 .p-progress {
   height: 14px;
   background: #171410;
   border: 2px solid;
-  border-color: var(--panel-dark) var(--panel-light) var(--panel-light) var(--panel-dark);
+  border-color: var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark);
   position: relative;
   margin: 4px 0;
 }
@@ -418,7 +471,7 @@
   width: 100%;
   background: #171410;
   border: 2px solid;
-  border-color: var(--panel-dark) var(--panel-light) var(--panel-light) var(--panel-dark);
+  border-color: var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark);
   box-sizing: border-box;
 }
 
@@ -428,7 +481,7 @@ button.g-row {
   width: 100%;
   font-family: inherit;
   font-size: 12px;
-  color: var(--ink);
+  color: var(--text-primary);
   border: 0;
   cursor: pointer;
 }
@@ -444,7 +497,7 @@ button.g-row.selected {
 .g-thought {
   padding: 3px 6px;
   margin-bottom: 2px;
-  background: var(--panel-dark);
+  background: var(--bevel-dark);
   font-style: italic;
   font-size: 11px;
 }
@@ -485,7 +538,7 @@ button.g-row.selected {
   align-items: center;
   gap: 4px;
   font-size: 11px;
-  color: var(--ink-dim);
+  color: var(--text-secondary);
 }
 
 /* ---------- sound settings ---------- */
@@ -515,10 +568,10 @@ label.p-mute input {
   display: inline-block;
   max-width: 46vw;
   padding: 5px 12px;
-  background: var(--panel-dark);
+  background: var(--bevel-dark);
   border: 2px solid;
-  border-color: var(--panel-light) var(--panel-dark) var(--panel-dark) var(--panel-light);
-  box-shadow: 2px 2px 0 var(--shadow);
+  border-color: var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light);
+  box-shadow: 2px 2px 0 var(--shadow-hard);
   font-weight: bold;
   font-size: 12px;
   cursor: pointer;
@@ -687,15 +740,15 @@ label.p-mute input {
   padding: 5px 6px;
   font-family: inherit;
   font-size: 11px;
-  color: var(--ink);
-  background: var(--panel-dark);
+  color: var(--text-primary);
+  background: var(--bevel-dark);
   border: 2px solid;
-  border-color: var(--panel-dark) var(--panel-light) var(--panel-light) var(--panel-dark);
+  border-color: var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark);
   user-select: text;
   -webkit-user-select: text;
 }
 .p-input::placeholder {
-  color: var(--ink-dim);
+  color: var(--text-secondary);
 }
 .p-input:focus {
   outline: 1px solid var(--gold);
