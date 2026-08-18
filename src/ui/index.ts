@@ -14,11 +14,13 @@ import {
   reconcileForCurrentUser,
   resolveConflictsForCurrentUser,
 } from '../services/auth';
+import { injectIconSprite } from './icons';
 
 // Mounts the DOM UI overlay (toolbar, ticker, window layer) into #ui-root.
 // The root stays pointer-events:none; widgets opt back in, so the Phaser
 // canvas keeps receiving all other input.
 export function initUI(): void {
+  injectIconSprite();
   const uiRoot = document.getElementById('ui-root');
   if (!uiRoot) throw new Error('#ui-root missing from index.html');
   const windows = new WindowManager(uiRoot);
@@ -75,7 +77,7 @@ export function initUI(): void {
       makeEndCard(
         uiRoot,
         windows,
-        '🎉 Scenario complete!',
+        'Scenario complete!',
         `The books closed day ${day} at ${formatCash(profit)} profit — goal smashed.`,
       ),
     );
@@ -85,7 +87,7 @@ export function initUI(): void {
       makeEndCard(
         uiRoot,
         windows,
-        '💸 The backers walk',
+        'The backers walk',
         `Day ${day} ended without hitting the goal. The keys go back to the bank.`,
       ),
     );

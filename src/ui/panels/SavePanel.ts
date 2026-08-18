@@ -83,5 +83,5 @@ export function makeSavePanel(): PanelSpec {
   };
 
   void render();
-  return { title: '💾 Save / Load', width: 340, content };
+  return { title: 'Save / Load', width: 340, content };
 }

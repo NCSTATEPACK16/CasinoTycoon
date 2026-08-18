@@ -1,15 +1,16 @@
 import { audio, type AudioBus } from '../../services/AudioService';
 import { el } from '../dom';
 import type { PanelSpec } from '../WindowManager';
+import { iconLabel, type IconName } from '../icons';
 
 // Volume settings: music (generative ambiance) and sfx sliders + master mute.
 // Values persist via AudioService (localStorage).
 export function makeSoundPanel(): PanelSpec {
   const content = el('div');
 
-  const slider = (label: string, bus: AudioBus): HTMLElement => {
+  const slider = (label: string, bus: AudioBus, glyph: IconName): HTMLElement => {
     const row = el('div', 'p-row');
-    row.appendChild(el('span', '', label));
+    row.appendChild(iconLabel(glyph, label));
     const input = document.createElement('input');
     input.type = 'range';
     input.min = '0';
@@ -25,15 +26,15 @@ export function makeSoundPanel(): PanelSpec {
     return row;
   };
 
-  content.appendChild(slider('🎵 Music', 'music'));
-  content.appendChild(slider('🔔 Effects', 'sfx'));
+  content.appendChild(slider('Music', 'music', 'music'));
+  content.appendChild(slider('Effects', 'sfx', 'effects'));
 
   const muteRow = el('label', 'p-row p-mute');
   const mute = document.createElement('input');
   mute.type = 'checkbox';
   mute.checked = audio.isMuted();
   mute.addEventListener('change', () => audio.setMuted(mute.checked));
-  muteRow.append(el('span', '', '🔇 Mute all'), mute);
+  muteRow.append(iconLabel('mute', 'Mute all'), mute);
   content.appendChild(muteRow);
 
   content.appendChild(el('div', 'p-note', 'Sounds: Kenney.nl packs (CC0).'));

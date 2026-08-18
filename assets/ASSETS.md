@@ -138,6 +138,27 @@ looping it on the music bus.
 **Known gaps** (no good free isometric source; placeholders stay until commissioned art):
 slot machine cabinets, blackjack tables, guest/staff character sprites in iso perspective.
 
+## UI typeface and icons (active — Track 1 modernization)
+
+| Asset | Source | License | Attribution required |
+|---|---|---|---|
+| `public/fonts/inter-latin-wght.woff2` | Inter, via `@fontsource-variable/inter` | SIL OFL 1.1 | No |
+| `src/ui/icons.generated.ts` | [lucide-static](https://lucide.dev) v1.32.0 | ISC | No |
+
+The font file is the Latin-subset weight-axis variable build (~48KB), copied out
+of the npm package and committed so a build never depends on the package
+resolving. Regenerate the icon sprite with `npm run build-icons` after editing
+the `ICONS` map in `scripts/build-icons.mjs`.
+
+Lucide covered every glyph this UI needs, including the casino-suit ones
+(`spade`, `club`, `diamond`, `dice-*`). game-icons.net was evaluated and proved
+unnecessary — which also avoids its CC BY attribution requirement. If a future
+glyph does need it, add the attribution line before committing.
+
+Emoji is deliberately retained in `src/data/thoughts.ts` (`THOUGHT_EMOJI`): a
+guest thought bubble is speech, where the casual register is the point, unlike
+UI chrome which should read as a designed control surface.
+
 ## License notes
 
 Kenney assets are CC0. Record any non-Kenney addition here with its license before committing it.

@@ -13,11 +13,12 @@ import { makeSoundPanel } from './panels/SoundPanel';
 import { makeSavePanel } from './panels/SavePanel';
 import { makeLoginPanel } from './panels/LoginPanel';
 import { makeLeaderboardPanel } from './panels/LeaderboardPanel';
+import { icon, type IconName } from './icons';
 
 interface ToolbarButton {
   id: string;
   label: string;
-  icon: string;
+  icon: IconName;
   make: () => PanelSpec;
 }
 
@@ -25,15 +26,15 @@ interface ToolbarButton {
 export class Toolbar {
   constructor(uiRoot: HTMLElement, windows: WindowManager) {
     const BUTTONS: ToolbarButton[] = [
-      { id: 'build', label: 'Build', icon: '🔨', make: makeBuildPanel },
-      { id: 'finance', label: 'Finance', icon: '💰', make: () => makeFinancePanel(windows) },
-      { id: 'guests', label: 'Guests', icon: '👥', make: makeGuestsPanel },
-      { id: 'staff', label: 'Staff', icon: '🔧', make: makeStaffPanel },
-      { id: 'objectives', label: 'Objectives', icon: '🎯', make: makeObjectivesPanel },
-      { id: 'sound', label: 'Sound', icon: '🔊', make: makeSoundPanel },
-      { id: 'save', label: 'Save', icon: '💾', make: makeSavePanel },
-      { id: 'account', label: 'Account', icon: '👤', make: makeLoginPanel },
-      { id: 'leaderboard', label: 'Ranks', icon: '🏆', make: makeLeaderboardPanel },
+      { id: 'build', label: 'Build', icon: 'build', make: makeBuildPanel },
+      { id: 'finance', label: 'Finance', icon: 'finance', make: () => makeFinancePanel(windows) },
+      { id: 'guests', label: 'Guests', icon: 'guests', make: makeGuestsPanel },
+      { id: 'staff', label: 'Staff', icon: 'staff', make: makeStaffPanel },
+      { id: 'objectives', label: 'Objectives', icon: 'objectives', make: makeObjectivesPanel },
+      { id: 'sound', label: 'Sound', icon: 'sound', make: makeSoundPanel },
+      { id: 'save', label: 'Save', icon: 'save', make: makeSavePanel },
+      { id: 'account', label: 'Account', icon: 'account', make: makeLoginPanel },
+      { id: 'leaderboard', label: 'Ranks', icon: 'leaderboard', make: makeLeaderboardPanel },
     ];
 
     const bar = el('div', 'ui-toolbar bevel-raised');
@@ -44,7 +45,7 @@ export class Toolbar {
     const buttons = new Map<string, HTMLButtonElement>();
     for (const def of BUTTONS) {
       const btn = el('button', 'tb-btn');
-      btn.appendChild(el('span', 'tb-icon', def.icon));
+      btn.appendChild(icon(def.icon, 'tb-icon'));
       btn.appendChild(el('span', '', def.label));
       btn.addEventListener('click', () => windows.toggle(def.id, def.make));
       group.appendChild(btn);
@@ -56,11 +57,15 @@ export class Toolbar {
     const speedGroup = el('div', 'tb-group tb-speed');
     const speedButtons: [number, HTMLButtonElement][] = [];
     for (const [label, value] of [
-      ['⏸', 0],
-      ['1×', 1],
-      ['3×', 3],
+      ['pause', 0],
+      ['1\u00d7', 1],
+      ['3\u00d7', 3],
     ] as const) {
-      const btn = el('button', 'tb-btn tb-speed-btn', label);
+      const btn = el('button', 'tb-btn tb-speed-btn');
+      // Pause is a glyph; the speeds are numerals and stay type.
+      if (label === 'pause') btn.appendChild(icon('pause'));
+      else btn.textContent = label;
+      btn.title = label === 'pause' ? 'Pause' : `Speed ${label}`;
       btn.addEventListener('click', () => eventBus.emit('speedChanged', { speed: value }));
       speedGroup.appendChild(btn);
       speedButtons.push([value, btn]);
@@ -75,13 +80,13 @@ export class Toolbar {
     bar.appendChild(el('div', 'tb-spacer'));
 
     const cash = el('div', 'tb-readout tb-cash bevel-sunken');
-    const cashIcon = el('span', 'ro-icon', '💵');
+    const cashIcon = icon('cash', 'ro-icon');
     const cashValue = el('span', '', formatCash(STARTING_CASH));
     cash.append(cashIcon, cashValue);
     bar.appendChild(cash);
 
     const clock = el('div', 'tb-readout bevel-sunken');
-    const clockIcon = el('span', 'ro-icon', '🕗');
+    const clockIcon = icon('clock', 'ro-icon');
     const clockValue = el('span', '', 'Day 1 · 12:00');
     clock.append(clockIcon, clockValue);
     bar.appendChild(clock);
@@ -94,17 +99,17 @@ export class Toolbar {
 
     const guestsRo = el('div', 'tb-readout bevel-sunken');
     guestsRo.title = 'Guests on the floor';
-    guestsRo.append(el('span', 'ro-icon', '👥'), el('span', '', '0'));
+    guestsRo.append(icon('guests', 'ro-icon'), el('span', '', '0'));
     bar.appendChild(guestsRo);
 
     const moodRo = el('div', 'tb-readout bevel-sunken');
     moodRo.title = 'Average guest happiness';
-    moodRo.append(el('span', 'ro-icon', '😊'), el('span', '', '—'));
+    moodRo.append(icon('mood', 'ro-icon'), el('span', '', '—'));
     bar.appendChild(moodRo);
 
     const ratingRo = el('div', 'tb-readout bevel-sunken');
     ratingRo.id = 'tb-rating';
-    ratingRo.append(el('span', 'ro-icon', '⭐'), el('span', '', '0/100'));
+    ratingRo.append(icon('rating', 'ro-icon'), el('span', '', '0/100'));
     ratingRo.classList.add('tb-readout-btn');
     ratingRo.title = 'Casino rating — click for a breakdown';
     ratingRo.addEventListener('click', () => windows.toggle('rating', makeRatingPanel));

@@ -3,6 +3,7 @@ import { OBJECT_CATALOG } from '../../data/objects';
 import { gameState, world } from '../../gameContext';
 import { el, formatCash } from '../dom';
 import type { PanelSpec } from '../WindowManager';
+import { iconLabel } from '../icons';
 
 // Live build catalog: selecting a tile enters place mode (ghost in the world),
 // the bulldozer enters sell mode. State round-trips via buildModeChanged so
@@ -35,7 +36,8 @@ export function makeBuildPanel(): PanelSpec {
   }
   content.appendChild(grid);
 
-  const dozer = el('button', 'p-tool', '🚜 Bulldoze — 50% refund');
+  const dozer = el('button', 'p-tool');
+  dozer.appendChild(iconLabel('bulldoze', 'Bulldoze — 50% refund'));
   dozer.addEventListener('click', () => {
     eventBus.emit('buildModeChanged', { mode: mode === 'bulldoze' ? 'off' : 'bulldoze' });
   });

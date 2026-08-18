@@ -2,6 +2,7 @@ import { world } from '../../gameContext';
 import { el, formatCash, row } from '../dom';
 import type { PanelSpec } from '../WindowManager';
 import { showScenarioSelect } from '../ScenarioSelect';
+import { iconLabel } from '../icons';
 
 const REFRESH_MS = 500;
 
@@ -16,7 +17,8 @@ export function makeObjectivesPanel(): PanelSpec {
       content.appendChild(el('div', 'p-heading', 'Sandbox'));
       content.appendChild(row('Goal', 'None — free play'));
       content.appendChild(row('Casino rating', `${world.rating}/100`));
-      const pick = el('button', 'p-tool', '🎯 Choose a scenario…');
+      const pick = el('button', 'p-tool');
+      pick.appendChild(iconLabel('objectives', 'Choose a scenario\u2026'));
       pick.addEventListener('click', () => {
         const uiRoot = document.getElementById('ui-root');
         if (uiRoot) showScenarioSelect(uiRoot);
@@ -47,9 +49,13 @@ export function makeObjectivesPanel(): PanelSpec {
     content.appendChild(progress);
 
     if (sm.status === 'won') {
-      content.appendChild(el('div', 'p-heading', '🎉 Scenario complete!'));
+      const won = el('div', 'p-heading');
+      won.appendChild(iconLabel('celebrate', 'Scenario complete!'));
+      content.appendChild(won);
     } else if (sm.status === 'failed') {
-      content.appendChild(el('div', 'p-heading', '💸 Scenario failed'));
+      const lost = el('div', 'p-heading');
+      lost.appendChild(iconLabel('fail', 'Scenario failed'));
+      content.appendChild(lost);
     }
   };
 

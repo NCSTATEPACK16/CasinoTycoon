@@ -4,6 +4,7 @@ import { world } from '../gameContext';
 import { el, formatCash } from './dom';
 import { AUTOSAVE_SLOT, saveService } from '../services/SaveService';
 import { leaderboard } from '../services/LeaderboardService';
+import { iconLabel } from './icons';
 
 // Fullscreen scenario picker: shown at boot and again from the end cards.
 // Picking anything resets the world, so the sim idling behind it is harmless.
@@ -11,7 +12,7 @@ export function showScenarioSelect(uiRoot: HTMLElement): void {
   if (uiRoot.querySelector('.sc-overlay')) return;
   const overlay = el('div', 'sc-overlay');
   const panel = el('div', 'sc-panel bevel-raised');
-  panel.appendChild(el('h1', 'sc-title', '🎰 CASINO TYCOON'));
+  panel.appendChild(el('h1', 'sc-title', 'CASINO TYCOON'));
   panel.appendChild(el('div', 'sc-subtitle', 'Choose a scenario'));
 
   const cards = el('div', 'sc-cards');
@@ -28,10 +29,10 @@ export function showScenarioSelect(uiRoot: HTMLElement): void {
     void leaderboard.getBest(def.id).then((best) => {
       if (best)
         stats.appendChild(
-          el(
-            'span',
+          iconLabel(
+            'rating',
+            `Best ${formatCash(best.bestDailyProfit)} \u00b7 ${best.completedInDays}d`,
             'sc-badge',
-            `★ Best ${formatCash(best.bestDailyProfit)} · ${best.completedInDays}d`,
           ),
         );
     });
@@ -57,7 +58,9 @@ export function showScenarioSelect(uiRoot: HTMLElement): void {
     if (infos.length === 0) return;
     const latest = infos.reduce((a, b) => (a.savedAt > b.savedAt ? a : b));
     const cont = el('button', 'sc-card sc-continue bevel-raised');
-    cont.appendChild(el('div', 'sc-card-name', '▶ Continue'));
+    const contName = el('div', 'sc-card-name');
+    contName.appendChild(iconLabel('play', 'Continue'));
+    cont.appendChild(contName);
     cont.appendChild(
       el(
         'div',

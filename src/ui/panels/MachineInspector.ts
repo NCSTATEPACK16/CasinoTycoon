@@ -3,6 +3,7 @@ import { world } from '../../gameContext';
 import { Rng } from '../../sim/rng';
 import { el, formatCash } from '../dom';
 import type { PanelSpec } from '../WindowManager';
+import { iconLabel } from '../icons';
 
 const REFRESH_MS = 500;
 const MIN_COST = 1;
@@ -37,7 +38,8 @@ export function makeMachineInspector(machineId: string): PanelSpec {
   costControls.append(minus, costVal, plus);
   costRow.appendChild(costControls);
 
-  const freePlay = el('button', 'p-tool', '🎲 Free Play (test spin)');
+  const freePlay = el('button', 'p-tool');
+  freePlay.appendChild(iconLabel('freePlay', 'Free Play (test spin)'));
   const freeResult = el('div', 'p-note', 'Spin the RNG without spending a dime.');
 
   content.append(status, relRow, profitRow, costRow, freePlay, freeResult);
@@ -73,8 +75,11 @@ export function makeMachineInspector(machineId: string): PanelSpec {
     const m = machine();
     if (!m) return;
     const payout = m.testSpin(freePlayRng);
-    freeResult.textContent =
-      payout > 0 ? `🎉 WIN — would pay ${formatCash(payout)}!` : 'No win. The house smiles.';
+    if (payout > 0) {
+      freeResult.replaceChildren(iconLabel('celebrate', `WIN — would pay ${formatCash(payout)}!`));
+    } else {
+      freeResult.textContent = 'No win. The house smiles.';
+    }
   });
 
   render();

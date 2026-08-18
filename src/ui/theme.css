@@ -10,7 +10,7 @@
      Keep the two in step; the mockup is the visual spec for these values. */
 
   /* Type */
-  --ui-font: Verdana, Geneva, 'DejaVu Sans', sans-serif;
+  --ui-font: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --fs-caption: 11px;
   --fs-body: 13px;
   --fs-label: 13px;
@@ -73,6 +73,40 @@
   --heat-traffic-hi: #7be3a1;
   --heat-profit-lo: #5a4410;
   --heat-profit-hi: #f6cd5a;
+}
+
+/* Inter, self-hosted. Latin-subset weight-axis variable file (~48KB) lifted
+   from @fontsource-variable/inter and committed to public/fonts/, so a build
+   never depends on the npm package resolving. SIL OFL 1.1 — see
+   assets/ASSETS.md.
+
+   font-display: swap paints text immediately in the fallback rather than
+   leaving it invisible while the font loads. */
+@font-face {
+  font-family: 'Inter Variable';
+  src: url('/fonts/inter-latin-wght.woff2') format('woff2-variations');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Icons. Shared presentation lives here rather than on each <svg>, so one rule
+   restyles the whole set; sizing in em makes icons track the type scale. */
+.icon {
+  width: 1em;
+  height: 1em;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: 0 0 auto;
+  vertical-align: -0.125em;
+}
+.icon-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 #ui-root {

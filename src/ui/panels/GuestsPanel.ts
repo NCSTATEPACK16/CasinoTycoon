@@ -2,6 +2,7 @@ import { world } from '../../gameContext';
 import type { GuestArchetype, GuestState } from '../../sim/entities/Guest';
 import { el } from '../dom';
 import type { PanelSpec } from '../WindowManager';
+import { iconLabel, type IconName } from '../icons';
 
 const REFRESH_MS = 500;
 const MAX_ROWS = 12;
@@ -15,14 +16,15 @@ const STATE_LABEL: Record<GuestState, string> = {
   gone: 'Gone',
 };
 
-const ARCHETYPE_LABEL: Record<GuestArchetype, string> = {
-  regular: '',
-  highRoller: ' 💎 High Roller',
-  biker: ' 🏍️ Biker',
-  tourist: ' 📷 Tourist',
+const ARCHETYPE: Record<GuestArchetype, { icon: IconName; label: string } | null> = {
+  regular: null,
+  highRoller: { icon: 'highRoller', label: 'High Roller' },
+  biker: { icon: 'biker', label: 'Biker' },
+  tourist: { icon: 'tourist', label: 'Tourist' },
 };
 
-const mood = (happiness: number) => (happiness >= 70 ? '🙂' : happiness >= 40 ? '😐' : '😠');
+const moodIcon = (happiness: number): IconName =>
+  happiness >= 70 ? 'moodHappy' : happiness >= 40 ? 'moodNeutral' : 'moodSad';
 
 // Live guest browser: click a guest for needs bars + recent thoughts.
 export function makeGuestsPanel(): PanelSpec {
@@ -41,7 +43,7 @@ export function makeGuestsPanel(): PanelSpec {
     list.textContent = '';
     for (const g of guests.slice(0, MAX_ROWS)) {
       const row = el('button', `p-row g-row${g.id === selectedId ? ' selected' : ''}`);
-      row.appendChild(el('span', '', `${mood(g.needs.happiness)} Guest #${g.id.slice(2)}`));
+      row.appendChild(iconLabel(moodIcon(g.needs.happiness), `Guest #${g.id.slice(2)}`));
       row.appendChild(el('span', 'val', `$${Math.round(g.wallet)}`));
       row.addEventListener('click', () => {
         selectedId = selectedId === g.id ? null : g.id;
@@ -67,13 +69,12 @@ export function makeGuestsPanel(): PanelSpec {
       );
       return;
     }
-    detail.appendChild(
-      el(
-        'div',
-        'p-heading',
-        `Guest #${sel.id.slice(2)} — ${STATE_LABEL[sel.state]}${ARCHETYPE_LABEL[sel.archetype]}`,
-      ),
-    );
+    const head = el('div', 'p-heading', `Guest #${sel.id.slice(2)} — ${STATE_LABEL[sel.state]}`);
+    const arch = ARCHETYPE[sel.archetype];
+    // Archetype rides as a chip rather than more text in the heading: it is the
+    // one attribute worth spotting at a glance in a list of 130.
+    if (arch) head.appendChild(iconLabel(arch.icon, arch.label, 'g-arch'));
+    detail.appendChild(head);
     const bars: [string, number][] = [
       ['Energy', sel.needs.energy],
       ['Bladder', sel.needs.bladder],
@@ -96,7 +97,9 @@ export function makeGuestsPanel(): PanelSpec {
       detail.appendChild(el('div', 'p-note', 'Nothing on their mind yet.'));
     }
     for (const t of [...sel.thoughts].reverse()) {
-      detail.appendChild(el('div', 'g-thought', `💭 ${t.text}`));
+      const thought = el('div', 'g-thought');
+      thought.appendChild(iconLabel('thought', t.text));
+      detail.appendChild(thought);
     }
   };
 

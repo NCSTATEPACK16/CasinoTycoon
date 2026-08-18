@@ -1,5 +1,6 @@
 import { audio } from '../services/AudioService';
 import { el } from './dom';
+import { icon } from './icons';
 
 // RCT-style window system: singleton windows by id, draggable by title bar,
 // minimize/close buttons, click-to-front z-order. Lives in the #ui-root DOM
@@ -74,9 +75,11 @@ export class WindowManager {
 
     const titlebar = el('header', 'win-titlebar');
     const title = el('span', 'win-title', spec.title);
-    const minBtn = el('button', 'win-btn', '–');
+    const minBtn = el('button', 'win-btn');
+    minBtn.appendChild(icon('minimize'));
     minBtn.title = 'Minimize';
-    const closeBtn = el('button', 'win-btn win-close', '✕');
+    const closeBtn = el('button', 'win-btn win-close');
+    closeBtn.appendChild(icon('close'));
     closeBtn.title = 'Close';
     titlebar.append(title, minBtn, closeBtn);
 
@@ -97,7 +100,7 @@ export class WindowManager {
     minBtn.addEventListener('click', () => {
       win.minimized = !win.minimized;
       root.classList.toggle('minimized', win.minimized);
-      minBtn.textContent = win.minimized ? '▢' : '–';
+      minBtn.replaceChildren(icon(win.minimized ? 'restore' : 'minimize'));
       minBtn.title = win.minimized ? 'Restore' : 'Minimize';
     });
     closeBtn.addEventListener('click', () => this.close(id));
