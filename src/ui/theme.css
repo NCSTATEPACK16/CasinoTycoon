@@ -665,6 +665,12 @@ label.p-mute input {
   opacity: 0.75;
   font-size: 0.85em;
 }
+/* A save from a newer build: present but not loadable. Reads as a warning, not
+   as an error — the file is fine, this build just can't open it. */
+.p-save-stale {
+  color: var(--gold);
+  opacity: 1;
+}
 .p-save-btns {
   display: flex;
   gap: 4px;

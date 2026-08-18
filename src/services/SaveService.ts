@@ -1,9 +1,17 @@
 import type { CasinoWorldJSON } from '../sim/world';
+import {
+  acceptEnvelope,
+  SAVE_VERSION,
+  type EnvelopeResult,
+  type EnvelopeStatus,
+} from './migrations';
 
 // Persistence for full-world snapshots. Interface is async so the P12
 // SupabaseSaveService can implement it unchanged; local remains the fallback.
 
-export const SAVE_VERSION = 2;
+// Re-exported so every existing `from './SaveService'` import keeps working;
+// the constant lives with the migration ladder that has to stay in step with it.
+export { SAVE_VERSION };
 export const MANUAL_SLOTS = ['slot-1', 'slot-2', 'slot-3'] as const;
 export const AUTOSAVE_SLOT = 'autosave';
 const ALL_SLOTS = [...MANUAL_SLOTS, AUTOSAVE_SLOT];
@@ -28,6 +36,9 @@ export interface SlotInfo {
   day: number;
   cash: number;
   scenarioName: string | null;
+  /** 'newer' means the file was written by a later build. It is listed but not
+   *  loadable — dropping it from the list would look like the save vanished. */
+  status?: Extract<EnvelopeStatus, 'newer'>;
 }
 
 export interface SaveService {
@@ -35,6 +46,21 @@ export interface SaveService {
   load(slot: string): Promise<CasinoWorldJSON | null>;
   delete(slot: string): Promise<void>;
   list(): Promise<SlotInfo[]>;
+}
+
+/** Shared by both backends so a newer-version file lists identically either way. */
+export function slotInfo(slot: string, res: EnvelopeResult): SlotInfo {
+  if (res.status === 'newer') {
+    return { slot, savedAt: res.savedAt ?? '', day: 0, cash: 0, scenarioName: null, status: 'newer' };
+  }
+  const world = res.world!;
+  return {
+    slot,
+    savedAt: res.savedAt ?? '',
+    day: world.time.day,
+    cash: world.state.cash,
+    scenarioName: world.scenario?.def.name ?? null,
+  };
 }
 
 export class LocalSaveService implements SaveService {
@@ -46,7 +72,7 @@ export class LocalSaveService implements SaveService {
   }
 
   async load(slot: string): Promise<CasinoWorldJSON | null> {
-    return this.read(slot)?.world ?? null;
+    return this.read(slot).world;
   }
 
   async delete(slot: string): Promise<void> {
@@ -56,27 +82,20 @@ export class LocalSaveService implements SaveService {
   async list(): Promise<SlotInfo[]> {
     const infos: SlotInfo[] = [];
     for (const slot of ALL_SLOTS) {
-      const env = this.read(slot);
-      if (!env) continue;
-      infos.push({
-        slot,
-        savedAt: env.savedAt,
-        day: env.world.time.day,
-        cash: env.world.state.cash,
-        scenarioName: env.world.scenario?.def.name ?? null,
-      });
+      const res = this.read(slot);
+      if (res.status === 'unreadable') continue;
+      infos.push(slotInfo(slot, res));
     }
     return infos;
   }
 
-  private read(slot: string): SaveEnvelope | null {
+  private read(slot: string): EnvelopeResult {
     const raw = this.store.getItem(keyFor(slot));
-    if (!raw) return null;
+    if (!raw) return { status: 'unreadable', savedAt: null, world: null };
     try {
-      const env = JSON.parse(raw) as SaveEnvelope;
-      return env.version === SAVE_VERSION ? env : null;
+      return acceptEnvelope(JSON.parse(raw));
     } catch {
-      return null;
+      return { status: 'unreadable', savedAt: null, world: null };
     }
   }
 }
