@@ -39,20 +39,58 @@ export class Toolbar {
       { id: 'leaderboard', label: 'Ranks', icon: 'leaderboard', make: makeLeaderboardPanel },
     ];
 
+    let currentSpeed = 1;
+    let resumeSpeed = 1;
+
     const bar = el('div', 'ui-toolbar bevel-raised');
     uiRoot.appendChild(bar);
 
     const group = el('div', 'tb-group');
     bar.appendChild(group);
     const buttons = new Map<string, HTMLButtonElement>();
-    for (const def of BUTTONS) {
+    for (const [i, def] of BUTTONS.entries()) {
       const btn = el('button', 'tb-btn');
       btn.appendChild(icon(def.icon, 'tb-icon'));
       btn.appendChild(el('span', '', def.label));
+      // Shortcut discoverability lives in the tooltip: no extra chrome, and the
+      // binding is derived from position so it can never drift from the key.
+      const key = i < 9 ? String(i + 1) : i === 9 ? '0' : null;
+      btn.title = key ? `${def.label} (${key})` : def.label;
       btn.addEventListener('click', () => windows.toggle(def.id, def.make));
       group.appendChild(btn);
       buttons.set(def.id, btn);
     }
+
+    // Keyboard shortcuts. Modern players expect these regardless of art
+    // direction, and they cost one handler.
+    window.addEventListener('keydown', (e) => {
+      // Never steal a key from a field the player is typing into.
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      if (e.key === 'Escape') {
+        const top = windows.topWindowId();
+        if (top) {
+          windows.close(top);
+          e.preventDefault();
+        }
+        return;
+      }
+      if (e.key === ' ') {
+        // Toggle, and resume at whatever speed was running before the pause
+        // rather than snapping back to 1x.
+        eventBus.emit('speedChanged', { speed: currentSpeed === 0 ? resumeSpeed : 0 });
+        e.preventDefault();
+        return;
+      }
+      const digit = e.key === '0' ? 10 : Number(e.key);
+      if (Number.isInteger(digit) && digit >= 1 && digit <= BUTTONS.length) {
+        const def = BUTTONS[digit - 1]!;
+        windows.toggle(def.id, def.make);
+        e.preventDefault();
+      }
+    });
     windows.onChange((id, open) => buttons.get(id)?.classList.toggle('pressed', open));
 
     // Game speed: pause / 1× / 3× (render-side tick multiplier).
@@ -74,6 +112,8 @@ export class Toolbar {
     }
     bar.appendChild(speedGroup);
     const syncSpeed = (speed: number) => {
+      currentSpeed = speed;
+      if (speed !== 0) resumeSpeed = speed;
       for (const [value, btn] of speedButtons) btn.classList.toggle('pressed', value === speed);
     };
     eventBus.on('speedChanged', ({ speed }) => syncSpeed(speed));

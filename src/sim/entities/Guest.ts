@@ -412,7 +412,7 @@ export class Guest extends Walker {
       this.raging = true;
       world.applyRageQuitPenalty();
       this.recordThought(world.tickCount, 'raging', 'This place ripped me off!');
-      eventBus.emit('tickerMessage', { text: `${this.name} storms out in a rage!` });
+      eventBus.emit('tickerMessage', { text: `${this.name} storms out in a rage!`, severity: 'warn' });
     }
     this.state = 'leaving';
     if (!this.goTo(world, world.entranceTile)) this.state = 'gone';

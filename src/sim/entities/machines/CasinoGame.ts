@@ -94,7 +94,7 @@ export abstract class CasinoGame {
     if (this.reliability <= 0 && !this.broken) {
       this.broken = true;
       eventBus.emit('machineBroke', { machineId: this.id });
-      eventBus.emit('tickerMessage', { text: 'A machine has broken down!' });
+      eventBus.emit('tickerMessage', { text: 'A machine has broken down!', severity: 'alert' });
     }
   }
 }

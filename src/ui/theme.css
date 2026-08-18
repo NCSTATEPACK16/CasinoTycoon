@@ -612,8 +612,21 @@ label.p-mute input {
   animation: ticker-in 0.35s ease-out;
 }
 
-.ticker-msg::before {
-  content: '📰 ';
+/* Severity reads as a colored edge rather than an emoji prefix: it survives
+   any OS, and it scans without being read. */
+.ticker-msg {
+  border-left-width: 4px;
+}
+.ticker-msg.sev-info {
+  border-left-color: var(--gold);
+}
+.ticker-msg.sev-warn {
+  border-left-color: var(--warning);
+  color: var(--warning);
+}
+.ticker-msg.sev-alert {
+  border-left-color: var(--loss);
+  color: var(--loss);
 }
 
 .ticker-msg.leaving {
@@ -829,4 +842,26 @@ label.p-mute input {
 }
 .p-input:focus {
   outline: 1px solid var(--gold);
+}
+
+/* Interaction baseline. --target-min is 28px for mouse; a touch build raises
+   the one token to 44px rather than auditing every control. */
+.p-tool,
+.tb-btn,
+.win-btn {
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+}
+
+/* Respect the OS setting. The overshoot pop-in and the cash-flash are the
+   characterful bits, and they are exactly what motion sensitivity reacts to. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -49,6 +49,20 @@ export class WindowManager {
     return this.windows.has(id);
   }
 
+  /** The frontmost open window's id, or null. Esc closes this one. */
+  topWindowId(): string | null {
+    let topId: string | null = null;
+    let topZ = -1;
+    for (const [id, win] of this.windows) {
+      const z = Number(win.root.style.zIndex) || 0;
+      if (z >= topZ) {
+        topZ = z;
+        topId = id;
+      }
+    }
+    return topId;
+  }
+
   /** Open if closed (bring to front if already open), close if open. Returns the new open state. */
   toggle(id: string, make: () => PanelSpec): boolean {
     if (this.windows.has(id)) {

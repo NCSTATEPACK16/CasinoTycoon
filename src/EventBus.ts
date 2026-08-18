@@ -3,7 +3,9 @@
 
 export interface GameEvents {
   moneyChanged: { cash: number; delta: number };
-  tickerMessage: { text: string };
+  /** Severity drives color and dwell time. Omitted means 'info' — the default
+   *  keeps every existing emitter valid. */
+  tickerMessage: { text: string; severity?: 'info' | 'warn' | 'alert' };
   hourPassed: { hour: number; day: number };
   dayEnded: { day: number; profit: number };
   objectPlaced: { id: string; defId: string; col: number; row: number };

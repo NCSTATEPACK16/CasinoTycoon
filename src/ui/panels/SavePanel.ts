@@ -44,7 +44,7 @@ export function makeSavePanel(): PanelSpec {
               void render();
             })
             .catch(() => {
-              eventBus.emit('tickerMessage', { text: 'Save failed!' });
+              eventBus.emit('tickerMessage', { text: 'Save failed!', severity: 'alert' });
             });
         });
         btns.appendChild(save);
@@ -56,7 +56,7 @@ export function makeSavePanel(): PanelSpec {
             .load(slot)
             .then((data) => {
               if (!data) {
-                eventBus.emit('tickerMessage', { text: 'That save could not be read.' });
+                eventBus.emit('tickerMessage', { text: 'That save could not be read.', severity: 'alert' });
                 return;
               }
               world.loadJSON(data);
@@ -65,7 +65,7 @@ export function makeSavePanel(): PanelSpec {
             .catch(() => {
               // loadJSON rejects an unrecognized machine defId without mutating
               // the world, so the current session is still playable here.
-              eventBus.emit('tickerMessage', { text: 'Load failed! Save not compatible.' });
+              eventBus.emit('tickerMessage', { text: 'Load failed! Save not compatible.', severity: 'alert' });
             });
         });
         btns.appendChild(load);

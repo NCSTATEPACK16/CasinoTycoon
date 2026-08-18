@@ -1,3 +1,4 @@
+import type { IconName } from '../ui/icons.generated';
 // Data-driven catalog of placeable objects. Balancing lives here, never in logic.
 // spriteKey must exist in the placeholder generator (or, later, the atlas manifest).
 
@@ -11,7 +12,8 @@ export type ObjectCategory = 'game' | 'service' | 'decor';
 export interface ObjectDef {
   id: string;
   name: string;
-  icon: string; // toolbar/panel glyph
+  /** IconName in the UI sprite. Matches the def id — see scripts/build-icons.mjs. */
+  icon: IconName;
   cost: number;
   upkeepPerDay: number;
   footprint: Footprint;
@@ -27,7 +29,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
   {
     id: 'slot-machine',
     name: 'Slot Machine',
-    icon: '🎰',
+    icon: 'slot-machine',
     cost: 500,
     upkeepPerDay: 20,
     footprint: { w: 1, h: 1 },
@@ -38,7 +40,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
   {
     id: 'blackjack-table',
     name: 'Blackjack Table',
-    icon: '🃏',
+    icon: 'blackjack-table',
     cost: 1200,
     upkeepPerDay: 50,
     footprint: { w: 2, h: 2 },
@@ -49,7 +51,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
   {
     id: 'craps-table',
     name: 'Craps Table',
-    icon: '🎲',
+    icon: 'craps-table',
     cost: 900,
     upkeepPerDay: 35,
     footprint: { w: 2, h: 2 },
@@ -60,7 +62,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
   {
     id: 'roulette-table',
     name: 'Roulette Table',
-    icon: '🎡',
+    icon: 'roulette-table',
     cost: 1800,
     upkeepPerDay: 50,
     footprint: { w: 2, h: 2 },
@@ -71,7 +73,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
   {
     id: 'big-six-wheel',
     name: 'Big Six Wheel',
-    icon: '🎯',
+    icon: 'big-six-wheel',
     cost: 350,
     upkeepPerDay: 12,
     footprint: { w: 1, h: 1 },
@@ -84,7 +86,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     // seated players before a hand is dealt — a lone guest earns nothing.
     id: 'poker-table',
     name: 'Poker Table',
-    icon: '♠️',
+    icon: 'poker-table',
     cost: 1200,
     upkeepPerDay: 40,
     footprint: { w: 2, h: 2 },
@@ -97,7 +99,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     // the gate is wallet, not archetype, so a lucky guest can graduate in.
     id: 'high-limit-table',
     name: 'High-Limit Table',
-    icon: '💎',
+    icon: 'high-limit-table',
     cost: 2500,
     upkeepPerDay: 80,
     footprint: { w: 2, h: 2 },
@@ -108,7 +110,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
   {
     id: 'toilet',
     name: 'Restroom',
-    icon: '🚻',
+    icon: 'toilet',
     cost: 300,
     upkeepPerDay: 10,
     footprint: { w: 1, h: 1 },
@@ -119,7 +121,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
   {
     id: 'food-stall',
     name: 'Food Stall',
-    icon: '🌭',
+    icon: 'food-stall',
     cost: 400,
     upkeepPerDay: 15,
     footprint: { w: 1, h: 1 },
@@ -130,7 +132,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
   {
     id: 'plant',
     name: 'Plant',
-    icon: '🪴',
+    icon: 'plant',
     cost: 40,
     upkeepPerDay: 0,
     footprint: { w: 1, h: 1 },
@@ -141,7 +143,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
   {
     id: 'neon-sign',
     name: 'Neon Sign',
-    icon: '🪧',
+    icon: 'neon-sign',
     cost: 250,
     upkeepPerDay: 5,
     footprint: { w: 1, h: 1 },
@@ -153,7 +155,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
   {
     id: 'marquee',
     name: 'Marquee',
-    icon: '✨',
+    icon: 'marquee',
     cost: 600,
     upkeepPerDay: 12,
     footprint: { w: 2, h: 1 },
@@ -165,7 +167,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
   {
     id: 'bar',
     name: 'Bar',
-    icon: '🍸',
+    icon: 'bar',
     cost: 700,
     upkeepPerDay: 15,
     footprint: { w: 2, h: 1 },
@@ -175,7 +177,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
   {
     id: 'cage',
     name: 'VIP Cage',
-    icon: '💰',
+    icon: 'cage',
     cost: 900,
     upkeepPerDay: 20,
     footprint: { w: 2, h: 2 },

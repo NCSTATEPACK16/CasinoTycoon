@@ -24,7 +24,7 @@ export function wireAutosave(bus: TypedEventBus, svc: SaveService, world: Casino
         bus.emit('tickerMessage', { text: 'Autosaved.' });
       })
       .catch(() => {
-        bus.emit('tickerMessage', { text: 'Autosave failed!' });
+        bus.emit('tickerMessage', { text: 'Autosave failed!', severity: 'alert' });
       });
   });
 }
