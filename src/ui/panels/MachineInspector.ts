@@ -1,3 +1,4 @@
+import { TABLE_MINIMUMS } from '../../data/balance';
 import { getObjectDef } from '../../data/objects';
 import { world } from '../../gameContext';
 import { Rng } from '../../sim/rng';
@@ -38,11 +39,25 @@ export function makeMachineInspector(machineId: string): PanelSpec {
   costControls.append(minus, costVal, plus);
   costRow.appendChild(costControls);
 
+  // A2: a table's wager is derived from its minimum, so the raw cost stepper
+  // would immediately desync the two. Tables get the tier dial instead, and
+  // the consequences of moving it are spelled out rather than left to be
+  // discovered — the trade is the decision.
+  const minRow = el('div', 'p-row');
+  minRow.appendChild(el('span', '', 'Table minimum'));
+  const minControls = el('span', 'cost-controls');
+  const minDown = el('button', 'win-btn', '−');
+  const minVal = el('span', 'val', '');
+  const minUp = el('button', 'win-btn', '+');
+  minControls.append(minDown, minVal, minUp);
+  minRow.appendChild(minControls);
+  const minNote = el('div', 'p-note');
+
   const freePlay = el('button', 'p-tool');
   freePlay.appendChild(iconLabel('freePlay', 'Free Play (test spin)'));
   const freeResult = el('div', 'p-note', 'Spin the RNG without spending a dime.');
 
-  content.append(status, relRow, profitRow, costRow, freePlay, freeResult);
+  content.append(status, relRow, profitRow, costRow, minRow, minNote, freePlay, freeResult);
 
   const machine = () => world.machines.get(machineId);
 
@@ -59,7 +74,38 @@ export function makeMachineInspector(machineId: string): PanelSpec {
     else status.textContent = 'Condition';
     profitVal.textContent = formatCash(m.lifetimeProfit);
     costVal.textContent = formatCash(m.costToPlay);
+
+    const min = m.tableMinimum;
+    const isTable = m.supportsMinimum && min !== null;
+    // A fixed-denomination game keeps the raw cost stepper; a table hides it,
+    // because there the wager is an output of the dial, not an input.
+    costRow.hidden = isTable;
+    minRow.hidden = !isTable;
+    minNote.hidden = !isTable;
+    if (!isTable) return;
+
+    const tiers = TABLE_MINIMUMS.tiers;
+    const idx = tiers.indexOf(min);
+    minVal.textContent = formatCash(min);
+    minDown.disabled = idx <= 0;
+    minUp.disabled = idx >= tiers.length - 1;
+    const gate = Math.round(m.minWallet);
+    minNote.textContent =
+      gate > 0
+        ? `Bets ${formatCash(m.costToPlay)} a hand. Guests need ${formatCash(gate)} on them to sit — fewer players, more per seat.`
+        : `Bets ${formatCash(m.costToPlay)} a hand. Anyone who can cover a hand may sit.`;
   };
+
+  const stepMinimum = (delta: number) => {
+    const m = machine();
+    if (!m || m.tableMinimum === null) return;
+    const tiers = TABLE_MINIMUMS.tiers;
+    const next = tiers[tiers.indexOf(m.tableMinimum) + delta];
+    if (next !== undefined) m.setTableMinimum(next);
+    render();
+  };
+  minDown.addEventListener('click', () => stepMinimum(-1));
+  minUp.addEventListener('click', () => stepMinimum(1));
 
   minus.addEventListener('click', () => {
     const m = machine();

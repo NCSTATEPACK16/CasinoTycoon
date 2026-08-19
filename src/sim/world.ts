@@ -66,6 +66,9 @@ export function spawnChance(rating: number, machineCount: number): number {
 }
 
 interface MachineJSON {
+  /** P4: the player's per-instance table minimum. Absent for fixed-denomination
+   *  games, and absent in saves written before A2 — both default correctly. */
+  tableMinimum?: number;
   id: string;
   defId: string;
   costToPlay: number;
@@ -121,7 +124,11 @@ export interface CasinoWorldJSON {
   scenario: ScenarioJSON | null;
   modifiers: ModifierSystemJSON;
   reputation: ReputationJSON;
-  mood: MoodFieldJSON;
+  /** Optional: added after SAVE_VERSION 3, and absent from both a v3 save
+   *  written before it and a v2 file migrated up. `MoodField.fromJSON` starts
+   *  empty in either case, which is exactly right — a returning player's mood
+   *  map should reflect where guests walk now, not be invented for them. */
+  mood?: MoodFieldJSON;
 }
 
 export class CasinoWorld {
@@ -1088,6 +1095,7 @@ export class CasinoWorld {
         id: m.id,
         defId: m.defId,
         costToPlay: m.costToPlay,
+        ...(m.tableMinimum !== null ? { tableMinimum: m.tableMinimum } : {}),
         reliability: m.reliability,
         lifetimeProfit: m.lifetimeProfit,
         broken: m.broken,
@@ -1125,6 +1133,11 @@ export class CasinoWorld {
     // so a throw partway through it would leave a wiped, half-loaded world.
     const loadedMachines = data.machines.map((m) => {
       const machine = createMachineOrThrow(m.defId, m.id, m.costToPlay);
+      // Applied after construction so the ctor's default tier does not stomp a
+      // table the player deliberately raised. An unknown tier is rejected by
+      // setTableMinimum and the table keeps its default rather than becoming
+      // a denomination no UI can represent.
+      if (m.tableMinimum !== undefined) machine.setTableMinimum(m.tableMinimum);
       machine.reliability = m.reliability;
       machine.lifetimeProfit = m.lifetimeProfit;
       machine.broken = m.broken;

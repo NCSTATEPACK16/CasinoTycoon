@@ -14,6 +14,10 @@ export abstract class SeatedCasinoGame extends CasinoGame {
     return this.seats.filter((s) => s !== null).length;
   }
 
+  get seatCount(): number {
+    return this.seats.length;
+  }
+
   override get isAvailable(): boolean {
     return !this.broken && this.seats.includes(null);
   }

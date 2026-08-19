@@ -143,6 +143,14 @@
   z-index: 20;
 }
 
+/* The [hidden] attribute only carries a UA `display: none`, which any class
+   setting `display: flex` outranks — so a hidden row stays on screen. Panels
+   toggle visibility with `.hidden = true` throughout, so enforce it once here
+   rather than remembering a `[hidden]` opt-out on every new layout class. */
+[hidden] {
+  display: none !important;
+}
+
 /* ---------- bevel primitives ---------- */
 
 .bevel-raised {
@@ -930,12 +938,6 @@ label.p-mute input {
   margin: var(--space-2) 0;
 }
 
-/* `display: flex` outranks the [hidden] attribute's UA `display: none`, so the
-   row has to opt back out explicitly or it shows with no guest selected. */
-.g-comps[hidden] {
-  display: none;
-}
-
 .g-comps .p-tool {
   flex: 1;
   min-width: 0;
@@ -993,10 +995,6 @@ label.p-mute input {
   padding: 0 var(--space-2);
   color: var(--text-primary);
   font-size: 12px;
-}
-
-.ov-readout[hidden] {
-  display: none;
 }
 
 .ov-readout-icon {

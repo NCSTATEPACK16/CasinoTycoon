@@ -458,3 +458,109 @@ export const REPUTATION = {
    *  merely flattening it. */
   archetypeBiasAtMax: { highRoller: 2.0, tourist: 1.6, biker: 0.5 },
 } as const;
+
+// ---------------------------------------------------------------------------
+// P4 / A2 — per-instance table minimums.
+// ---------------------------------------------------------------------------
+
+/**
+ * A2 — table minimums, the first per-instance game setting.
+ *
+ * **Correction to the research report.** `handsPerHourByOccupancy` is real
+ * casino-operations data, but it cannot be used as an absolute rate here: the
+ * sim runs at ~100× compression, so blackjack deals about 4 hands per in-game
+ * hour, not 52–209. The array is valid only as a *ratio* — see
+ * `occupancyRateMult` on SeatedCasinoGame. A heads-up player then deals ~4× as
+ * fast as a full table (209/52), which is the real relationship expressed in
+ * the sim's own units, and it is what makes "fewer players at a higher
+ * minimum" self-balancing without inventing an elasticity coefficient. No
+ * published source gives one, so inventing it would be fiction.
+ */
+export const TABLE_MINIMUMS = {
+  /** The dial's stops. A free-entry field invites $7 tables and teaches
+   *  nothing; a ladder makes the comparison between rungs the decision. */
+  tiers: [5, 10, 25, 50, 100, 200] as readonly number[],
+  /**
+   * The tier each table type opens at.
+   *
+   * **Departure from the report.** It gives absolute minimums, which would
+   * replace the per-type `costToPlay` values this economy is tuned around —
+   * roulette would fall from a $20 wager to $7 and every campaign becomes
+   * unwinnable. So the minimum *scales* the tuned wager instead of setting it:
+   * at the default tier the wager is exactly what it is today, and each rung
+   * moves it proportionally. A2 then adds a dial without silently rebalancing
+   * the whole game underneath it — a change the player opts into.
+   */
+  defaultByType: {
+    'blackjack-table': 25,
+    'craps-table': 10,
+    'roulette-table': 10,
+    'poker-table': 25,
+    'high-limit-table': 100,
+    'big-six-wheel': 5,
+  } as Readonly<Record<string, number>>,
+  /**
+   * Wallet a guest needs before it will sit, as a multiple of the wager.
+   *
+   * The report's ×20 is against the *minimum* and calibrated for wallets far
+   * larger relative to bets than this sim's — at ×20 a $10 table gates at $200
+   * against a 40–220 regular wallet, so raising a minimum is not a decision but
+   * a demolition. Expressed against the wager it is scale-free, and it reads as
+   * a rule rather than a coefficient: a guest wants enough for a few hands, not
+   * one. The elasticity stays emergent — this gate plus the plain affordability
+   * test decide who clears it, and the archetype wallet distributions do the
+   * rest. No published source gives a minimum-to-occupancy curve.
+   */
+  minWalletMultiple: 2, // [design guess]
+  /** Hands per hour at 1..7 seated. [industry] — used as a ratio only. */
+  handsPerHourByOccupancy: [209, 139, 105, 84, 70, 60, 52] as readonly number[],
+} as const;
+
+/** Tuned wager each table type takes at its default tier. */
+const BASE_WAGER_BY_TYPE: Readonly<Record<string, number>> = {
+  'blackjack-table': BLACKJACK_BALANCE.costToPlay,
+  'craps-table': CRAPS_BALANCE.costToPlay,
+  'roulette-table': ROULETTE_BALANCE.costToPlay,
+  'poker-table': POKER_BALANCE.costToPlay,
+  'high-limit-table': HIGH_LIMIT_BALANCE.costToPlay,
+  'big-six-wheel': BIG_SIX_BALANCE.costToPlay,
+};
+
+/** True for game types that carry a table minimum at all. Slots have a coin
+ *  size, not a minimum, so a "minimum" dial there would be the same lever
+ *  wearing a misleading name. */
+export function supportsTableMinimum(defId: string): boolean {
+  return TABLE_MINIMUMS.defaultByType[defId] !== undefined;
+}
+
+/** The wager this table type takes at the given minimum, scaled from its
+ *  tuned value at the default tier. */
+export function wagerForMinimum(defId: string, minimum: number): number {
+  const base = BASE_WAGER_BY_TYPE[defId];
+  const def = TABLE_MINIMUMS.defaultByType[defId];
+  if (base === undefined || def === undefined) return base ?? 0;
+  return Math.max(1, Math.round((base * minimum) / def));
+}
+
+/**
+ * How much faster this table deals at `seated` players than at a full house —
+ * the multiplier applied to its tuned play interval.
+ *
+ * Normalized against the table's own capacity, so a heads-up player at a
+ * four-seat table gets 209/84 and at a seven-seat table 209/52. The curve is
+ * about how crowded *this* table is, not an absolute rate: the sim runs at
+ * ~100x compression, where blackjack deals about four hands an in-game hour,
+ * so the industry array is only ever valid as a ratio.
+ */
+// The report's `handsPerHourByOccupancy` curve is deliberately NOT wired to the
+// play interval. It is real casino-operations data, and the intent — a thinner
+// table deals faster, so revenue per occupied seat partly offsets the guests a
+// higher minimum turns away — is sound in a casino. It does not hold here:
+// a guest in this sim plays until broke or satisfied, so their contribution is
+// bounded by their wallet, not by how fast the table deals. A faster table
+// does not earn more from the same guest, it empties them sooner and then
+// idles. Measured on the campaign guard, wiring it in any normalization —
+// anchored at a full table, half-full, or heads-up — cost The High Roller Club
+// four of seven winnable seeds, and the heads-up anchor cost every campaign
+// nearly all of them. A2's trade is carried by the wager and the bankroll gate
+// instead, which is where the elasticity was always specified to be emergent.
