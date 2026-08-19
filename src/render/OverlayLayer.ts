@@ -65,7 +65,8 @@ export class OverlayLayer {
     if (!def) return;
     const b = worldBounds();
     this.texture.clear();
-    const span = def.max - def.min || 1;
+    const { min, max } = def.range();
+    const span = max - min || 1;
 
     for (let row = 0; row < GRID_ROWS; row++) {
       for (let col = 0; col < GRID_COLS; col++) {
@@ -73,7 +74,7 @@ export class OverlayLayer {
         // null is "no data", which must stay transparent. Painting it as the
         // bottom of the scale would accuse every unvisited tile of being bad.
         if (value === null) continue;
-        const t = (value - def.min) / span;
+        const t = (value - min) / span;
         const s = gridToScreen(col, row);
         this.stamp.setTint(colorFor(def.stops, t));
         // Translucent so the floor art and objects stay readable underneath —

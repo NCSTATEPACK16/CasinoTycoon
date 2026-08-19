@@ -1,4 +1,4 @@
-import { world } from '../gameContext';
+import { world, worldGrid } from '../gameContext';
 
 // Overlay definitions and scale math, deliberately free of Phaser.
 //
@@ -8,7 +8,7 @@ import { world } from '../gameContext';
 // means the UI layer and the unit tests can import it without dragging a WebGL
 // engine along.
 
-export type OverlayId = 'none' | 'mood';
+export type OverlayId = 'none' | 'mood' | 'profit';
 
 export interface OverlayStop {
   /** Normalized position on the scale, 0..1. */
@@ -23,11 +23,16 @@ export interface OverlayDef {
   /** Value for a tile, or null when this tile has no data and must stay clear.
    *  The null case is the whole reason overlays do not simply paint zeros. */
   valueAt: (col: number, row: number) => number | null;
-  /** Fixed scale bounds. A fixed scale is deliberate: an auto-ranged heat map
-   *  re-colors itself as the data moves, so the same hue means something
-   *  different minute to minute and the legend becomes a lie. */
-  min: number;
-  max: number;
+  /**
+   * Scale bounds for the color ramp.
+   *
+   * Mood returns a fixed 0..100, because "70% happy" means the same thing all
+   * game and a shifting scale would make the same hue mean different things
+   * minute to minute. Profit has no natural bounds, so it ranges to the day's
+   * own extremes — which is only honest because the legend prints the actual
+   * dollar figures at the ends rather than a fixed adjective.
+   */
+  range: () => { min: number; max: number };
   /** Hover readout text for a value. */
   format: (value: number) => string;
   /** Ordered low→high. Interpolated between stops to color a tile. */
@@ -67,8 +72,7 @@ export const OVERLAYS: Record<Exclude<OverlayId, 'none'>, OverlayDef> = {
     id: 'mood',
     label: 'Guest mood',
     valueAt: (col, row) => world.mood.moodAt(col, row),
-    min: 0,
-    max: 100,
+    range: () => ({ min: 0, max: 100 }),
     format: (v) => `${Math.round(v)}% happy`,
     // Red → amber → green. Diverging rather than sequential because mood has a
     // meaningful midpoint: "fine" is a real state, not just less of "bad".
@@ -79,5 +83,36 @@ export const OVERLAYS: Record<Exclude<OverlayId, 'none'>, OverlayDef> = {
     ],
     isEmpty: () => world.mood.isEmpty,
     emptyNote: 'No guests have walked the floor yet.',
+  },
+  profit: {
+    id: 'profit',
+    label: 'Profit today',
+    // Every tile an object covers reports that object's whole net, so a table
+    // reads as one block rather than fading at its edges — the question is
+    // "is this table earning", not "is this square foot earning".
+    valueAt: (col, row) => {
+      const occupant = worldGrid.occupantAt(col, row);
+      return occupant === null ? null : world.ledger.netForSource(occupant);
+    },
+    // Symmetric around zero so the same dollar of profit and loss gets the same
+    // colour distance. An asymmetric scale makes a small loss on a good day
+    // look like a catastrophe.
+    range: () => {
+      let extreme = 0;
+      for (const row of world.ledger.sources.values()) {
+        const net = Math.abs(row.revenue - row.upkeep);
+        if (net > extreme) extreme = net;
+      }
+      const bound = Math.max(1, extreme);
+      return { min: -bound, max: bound };
+    },
+    format: (v) => `${v < 0 ? '−' : ''}$${Math.abs(Math.round(v)).toLocaleString('en-US')} today`,
+    stops: [
+      { at: 0, color: 0xd5514e, label: 'Losing' },
+      { at: 0.5, color: 0x8a8069, label: 'Break-even' },
+      { at: 1, color: 0x4caf6a, label: 'Earning' },
+    ],
+    isEmpty: () => world.ledger.sources.size === 0,
+    emptyNote: 'Nothing has earned or cost anything yet today.',
   },
 };

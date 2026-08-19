@@ -419,7 +419,7 @@ export class Guest extends Walker {
       }
       this.barId = null;
     } else if (this.serviceKind === 'cage') {
-      const result = this.cageId ? world.useCage(this.wallet) : null;
+      const result = this.cageId ? world.useCage(this.wallet, this.cageId) : null;
       if (result) {
         this.wallet += result.advance - CASHIER_BALANCE.fee;
         this.usedCashAdvance = true;

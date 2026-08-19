@@ -24,7 +24,7 @@ import { Bar, type BarJSON } from './entities/Bar';
 import { FoodStall, type FoodStallJSON, type FoodPurchase } from './entities/FoodStall';
 import type { Mess, MessKind } from './entities/Mess';
 import { Staff, type StaffKind } from './entities/staff/Staff';
-import { Ledger, type LedgerJSON } from './economy';
+import { HOUSE_SOURCES, Ledger, type LedgerJSON } from './economy';
 import { MoodField, type MoodFieldJSON } from './MoodField';
 import { ModifierSystem, type ModifierSystemJSON } from './modifiers';
 import { Reputation, type ReputationJSON } from './reputation';
@@ -350,6 +350,7 @@ export class CasinoWorld {
       if (penalty > 0) {
         this.state.cash -= penalty;
         this.ledger.addExpense(penalty);
+        this.ledger.accrue(HOUSE_SOURCES.fines.id, HOUSE_SOURCES.fines.defId, { upkeep: penalty });
         eventBus.emit('moneyChanged', { cash: this.state.cash, delta: -penalty });
         eventBus.emit('tickerMessage', {
           text: `${reasons.join(' and ')} failed — ${formatDollarAmount(penalty)} in fines.`,
@@ -395,13 +396,22 @@ export class CasinoWorld {
     if (total === 0) return;
     this.state.cash -= total;
     this.ledger.addExpense(total);
+    // Wages belong to no object. Booked to a house source rather than spread
+    // across the floor, because attributing a janitor's pay to a slot machine
+    // would be an invention, and the drill-down has to reconcile with the day.
+    this.ledger.accrue(HOUSE_SOURCES.wages.id, HOUSE_SOURCES.wages.defId, { upkeep: total });
     eventBus.emit('moneyChanged', { cash: this.state.cash, delta: -total });
   }
 
   private chargeUpkeep(): void {
     let total = 0;
     for (const po of this.state.allObjects()) {
-      total += getObjectDef(po.defId)?.upkeepPerDay ?? 0;
+      const upkeep = getObjectDef(po.defId)?.upkeepPerDay ?? 0;
+      if (upkeep === 0) continue;
+      total += upkeep;
+      // Upkeep is per-object and always was — this is the one expense that
+      // attributes exactly, with no allocation judgement at all.
+      this.ledger.accrue(po.id, po.defId, { upkeep });
     }
     if (total === 0) return;
     this.state.cash -= total;
@@ -779,10 +789,11 @@ export class CasinoWorld {
 
   /** One-time wallet top-up net of the fee; null if the wallet can't cover
    * the fee at all. */
-  useCage(wallet: number): { advance: number } | null {
+  useCage(wallet: number, cageId?: string): { advance: number } | null {
     if (wallet < CASHIER_BALANCE.fee) return null;
     this.state.cash += CASHIER_BALANCE.fee;
     this.ledger.addRevenue(CASHIER_BALANCE.fee);
+    if (cageId) this.ledger.accrue(cageId, 'cage', { revenue: CASHIER_BALANCE.fee });
     eventBus.emit('moneyChanged', { cash: this.state.cash, delta: CASHIER_BALANCE.fee });
     // A5 'chip shortage' thins the advance. The fee is unchanged: the cage
     // still charges full price for less money, which is the whole bite.
@@ -913,6 +924,11 @@ export class CasinoWorld {
     this.state.cash += delta;
     this.ledger.addRevenue(delta);
     this.ledger.recordPlay(result.wager, result.payout);
+    this.ledger.accrue(machineId, machine.defId, {
+      wagered: result.wager,
+      won: result.payout,
+      revenue: delta,
+    });
     if (result.payout >= result.wager * JACKPOT_PAYOUT_MULT) {
       this.ledger.recordJackpot();
       // A jackpot is the loudest word-of-mouth event a casino has.
@@ -928,9 +944,10 @@ export class CasinoWorld {
     return result;
   }
 
-  payCasino(amount: number): void {
+  payCasino(amount: number, sourceId?: string, defId = 'other'): void {
     this.state.cash += amount;
     this.ledger.addRevenue(amount);
+    if (sourceId) this.ledger.accrue(sourceId, defId, { revenue: amount });
     eventBus.emit('moneyChanged', { cash: this.state.cash, delta: amount });
   }
 
@@ -948,6 +965,7 @@ export class CasinoWorld {
     const cost = COMPS.compUnit[kind];
     this.state.cash -= cost;
     this.ledger.addComp(cost);
+    this.ledger.accrue(HOUSE_SOURCES.comps.id, HOUSE_SOURCES.comps.defId, { upkeep: cost });
     eventBus.emit('moneyChanged', { cash: this.state.cash, delta: -cost });
     eventBus.emit('compSent', { guestId, kind, cost });
     return true;
@@ -976,6 +994,10 @@ export class CasinoWorld {
     this.state.cash += net;
     this.ledger.addRevenue(purchase.price);
     this.ledger.addExpense(purchase.baseCost);
+    this.ledger.accrue(standId, 'food-stall', {
+      revenue: purchase.price,
+      upkeep: purchase.baseCost,
+    });
     eventBus.emit('moneyChanged', { cash: this.state.cash, delta: net });
     return purchase;
   }
@@ -999,6 +1021,7 @@ export class CasinoWorld {
     if (!bar) return;
     bar.brew();
     this.ledger.addExpense(BAR_BALANCE.drinkCost);
+    this.ledger.accrue(barId, 'bar', { upkeep: BAR_BALANCE.drinkCost });
   }
 
   /** Self-serve or delivered sale: null if unaffordable or out of stock. */
@@ -1008,6 +1031,7 @@ export class CasinoWorld {
     if (!bar.takeDrink()) return null;
     this.state.cash += BAR_BALANCE.drinkPrice;
     this.ledger.addRevenue(BAR_BALANCE.drinkPrice);
+    this.ledger.accrue(barId, 'bar', { revenue: BAR_BALANCE.drinkPrice });
     eventBus.emit('moneyChanged', { cash: this.state.cash, delta: BAR_BALANCE.drinkPrice });
     return { price: BAR_BALANCE.drinkPrice };
   }

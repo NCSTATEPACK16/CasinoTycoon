@@ -46,12 +46,26 @@ describe('overlay definitions', () => {
       expect([...positions].sort((a, b) => a - b)).toEqual(positions);
       // A legend with an unlabeled stop is a legend that explains nothing.
       for (const stop of def.stops) expect(stop.label.length).toBeGreaterThan(0);
-      expect(def.max).toBeGreaterThan(def.min);
+      const { min, max } = def.range();
+      expect(max).toBeGreaterThan(min);
       expect(def.emptyNote.length).toBeGreaterThan(0);
     }
   });
 
   it('formats a value as something a player can read', () => {
     expect(MOOD.format(72.4)).toBe('72% happy');
+    expect(OVERLAYS.profit.format(1234.6)).toBe('$1,235 today');
+    // Losses read as losses, with a real minus sign rather than a hyphen.
+    expect(OVERLAYS.profit.format(-80)).toBe('−$80 today');
+  });
+
+  it('keeps the profit scale symmetric so a loss and a gain read alike', () => {
+    const { min, max } = OVERLAYS.profit.range();
+    expect(min).toBe(-max);
+  });
+
+  it('never divides by a zero-width profit range on an untouched floor', () => {
+    const { min, max } = OVERLAYS.profit.range();
+    expect(max).toBeGreaterThan(min);
   });
 });

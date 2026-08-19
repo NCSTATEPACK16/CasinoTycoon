@@ -1001,3 +1001,18 @@ label.p-mute input {
   color: var(--gold);
   flex: none;
 }
+
+/* ---------- B6 report drill-down ---------- */
+
+.dr-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  margin: var(--space-2) 0 var(--space-1);
+}
+
+.dr-caret {
+  color: var(--gold);
+  flex: none;
+}

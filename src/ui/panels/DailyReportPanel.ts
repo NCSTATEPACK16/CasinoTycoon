@@ -1,7 +1,75 @@
 import { MODIFIERS } from '../../data/balance';
-import type { DailyRecord } from '../../sim/economy';
+import { getObjectDef } from '../../data/objects';
+import type { DailyRecord, SourceRecord } from '../../sim/economy';
 import { el, formatCash, row } from '../dom';
+import { icon } from '../icons';
 import type { PanelSpec } from '../WindowManager';
+
+/** Names for the costs that belong to no placed object. */
+const HOUSE_LABELS: Record<string, string> = {
+  wages: 'Staff wages',
+  comps: 'Comps',
+  fines: 'Fines',
+};
+
+/** Matches the machine inspector's window title, so the row that lost money
+ *  names the same object the player can click. Two "Slot Machine" rows and no
+ *  way to tell which is which is a breakdown that does not break anything down. */
+const sourceLabel = (r: SourceRecord): string => {
+  const house = HOUSE_LABELS[r.defId];
+  if (house) return house;
+  const name = getObjectDef(r.defId)?.name ?? r.defId;
+  return `${name} ${r.id.replace('obj-', '#')}`;
+};
+
+const net = (r: SourceRecord): number => r.revenue - r.upkeep;
+
+/**
+ * B6 — one expandable line per source, ranked by what it actually contributed.
+ *
+ * Collapsed by default: the headline numbers are the answer most days, and a
+ * wall of rows would bury them. Expanding is the follow-up question — "which
+ * of my machines is carrying this?" — and it only became answerable at all
+ * once P1 attributed revenue per object.
+ */
+function makeBreakdown(record: DailyRecord): HTMLElement {
+  const wrap = el('div');
+  if (record.sources.length === 0) return wrap;
+
+  const toggle = el('button', 'p-tool dr-toggle');
+  const list = el('div');
+  list.hidden = true;
+  wrap.append(toggle, list);
+
+  const rows = [...record.sources].sort((a, b) => net(b) - net(a));
+
+  const syncToggle = () => {
+    toggle.replaceChildren();
+    toggle.appendChild(icon(list.hidden ? 'stepDown' : 'stepUp', 'dr-caret'));
+    toggle.appendChild(el('span', '', list.hidden ? 'Where it came from' : 'Hide breakdown'));
+  };
+  toggle.addEventListener('click', () => {
+    list.hidden = !list.hidden;
+    syncToggle();
+  });
+  syncToggle();
+
+  for (const r of rows) {
+    const value = net(r);
+    const line = el('div', 'p-row');
+    line.appendChild(el('span', '', sourceLabel(r)));
+    const val = el('span', `val ${value > 0 ? 'up' : value < 0 ? 'down' : ''}`);
+    val.textContent = `${value < 0 ? '−' : ''}${formatCash(Math.abs(value))}`;
+    line.appendChild(val);
+    // Handle is the context that stops a thin-margin, high-volume table from
+    // reading as a failure next to a quiet one with the same net.
+    if (r.wagered > 0) {
+      line.title = `${formatCash(r.wagered)} wagered, ${formatCash(r.won)} paid out`;
+    }
+    list.appendChild(line);
+  }
+  return wrap;
+}
 
 /** Per-day report: winners/losers lists + the day's headline stats.
  *
@@ -52,6 +120,8 @@ export function makeDailyReportPanel(record: DailyRecord): PanelSpec {
     }
     content.appendChild(tags);
   }
+
+  content.appendChild(makeBreakdown(record));
 
   const winners = record.winners.filter((w) => w.net > 0);
   content.appendChild(el('div', 'p-heading', 'Top winners'));

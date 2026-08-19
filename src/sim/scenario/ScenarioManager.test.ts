@@ -30,6 +30,7 @@ const record = (day: number, profit: number) => ({
   reputation: 50,
   reputationDelta: 0,
   modifierIds: [],
+  sources: [],
 });
 
 describe('ScenarioManager', () => {

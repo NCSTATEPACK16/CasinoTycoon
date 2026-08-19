@@ -47,12 +47,13 @@ export function makeOverlayPanel(): PanelSpec {
       return;
     }
 
+    const { min, max } = def.range();
     const ramp = el('div', 'ov-ramp');
     for (let i = 0; i < SWATCHES; i++) {
       const t = i / (SWATCHES - 1);
       const sw = el('div', 'ov-swatch');
       sw.style.background = `#${colorFor(def.stops, t).toString(16).padStart(6, '0')}`;
-      sw.title = def.format(def.min + (def.max - def.min) * t);
+      sw.title = def.format(min + (max - min) * t);
       ramp.appendChild(sw);
     }
     legend.appendChild(ramp);
@@ -62,6 +63,12 @@ export function makeOverlayPanel(): PanelSpec {
     const labels = el('div', 'ov-labels');
     for (const stop of def.stops) labels.appendChild(el('span', '', stop.label));
     legend.appendChild(labels);
+
+    // The actual numbers at the ends. An overlay whose scale moves with the
+    // data is only honest if it says where the ends currently are.
+    const bounds = el('div', 'ov-labels');
+    bounds.append(el('span', '', def.format(min)), el('span', '', def.format(max)));
+    legend.appendChild(bounds);
 
     legend.appendChild(
       el(
