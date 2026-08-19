@@ -36,6 +36,11 @@ export interface GameEvents {
   reputationChanged: { value: number; delta: number };
   /** A1a: the player comped a specific guest. */
   compSent: { guestId: string; kind: string; cost: number };
+  /** B3: the player switched the data overlay ('none' turns it off). */
+  overlayChanged: { id: string };
+  /** B3: tile under the cursor changed, with the active overlay's reading.
+   *  null value means the overlay is off or that tile has no data. */
+  overlayHover: { col: number; row: number; value: string | null };
   // Extended as systems land (guestSpawned, machineBroke, ...). See PLAN.md catalog.
 }
 

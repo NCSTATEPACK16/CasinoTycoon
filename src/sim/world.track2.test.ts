@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { eventBus } from '../EventBus';
-import { HOURS_PER_DAY, TICKS_PER_HOUR } from '../config';
+import { GRID_COLS, GRID_ROWS, HOURS_PER_DAY, TICKS_PER_HOUR } from '../config';
 import { REPUTATION } from '../data/balance';
 import { CasinoWorld } from './world';
 import { ModifierSystem } from './modifiers';
@@ -201,5 +201,78 @@ describe('Track 2 persistence', () => {
     world.reputation.value = 12;
     world.startScenario(null);
     expect(world.reputation.value).toBe(REPUTATION.start);
+  });
+});
+
+describe('B3-mood sampling in the world', () => {
+  it('learns where guests are and how they feel', () => {
+    const world = new CasinoWorld({ seed: 3, autoSpawn: false });
+    world.startScenario(null);
+    // Guests wander, so the field is asserted over the map rather than at one
+    // pinned tile — where they walked is the sim's business, not the test's.
+    const guest = world.spawnGuest('regular');
+    guest.needs.happiness = 84;
+    for (let t = 0; t < 200; t++) {
+      guest.needs.happiness = 84;
+      world.tick();
+    }
+
+    const readings: number[] = [];
+    for (let row = 0; row < GRID_ROWS; row++) {
+      for (let col = 0; col < GRID_COLS; col++) {
+        const m = world.mood.moodAt(col, row);
+        if (m !== null) readings.push(m);
+      }
+    }
+    expect(readings.length).toBeGreaterThan(0);
+    // Only one guest walked, and it was at a steady 84.
+    for (const m of readings) expect(m).toBeCloseTo(84, 0);
+    // Nowhere near where a single guest could have walked from the entrance.
+    expect(world.mood.moodAt(0, 0)).toBeNull();
+  });
+
+  it('samples on a cadence rather than every tick', () => {
+    const world = new CasinoWorld({ seed: 3, autoSpawn: false });
+    world.startScenario(null);
+    const guest = world.spawnGuest('regular');
+    guest.pos.col = 5;
+    guest.pos.row = 5;
+    let samples = 0;
+    const real = world.mood.sample.bind(world.mood);
+    world.mood.sample = (c: number, r: number, h: number) => {
+      samples++;
+      real(c, r, h);
+    };
+    for (let t = 0; t < 100; t++) world.tick();
+    // 100 ticks at one pass every 5 is 20 samples for one guest — not 100.
+    expect(samples).toBeGreaterThan(0);
+    expect(samples).toBeLessThan(40);
+  });
+
+  it('round-trips the mood field through a save', () => {
+    const world = new CasinoWorld({ seed: 3, autoSpawn: false });
+    world.startScenario(null);
+    const guest = world.spawnGuest('regular');
+    guest.pos.col = 8;
+    guest.pos.row = 8;
+    guest.needs.happiness = 55;
+    for (let t = 0; t < 40; t++) world.tick();
+    const before = world.mood.moodAt(8, 8)!;
+
+    const restored = new CasinoWorld({ seed: 1 });
+    restored.loadJSON(JSON.parse(JSON.stringify(world.toJSON())));
+    expect(restored.mood.moodAt(8, 8)).toBeCloseTo(before, 5);
+  });
+
+  it('clears the field when a new scenario starts', () => {
+    const world = new CasinoWorld({ seed: 3, autoSpawn: false });
+    world.startScenario(null);
+    const guest = world.spawnGuest('regular');
+    guest.pos.col = 8;
+    guest.pos.row = 8;
+    for (let t = 0; t < 40; t++) world.tick();
+    expect(world.mood.isEmpty).toBe(false);
+    world.startScenario(null);
+    expect(world.mood.isEmpty).toBe(true);
   });
 });

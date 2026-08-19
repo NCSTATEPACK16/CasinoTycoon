@@ -9,6 +9,7 @@ import { makeGuestsPanel } from './panels/GuestsPanel';
 import { makeThoughtsPanel } from './panels/ThoughtsPanel';
 import { makeStaffPanel } from './panels/StaffPanel';
 import { makeObjectivesPanel } from './panels/ObjectivesPanel';
+import { makeOverlayPanel } from './panels/OverlayPanel';
 import { makeRatingPanel } from './panels/RatingPanel';
 import { makeSoundPanel } from './panels/SoundPanel';
 import { makeSavePanel } from './panels/SavePanel';
@@ -32,6 +33,7 @@ export class Toolbar {
       { id: 'guests', label: 'Guests', icon: 'guests', make: makeGuestsPanel },
       { id: 'thoughts', label: 'Thoughts', icon: 'thought', make: makeThoughtsPanel },
       { id: 'staff', label: 'Staff', icon: 'staff', make: makeStaffPanel },
+      { id: 'overlays', label: 'Overlays', icon: 'overlay', make: makeOverlayPanel },
       { id: 'objectives', label: 'Objectives', icon: 'objectives', make: makeObjectivesPanel },
       { id: 'sound', label: 'Sound', icon: 'sound', make: makeSoundPanel },
       { id: 'save', label: 'Save', icon: 'save', make: makeSavePanel },

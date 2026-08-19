@@ -13,6 +13,7 @@ import { attachFx } from './fx/floaters';
 import { ThoughtBubbles } from './fx/ThoughtBubbles';
 import { gridToScreen, screenToGrid, worldBounds } from './iso';
 import { GlowPool } from './neon';
+import { OverlayLayer } from './OverlayLayer';
 import { PincerController } from './PincerController';
 import { tileVariantIndex } from './tileVariant';
 import { GuestViews } from './views/GuestViews';
@@ -38,9 +39,12 @@ export default class WorldScene extends Phaser.Scene {
   private thoughtBubbles!: ThoughtBubbles;
   private pincer!: PincerController;
   private glowPool!: GlowPool;
+  private overlay!: OverlayLayer;
   private highlight!: Phaser.GameObjects.Image;
   private tickAccumulator = 0;
   private speed = 1;
+  private hoverCol = -1;
+  private hoverRow = -1;
 
   constructor() {
     super('world');
@@ -76,6 +80,7 @@ export default class WorldScene extends Phaser.Scene {
     this.cameras.main.postFX.addShine(0.3, 0.4, 5);
 
     this.glowPool = new GlowPool(this);
+    this.overlay = new OverlayLayer(this);
     const views = new ObjectViews(this);
     this.buildController = new BuildController(this, this.cameraController, views);
     this.guestViews = new GuestViews(this);
@@ -182,6 +187,17 @@ export default class WorldScene extends Phaser.Scene {
     }
     const s = gridToScreen(col, row);
     this.highlight.setPosition(s.x, s.y).setVisible(true);
+    this.emitOverlayHover(col, row);
+  }
+
+  /** Feeds the overlay's hover readout, deduped so a stationary cursor does
+   *  not republish the same tile every frame. */
+  private emitOverlayHover(col: number, row: number): void {
+    if (this.overlay.activeOverlay === 'none') return;
+    if (col === this.hoverCol && row === this.hoverRow) return;
+    this.hoverCol = col;
+    this.hoverRow = row;
+    eventBus.emit('overlayHover', { col, row, value: this.overlay.readoutAt(col, row) });
   }
 
   private drawFloor(): void {

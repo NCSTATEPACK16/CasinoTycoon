@@ -91,6 +91,7 @@ const ICONS = {
   modifier: 'cloud-lightning',
   reputation: 'megaphone',
   comp: 'gift',
+  overlay: 'layers',
 };
 
 /** Strips the wrapper <svg> down to its drawing content. Presentation

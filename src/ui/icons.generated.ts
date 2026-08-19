@@ -61,7 +61,8 @@ export type IconName =
   | 'fail'
   | 'modifier'
   | 'reputation'
-  | 'comp';
+  | 'comp'
+  | 'overlay';
 
 export const ICON_SPRITE =
   '<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="display:none">' +
@@ -125,4 +126,5 @@ export const ICON_SPRITE =
   "<symbol id=\"i-modifier\" viewBox=\"0 0 24 24\"><path d=\"M6 16.326A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 .5 8.973\" /><path d=\"m13 12-3 5h4l-3 5\" /></symbol>" +
   "<symbol id=\"i-reputation\" viewBox=\"0 0 24 24\"><path d=\"M11 6a13 13 0 0 0 8.4-2.8A1 1 0 0 1 21 4v12a1 1 0 0 1-1.6.8A13 13 0 0 0 11 14H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z\" /><path d=\"M6 14a12 12 0 0 0 2.4 7.2 2 2 0 0 0 3.2-2.4A8 8 0 0 1 10 14\" /><path d=\"M8 6v8\" /></symbol>" +
   "<symbol id=\"i-comp\" viewBox=\"0 0 24 24\"><path d=\"M12 7v14\" /><path d=\"M20 11v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8\" /><path d=\"M7.5 7a1 1 0 0 1 0-5A4.8 8 0 0 1 12 7a4.8 8 0 0 1 4.5-5 1 1 0 0 1 0 5\" /><rect x=\"3\" y=\"7\" width=\"18\" height=\"4\" rx=\"1\" /></symbol>" +
+  "<symbol id=\"i-overlay\" viewBox=\"0 0 24 24\"><path d=\"M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z\" /><path d=\"M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12\" /><path d=\"M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17\" /></symbol>" +
   '</svg>';

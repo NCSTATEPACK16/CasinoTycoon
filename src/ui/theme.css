@@ -952,3 +952,54 @@ label.p-mute input {
   color: var(--text-secondary);
   font-size: 11px;
 }
+
+/* ---------- B3 data overlays ---------- */
+
+.ov-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+
+/* The ramp is one continuous bar of swatches — a gapped row would read as
+   discrete categories, and these are a continuum. */
+.ov-ramp {
+  display: flex;
+  height: 14px;
+  border: 2px solid;
+  border-color: var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark);
+}
+
+.ov-swatch {
+  flex: 1;
+}
+
+.ov-labels {
+  display: flex;
+  justify-content: space-between;
+  margin: var(--space-1) 0 var(--space-2);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+/* Fixed height so the panel does not jump as the readout text changes length
+   while the player sweeps the cursor across the floor. */
+.ov-readout {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--target-min);
+  padding: 0 var(--space-2);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.ov-readout[hidden] {
+  display: none;
+}
+
+.ov-readout-icon {
+  color: var(--gold);
+  flex: none;
+}

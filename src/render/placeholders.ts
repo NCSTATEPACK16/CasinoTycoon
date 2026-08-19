@@ -45,6 +45,10 @@ const FEEDBACK_TILES: DiamondSpec[] = [
   { key: 'tile-highlight', top: 0xfff59d, left: 0xf5e076, right: 0xfaea87 },
   { key: 'tile-valid', top: 0x7ce67c, left: 0x58c058, right: 0x6ad46a },
   { key: 'tile-invalid', top: 0xe67c7c, left: 0xc05858, right: 0xd46a6a },
+  // Data-overlay base. Pure white on purpose: overlays paint it with a tint,
+  // and any color baked in here would multiply into every heat-map hue and
+  // skew the legend against the map.
+  { key: 'tile-overlay', top: 0xffffff, left: 0xffffff, right: 0xffffff },
 ];
 
 const BRIGHTNESS_VARIANTS = [0.82, 0.91, 1.0, 1.1];
