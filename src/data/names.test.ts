@@ -16,6 +16,15 @@ describe('flavorName', () => {
   });
 });
 
+/** Every name the pool can produce, by exhausting the probe walk once. */
+function wholePool(): Set<string> {
+  const seen = new Set<string>();
+  // `uniqueFlavorName` only reads the set, so it can be handed the live one —
+  // copying it per iteration turns a 4k loop into 8M operations.
+  for (let i = 0; i < NAME_POOL_SIZE; i++) seen.add(uniqueFlavorName('g-0', seen));
+  return seen;
+}
+
 describe('the name pool', () => {
   // A1b's one non-negotiable number: the documented immersion break for
   // persistent named entities is name repetition, and the registry caps at 150.
@@ -24,9 +33,7 @@ describe('the name pool', () => {
   });
 
   it('reaches every combination in the pool as ids vary', () => {
-    const seen = new Set<string>();
-    for (let i = 0; i < NAME_POOL_SIZE; i++) seen.add(uniqueFlavorName('g-0', new Set(seen)));
-    expect(seen.size).toBe(NAME_POOL_SIZE);
+    expect(wholePool().size).toBe(NAME_POOL_SIZE);
   });
 });
 
@@ -42,8 +49,7 @@ describe('uniqueFlavorName', () => {
   });
 
   it('still answers when every combination is spoken for', () => {
-    const all = new Set<string>();
-    for (let i = 0; i < NAME_POOL_SIZE; i++) all.add(uniqueFlavorName('g-0', new Set(all)));
+    const all = wholePool();
     expect(all.has(uniqueFlavorName('g-0', all))).toBe(true);
   });
 });

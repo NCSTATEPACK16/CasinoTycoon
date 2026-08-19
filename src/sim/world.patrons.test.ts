@@ -51,8 +51,13 @@ describe('P3 — the registry inside a running sim', () => {
   });
 
   it('holds the roster inside its cap over a long run', () => {
+    // Eviction itself is pinned in patrons.test.ts, where the roster can be
+    // driven past the cap instantly. What this covers is the sim running for
+    // days with the registry live — arrivals, departures, midnight draws, and
+    // pruning all interleaved — without the roster drifting past its bound.
     const world = stockedWorld(77);
-    for (let i = 0; i < DAY_TICKS * 12; i++) world.tick();
+    for (let i = 0; i < DAY_TICKS * 8; i++) world.tick();
+    expect(world.time.day).toBeGreaterThan(PATRONS.pruneAfterDaysAbsent / 2);
     expect(world.patrons.size).toBeLessThanOrEqual(PATRONS.rosterCap);
   });
 

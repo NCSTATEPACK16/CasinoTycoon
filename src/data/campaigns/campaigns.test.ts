@@ -90,7 +90,10 @@ const MIN_WINS = 4;
 
 describe('campaign winnability', () => {
   for (const def of CAMPAIGNS) {
-    it(`${def.name} ($${def.goalDailyProfit}/day within ${def.dayLimit} days) falls to a straightforward build-out`, () => {
+    // Seven full campaigns of simulation apiece. Vitest's 5s default was never
+    // the right bound for this — under a loaded suite it fails on the clock
+    // rather than on winnability, which is the one thing it must not do.
+    it(`${def.name} ($${def.goalDailyProfit}/day within ${def.dayLimit} days) falls to a straightforward build-out`, { timeout: 120_000 }, () => {
       const results = SEEDS.map((seed) => {
         eventBus.clear();
         return { seed, ...runCampaign(def, seed) };

@@ -1093,3 +1093,17 @@ label.p-mute input {
 .pt-row[disabled] {
   cursor: default;
 }
+
+/* ---------- Save portability ---------- */
+
+/* Backup sits below the slots, separated rather than interleaved: exporting is
+   not a fourth save slot, and putting it in the same list would read as one. */
+.p-save-portable {
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--bevel-dark);
+}
+
+.p-save-portable .p-save-btns .p-tool {
+  flex: 1;
+}
