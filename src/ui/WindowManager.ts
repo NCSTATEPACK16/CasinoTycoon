@@ -82,6 +82,13 @@ export class WindowManager {
 
     const root = el('section', 'ui-window win-opening');
     root.style.width = `${spec.width}px`;
+    // Non-modal tool windows, named by their own title bar. `tabindex=-1` makes
+    // the frame focusable programmatically without adding a stop to the tab
+    // order — opening a panel puts the caret in it, so a keyboard player does
+    // not tab the length of the toolbar to reach what they just opened.
+    root.tabIndex = -1;
+    root.setAttribute('role', 'dialog');
+    root.setAttribute('aria-labelledby', `win-title-${id}`);
     root.addEventListener('animationend', () => root.classList.remove('win-opening'), {
       once: true,
     });
@@ -89,12 +96,17 @@ export class WindowManager {
 
     const titlebar = el('header', 'win-titlebar');
     const title = el('span', 'win-title', spec.title);
+    title.id = `win-title-${id}`;
     const minBtn = el('button', 'win-btn');
     minBtn.appendChild(icon('minimize'));
     minBtn.title = 'Minimize';
+    // The glyph is an icon with aria-hidden on it, so without this the button
+    // has no accessible name at all.
+    minBtn.setAttribute('aria-label', 'Minimize');
     const closeBtn = el('button', 'win-btn win-close');
     closeBtn.appendChild(icon('close'));
     closeBtn.title = 'Close';
+    closeBtn.setAttribute('aria-label', 'Close');
     titlebar.append(title, minBtn, closeBtn);
 
     const body = el('div', 'win-body');
@@ -111,17 +123,24 @@ export class WindowManager {
     this.windows.set(id, win);
 
     root.addEventListener('pointerdown', () => this.bringToFront(root));
+    // Tabbing into a buried window raises it too — otherwise the keyboard can
+    // focus a control the player cannot see.
+    root.addEventListener('focusin', () => this.bringToFront(root));
     minBtn.addEventListener('click', () => {
       win.minimized = !win.minimized;
       root.classList.toggle('minimized', win.minimized);
       minBtn.replaceChildren(icon(win.minimized ? 'restore' : 'minimize'));
       minBtn.title = win.minimized ? 'Restore' : 'Minimize';
+      minBtn.setAttribute('aria-label', minBtn.title);
     });
     closeBtn.addEventListener('click', () => this.close(id));
     this.makeDraggable(root, titlebar);
 
     this.bringToFront(root);
     this.clamp(root);
+    // preventScroll: the window layer is a fixed overlay, and letting the
+    // browser scroll to a focused node would shift the whole page under it.
+    root.focus({ preventScroll: true });
     this.notify(id, true);
   }
 

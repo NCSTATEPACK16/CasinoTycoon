@@ -82,6 +82,12 @@ export class Toolbar {
         return;
       }
       if (e.key === ' ') {
+        // Space activates a focused button. Since opening a panel now moves
+        // focus into it, claiming the key unconditionally would pause the game
+        // every time a keyboard player pressed a panel control.
+        if ((document.activeElement as HTMLElement | null)?.closest('button, a, [role="button"]')) {
+          return;
+        }
         // Toggle, and resume at whatever speed was running before the pause
         // rather than snapping back to 1x.
         eventBus.emit('speedChanged', { speed: currentSpeed === 0 ? resumeSpeed : 0 });

@@ -852,6 +852,28 @@ label.p-mute input {
   outline: 1px solid var(--gold);
 }
 
+/* Focus ring. Gold on the dark bevel is the one accent that reads against
+   every surface in here, and `:focus-visible` keeps it off mouse clicks — a
+   ring that appears on every button press would fight the pressed bevel that
+   already answers "did that register?".
+
+   Offset outward rather than inset: the bevel border is load-bearing in this
+   theme, and an inset ring would sit on top of it and read as a third border. */
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* The window frame takes focus when it opens, but it is a container, not a
+   control — a ring around the whole panel would read as an error state. The
+   title bar brightening is the honest signal that the caret is in here. */
+.ui-window:focus-visible {
+  outline: none;
+}
+.ui-window:focus-within .win-titlebar {
+  background: linear-gradient(180deg, var(--gold-dark), var(--title-bot));
+}
+
 /* Interaction baseline. --target-min is 28px for mouse; a touch build raises
    the one token to 44px rather than auditing every control. */
 .p-tool,
