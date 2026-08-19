@@ -1,4 +1,5 @@
 import { eventBus } from '../../../EventBus';
+import { supportsTableMinimum, TABLE_MINIMUMS, wagerForMinimum } from '../../../data/balance';
 import type { PayoutOutcome } from '../../../data/balance';
 import type { Rng } from '../../rng';
 
@@ -21,6 +22,11 @@ export abstract class CasinoGame {
   readonly id: string; // placed-object id — links machine to its world object
   readonly defId: string;
   costToPlay: number;
+  /** P4/A2 — this table's minimum bet, or null for a fixed-denomination game.
+   *  Slots have a coin size, not a minimum, so they are deliberately excluded:
+   *  a "minimum" dial on a slot machine would be the same lever wearing a
+   *  misleading name. */
+  private minimum: number | null = null;
   reliability = 100;
   lifetimeProfit = 0;
   broken = false;
@@ -30,6 +36,31 @@ export abstract class CasinoGame {
     this.id = id;
     this.defId = defId;
     this.costToPlay = costToPlay;
+    // At the default tier the wager is exactly the type's tuned costToPlay, so
+    // constructing a table changes nothing until the player moves the dial.
+    if (supportsTableMinimum(defId)) this.minimum = TABLE_MINIMUMS.defaultByType[defId]!;
+  }
+
+  /** True for games the player can set a minimum on. */
+  get supportsMinimum(): boolean {
+    return this.minimum !== null;
+  }
+
+  get tableMinimum(): number | null {
+    return this.minimum;
+  }
+
+  /**
+   * Move this table's minimum. Rejects anything off the tier ladder, so a
+   * corrupt save or a stray caller cannot produce a $7 table that no UI can
+   * represent and no player asked for.
+   */
+  setTableMinimum(minimum: number): boolean {
+    if (this.minimum === null) return false;
+    if (!TABLE_MINIMUMS.tiers.includes(minimum)) return false;
+    this.minimum = minimum;
+    this.costToPlay = wagerForMinimum(this.defId, minimum);
+    return true;
   }
 
   get isAvailable(): boolean {
@@ -51,7 +82,20 @@ export abstract class CasinoGame {
    * 0 = no gate, so every game that doesn't override this is unaffected.
    */
   get minWallet(): number {
-    return 0;
+    // The elasticity is emergent, not a coefficient: raising the minimum
+    // raises this gate, and the archetype wallet distributions decide who
+    // still clears it. No published source gives a minimum-to-occupancy
+    // curve, so deriving one from the gate is the honest construction.
+    if (this.minimum === null) return 0;
+    // Zero at the house minimum, and only then. A table sitting at its default
+    // tier must gate exactly as it always did — otherwise landing A2 makes the
+    // base game harder before the player has touched anything, which measured
+    // as four lost campaign seeds. Above the default the bankroll test scales
+    // with how far the table has been raised, and that is A2's whole trade:
+    // a richer table turns away everyone who cannot show up with a stake.
+    const ratio = this.minimum / (TABLE_MINIMUMS.defaultByType[this.defId] ?? this.minimum);
+    if (ratio <= 1) return 0;
+    return this.costToPlay * TABLE_MINIMUMS.minWalletMultiple * (ratio - 1);
   }
 
   isPlayableBy(guestId: string): boolean {
@@ -94,7 +138,7 @@ export abstract class CasinoGame {
     if (this.reliability <= 0 && !this.broken) {
       this.broken = true;
       eventBus.emit('machineBroke', { machineId: this.id });
-      eventBus.emit('tickerMessage', { text: 'A machine has broken down!' });
+      eventBus.emit('tickerMessage', { text: 'A machine has broken down!', severity: 'alert' });
     }
   }
 }

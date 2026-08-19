@@ -13,6 +13,7 @@ import { attachFx } from './fx/floaters';
 import { ThoughtBubbles } from './fx/ThoughtBubbles';
 import { gridToScreen, screenToGrid, worldBounds } from './iso';
 import { GlowPool } from './neon';
+import { OverlayLayer } from './OverlayLayer';
 import { PincerController } from './PincerController';
 import { tileVariantIndex } from './tileVariant';
 import { GuestViews } from './views/GuestViews';
@@ -31,13 +32,19 @@ export default class WorldScene extends Phaser.Scene {
   private cameraController!: CameraController;
   private buildController!: BuildController;
   private guestViews!: GuestViews;
+  /** Guest the camera is tracking, or null. Cleared when the guest leaves or
+   *  the player takes manual camera control. */
+  private followingGuestId: string | null = null;
   private staffViews!: StaffViews;
   private thoughtBubbles!: ThoughtBubbles;
   private pincer!: PincerController;
   private glowPool!: GlowPool;
+  private overlay!: OverlayLayer;
   private highlight!: Phaser.GameObjects.Image;
   private tickAccumulator = 0;
   private speed = 1;
+  private hoverCol = -1;
+  private hoverRow = -1;
 
   constructor() {
     super('world');
@@ -73,6 +80,7 @@ export default class WorldScene extends Phaser.Scene {
     this.cameras.main.postFX.addShine(0.3, 0.4, 5);
 
     this.glowPool = new GlowPool(this);
+    this.overlay = new OverlayLayer(this);
     const views = new ObjectViews(this);
     this.buildController = new BuildController(this, this.cameraController, views);
     this.guestViews = new GuestViews(this);
@@ -112,6 +120,10 @@ export default class WorldScene extends Phaser.Scene {
     );
 
     eventBus.on('speedChanged', ({ speed }) => (this.speed = speed));
+    eventBus.on('followGuest', ({ guestId }) => {
+      this.followingGuestId = guestId;
+      if (!guestId) this.cameras.main.stopFollow();
+    });
   }
 
   getGlowPool(): GlowPool {
@@ -127,6 +139,7 @@ export default class WorldScene extends Phaser.Scene {
       world.tick();
     }
     this.cameraController.update();
+    this.updateFollow();
     // Camera may move without the pointer moving (edge scroll, drag) — re-derive hover.
     this.updateHover(this.input.activePointer);
     this.buildController.refresh(this.input.activePointer);
@@ -135,6 +148,30 @@ export default class WorldScene extends Phaser.Scene {
     this.thoughtBubbles.update();
     this.staffViews.update(frameAlpha, this.pincer.carriedStaffId);
     this.pincer.refresh(this.input.activePointer);
+  }
+
+  /** Keeps the camera on a followed guest. Runs after cameraController so a
+   *  manual drag wins for that frame and then releases the follow — grabbing
+   *  the camera should always mean you get the camera. */
+  private updateFollow(): void {
+    if (!this.followingGuestId) return;
+    if (this.cameraController.isDragging) {
+      this.stopFollowing();
+      return;
+    }
+    const pos = this.guestViews.positionOf(this.followingGuestId);
+    if (!pos) {
+      // Guest left the casino. Stop rather than stranding the camera.
+      this.stopFollowing();
+      return;
+    }
+    this.cameras.main.pan(pos.x, pos.y, 120, 'Linear', true);
+  }
+
+  private stopFollowing(): void {
+    if (!this.followingGuestId) return;
+    this.followingGuestId = null;
+    eventBus.emit('followGuest', { guestId: null });
   }
 
   private updateHover(p: Phaser.Input.Pointer): void {
@@ -150,6 +187,17 @@ export default class WorldScene extends Phaser.Scene {
     }
     const s = gridToScreen(col, row);
     this.highlight.setPosition(s.x, s.y).setVisible(true);
+    this.emitOverlayHover(col, row);
+  }
+
+  /** Feeds the overlay's hover readout, deduped so a stationary cursor does
+   *  not republish the same tile every frame. */
+  private emitOverlayHover(col: number, row: number): void {
+    if (this.overlay.activeOverlay === 'none') return;
+    if (col === this.hoverCol && row === this.hoverRow) return;
+    this.hoverCol = col;
+    this.hoverRow = row;
+    eventBus.emit('overlayHover', { col, row, value: this.overlay.readoutAt(col, row) });
   }
 
   private drawFloor(): void {

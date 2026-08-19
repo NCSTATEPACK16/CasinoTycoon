@@ -3,6 +3,7 @@ import { world } from '../../gameContext';
 import type { StaffKind, StaffState } from '../../sim/entities/staff/Staff';
 import { el } from '../dom';
 import type { PanelSpec } from '../WindowManager';
+import { iconLabel, type IconName } from '../icons';
 
 const REFRESH_MS = 500;
 
@@ -17,15 +18,15 @@ const STAFF_KINDS: readonly StaffKind[] = [
   'cashier',
 ];
 
-const KIND_META: Record<StaffKind, { icon: string; label: string; wage: number }> = {
-  mechanic: { icon: '🔧', label: 'Mechanic', wage: STAFF_BALANCE.mechanic.wagePerHour },
-  janitor: { icon: '🧹', label: 'Janitor', wage: STAFF_BALANCE.janitor.wagePerHour },
-  bartender: { icon: '🍹', label: 'Bartender', wage: STAFF_BALANCE.bartender.wagePerHour },
-  waitress: { icon: '🍸', label: 'Cocktail Waitress', wage: STAFF_BALANCE.waitress.wagePerHour },
-  pitBoss: { icon: '🎩', label: 'Pit Boss', wage: STAFF_BALANCE.pitBoss.wagePerHour },
-  security: { icon: '🛡️', label: 'Security', wage: STAFF_BALANCE.security.wagePerHour },
-  dealer: { icon: '🎴', label: 'Dealer', wage: STAFF_BALANCE.dealer.wagePerHour },
-  cashier: { icon: '💵', label: 'Cashier', wage: STAFF_BALANCE.cashier.wagePerHour },
+const KIND_META: Record<StaffKind, { icon: IconName; label: string; wage: number }> = {
+  mechanic: { icon: 'mechanic', label: 'Mechanic', wage: STAFF_BALANCE.mechanic.wagePerHour },
+  janitor: { icon: 'janitor', label: 'Janitor', wage: STAFF_BALANCE.janitor.wagePerHour },
+  bartender: { icon: 'bartender', label: 'Bartender', wage: STAFF_BALANCE.bartender.wagePerHour },
+  waitress: { icon: 'waitress', label: 'Cocktail Waitress', wage: STAFF_BALANCE.waitress.wagePerHour },
+  pitBoss: { icon: 'pitBoss', label: 'Pit Boss', wage: STAFF_BALANCE.pitBoss.wagePerHour },
+  security: { icon: 'security', label: 'Security', wage: STAFF_BALANCE.security.wagePerHour },
+  dealer: { icon: 'dealer', label: 'Dealer', wage: STAFF_BALANCE.dealer.wagePerHour },
+  cashier: { icon: 'cashier', label: 'Cashier', wage: STAFF_BALANCE.cashier.wagePerHour },
 };
 
 const STATE_LABEL: Record<StaffState, string> = {
@@ -50,7 +51,8 @@ export function makeStaffPanel(): PanelSpec {
   const hireButtons: HTMLButtonElement[] = [];
   for (const kind of STAFF_KINDS) {
     const meta = KIND_META[kind];
-    const btn = el('button', 'p-tool', `${meta.icon} Hire ($${meta.wage}/hr)`);
+    const btn = el('button', 'p-tool');
+    btn.appendChild(iconLabel(meta.icon, `Hire ($${meta.wage}/hr)`));
     btn.addEventListener('click', () => {
       world.hireStaff(kind);
       render();
@@ -83,7 +85,7 @@ export function makeStaffPanel(): PanelSpec {
     for (const kind of STAFF_KINDS) {
       const meta = KIND_META[kind];
       const r = el('div', 'p-row');
-      r.appendChild(el('span', '', `${meta.icon} ${meta.label}s`));
+      r.appendChild(iconLabel(meta.icon, `${meta.label}s`));
       r.appendChild(el('span', 'val', `${counts[kind]} hired`));
       summary.appendChild(r);
     }
@@ -100,7 +102,7 @@ export function makeStaffPanel(): PanelSpec {
     for (const m of members) {
       const meta = KIND_META[m.kind];
       const r = el('div', 'p-row g-row');
-      r.appendChild(el('span', '', `${meta.icon} ${meta.label} #${m.id.slice(2)}`));
+      r.appendChild(iconLabel(meta.icon, `${meta.label} #${m.id.slice(2)}`));
       const right = el('span', 'val');
       right.appendChild(el('span', '', STATE_LABEL[m.state]));
       const fire = el('button', 'win-btn fire-btn', 'Fire');

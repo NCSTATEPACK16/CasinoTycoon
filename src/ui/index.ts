@@ -3,6 +3,7 @@ import { eventBus } from '../EventBus';
 import { audio } from '../services/AudioService';
 import { el, formatCash } from './dom';
 import { showScenarioSelect } from './ScenarioSelect';
+import { ConditionsBanner } from './ConditionsBanner';
 import { Ticker } from './Ticker';
 import { Toolbar } from './Toolbar';
 import { WindowManager, type PanelSpec } from './WindowManager';
@@ -14,15 +15,18 @@ import {
   reconcileForCurrentUser,
   resolveConflictsForCurrentUser,
 } from '../services/auth';
+import { injectIconSprite } from './icons';
 
 // Mounts the DOM UI overlay (toolbar, ticker, window layer) into #ui-root.
 // The root stays pointer-events:none; widgets opt back in, so the Phaser
 // canvas keeps receiving all other input.
 export function initUI(): void {
+  injectIconSprite();
   const uiRoot = document.getElementById('ui-root');
   if (!uiRoot) throw new Error('#ui-root missing from index.html');
   const windows = new WindowManager(uiRoot);
   new Ticker(uiRoot);
+  new ConditionsBanner(uiRoot);
   new Toolbar(uiRoot, windows);
   // Every DOM button click gets a soft tick (capture phase so stopPropagation
   // in a panel handler can't swallow it).
@@ -75,7 +79,7 @@ export function initUI(): void {
       makeEndCard(
         uiRoot,
         windows,
-        '🎉 Scenario complete!',
+        'Scenario complete!',
         `The books closed day ${day} at ${formatCash(profit)} profit — goal smashed.`,
       ),
     );
@@ -85,7 +89,7 @@ export function initUI(): void {
       makeEndCard(
         uiRoot,
         windows,
-        '💸 The backers walk',
+        'The backers walk',
         `Day ${day} ended without hitting the goal. The keys go back to the bank.`,
       ),
     );

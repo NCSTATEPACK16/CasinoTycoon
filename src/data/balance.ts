@@ -304,3 +304,263 @@ export const SCORE_BALANCE = {
   dayEfficiencyFloor: 0.5, // never let a last-day win score below half credit
   ratingWeight: 0.01, // rating is 0-100; this keeps its influence proportional
 } as const;
+
+// ---------------------------------------------------------------------------
+// Track 2 — the depth spine (A5 modifiers, A1a comps, A12 reputation).
+//
+// Sourcing convention from the research report: [industry] traces to casino
+// operations sources; [design guess] has no authoritative basis and exists
+// only to be tuned. Do not defend a design guess in review as though it were
+// researched.
+// ---------------------------------------------------------------------------
+
+/** Per-defId expected return-to-player, so theoretical win can be weighted by
+ *  each game's own house edge rather than one blended number.
+ *
+ *  Poker is absent on purpose: its return comes from the rake on live table
+ *  population, not a static payout table, so it has no meaningful RTP. Callers
+ *  fall back to `defaultHouseEdge` for anything missing here — a game with no
+ *  entry earns comps at the fallback rate rather than none at all. */
+export function expectedRtpFor(defId: string): number | null {
+  switch (defId) {
+    case 'slot-machine':
+      return slotExpectedRtp();
+    case 'blackjack-table':
+      return blackjackExpectedRtp();
+    case 'craps-table':
+      return crapsExpectedRtp();
+    case 'roulette-table':
+      return rouletteExpectedRtp();
+    case 'big-six-wheel':
+      return bigSixExpectedRtp();
+    case 'high-limit-table':
+      return highLimitExpectedRtp();
+    default:
+      return null;
+  }
+}
+
+// A1a — targeted comps.
+//
+// theo = Σ_game wagered[game] × (1 − expectedRtp(game)). The player sends a
+// specific guest a specific comp and watches that guest respond.
+//
+// This is §G's stated fallback, taken deliberately. The global reinvestment
+// dial it replaces measured as a pure tax: match play a guest recycles returns
+// ≈100% of itself to the house as theo, and the happiness channel clamps at
+// 100 within ~$50 of comps, so both upside channels saturate and only the cost
+// remains. No value of a reinvestment rate produced the required "peak, then
+// negative near 30%" curve, because nothing in the model made moderate
+// comping pay. Discrete comps sidestep that: the spend is small, chosen, and
+// legibly attached to one guest — the distinction RCT players drew between
+// targeted coupons and diffuse marketing.
+export const COMPS = {
+  /** What each comp costs the house. [design guess] */
+  compUnit: { drink: 4, meal: 14, matchPlay: 25 },
+  /** Session theo a guest must generate before they are comp-eligible. Keeps
+   *  the player from comping someone who has not played. */
+  theoFloorToComp: 15, // [design guess]
+  /** Need restored by the comp that targets it, out of 100. */
+  needRestored: { drink: 45, meal: 55 },
+  /** Happiness per comp dollar, applied on top of the need it restores. */
+  happinessPerDollar: 0.6, // [design guess]
+  /** Cap on comp value per guest per session, as a multiple of the wallet they
+   *  arrived with. Bounds how far a single guest can be propped up. */
+  maxSessionExtensionPct: 0.35, // [design guess]
+} as const;
+
+export type CompKind = keyof typeof COMPS.compUnit;
+
+// A5 — challenge modifiers. All [design guess]; no external source applies.
+export interface ModifierEffects {
+  /** Multiplies the per-tick spawn chance. */
+  spawnMult?: number;
+  /** Multiplies an archetype's slice of the arrival roll. */
+  archetypeBias?: Partial<Record<GuestArchetypeId, number>>;
+  /** Multiplies a new guest's starting wallet. */
+  walletMult?: number;
+  /** Multiplies the cage's one-time advance amount. */
+  cageCapacityMult?: number;
+  /** Multiplies the per-tick thirst decay. */
+  thirstDecayMult?: number;
+  /** Charged at midnight unless the cleanliness floor was held all day. */
+  requiresCleanliness?: number;
+  failPenalty?: number;
+}
+
+export interface ModifierDef extends ModifierEffects {
+  id: string;
+  name: string;
+  /** One line, player-facing — this is the whole banner. */
+  blurb: string;
+}
+
+type GuestArchetypeId = 'regular' | 'highRoller' | 'biker' | 'tourist';
+
+export const MODIFIERS = {
+  maxActivePerDay: 2,
+  drawChance: 0.55,
+  catalog: [
+    {
+      id: 'convention',
+      name: 'Convention in town',
+      blurb: 'The hotel next door is full. Expect a crowd, and expect it to bet big.',
+      spawnMult: 1.45,
+      archetypeBias: { highRoller: 3.0 },
+    },
+    {
+      id: 'health-inspection',
+      name: 'Health inspection',
+      blurb: 'An inspector walks the floor at midnight. Keep it clean or pay the fine.',
+      requiresCleanliness: 80,
+      failPenalty: 400,
+    },
+    {
+      id: 'chip-shortage',
+      name: 'Chip shortage',
+      blurb: 'The cage is running light. Advances are half what they should be.',
+      cageCapacityMult: 0.5,
+    },
+    {
+      id: 'bus-junket',
+      name: 'Bus junket',
+      blurb: 'Two coaches of day-trippers. Lots of them, and not much in their pockets.',
+      spawnMult: 1.8,
+      archetypeBias: { tourist: 2.5 },
+      walletMult: 0.7,
+    },
+    {
+      id: 'heat-wave',
+      name: 'Heat wave',
+      blurb: 'Nobody can stop drinking. Stock the bar.',
+      thirstDecayMult: 1.6,
+    },
+  ] as readonly ModifierDef[],
+} as const;
+
+// A12 — reputation memory. All [design guess]. One persistent scalar, no
+// registry: the whole feature is "yesterday is visible in today's arrivals".
+export const REPUTATION = {
+  start: 50,
+  min: 0,
+  max: 100,
+  deltaPerRageQuit: -0.8,
+  deltaPerJackpotPayout: 0.5,
+  deltaPerContentLeaver: 0.15,
+  /** Fraction of the distance back to `start` closed each midnight. Without
+   *  this the scalar is absorbing at both ends. */
+  dailyDriftToMean: 0.05,
+  /** Hard cap on one day's net movement. The drift term alone does not stop a
+   *  death spiral — a bad day has to be survivable, not just recoverable. */
+  maxDailyDelta: 8,
+  /** Archetype arrival multipliers at reputation = max. Below `start` the
+   *  reciprocal applies, so a ruined reputation inverts the mix rather than
+   *  merely flattening it. */
+  archetypeBiasAtMax: { highRoller: 2.0, tourist: 1.6, biker: 0.5 },
+} as const;
+
+// ---------------------------------------------------------------------------
+// P4 / A2 — per-instance table minimums.
+// ---------------------------------------------------------------------------
+
+/**
+ * A2 — table minimums, the first per-instance game setting.
+ *
+ * **Correction to the research report.** `handsPerHourByOccupancy` is real
+ * casino-operations data, but it cannot be used as an absolute rate here: the
+ * sim runs at ~100× compression, so blackjack deals about 4 hands per in-game
+ * hour, not 52–209. The array is valid only as a *ratio* — see
+ * `occupancyRateMult` on SeatedCasinoGame. A heads-up player then deals ~4× as
+ * fast as a full table (209/52), which is the real relationship expressed in
+ * the sim's own units, and it is what makes "fewer players at a higher
+ * minimum" self-balancing without inventing an elasticity coefficient. No
+ * published source gives one, so inventing it would be fiction.
+ */
+export const TABLE_MINIMUMS = {
+  /** The dial's stops. A free-entry field invites $7 tables and teaches
+   *  nothing; a ladder makes the comparison between rungs the decision. */
+  tiers: [5, 10, 25, 50, 100, 200] as readonly number[],
+  /**
+   * The tier each table type opens at.
+   *
+   * **Departure from the report.** It gives absolute minimums, which would
+   * replace the per-type `costToPlay` values this economy is tuned around —
+   * roulette would fall from a $20 wager to $7 and every campaign becomes
+   * unwinnable. So the minimum *scales* the tuned wager instead of setting it:
+   * at the default tier the wager is exactly what it is today, and each rung
+   * moves it proportionally. A2 then adds a dial without silently rebalancing
+   * the whole game underneath it — a change the player opts into.
+   */
+  defaultByType: {
+    'blackjack-table': 25,
+    'craps-table': 10,
+    'roulette-table': 10,
+    'poker-table': 25,
+    'high-limit-table': 100,
+    'big-six-wheel': 5,
+  } as Readonly<Record<string, number>>,
+  /**
+   * Wallet a guest needs before it will sit, as a multiple of the wager.
+   *
+   * The report's ×20 is against the *minimum* and calibrated for wallets far
+   * larger relative to bets than this sim's — at ×20 a $10 table gates at $200
+   * against a 40–220 regular wallet, so raising a minimum is not a decision but
+   * a demolition. Expressed against the wager it is scale-free, and it reads as
+   * a rule rather than a coefficient: a guest wants enough for a few hands, not
+   * one. The elasticity stays emergent — this gate plus the plain affordability
+   * test decide who clears it, and the archetype wallet distributions do the
+   * rest. No published source gives a minimum-to-occupancy curve.
+   */
+  minWalletMultiple: 2, // [design guess]
+  /** Hands per hour at 1..7 seated. [industry] — used as a ratio only. */
+  handsPerHourByOccupancy: [209, 139, 105, 84, 70, 60, 52] as readonly number[],
+} as const;
+
+/** Tuned wager each table type takes at its default tier. */
+const BASE_WAGER_BY_TYPE: Readonly<Record<string, number>> = {
+  'blackjack-table': BLACKJACK_BALANCE.costToPlay,
+  'craps-table': CRAPS_BALANCE.costToPlay,
+  'roulette-table': ROULETTE_BALANCE.costToPlay,
+  'poker-table': POKER_BALANCE.costToPlay,
+  'high-limit-table': HIGH_LIMIT_BALANCE.costToPlay,
+  'big-six-wheel': BIG_SIX_BALANCE.costToPlay,
+};
+
+/** True for game types that carry a table minimum at all. Slots have a coin
+ *  size, not a minimum, so a "minimum" dial there would be the same lever
+ *  wearing a misleading name. */
+export function supportsTableMinimum(defId: string): boolean {
+  return TABLE_MINIMUMS.defaultByType[defId] !== undefined;
+}
+
+/** The wager this table type takes at the given minimum, scaled from its
+ *  tuned value at the default tier. */
+export function wagerForMinimum(defId: string, minimum: number): number {
+  const base = BASE_WAGER_BY_TYPE[defId];
+  const def = TABLE_MINIMUMS.defaultByType[defId];
+  if (base === undefined || def === undefined) return base ?? 0;
+  return Math.max(1, Math.round((base * minimum) / def));
+}
+
+/**
+ * How much faster this table deals at `seated` players than at a full house —
+ * the multiplier applied to its tuned play interval.
+ *
+ * Normalized against the table's own capacity, so a heads-up player at a
+ * four-seat table gets 209/84 and at a seven-seat table 209/52. The curve is
+ * about how crowded *this* table is, not an absolute rate: the sim runs at
+ * ~100x compression, where blackjack deals about four hands an in-game hour,
+ * so the industry array is only ever valid as a ratio.
+ */
+// The report's `handsPerHourByOccupancy` curve is deliberately NOT wired to the
+// play interval. It is real casino-operations data, and the intent — a thinner
+// table deals faster, so revenue per occupied seat partly offsets the guests a
+// higher minimum turns away — is sound in a casino. It does not hold here:
+// a guest in this sim plays until broke or satisfied, so their contribution is
+// bounded by their wallet, not by how fast the table deals. A faster table
+// does not earn more from the same guest, it empties them sooner and then
+// idles. Measured on the campaign guard, wiring it in any normalization —
+// anchored at a full table, half-full, or heads-up — cost The High Roller Club
+// four of seven winnable seeds, and the heads-up anchor cost every campaign
+// nearly all of them. A2's trade is carried by the wager and the bankroll gate
+// instead, which is where the elasticity was always specified to be emergent.

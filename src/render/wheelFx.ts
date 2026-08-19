@@ -6,6 +6,9 @@ export interface WheelSpec {
   nativeW: number;
   nativeH: number;
   box: { x0: number; y0: number; x1: number; y1: number };
+  // Force a square (circular) display even if the box crop isn't perfectly
+  // square, so the disc spins in place instead of wobbling into an oval.
+  circular?: boolean;
 }
 
 // Disc crops (public/sprites/wheels/*.png) are the same pixels as the base
@@ -25,6 +28,7 @@ export const BIG_SIX_WHEEL: WheelSpec = {
   nativeW: 162,
   nativeH: 280,
   box: { x0: 5, y0: 12, x1: 157, y1: 182 },
+  circular: true,
 };
 
 /**
@@ -48,9 +52,10 @@ export class WheelFx {
   ) {
     const scale = displayW / spec.nativeW;
     const pos = overlayPlacement(cabinetX, cabinetY, scale, spec.nativeW, spec.nativeH, spec.box);
+    const size = spec.circular ? Math.min(pos.w, pos.h) : undefined;
     this.disc = scene.add
       .image(pos.x, pos.y, spec.diskKey)
-      .setDisplaySize(pos.w, pos.h)
+      .setDisplaySize(size ?? pos.w, size ?? pos.h)
       .setDepth(depth + 1);
     this.spin();
   }

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { eventBus } from '../EventBus';
 import { getObjectDef } from '../data/objects';
+import { formatCash } from '../ui/dom';
 import { world, worldGrid } from '../gameContext';
 import { audio } from '../services/AudioService';
 import type CameraController from './CameraController';
@@ -124,7 +125,13 @@ export class BuildController {
       if (!world.place(this.defId, col, row)) {
         const check = world.canPlace(this.defId, col, row);
         if (!check.ok && check.reason === 'insufficient-funds') {
-          eventBus.emit('tickerMessage', { text: 'Not enough cash!' });
+          // Say the amount, not just "no". A blocked action that explains
+          // itself is the whole of B4's onboarding-without-a-tutorial idea.
+          const short = (getObjectDef(this.defId)?.cost ?? 0) - world.state.cash;
+          eventBus.emit('tickerMessage', {
+            text: `Can't afford that — you need ${formatCash(short)} more.`,
+            severity: 'warn',
+          });
           audio.play('ui-error', { volume: 0.7 });
         }
       }

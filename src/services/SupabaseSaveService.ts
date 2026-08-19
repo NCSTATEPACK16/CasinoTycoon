@@ -1,6 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { CasinoWorldJSON } from '../sim/world';
-import { SAVE_VERSION, type SaveEnvelope, type SaveService, type SlotInfo } from './SaveService';
+import {
+  SAVE_VERSION,
+  slotInfo,
+  type SaveEnvelope,
+  type SaveService,
+  type SlotInfo,
+} from './SaveService';
+import { acceptEnvelope } from './migrations';
 
 // Raw cloud CRUD against the `saves` table. Depends on a narrow
 // SaveTableClient rather than the whole SupabaseClient type, so tests use a
@@ -67,8 +74,8 @@ export class SupabaseSaveService implements SaveService {
 
   async load(slot: string): Promise<CasinoWorldJSON | null> {
     const row = await this.db.selectSave(this.userId, slot);
-    if (!row || row.payload?.version !== SAVE_VERSION) return null;
-    return row.payload.world;
+    if (!row) return null;
+    return acceptEnvelope(row.payload).world;
   }
 
   async delete(slot: string): Promise<void> {
@@ -79,14 +86,9 @@ export class SupabaseSaveService implements SaveService {
     const rows = await this.db.listSaves(this.userId);
     const infos: SlotInfo[] = [];
     for (const row of rows) {
-      if (row.payload?.version !== SAVE_VERSION) continue;
-      infos.push({
-        slot: row.slot,
-        savedAt: row.payload.savedAt,
-        day: row.payload.world.time.day,
-        cash: row.payload.world.state.cash,
-        scenarioName: row.payload.world.scenario?.def.name ?? null,
-      });
+      const res = acceptEnvelope(row.payload);
+      if (res.status === 'unreadable') continue;
+      infos.push(slotInfo(row.slot, res));
     }
     return infos;
   }

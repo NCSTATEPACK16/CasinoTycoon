@@ -6,18 +6,21 @@ import type { PanelSpec, WindowManager } from './WindowManager';
 import { makeBuildPanel } from './panels/BuildPanel';
 import { makeFinancePanel } from './panels/FinancePanel';
 import { makeGuestsPanel } from './panels/GuestsPanel';
+import { makeThoughtsPanel } from './panels/ThoughtsPanel';
 import { makeStaffPanel } from './panels/StaffPanel';
 import { makeObjectivesPanel } from './panels/ObjectivesPanel';
+import { makeOverlayPanel } from './panels/OverlayPanel';
 import { makeRatingPanel } from './panels/RatingPanel';
 import { makeSoundPanel } from './panels/SoundPanel';
 import { makeSavePanel } from './panels/SavePanel';
 import { makeLoginPanel } from './panels/LoginPanel';
 import { makeLeaderboardPanel } from './panels/LeaderboardPanel';
+import { icon, type IconName } from './icons';
 
 interface ToolbarButton {
   id: string;
   label: string;
-  icon: string;
+  icon: IconName;
   make: () => PanelSpec;
 }
 
@@ -25,16 +28,21 @@ interface ToolbarButton {
 export class Toolbar {
   constructor(uiRoot: HTMLElement, windows: WindowManager) {
     const BUTTONS: ToolbarButton[] = [
-      { id: 'build', label: 'Build', icon: '🔨', make: makeBuildPanel },
-      { id: 'finance', label: 'Finance', icon: '💰', make: () => makeFinancePanel(windows) },
-      { id: 'guests', label: 'Guests', icon: '👥', make: makeGuestsPanel },
-      { id: 'staff', label: 'Staff', icon: '🔧', make: makeStaffPanel },
-      { id: 'objectives', label: 'Objectives', icon: '🎯', make: makeObjectivesPanel },
-      { id: 'sound', label: 'Sound', icon: '🔊', make: makeSoundPanel },
-      { id: 'save', label: 'Save', icon: '💾', make: makeSavePanel },
-      { id: 'account', label: 'Account', icon: '👤', make: makeLoginPanel },
-      { id: 'leaderboard', label: 'Ranks', icon: '🏆', make: makeLeaderboardPanel },
+      { id: 'build', label: 'Build', icon: 'build', make: makeBuildPanel },
+      { id: 'finance', label: 'Finance', icon: 'finance', make: () => makeFinancePanel(windows) },
+      { id: 'guests', label: 'Guests', icon: 'guests', make: makeGuestsPanel },
+      { id: 'thoughts', label: 'Thoughts', icon: 'thought', make: makeThoughtsPanel },
+      { id: 'staff', label: 'Staff', icon: 'staff', make: makeStaffPanel },
+      { id: 'overlays', label: 'Overlays', icon: 'overlay', make: makeOverlayPanel },
+      { id: 'objectives', label: 'Objectives', icon: 'objectives', make: makeObjectivesPanel },
+      { id: 'sound', label: 'Sound', icon: 'sound', make: makeSoundPanel },
+      { id: 'save', label: 'Save', icon: 'save', make: makeSavePanel },
+      { id: 'account', label: 'Account', icon: 'account', make: makeLoginPanel },
+      { id: 'leaderboard', label: 'Ranks', icon: 'leaderboard', make: makeLeaderboardPanel },
     ];
+
+    let currentSpeed = 1;
+    let resumeSpeed = 1;
 
     const bar = el('div', 'ui-toolbar bevel-raised');
     uiRoot.appendChild(bar);
@@ -42,31 +50,72 @@ export class Toolbar {
     const group = el('div', 'tb-group');
     bar.appendChild(group);
     const buttons = new Map<string, HTMLButtonElement>();
-    for (const def of BUTTONS) {
+    for (const [i, def] of BUTTONS.entries()) {
       const btn = el('button', 'tb-btn');
-      btn.appendChild(el('span', 'tb-icon', def.icon));
+      btn.appendChild(icon(def.icon, 'tb-icon'));
       btn.appendChild(el('span', '', def.label));
+      // Shortcut discoverability lives in the tooltip: no extra chrome, and the
+      // binding is derived from position so it can never drift from the key.
+      const key = i < 9 ? String(i + 1) : i === 9 ? '0' : null;
+      btn.title = key ? `${def.label} (${key})` : def.label;
       btn.addEventListener('click', () => windows.toggle(def.id, def.make));
       group.appendChild(btn);
       buttons.set(def.id, btn);
     }
+
+    // Keyboard shortcuts. Modern players expect these regardless of art
+    // direction, and they cost one handler.
+    window.addEventListener('keydown', (e) => {
+      // Never steal a key from a field the player is typing into.
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      if (e.key === 'Escape') {
+        const top = windows.topWindowId();
+        if (top) {
+          windows.close(top);
+          e.preventDefault();
+        }
+        return;
+      }
+      if (e.key === ' ') {
+        // Toggle, and resume at whatever speed was running before the pause
+        // rather than snapping back to 1x.
+        eventBus.emit('speedChanged', { speed: currentSpeed === 0 ? resumeSpeed : 0 });
+        e.preventDefault();
+        return;
+      }
+      const digit = e.key === '0' ? 10 : Number(e.key);
+      if (Number.isInteger(digit) && digit >= 1 && digit <= BUTTONS.length) {
+        const def = BUTTONS[digit - 1]!;
+        windows.toggle(def.id, def.make);
+        e.preventDefault();
+      }
+    });
     windows.onChange((id, open) => buttons.get(id)?.classList.toggle('pressed', open));
 
     // Game speed: pause / 1× / 3× (render-side tick multiplier).
     const speedGroup = el('div', 'tb-group tb-speed');
     const speedButtons: [number, HTMLButtonElement][] = [];
     for (const [label, value] of [
-      ['⏸', 0],
-      ['1×', 1],
-      ['3×', 3],
+      ['pause', 0],
+      ['1\u00d7', 1],
+      ['3\u00d7', 3],
     ] as const) {
-      const btn = el('button', 'tb-btn tb-speed-btn', label);
+      const btn = el('button', 'tb-btn tb-speed-btn');
+      // Pause is a glyph; the speeds are numerals and stay type.
+      if (label === 'pause') btn.appendChild(icon('pause'));
+      else btn.textContent = label;
+      btn.title = label === 'pause' ? 'Pause' : `Speed ${label}`;
       btn.addEventListener('click', () => eventBus.emit('speedChanged', { speed: value }));
       speedGroup.appendChild(btn);
       speedButtons.push([value, btn]);
     }
     bar.appendChild(speedGroup);
     const syncSpeed = (speed: number) => {
+      currentSpeed = speed;
+      if (speed !== 0) resumeSpeed = speed;
       for (const [value, btn] of speedButtons) btn.classList.toggle('pressed', value === speed);
     };
     eventBus.on('speedChanged', ({ speed }) => syncSpeed(speed));
@@ -75,13 +124,13 @@ export class Toolbar {
     bar.appendChild(el('div', 'tb-spacer'));
 
     const cash = el('div', 'tb-readout tb-cash bevel-sunken');
-    const cashIcon = el('span', 'ro-icon', '💵');
+    const cashIcon = icon('cash', 'ro-icon');
     const cashValue = el('span', '', formatCash(STARTING_CASH));
     cash.append(cashIcon, cashValue);
     bar.appendChild(cash);
 
     const clock = el('div', 'tb-readout bevel-sunken');
-    const clockIcon = el('span', 'ro-icon', '🕗');
+    const clockIcon = icon('clock', 'ro-icon');
     const clockValue = el('span', '', 'Day 1 · 12:00');
     clock.append(clockIcon, clockValue);
     bar.appendChild(clock);
@@ -94,17 +143,25 @@ export class Toolbar {
 
     const guestsRo = el('div', 'tb-readout bevel-sunken');
     guestsRo.title = 'Guests on the floor';
-    guestsRo.append(el('span', 'ro-icon', '👥'), el('span', '', '0'));
+    guestsRo.append(icon('guests', 'ro-icon'), el('span', '', '0'));
     bar.appendChild(guestsRo);
 
     const moodRo = el('div', 'tb-readout bevel-sunken');
     moodRo.title = 'Average guest happiness';
-    moodRo.append(el('span', 'ro-icon', '😊'), el('span', '', '—'));
+    moodRo.append(icon('mood', 'ro-icon'), el('span', '', '—'));
     bar.appendChild(moodRo);
+
+    // A12: reputation sits beside rating because they are easy to confuse and
+    // the difference matters — rating is the floor right now, reputation is
+    // what the town remembers. The band label carries the meaning; the raw
+    // scalar alone tells the player nothing.
+    const repRo = el('div', 'tb-readout bevel-sunken');
+    repRo.append(icon('reputation', 'ro-icon'), el('span', '', '—'));
+    bar.appendChild(repRo);
 
     const ratingRo = el('div', 'tb-readout bevel-sunken');
     ratingRo.id = 'tb-rating';
-    ratingRo.append(el('span', 'ro-icon', '⭐'), el('span', '', '0/100'));
+    ratingRo.append(icon('rating', 'ro-icon'), el('span', '', '0/100'));
     ratingRo.classList.add('tb-readout-btn');
     ratingRo.title = 'Casino rating — click for a breakdown';
     ratingRo.addEventListener('click', () => windows.toggle('rating', makeRatingPanel));
@@ -115,6 +172,9 @@ export class Toolbar {
       (guestsRo.lastChild as HTMLElement).textContent = String(world.guests.size);
       (moodRo.lastChild as HTMLElement).textContent = `${Math.round(world.averageHappiness)}%`;
       (ratingRo.lastChild as HTMLElement).textContent = `${breakdown.total}/100`;
+      const rep = world.reputation;
+      (repRo.lastChild as HTMLElement).textContent = rep.label;
+      repRo.title = `Reputation ${Math.round(rep.value)}/100 — shapes who walks in tomorrow`;
     };
     syncStats();
     // Toolbar lives for the lifetime of the page, so this interval is

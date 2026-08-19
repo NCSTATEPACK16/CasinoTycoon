@@ -26,7 +26,7 @@ describe('LocalSaveService', () => {
     expect(await svc.load('slot-1')).toEqual(data);
   });
 
-  it('returns null for empty, corrupt, and version-mismatched slots', async () => {
+  it('returns null for empty, corrupt, and newer-version slots', async () => {
     const store = new FakeStore();
     const svc = new LocalSaveService(store);
     expect(await svc.load('slot-1')).toBeNull();
@@ -37,6 +37,25 @@ describe('LocalSaveService', () => {
       JSON.stringify({ version: SAVE_VERSION + 1, savedAt: 'x', world: snapshot() }),
     );
     expect(await svc.load('slot-2')).toBeNull();
+  });
+
+  it('still lists a newer-version slot, flagged — dropping it looks like data loss', async () => {
+    const store = new FakeStore();
+    const svc = new LocalSaveService(store);
+    store.setItem(
+      'casino-save-slot-2',
+      JSON.stringify({ version: SAVE_VERSION + 1, savedAt: 'x', world: snapshot() }),
+    );
+    const infos = await svc.list();
+    expect(infos).toHaveLength(1);
+    expect(infos[0]).toMatchObject({ slot: 'slot-2', status: 'newer' });
+  });
+
+  it('omits corrupt slots from the list entirely', async () => {
+    const store = new FakeStore();
+    const svc = new LocalSaveService(store);
+    store.setItem('casino-save-slot-1', '{not json');
+    expect(await svc.list()).toEqual([]);
   });
 
   it('delete empties a slot', async () => {

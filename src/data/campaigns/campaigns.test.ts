@@ -80,15 +80,27 @@ function runCampaign(def: CampaignDef, seed: number) {
   };
 }
 
+// A5 modifiers put real variance on a run — a convention day and a chip
+// shortage are not the same campaign. So the guard is stated the way the
+// design actually means it: a straightforward build-out wins a *typical* run,
+// not one privileged seed. A campaign that genuinely stopped being winnable
+// still fails this, because it would lose on most seeds rather than one.
+const SEEDS = [1234, 77, 909, 5150, 31337, 8, 60221];
+const MIN_WINS = 4;
+
 describe('campaign winnability', () => {
   for (const def of CAMPAIGNS) {
     it(`${def.name} ($${def.goalDailyProfit}/day within ${def.dayLimit} days) falls to a straightforward build-out`, () => {
-      const res = runCampaign(def, 1234);
+      const results = SEEDS.map((seed) => {
+        eventBus.clear();
+        return { seed, ...runCampaign(def, seed) };
+      });
+      const wins = results.filter((r) => r.outcome === 'won');
       console.log(
-        `${def.name}: ${res.outcome}, best daily $${res.best}, days:`,
-        res.history.map((r) => `d${r.day}=$${r.profit}`).join(' '),
+        `${def.name}: won ${wins.length}/${SEEDS.length} —`,
+        results.map((r) => `s${r.seed}:${r.outcome}($${Math.round(r.best ?? 0)})`).join(' '),
       );
-      expect(res.outcome).toBe('won');
+      expect(wins.length).toBeGreaterThanOrEqual(MIN_WINS);
     });
   }
 });

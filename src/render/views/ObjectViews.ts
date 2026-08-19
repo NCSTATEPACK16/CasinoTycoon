@@ -5,7 +5,7 @@ import { getObjectDef, type ObjectDef } from '../../data/objects';
 import { gameState } from '../../gameContext';
 import { gridToScreen } from '../iso';
 import { SlotMachineFx } from '../slotMachineFx';
-import { TableDealFx, POKER_DEAL, HIGH_LIMIT_DEAL, BLACKJACK_DEAL } from '../tableDealFx';
+import { TableDealFx, POKER_DEAL, HIGH_LIMIT_DEAL, BLACKJACK_DEAL, CRAPS_DEAL } from '../tableDealFx';
 import { WheelFx, ROULETTE_WHEEL, BIG_SIX_WHEEL } from '../wheelFx';
 import type WorldScene from '../WorldScene';
 
@@ -128,6 +128,9 @@ export class ObjectViews {
         break;
       case 'blackjack-table':
         this.extraFx.set(id, new TableDealFx(this.scene, x, y, depth, displayW, BLACKJACK_DEAL));
+        break;
+      case 'craps-table':
+        this.extraFx.set(id, new TableDealFx(this.scene, x, y, depth, displayW, CRAPS_DEAL));
         break;
     }
   }

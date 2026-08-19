@@ -3,7 +3,9 @@
 
 export interface GameEvents {
   moneyChanged: { cash: number; delta: number };
-  tickerMessage: { text: string };
+  /** Severity drives color and dwell time. Omitted means 'info' — the default
+   *  keeps every existing emitter valid. */
+  tickerMessage: { text: string; severity?: 'info' | 'warn' | 'alert' };
   hourPassed: { hour: number; day: number };
   dayEnded: { day: number; profit: number };
   objectPlaced: { id: string; defId: string; col: number; row: number };
@@ -12,6 +14,8 @@ export interface GameEvents {
   guestSpawned: { id: string; archetype: import('./sim/entities/Guest').GuestArchetype };
   guestLeft: { id: string };
   guestThought: { guestId: string; thoughtId: string; text: string };
+  /** null stops following. The camera resumes normal drag/edge control. */
+  followGuest: { guestId: string | null };
   machinePlayed: { machineId: string; guestId: string; wager: number; payout: number };
   machineBroke: { machineId: string };
   machineFixed: { machineId: string };
@@ -26,6 +30,17 @@ export interface GameEvents {
   worldReset: { scenarioId: string | null };
   worldLoaded: { scenarioId: string | null };
   speedChanged: { speed: number };
+  /** A5: the day's conditions changed (midnight draw, or a save load). */
+  modifiersChanged: { ids: string[] };
+  /** A12: reputation rolled over at midnight. */
+  reputationChanged: { value: number; delta: number };
+  /** A1a: the player comped a specific guest. */
+  compSent: { guestId: string; kind: string; cost: number };
+  /** B3: the player switched the data overlay ('none' turns it off). */
+  overlayChanged: { id: string };
+  /** B3: tile under the cursor changed, with the active overlay's reading.
+   *  null value means the overlay is off or that tile has no data. */
+  overlayHover: { col: number; row: number; value: string | null };
   // Extended as systems land (guestSpawned, machineBroke, ...). See PLAN.md catalog.
 }
 

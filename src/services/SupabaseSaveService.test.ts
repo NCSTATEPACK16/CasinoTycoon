@@ -42,6 +42,14 @@ describe('SupabaseSaveService', () => {
     expect(await svc.load('slot-1')).toBeNull();
   });
 
+  it('lists a newer-version payload as flagged rather than hiding it', async () => {
+    const db = new FakeTable();
+    await db.upsertSave('user-1', 'slot-1', { ...envelope(), version: SAVE_VERSION + 1 });
+    const infos = await new SupabaseSaveService(db, 'user-1').list();
+    expect(infos).toHaveLength(1);
+    expect(infos[0]).toMatchObject({ slot: 'slot-1', status: 'newer' });
+  });
+
   it('returns null for a version-mismatched payload rather than throwing', async () => {
     const table = new FakeTable();
     table.rows.set('slot-1', {

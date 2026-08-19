@@ -41,7 +41,7 @@ export class ScenarioManager {
     } else if (record.day >= this.def.dayLimit) {
       this.status = 'failed';
       eventBus.emit('scenarioFailed', { campaignId: this.def.id, day: record.day });
-      eventBus.emit('tickerMessage', { text: `Time's up — ${this.def.name} folds.` });
+      eventBus.emit('tickerMessage', { text: `Time's up — ${this.def.name} folds.`, severity: 'alert' });
     }
   }
 

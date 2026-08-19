@@ -45,7 +45,7 @@ export function applyBackends(next: AuthState): void {
   setSaveBackend(
     new SyncedSaveService(new LocalSaveService(), cloud, (op) => {
       if (op === 'save') {
-        eventBus.emit('tickerMessage', { text: 'Saved locally — cloud sync failed.' });
+        eventBus.emit('tickerMessage', { text: 'Saved locally — cloud sync failed.', severity: 'warn' });
       }
     }),
   );

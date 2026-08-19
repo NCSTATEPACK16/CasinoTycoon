@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "lint": "eslint src",
     "fetch-assets": "node scripts/fetch-assets.mjs",
-    "optimize-sprites": "node scripts/optimize-sprites.mjs"
+    "optimize-sprites": "node scripts/optimize-sprites.mjs",
+    "build-icons": "node scripts/build-icons.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",
@@ -19,7 +20,9 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@fontsource-variable/inter": "^5.3.0",
     "eslint": "^10.7.0",
+    "lucide-static": "^1.32.0",
     "pngjs": "^7.0.0",
     "prettier": "^3.9.5",
     "typescript": "^6.0.3",
