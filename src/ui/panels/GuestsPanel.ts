@@ -115,6 +115,9 @@ export function makeGuestsPanel(): PanelSpec {
       }
       row.value.textContent = `$${Math.round(g.wallet)}`;
       row.el.classList.toggle('selected', g.id === selectedId);
+      // One class, so a regular is spottable in a list of 130 without the
+      // player opening anything.
+      row.el.classList.toggle('carded', g.patronId !== null);
     }
     for (const [id, row] of rows) {
       if (!shown.some((g) => g.id === id)) {
@@ -180,6 +183,26 @@ export function makeGuestsPanel(): PanelSpec {
     // one attribute worth spotting at a glance in a list of 130.
     if (arch) head.appendChild(iconLabel(arch.icon, arch.label, 'g-arch'));
     detail.appendChild(head);
+
+    // A1b: what the house knows about this person, if anything. It sits above
+    // the session ledger because a returning patron's history is the context
+    // the player judges tonight's numbers against.
+    const patron = sel.patronId ? world.patrons.get(sel.patronId) : undefined;
+    if (patron) {
+      const card = el('div', `g-patron pt-${patron.tier.id}`);
+      card.appendChild(
+        iconLabel('patronTier', `${patron.tier.name} player · visit ${patron.visits + 1}`),
+      );
+      card.appendChild(
+        el('div', 'g-patron-note', `Lifetime theoretical win ${formatCash(patron.lifetimeTheo)}`),
+      );
+      if (patron.tier.wantsHost) {
+        card.appendChild(
+          el('div', 'g-patron-host', 'Expects a host. Send something over before they leave.'),
+        );
+      }
+      detail.appendChild(card);
+    }
 
     // The session ledger. Every field below already existed on Guest — this
     // panel is pure surfacing, which is why it costs nothing to show.

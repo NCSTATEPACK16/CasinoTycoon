@@ -1016,3 +1016,80 @@ label.p-mute input {
   color: var(--gold);
   flex: none;
 }
+
+/* ---------- A1b carded patrons ---------- */
+
+/* A carded regular in the guest list. A left rule rather than a colour on the
+   text: the mood icon already owns colour in that row, and two colour channels
+   in one line is one too many to read at a glance. */
+.g-row.carded {
+  border-left: 3px solid var(--gold-dark);
+}
+
+.g-patron {
+  margin: var(--space-2) 0;
+  padding: var(--space-2);
+  background: var(--panel-well);
+  border-left: 3px solid var(--gold-dark);
+}
+
+.pt-silver {
+  border-left-color: var(--text-secondary);
+}
+.pt-gold {
+  border-left-color: var(--gold);
+}
+/* The top rung reads as the felt, not as more gold — a fourth shade of gold on
+   the same surface stops being a distinction. */
+.pt-black {
+  border-left-color: var(--felt);
+}
+
+.g-patron-note {
+  color: var(--text-secondary);
+  font-size: var(--fs-caption);
+  margin-top: var(--space-1);
+}
+
+/* The one line in this feature that is asking for something. It carries the
+   warning accent because a black-tier patron leaving un-hosted is a cost the
+   player can still avoid at the moment they read it. */
+.g-patron-host {
+  color: var(--warning);
+  font-size: var(--fs-caption);
+  margin-top: var(--space-1);
+}
+
+/* Roster rows. Name, standing, lifetime value — in that order, because the
+   name is what the player came to the panel for. */
+.pt-row {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: 'name value' 'meta value';
+  gap: 0 var(--space-2);
+  align-items: center;
+  text-align: left;
+  color: var(--text-primary);
+  border-left: 3px solid transparent;
+  padding-left: var(--space-2);
+}
+.pt-row .pt-name {
+  grid-area: name;
+}
+.pt-row .pt-meta {
+  grid-area: meta;
+  color: var(--text-secondary);
+  font-size: var(--fs-caption);
+}
+.pt-row .val {
+  grid-area: value;
+}
+/* A patron who is not on the floor has nothing to click through to, so the row
+   is inert rather than a button that silently does nothing. Contrast is left
+   alone on purpose — this is a record the player is reading, not a control
+   that has been switched off, and dimming it would make the roster harder to
+   read exactly when nobody is in. */
+.pt-row[disabled] {
+  cursor: default;
+}

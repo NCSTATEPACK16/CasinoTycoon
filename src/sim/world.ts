@@ -28,6 +28,7 @@ import { HOUSE_SOURCES, Ledger, type LedgerJSON } from './economy';
 import { MoodField, type MoodFieldJSON } from './MoodField';
 import { TrafficField, type TrafficFieldJSON } from './TrafficField';
 import { ModifierSystem, type ModifierSystemJSON } from './modifiers';
+import { type Patron, PatronRegistry, type PatronRegistryJSON } from './patrons';
 import { Reputation, type ReputationJSON } from './reputation';
 import { ScenarioManager, type ScenarioJSON } from './scenario/ScenarioManager';
 import { TimeSystem, type TimeSystemJSON } from './TimeSystem';
@@ -125,6 +126,9 @@ export interface CasinoWorldJSON {
   scenario: ScenarioJSON | null;
   modifiers: ModifierSystemJSON;
   reputation: ReputationJSON;
+  /** P3 — the carded roster. Required from SAVE_VERSION 4 up; older files get
+   *  an empty registry from the migration ladder rather than a missing key. */
+  patrons: PatronRegistryJSON;
   /** Optional: added after SAVE_VERSION 3, and absent from both a v3 save
    *  written before it and a v2 file migrated up. `MoodField.fromJSON` starts
    *  empty in either case, which is exactly right — a returning player's mood
@@ -148,6 +152,9 @@ export class CasinoWorld {
    *  shift the call count of the shared stream, or every payout and spawn in
    *  the game changes the moment A5 lands. */
   private modifierRng: Rng;
+  /** Same reasoning again for P3: the once-a-day return draw must not shift
+   *  the shared stream, or adding patrons re-rolls the whole game for a seed. */
+  private patronRng: Rng;
   machines = new Map<string, CasinoGame>();
   foodStalls = new Map<string, FoodStall>();
   bars = new Map<string, Bar>();
@@ -167,6 +174,9 @@ export class CasinoWorld {
   mood = new MoodField();
   /** P2 — decayed per-tile footfall, written on guest tile-enter. */
   traffic = new TrafficField();
+  /** P3/A1b — the bounded roster of carded patrons. Data records, not agents:
+   *  nothing here ticks, and a record only becomes a live Guest on a visit. */
+  patrons = new PatronRegistry();
   scenario: ScenarioManager | null = null;
   tickCount = 0;
   entranceTile: Cell = { ...ENTRANCE_TILE };
@@ -203,6 +213,7 @@ export class CasinoWorld {
     this.rng = new Rng(seed);
     this.archetypeRng = new Rng((seed ^ 0x9e3779b9) >>> 0);
     this.modifierRng = new Rng((seed ^ 0x85ebca6b) >>> 0);
+    this.patronRng = new Rng((seed ^ 0xc2b2ae35) >>> 0);
     this.autoSpawn = opts.autoSpawn ?? true;
   }
 
@@ -242,6 +253,7 @@ export class CasinoWorld {
     this.reputation = new Reputation();
     this.mood = new MoodField();
     this.traffic = new TrafficField();
+    this.patrons = new PatronRegistry();
     this.tickCount = 0;
     this.nextGuestNum = 1;
     this.nextMessNum = 1;
@@ -324,6 +336,10 @@ export class CasinoWorld {
       if (guest.state === 'gone') {
         // Read before the fold: foldGuestSession zeroes the session.
         if (guest.leavingContent) this.reputation.onContentLeaver();
+        // Before the fold for the same reason: it reads guest.theo(), which
+        // the fold does not clear, but the ordering keeps the two reads of a
+        // departing session next to each other.
+        this.recordPatronDeparture(guest);
         this.foldGuestSession(guest);
         this.guests.delete(id);
         eventBus.emit('guestLeft', { id });
@@ -379,6 +395,17 @@ export class CasinoWorld {
       // Draw for the day that just began, after the close so the report shows
       // the conditions the closed day was played under.
       this.modifiers.drawForDay(this.time.day, this.modifierRng);
+      // P3: prune the roster and draw who is expected in, for the day that
+      // just began. Announced up front — Dave the Diver's flagged VIP night —
+      // so the player can plan the evening instead of discovering it.
+      const due = this.patrons.drawForDay(this.time.day, this.patronRng);
+      if (due.length > 0) {
+        const names = due.slice(0, 3).map((p) => p.name);
+        const rest = due.length - names.length;
+        eventBus.emit('tickerMessage', {
+          text: `Expected in today: ${names.join(', ')}${rest > 0 ? ` and ${rest} more` : ''}.`,
+        });
+      }
       eventBus.emit('dayEnded', { day: record.day, profit: record.profit });
       const top = record.winners[0];
       if (top && top.net > 0) {
@@ -549,7 +576,13 @@ export class CasinoWorld {
 
   spawnGuest(archetypeOverride?: GuestArchetype): Guest {
     const id = `g-${this.nextGuestNum++}`;
-    const archetype = archetypeOverride ?? this.rollArchetype();
+    // A1b: a patron drawn for today takes the next arrival rather than being
+    // spawned on a schedule of their own. Returning through the same door
+    // keeps the guest cap, the spawn pacing, and the floor's economics exactly
+    // as they were — the registry rehydrates into an ordinary Guest and then
+    // has nothing further to do with them until they leave.
+    const patron = archetypeOverride === undefined ? this.patrons.takeDue() : null;
+    const archetype = archetypeOverride ?? patron?.archetype ?? this.rollArchetype();
     const baseWallet =
       archetype === 'highRoller'
         ? this.rng.int(ARCHETYPE_BALANCE.highRollerWalletMin, ARCHETYPE_BALANCE.highRollerWalletMax)
@@ -557,10 +590,64 @@ export class CasinoWorld {
     // Floored at 1 so a stacked wallet penalty can never spawn a guest who is
     // broke on arrival and walks straight back out.
     const wallet = Math.max(1, Math.round(baseWallet * this.modifiers.walletMult()));
-    const guest = new Guest(id, wallet, this.entranceTile, archetype);
+    const guest = new Guest(
+      id,
+      wallet,
+      this.entranceTile,
+      archetype,
+      patron ? { id: patron.id, name: patron.name, tier: patron.tier } : null,
+    );
     this.guests.set(id, guest);
     eventBus.emit('guestSpawned', { id, archetype: guest.archetype });
+    if (patron) this.announcePatronArrival(patron);
     return guest;
+  }
+
+  /**
+   * The host, doing the tracking so the player never has to.
+   *
+   * This is the whole player-facing surface of a return visit: a line in the
+   * ticker naming someone the player already knows. A black-tier patron's
+   * arrival is escalated to an alert, because that tier's benefit is only felt
+   * if failing to look after them is something the player can notice and lose.
+   */
+  private announcePatronArrival(patron: Patron): void {
+    const visit = patron.visits + 1;
+    if (patron.tier.wantsHost) {
+      eventBus.emit('tickerMessage', {
+        text: `${patron.name} (${patron.tier.name}) is on the floor — visit ${visit}. Look after them.`,
+        severity: 'alert',
+      });
+      return;
+    }
+    eventBus.emit('tickerMessage', {
+      text: `${patron.name} (${patron.tier.name}) is back — visit ${visit}.`,
+    });
+  }
+
+  /** Fold a departing guest into the roster and say what it did. Called once,
+   *  on the actual departure — see PatronRegistry.recordDeparture. */
+  private recordPatronDeparture(guest: Guest): void {
+    const out = this.patrons.recordDeparture(guest, this.time.day);
+    if (!out.patron) return;
+    if (out.carded) {
+      eventBus.emit('tickerMessage', {
+        text: `${out.patron.name} just earned a player's card — ${out.patron.tier.name}.`,
+      });
+      return;
+    }
+    if (out.promotedTo) {
+      eventBus.emit('tickerMessage', {
+        text: `${out.patron.name} is now a ${out.promotedTo.name} player.`,
+      });
+      return;
+    }
+    if (out.neglected) {
+      eventBus.emit('tickerMessage', {
+        text: `${out.patron.name} left without so much as a drink.`,
+        severity: 'warn',
+      });
+    }
   }
 
   /** Single bucketed roll on the dedicated archetypeRng (see its field
@@ -978,6 +1065,9 @@ export class CasinoWorld {
     this.ledger.addComp(cost);
     this.ledger.accrue(HOUSE_SOURCES.comps.id, HOUSE_SOURCES.comps.defId, { upkeep: cost });
     eventBus.emit('moneyChanged', { cash: this.state.cash, delta: -cost });
+    // Being looked after is the whole ask behind wantsHost, so any comp at all
+    // clears the flag that would otherwise cost them their next return.
+    if (guest.patronId) this.patrons.onComped(guest.patronId);
     eventBus.emit('compSent', { guestId, kind, cost });
     return true;
   }
@@ -1156,6 +1246,7 @@ export class CasinoWorld {
       scenario: this.scenario ? this.scenario.toJSON() : null,
       modifiers: this.modifiers.toJSON(),
       reputation: this.reputation.toJSON(),
+      patrons: this.patrons.toJSON(),
       mood: this.mood.toJSON(),
       traffic: this.traffic.toJSON(),
     };
@@ -1205,6 +1296,7 @@ export class CasinoWorld {
     this.scenario = data.scenario ? ScenarioManager.fromJSON(data.scenario) : null;
     this.modifiers = ModifierSystem.fromJSON(data.modifiers);
     this.reputation = Reputation.fromJSON(data.reputation);
+    this.patrons = PatronRegistry.fromJSON(data.patrons);
     this.mood = MoodField.fromJSON(data.mood);
     this.traffic = TrafficField.fromJSON(data.traffic);
     this.refreshServiceAvailability();
