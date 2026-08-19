@@ -20,6 +20,15 @@ export abstract class Walker {
   /** Called when the queued route can no longer be walked or re-planned. */
   protected abstract onRouteLost(world: CasinoWorld): void;
 
+  /** Fired once, the tick a walker completes a step onto a new tile. The one
+   *  place footfall can be counted without either polling or double-counting a
+   *  walker that stands still. Staff deliberately do not override it: the
+   *  traffic map is about where *guests* go, and a janitor's patrol route is
+   *  not a fact about guest demand. */
+  protected onTileEntered(world: CasinoWorld): void {
+    void world;
+  }
+
   protected get arrived(): boolean {
     return this.moveTo === null && this.path.length === 0;
   }
@@ -35,6 +44,7 @@ export abstract class Walker {
       this.moveFrom = { ...this.moveTo };
       this.moveTo = null;
       this.moveTick = 0;
+      this.onTileEntered(world);
       if (this.path.length > 0) this.beginStep(world);
     }
   }

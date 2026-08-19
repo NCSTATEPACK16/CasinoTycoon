@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GRID_COLS, GRID_ROWS } from '../config';
 import { MoodField } from './MoodField';
 import { TileField } from './TileField';
+import { TrafficField } from './TrafficField';
 
 describe('TileField', () => {
   it('starts empty at the map size', () => {
@@ -118,5 +119,54 @@ describe('MoodField', () => {
 
   it('tolerates a null payload', () => {
     expect(MoodField.fromJSON(null).isEmpty).toBe(true);
+  });
+});
+
+describe('TrafficField', () => {
+  it('reports nothing for a tile nobody has crossed', () => {
+    const t = new TrafficField();
+    expect(t.visitsAt(4, 4)).toBeNull();
+    expect(t.isEmpty).toBe(true);
+    expect(t.busiest).toBe(0);
+  });
+
+  it('suppresses a single stray crossing as noise', () => {
+    const t = new TrafficField();
+    t.enter(4, 4);
+    // One guest who wandered through a corner once is not a route, and
+    // painting it would make a dead corner look like one.
+    expect(t.visitsAt(4, 4)).toBeNull();
+    t.enter(4, 4);
+    expect(t.visitsAt(4, 4)).toBe(2);
+  });
+
+  it('counts crossings, not dwell', () => {
+    const busy = new TrafficField();
+    for (let i = 0; i < 20; i++) busy.enter(1, 1);
+    const quiet = new TrafficField();
+    quiet.enter(2, 2);
+    quiet.enter(2, 2);
+    expect(busy.visitsAt(1, 1)!).toBeGreaterThan(quiet.visitsAt(2, 2)!);
+    expect(busy.busiest).toBe(20);
+  });
+
+  it('ages back to quiet once a route stops being used', () => {
+    const t = new TrafficField();
+    for (let i = 0; i < 10; i++) t.enter(3, 3);
+    expect(t.visitsAt(3, 3)).not.toBeNull();
+    for (let i = 0; i < 2000; i++) t.decay();
+    expect(t.visitsAt(3, 3)).toBeNull();
+    expect(t.isEmpty).toBe(true);
+  });
+
+  it('round-trips through JSON', () => {
+    const t = new TrafficField();
+    for (let i = 0; i < 6; i++) t.enter(9, 9);
+    const restored = TrafficField.fromJSON(JSON.parse(JSON.stringify(t.toJSON())));
+    expect(restored.visitsAt(9, 9)).toBe(6);
+  });
+
+  it('tolerates a null payload', () => {
+    expect(TrafficField.fromJSON(null).isEmpty).toBe(true);
   });
 });

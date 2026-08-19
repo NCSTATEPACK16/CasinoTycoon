@@ -276,3 +276,69 @@ describe('B3-mood sampling in the world', () => {
     expect(world.mood.isEmpty).toBe(true);
   });
 });
+
+describe('P2 — foot traffic in the world', () => {
+  it('records where guests actually walked', () => {
+    const world = new CasinoWorld({ seed: 8, autoSpawn: false });
+    world.startScenario(null);
+    world.place('slot-machine', 20, 15);
+    for (let i = 0; i < 6; i++) world.spawnGuest('regular');
+    for (let t = 0; t < 600; t++) world.tick();
+
+    let hot = 0;
+    for (let row = 0; row < GRID_ROWS; row++) {
+      for (let col = 0; col < GRID_COLS; col++) {
+        if (world.traffic.visitsAt(col, row) !== null) hot++;
+      }
+    }
+    expect(hot).toBeGreaterThan(0);
+    // Guests enter from one edge, so the far side of the map is untouched.
+    expect(world.traffic.visitsAt(0, 0)).toBeNull();
+  });
+
+  it('counts guests but not staff — a patrol route is not guest demand', () => {
+    const world = new CasinoWorld({ seed: 8, autoSpawn: false });
+    world.startScenario(null);
+    world.place('slot-machine', 20, 15);
+    world.hireStaff('janitor');
+    world.hireStaff('security');
+    for (let t = 0; t < 600; t++) world.tick();
+    expect(world.traffic.isEmpty).toBe(true);
+  });
+
+  it('writes on tile-enter, not once per tick', () => {
+    const world = new CasinoWorld({ seed: 8, autoSpawn: false });
+    world.startScenario(null);
+    world.place('slot-machine', 20, 15);
+    world.spawnGuest('regular');
+    let writes = 0;
+    const real = world.traffic.enter.bind(world.traffic);
+    world.traffic.enter = (c: number, r: number) => {
+      writes++;
+      real(c, r);
+    };
+    for (let t = 0; t < 400; t++) world.tick();
+    // A guest takes moveTicksPerTile ticks per tile, and spends long stretches
+    // seated at a machine writing nothing at all. Counting per tick would be
+    // 400 writes and would measure dwell rather than traffic.
+    expect(writes).toBeGreaterThan(0);
+    expect(writes).toBeLessThan(400 / 2);
+  });
+
+  it('round-trips through a save and clears on a new scenario', () => {
+    const world = new CasinoWorld({ seed: 8, autoSpawn: false });
+    world.startScenario(null);
+    world.place('slot-machine', 20, 15);
+    for (let i = 0; i < 4; i++) world.spawnGuest('regular');
+    for (let t = 0; t < 400; t++) world.tick();
+    expect(world.traffic.isEmpty).toBe(false);
+    const busiest = world.traffic.busiest;
+
+    const restored = new CasinoWorld({ seed: 1 });
+    restored.loadJSON(JSON.parse(JSON.stringify(world.toJSON())));
+    expect(restored.traffic.busiest).toBeCloseTo(busiest, 6);
+
+    world.startScenario(null);
+    expect(world.traffic.isEmpty).toBe(true);
+  });
+});

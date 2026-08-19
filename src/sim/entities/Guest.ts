@@ -203,6 +203,10 @@ export class Guest extends Walker {
     eventBus.emit('guestThought', { guestId: this.id, thoughtId: id, text });
   }
 
+  protected override onTileEntered(world: CasinoWorld): void {
+    world.traffic.enter(this.pos.col, this.pos.row);
+  }
+
   protected onRouteLost(world: CasinoWorld): void {
     if (this.state === 'leaving') {
       this.state = 'gone'; // fully walled in — despawn rather than pace forever

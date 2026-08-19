@@ -26,6 +26,7 @@ import type { Mess, MessKind } from './entities/Mess';
 import { Staff, type StaffKind } from './entities/staff/Staff';
 import { HOUSE_SOURCES, Ledger, type LedgerJSON } from './economy';
 import { MoodField, type MoodFieldJSON } from './MoodField';
+import { TrafficField, type TrafficFieldJSON } from './TrafficField';
 import { ModifierSystem, type ModifierSystemJSON } from './modifiers';
 import { Reputation, type ReputationJSON } from './reputation';
 import { ScenarioManager, type ScenarioJSON } from './scenario/ScenarioManager';
@@ -36,10 +37,10 @@ import { findPath, type Cell } from './grid/astar';
 import { IsoGrid, type IsoGridJSON } from './grid/IsoGrid';
 import { Rng } from './rng';
 
-/** Ticks between mood samples. Five is twice a second at SIM_TICKS_PER_SECOND
- *  — far finer than a player can perceive a heat map changing, and a fifth of
- *  the work of sampling every tick. */
-const MOOD_SAMPLE_TICKS = 5;
+/** Ticks between overlay-field passes. Five is twice a second at
+ *  SIM_TICKS_PER_SECOND — far finer than a player can perceive a heat map
+ *  changing, and a fifth of the work of doing it every tick. */
+const OVERLAY_SAMPLE_TICKS = 5;
 
 // The sim's composition root and tick orchestrator. Owns state, grid, machine
 // and guest registries. Presentation calls place/sell/tick and reads registries;
@@ -129,6 +130,9 @@ export interface CasinoWorldJSON {
    *  empty in either case, which is exactly right — a returning player's mood
    *  map should reflect where guests walk now, not be invented for them. */
   mood?: MoodFieldJSON;
+  /** Optional for the same reason as `mood` — absent from any save written
+   *  before P2, and an empty field is the right answer there. */
+  traffic?: TrafficFieldJSON;
 }
 
 export class CasinoWorld {
@@ -161,6 +165,8 @@ export class CasinoWorld {
    *  every guest every tick is 130 writes at 10Hz for a map that only needs to
    *  be right on a human timescale. */
   mood = new MoodField();
+  /** P2 — decayed per-tile footfall, written on guest tile-enter. */
+  traffic = new TrafficField();
   scenario: ScenarioManager | null = null;
   tickCount = 0;
   entranceTile: Cell = { ...ENTRANCE_TILE };
@@ -235,6 +241,7 @@ export class CasinoWorld {
     this.modifiers = new ModifierSystem();
     this.reputation = new Reputation();
     this.mood = new MoodField();
+    this.traffic = new TrafficField();
     this.tickCount = 0;
     this.nextGuestNum = 1;
     this.nextMessNum = 1;
@@ -323,7 +330,11 @@ export class CasinoWorld {
       }
     }
     for (const member of this.staff.values()) member.tick(this);
-    if (this.tickCount % MOOD_SAMPLE_TICKS === 0) this.sampleMood();
+    if (this.tickCount % OVERLAY_SAMPLE_TICKS === 0) {
+      this.sampleMood();
+      // Traffic is written on tile-enter, so only its ageing rides this pass.
+      this.traffic.decay();
+    }
     if (t.hourPassed) this.onHourBoundary(t.midnight);
   }
 
@@ -1146,6 +1157,7 @@ export class CasinoWorld {
       modifiers: this.modifiers.toJSON(),
       reputation: this.reputation.toJSON(),
       mood: this.mood.toJSON(),
+      traffic: this.traffic.toJSON(),
     };
   }
 
@@ -1194,6 +1206,7 @@ export class CasinoWorld {
     this.modifiers = ModifierSystem.fromJSON(data.modifiers);
     this.reputation = Reputation.fromJSON(data.reputation);
     this.mood = MoodField.fromJSON(data.mood);
+    this.traffic = TrafficField.fromJSON(data.traffic);
     this.refreshServiceAvailability();
     const scenarioId = this.scenario?.def.id ?? null;
     eventBus.emit('worldReset', { scenarioId });

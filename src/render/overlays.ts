@@ -8,7 +8,7 @@ import { world, worldGrid } from '../gameContext';
 // means the UI layer and the unit tests can import it without dragging a WebGL
 // engine along.
 
-export type OverlayId = 'none' | 'mood' | 'profit';
+export type OverlayId = 'none' | 'mood' | 'profit' | 'traffic';
 
 export interface OverlayStop {
   /** Normalized position on the scale, 0..1. */
@@ -114,5 +114,30 @@ export const OVERLAYS: Record<Exclude<OverlayId, 'none'>, OverlayDef> = {
     ],
     isEmpty: () => world.ledger.sources.size === 0,
     emptyNote: 'Nothing has earned or cost anything yet today.',
+  },
+  traffic: {
+    id: 'traffic',
+    label: 'Foot traffic',
+    valueAt: (col, row) => world.traffic.visitsAt(col, row),
+    // Scaled to the busiest tile on the floor: the useful question is "which
+    // routes are carrying the crowd", which is relative by nature. A fixed
+    // ceiling would leave a quiet casino uniformly dark and a busy one
+    // uniformly saturated.
+    // Starts at the noise floor, not zero: everything below it is suppressed,
+    // so anchoring the ramp at zero would spend most of its colour range on
+    // values that are never drawn and leave the visible band nearly uniform.
+    range: () => {
+      const max = Math.max(1, world.traffic.busiest);
+      return { min: Math.min(world.traffic.noiseFloor, max - 1), max };
+    },
+    format: (v) => `${Math.round(v)} recent visits`,
+    // Sequential, not diverging: footfall has no meaningful midpoint, and a
+    // three-colour ramp would invent one.
+    stops: [
+      { at: 0, color: 0x3b3529, label: 'Quiet' },
+      { at: 1, color: 0xe8b93c, label: 'Busiest' },
+    ],
+    isEmpty: () => world.traffic.isEmpty,
+    emptyNote: 'Nobody has walked the floor yet.',
   },
 };

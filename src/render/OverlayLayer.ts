@@ -13,6 +13,10 @@ const DEPTH_OVERLAY = 0.5;
  *  second to show changes nobody can perceive. */
 const REDRAW_MS = 500;
 
+/** Translucent enough that the floor art and the objects on it stay readable
+ *  through the heat map. */
+const TILE_ALPHA = 0.55;
+
 /**
  * Paints a data overlay across the map as a single RenderTexture.
  *
@@ -23,7 +27,6 @@ const REDRAW_MS = 500;
  */
 export class OverlayLayer {
   private texture: Phaser.GameObjects.RenderTexture;
-  private stamp: Phaser.GameObjects.Image;
   private active: OverlayId = 'none';
   private timer: Phaser.Time.TimerEvent;
 
@@ -34,10 +37,6 @@ export class OverlayLayer {
       .setOrigin(0, 0)
       .setDepth(DEPTH_OVERLAY)
       .setVisible(false);
-    // One reusable stamp image, moved and re-tinted per tile. Creating 1200
-    // images per redraw would churn the display list for no benefit — the
-    // texture is the only thing that persists.
-    this.stamp = scene.make.image({ key: 'tile-overlay' }, false).setOrigin(0.5, 0.5);
 
     this.timer = scene.time.addEvent({
       delay: REDRAW_MS,
@@ -68,6 +67,10 @@ export class OverlayLayer {
     const { min, max } = def.range();
     const span = max - min || 1;
 
+    // One batch for the whole map. `draw()` opens and closes a batch per call,
+    // so painting up to 1200 tiles that way is 1200 batches — enough to stall
+    // the main thread visibly on a busy floor, which is how this was found.
+    this.texture.beginDraw();
     for (let row = 0; row < GRID_ROWS; row++) {
       for (let col = 0; col < GRID_COLS; col++) {
         const value = def.valueAt(col, row);
@@ -76,13 +79,18 @@ export class OverlayLayer {
         if (value === null) continue;
         const t = (value - min) / span;
         const s = gridToScreen(col, row);
-        this.stamp.setTint(colorFor(def.stops, t));
         // Translucent so the floor art and objects stay readable underneath —
         // an overlay that hides the casino stops being a diagnostic.
-        this.stamp.setAlpha(0.55);
-        this.texture.draw(this.stamp, s.x - b.x, s.y - b.y);
+        this.texture.batchDraw(
+          'tile-overlay',
+          s.x - b.x,
+          s.y - b.y,
+          TILE_ALPHA,
+          colorFor(def.stops, t),
+        );
       }
     }
+    this.texture.endDraw();
   }
 
   /** Hover readout for the panel, or null when this tile has nothing to say. */
@@ -102,7 +110,6 @@ export class OverlayLayer {
 
   destroy(): void {
     this.timer.destroy();
-    this.stamp.destroy();
     this.texture.destroy();
   }
 }
