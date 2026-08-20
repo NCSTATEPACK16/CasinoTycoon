@@ -605,13 +605,13 @@ export class CasinoWorld {
   }
 
   /** True for anything that can appear as a P1 revenue source — a game, or a
-   *  service that actually takes money (food stall, bar, cage). A toilet is a
-   *  service guests need but never a source, so it is protected by
-   *  SERVICE_DEFIDS rather than counted here. */
+   *  service catalogued as one (food stall, bar, cage — see ObjectDef.isRevenueSource).
+   *  A toilet is a service guests need but never a source, so it is protected
+   *  by SERVICE_DEFIDS rather than counted here. */
   private isRevenueObject(defId: string): boolean {
     const def = getObjectDef(defId);
     if (!def) return false;
-    return def.category === 'game' || defId === 'food-stall' || defId === 'bar' || defId === 'cage';
+    return def.category === 'game' || def.isRevenueSource === true;
   }
 
   /** Attributed net for one object over the last three closed days. Three
