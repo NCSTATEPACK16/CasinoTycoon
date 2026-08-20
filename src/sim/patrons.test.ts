@@ -256,3 +256,62 @@ describe('serialization', () => {
     expect(PatronRegistry.fromJSON(null).size).toBe(0);
   });
 });
+
+/**
+ * `lastSeenDay` is only written when a guest leaves, so a patron who is still
+ * on the floor reads as absent to every part of the registry that measures
+ * absence. Each of these guards exists because the naive version of the check
+ * removes or re-draws someone the player can currently see.
+ */
+describe('patrons on the floor', () => {
+  it('are not drawn again while they are still here', () => {
+    const reg = new PatronRegistry();
+    const patron = reg.recordDeparture(departing({ theo: 500 }), 1).patron!;
+    // Certain to be drawn if eligible at all: a hundred rolls of a chance that
+    // is well above zero. The guard is what keeps them out, not luck.
+    const drawn = reg.drawForDay(2, new Rng(7), new Set([patron.id]));
+    expect(drawn.map((p) => p.id)).not.toContain(patron.id);
+    // …and they are drawable again the moment they are gone.
+    const after = reg.drawForDay(3, new Rng(7), new Set());
+    expect(after.length).toBeGreaterThanOrEqual(0);
+  });
+
+  it('are never pruned, however stale their last-seen day looks', () => {
+    const reg = new PatronRegistry();
+    const patron = reg.recordDeparture(departing({ theo: 500 }), 1).patron!;
+    const wayPast = 1 + PATRONS.pruneAfterDaysAbsent + 5;
+    expect(reg.prune(wayPast, new Set([patron.id]))).toEqual([]);
+    expect(reg.size).toBe(1);
+    // The window still applies to someone who really did stop coming.
+    expect(reg.prune(wayPast, new Set()).map((p) => p.id)).toEqual([patron.id]);
+  });
+
+  it('are never evicted to make room under the roster cap', () => {
+    const reg = new PatronRegistry();
+    // Fill past the cap. The lowest-theo record is the eviction candidate, and
+    // it is exactly the one a long-visiting newcomer is likely to hold.
+    const first = reg.recordDeparture(
+      departing({ id: 'g-0', name: 'Ada Quill', theo: PATRONS.cardThresholdTheo }),
+      1,
+    ).patron!;
+    for (let i = 1; i <= PATRONS.rosterCap + 2; i++) {
+      reg.recordDeparture(
+        departing({ id: `g-${i}`, name: `Filler ${i}`, theo: 10_000 + i }),
+        1,
+        new Set([first.id]),
+      );
+    }
+    expect(reg.get(first.id)).toBeDefined();
+  });
+
+  it('are not re-carded as strangers when their record has gone', () => {
+    const reg = new PatronRegistry();
+    // A guest still holding an id whose record is missing is a bug upstream.
+    // Minting a second card would rename a regular and announce it as a first
+    // card — the exact continuity break the feature exists to prevent.
+    const out = reg.recordDeparture(departing({ patronId: 'p-404', theo: 5000 }), 3);
+    expect(out.carded).toBe(false);
+    expect(out.patron).toBeNull();
+    expect(reg.size).toBe(0);
+  });
+});

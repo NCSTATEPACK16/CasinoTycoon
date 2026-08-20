@@ -1055,18 +1055,6 @@ label.p-mute input {
   border-left: 3px solid var(--gold-dark);
 }
 
-.pt-silver {
-  border-left-color: var(--text-secondary);
-}
-.pt-gold {
-  border-left-color: var(--gold);
-}
-/* The top rung reads as the felt, not as more gold — a fourth shade of gold on
-   the same surface stops being a distinction. */
-.pt-black {
-  border-left-color: var(--felt);
-}
-
 .g-patron-note {
   color: var(--text-secondary);
   font-size: var(--fs-caption);
@@ -1096,6 +1084,22 @@ label.p-mute input {
   border-left: 3px solid transparent;
   padding-left: var(--space-2);
 }
+/* Tier accents. These must stay *after* `.pt-row`: it sets the `border-left`
+   shorthand, which resets border-left-color, and at equal specificity the
+   later rule wins. Declared before it, every roster row rules transparent and
+   the tier is only readable from its label. */
+.pt-silver {
+  border-left-color: var(--text-secondary);
+}
+.pt-gold {
+  border-left-color: var(--gold);
+}
+/* The top rung reads as the felt, not as more gold — a fourth shade of gold on
+   the same surface stops being a distinction. */
+.pt-black {
+  border-left-color: var(--felt);
+}
+
 .pt-row .pt-name {
   grid-area: name;
 }

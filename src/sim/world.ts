@@ -398,7 +398,7 @@ export class CasinoWorld {
       // P3: prune the roster and draw who is expected in, for the day that
       // just began. Announced up front — Dave the Diver's flagged VIP night —
       // so the player can plan the evening instead of discovering it.
-      const due = this.patrons.drawForDay(this.time.day, this.patronRng);
+      const due = this.patrons.drawForDay(this.time.day, this.patronRng, this.livePatronIds());
       if (due.length > 0) {
         const names = due.slice(0, 3).map((p) => p.name);
         const rest = due.length - names.length;
@@ -625,10 +625,21 @@ export class CasinoWorld {
     });
   }
 
+  /** Patron ids with a live guest on the floor right now. The registry cannot
+   *  see the floor, and every one of its removals — prune, cap eviction, the
+   *  daily return draw — is wrong for someone who is standing in the room. */
+  private livePatronIds(): ReadonlySet<string> {
+    const ids = new Set<string>();
+    for (const guest of this.guests.values()) {
+      if (guest.patronId) ids.add(guest.patronId);
+    }
+    return ids;
+  }
+
   /** Fold a departing guest into the roster and say what it did. Called once,
    *  on the actual departure — see PatronRegistry.recordDeparture. */
   private recordPatronDeparture(guest: Guest): void {
-    const out = this.patrons.recordDeparture(guest, this.time.day);
+    const out = this.patrons.recordDeparture(guest, this.time.day, this.livePatronIds());
     if (!out.patron) return;
     if (out.carded) {
       eventBus.emit('tickerMessage', {

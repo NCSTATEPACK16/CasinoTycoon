@@ -191,3 +191,36 @@ describe('P3 — persistence', () => {
     expect(world.patrons.size).toBe(0);
   });
 });
+
+/**
+ * The registry's on-floor guards are only worth anything if the world actually
+ * hands it the floor. This is the end-to-end statement of that: run a stocked
+ * casino long enough for the roster to mature, and no record may ever have two
+ * live guests, and no live guest may ever outlive its own record.
+ *
+ * It runs the full sim for twenty days per seed, so it carries its own timeout
+ * for the same reason campaigns.test.ts does — failing on the clock would
+ * report as a patron regression, which is the one thing it must not do.
+ */
+describe('one patron, one guest', () => {
+  it('holds across a matured roster', { timeout: 120_000 }, () => {
+    for (const seed of [4242, 77]) {
+      const world = stockedWorld(seed);
+      for (let i = 0; i < DAY_TICKS * 20; i++) {
+        world.tick();
+        if (i % 25 !== 0) continue;
+        const live = new Map<string, number>();
+        for (const guest of world.guests.values()) {
+          if (!guest.patronId) continue;
+          live.set(guest.patronId, (live.get(guest.patronId) ?? 0) + 1);
+          // A guest's record is deleted only by prune or the cap, and neither
+          // may touch someone on the floor.
+          expect(world.patrons.get(guest.patronId), `seed ${seed} orphaned ${guest.patronId}`).toBeDefined();
+        }
+        for (const [patronId, count] of live) {
+          expect(count, `seed ${seed} day ${world.time.day} duplicated ${patronId}`).toBe(1);
+        }
+      }
+    }
+  });
+});

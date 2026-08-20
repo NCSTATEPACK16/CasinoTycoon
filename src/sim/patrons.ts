@@ -78,6 +78,9 @@ export interface DepartureOutcome {
   neglected: boolean;
 }
 
+/** Shared default for the `onFloor` guards — no live guests to protect. */
+const EMPTY_SET: ReadonlySet<string> = new Set<string>();
+
 /**
  * P3 — the bounded patron roster.
  *
@@ -127,6 +130,9 @@ export class PatronRegistry {
    * `Guest.theo()` accumulates across the whole visit and is never reset, so
    * crediting it at both points would double-count every guest who happens to
    * be on the floor at midnight.
+   *
+   * `onFloor` is the set of patron ids with a live guest right now, so the cap
+   * never evicts someone mid-visit — see `enforceCap`.
    */
   recordDeparture(
     guest: {
@@ -138,9 +144,16 @@ export class PatronRegistry {
       theo(): number;
     },
     day: number,
+    onFloor: ReadonlySet<string> = EMPTY_SET,
   ): DepartureOutcome {
     const theo = guest.theo();
     const existing = guest.patronId ? this.records.get(guest.patronId) : undefined;
+    // A guest holding a patron id whose record has gone is a bug upstream, not
+    // a stranger. Carding them here would mint a second id for someone the
+    // player already knows and announce it as a first card — so say nothing.
+    if (guest.patronId && !existing) {
+      return { patron: null, carded: false, promotedTo: null, neglected: false };
+    }
     if (existing) {
       const before = existing.tier;
       existing.lifetimeTheo += theo;
@@ -170,7 +183,7 @@ export class PatronRegistry {
     patron.visits = 1;
     patron.lastSeenDay = day;
     this.records.set(id, patron);
-    this.enforceCap();
+    this.enforceCap(onFloor);
     return { patron, carded: true, promotedTo: null, neglected: false };
   }
 
@@ -187,15 +200,23 @@ export class PatronRegistry {
    * second round of arrivals. Ranked by lifetime theo before the cap applies,
    * so when more patrons roll a return than the door has room for, the slots
    * go to the ones the player is most likely to have a relationship with.
+   *
+   * `onFloor` is the set of patron ids with a live guest right now. It is the
+   * load-bearing guard: `lastSeenDay` is only written on departure, so a
+   * patron who arrived yesterday and is still playing at midnight otherwise
+   * reads as absent, gets drawn again, and is rehydrated into a *second*
+   * simultaneous guest sharing one record — which then double-counts their
+   * visit and their theo when both copies leave.
    */
-  drawForDay(day: number, rng: Rng): Patron[] {
+  drawForDay(day: number, rng: Rng, onFloor: ReadonlySet<string> = EMPTY_SET): Patron[] {
     if (day === this.drawnForDay) return this.dueToday.map((id) => this.records.get(id)!).filter(Boolean);
     this.drawnForDay = day;
-    this.prune(day);
+    this.prune(day, onFloor);
     const due: Patron[] = [];
     for (const patron of this.all()) {
       if (due.length >= PATRONS.maxReturnsPerDay) break;
-      if (patron.lastSeenDay === day) continue; // already here today
+      if (onFloor.has(patron.id)) continue; // still here from yesterday
+      if (patron.lastSeenDay === day) continue; // already came and went today
       if (rng.chance(patron.returnChance)) due.push(patron);
     }
     this.dueToday = due.map((p) => p.id);
@@ -218,10 +239,13 @@ export class PatronRegistry {
     return null;
   }
 
-  /** Drop patrons who have not been seen inside the absence window. */
-  prune(day: number): Patron[] {
+  /** Drop patrons who have not been seen inside the absence window. A patron
+   *  on the floor right now is never absent, whatever `lastSeenDay` says —
+   *  it is not written until they leave, so a long visit reads as an absence. */
+  prune(day: number, onFloor: ReadonlySet<string> = EMPTY_SET): Patron[] {
     const dropped: Patron[] = [];
     for (const patron of this.records.values()) {
+      if (onFloor.has(patron.id)) continue;
       if (day - patron.lastSeenDay > PATRONS.pruneAfterDaysAbsent) dropped.push(patron);
     }
     for (const patron of dropped) this.records.delete(patron.id);
@@ -232,13 +256,22 @@ export class PatronRegistry {
     return dropped;
   }
 
-  /** Evict from the bottom when the roster overflows its hard bound. */
-  private enforceCap(): void {
+  /**
+   * Evict from the bottom when the roster overflows its hard bound.
+   *
+   * Never evicts a patron who is on the floor: their guest still holds the id,
+   * and deleting the record out from under them loses the relationship the
+   * player can currently see. The cap is a save-size bound, so sitting a few
+   * records over it until those visits end is the cheap side of that trade.
+   */
+  private enforceCap(onFloor: ReadonlySet<string> = EMPTY_SET): void {
     if (this.records.size <= PATRONS.rosterCap) return;
     const ranked = this.all();
-    for (const patron of ranked.slice(PATRONS.rosterCap)) this.records.delete(patron.id);
-    const kept = new Set(ranked.slice(0, PATRONS.rosterCap).map((p) => p.id));
-    this.dueToday = this.dueToday.filter((id) => kept.has(id));
+    const evictable = ranked.slice(PATRONS.rosterCap).filter((p) => !onFloor.has(p.id));
+    if (evictable.length === 0) return;
+    for (const patron of evictable) this.records.delete(patron.id);
+    const gone = new Set(evictable.map((p) => p.id));
+    this.dueToday = this.dueToday.filter((id) => !gone.has(id));
   }
 
   toJSON(): PatronRegistryJSON {
