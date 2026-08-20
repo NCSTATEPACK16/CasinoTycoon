@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { eventBus } from '../EventBus';
 import { HOURS_PER_DAY, TICKS_PER_HOUR } from '../config';
+import { CAMPAIGNS } from '../data/campaigns';
 import { DEBT } from '../data/balance';
 import { CasinoWorld } from './world';
 
@@ -110,5 +111,56 @@ describe('forced liquidation', () => {
     world.state.cash = 5000;
     for (let i = 0; i < DAY_TICKS; i++) world.tick();
     expect(world.state.allObjects().length).toBe(objectsBefore);
+  });
+});
+
+describe('insolvency', () => {
+  it('fails a campaign when there is nothing left to sell', () => {
+    const world = new CasinoWorld({ seed: 3, autoSpawn: false });
+    world.startScenario(CAMPAIGNS[0]!);
+    let failure: { reason: string } | null = null;
+    eventBus.on('scenarioFailed', (e) => (failure = e as { reason: string }));
+    // One revenue object, which is protected — so liquidation can free nothing.
+    for (const o of world.state.allObjects()) world.sell(o.id);
+    world.place('slot-machine', 6, 6);
+    world.state.cash = -world.creditLimit - 50_000;
+    for (let i = 0; i < DAY_TICKS; i++) world.tick();
+    expect(failure).not.toBeNull();
+    expect(failure!.reason).toBe('insolvent');
+  });
+
+  it('never fails the sandbox — free play has no goal, so it has no fail state', () => {
+    const world = new CasinoWorld({ seed: 3, autoSpawn: false });
+    world.startScenario(null);
+    let failed = false;
+    eventBus.on('scenarioFailed', () => (failed = true));
+    world.place('slot-machine', 6, 6);
+    world.state.cash = -world.creditLimit - 50_000;
+    for (let i = 0; i < DAY_TICKS * 2; i++) world.tick();
+    expect(failed).toBe(false);
+  });
+
+  it('lets the day that completes the goal win even if it closed under the limit', () => {
+    // Drives `goalConsecutiveDays` qualifying days rather than hard-coding one,
+    // so this test stays true when Task 9 raises the streak requirement. The
+    // property is ordering: onDayEnded resolves before the insolvency check,
+    // so completing the goal wins the run rather than losing it to the bank.
+    const def = CAMPAIGNS[0]!;
+    const world = new CasinoWorld({ seed: 3, autoSpawn: false });
+    world.startScenario(def);
+    const outcomes: string[] = [];
+    eventBus.on('goalReached', () => outcomes.push('won'));
+    eventBus.on('scenarioFailed', () => outcomes.push('failed'));
+    world.place('slot-machine', 6, 6);
+    // Drives qualifying days until the run resolves, rather than naming a
+    // number of them. Task 6 is what introduces `goalConsecutiveDays`, so this
+    // test cannot reference it — and once Task 9 raises the streak, a loop
+    // still reaches the win where a hard-coded single day would not.
+    for (let d = 0; d < 4 && outcomes.length === 0; d++) {
+      world.ledger.addRevenue(def.goalDailyProfit + 20_000);
+      world.state.cash = -world.creditLimit - 50_000;
+      for (let i = 0; i < DAY_TICKS; i++) world.tick();
+    }
+    expect(outcomes[0]).toBe('won');
   });
 });

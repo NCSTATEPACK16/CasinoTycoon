@@ -48,14 +48,14 @@ describe('ScenarioManager', () => {
 
   it('fails when the last allowed day closes under the goal', () => {
     const sm = new ScenarioManager(DEF);
-    let failed: { campaignId: string; day: number } | null = null;
+    let failed: { campaignId: string; day: number; reason: string } | null = null;
     eventBus.on('scenarioFailed', (e) => (failed = e));
     sm.onDayEnded(record(1, 0));
     sm.onDayEnded(record(2, 100));
     expect(sm.status).toBe('active');
     sm.onDayEnded(record(3, 499));
     expect(sm.status).toBe('failed');
-    expect(failed).toEqual({ campaignId: 'test-run', day: 3 });
+    expect(failed).toEqual({ campaignId: 'test-run', day: 3, reason: 'timeUp' });
   });
 
   it('tracks the best daily profit and goes quiet after a terminal state', () => {

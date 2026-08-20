@@ -424,6 +424,12 @@ export class CasinoWorld {
       // P16: the bank takes what it is owed. After onDayEnded, so a day that
       // reached the goal is a win even if it also closed under the limit.
       this.liquidateToLimit();
+      if (this.scenario?.status === 'active' && this.state.cash < -this.creditLimit) {
+        // Liquidation ran and could not free enough. Sandbox has no scenario
+        // and so never reaches here: free play applies the pressure without
+        // the fail state.
+        this.scenario.fail('insolvent');
+      }
       // Draw for the day that just began, after the close so the report shows
       // the conditions the closed day was played under.
       this.modifiers.drawForDay(this.time.day, this.modifierRng);

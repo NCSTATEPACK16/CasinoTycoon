@@ -1,3 +1,4 @@
+import { eventBus } from '../../EventBus';
 import { world } from '../../gameContext';
 import { el, formatCash, row } from '../dom';
 import type { PanelSpec } from '../WindowManager';
@@ -9,6 +10,13 @@ const REFRESH_MS = 500;
 // Live campaign progress: goal, best day so far, days remaining, rating.
 export function makeObjectivesPanel(): PanelSpec {
   const content = el('div');
+  // render() rebuilds from world.scenario.status alone, which only says
+  // *that* the run failed. The reason lives on the event, so it is captured
+  // here and read back in on the next render.
+  let failReason: 'timeUp' | 'insolvent' | null = null;
+  const offFailed = eventBus.on('scenarioFailed', (e) => {
+    failReason = e.reason;
+  });
 
   const render = () => {
     content.textContent = '';
@@ -54,12 +62,25 @@ export function makeObjectivesPanel(): PanelSpec {
       content.appendChild(won);
     } else if (sm.status === 'failed') {
       const lost = el('div', 'p-heading');
-      lost.appendChild(iconLabel('fail', 'Scenario failed'));
+      lost.appendChild(
+        iconLabel(
+          'fail',
+          failReason === 'insolvent' ? 'Scenario failed — insolvent' : 'Scenario failed — out of time',
+        ),
+      );
       content.appendChild(lost);
     }
   };
 
   render();
   const timer = window.setInterval(render, REFRESH_MS);
-  return { title: 'Objectives', width: 292, content, onClose: () => window.clearInterval(timer) };
+  return {
+    title: 'Objectives',
+    width: 292,
+    content,
+    onClose: () => {
+      window.clearInterval(timer);
+      offFailed();
+    },
+  };
 }
