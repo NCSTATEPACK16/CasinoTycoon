@@ -852,6 +852,28 @@ label.p-mute input {
   outline: 1px solid var(--gold);
 }
 
+/* Focus ring. Gold on the dark bevel is the one accent that reads against
+   every surface in here, and `:focus-visible` keeps it off mouse clicks — a
+   ring that appears on every button press would fight the pressed bevel that
+   already answers "did that register?".
+
+   Offset outward rather than inset: the bevel border is load-bearing in this
+   theme, and an inset ring would sit on top of it and read as a third border. */
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* The window frame takes focus when it opens, but it is a container, not a
+   control — a ring around the whole panel would read as an error state. The
+   title bar brightening is the honest signal that the caret is in here. */
+.ui-window:focus-visible {
+  outline: none;
+}
+.ui-window:focus-within .win-titlebar {
+  background: linear-gradient(180deg, var(--gold-dark), var(--title-bot));
+}
+
 /* Interaction baseline. --target-min is 28px for mouse; a touch build raises
    the one token to 44px rather than auditing every control. */
 .p-tool,
@@ -1015,4 +1037,99 @@ label.p-mute input {
 .dr-caret {
   color: var(--gold);
   flex: none;
+}
+
+/* ---------- A1b carded patrons ---------- */
+
+/* A carded regular in the guest list. A left rule rather than a colour on the
+   text: the mood icon already owns colour in that row, and two colour channels
+   in one line is one too many to read at a glance. */
+.g-row.carded {
+  border-left: 3px solid var(--gold-dark);
+}
+
+.g-patron {
+  margin: var(--space-2) 0;
+  padding: var(--space-2);
+  background: var(--panel-well);
+  border-left: 3px solid var(--gold-dark);
+}
+
+.g-patron-note {
+  color: var(--text-secondary);
+  font-size: var(--fs-caption);
+  margin-top: var(--space-1);
+}
+
+/* The one line in this feature that is asking for something. It carries the
+   warning accent because a black-tier patron leaving un-hosted is a cost the
+   player can still avoid at the moment they read it. */
+.g-patron-host {
+  color: var(--warning);
+  font-size: var(--fs-caption);
+  margin-top: var(--space-1);
+}
+
+/* Roster rows. Name, standing, lifetime value — in that order, because the
+   name is what the player came to the panel for. */
+.pt-row {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: 'name value' 'meta value';
+  gap: 0 var(--space-2);
+  align-items: center;
+  text-align: left;
+  color: var(--text-primary);
+  border-left: 3px solid transparent;
+  padding-left: var(--space-2);
+}
+/* Tier accents. These must stay *after* `.pt-row`: it sets the `border-left`
+   shorthand, which resets border-left-color, and at equal specificity the
+   later rule wins. Declared before it, every roster row rules transparent and
+   the tier is only readable from its label. */
+.pt-silver {
+  border-left-color: var(--text-secondary);
+}
+.pt-gold {
+  border-left-color: var(--gold);
+}
+/* The top rung reads as the felt, not as more gold — a fourth shade of gold on
+   the same surface stops being a distinction. */
+.pt-black {
+  border-left-color: var(--felt);
+}
+
+.pt-row .pt-name {
+  grid-area: name;
+}
+.pt-row .pt-meta {
+  grid-area: meta;
+  color: var(--text-secondary);
+  font-size: var(--fs-caption);
+}
+.pt-row .val {
+  grid-area: value;
+}
+/* A patron who is not on the floor has nothing to click through to, so the row
+   is inert rather than a button that silently does nothing. Contrast is left
+   alone on purpose — this is a record the player is reading, not a control
+   that has been switched off, and dimming it would make the roster harder to
+   read exactly when nobody is in. */
+.pt-row[disabled] {
+  cursor: default;
+}
+
+/* ---------- Save portability ---------- */
+
+/* Backup sits below the slots, separated rather than interleaved: exporting is
+   not a fourth save slot, and putting it in the same list would read as one. */
+.p-save-portable {
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--bevel-dark);
+}
+
+.p-save-portable .p-save-btns .p-tool {
+  flex: 1;
 }

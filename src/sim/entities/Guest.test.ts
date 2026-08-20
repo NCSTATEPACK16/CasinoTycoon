@@ -113,7 +113,7 @@ describe('Guest', () => {
     const guest = world.spawnGuest('regular');
     guest.wallet = 500;
     expect(guest.archetype).toBe('regular');
-    expect(guest.name).toMatch(/^[A-Za-z ]+ [A-Z]\.$/);
+    expect(guest.name).toMatch(/^[A-Za-z]+ [A-Za-z]+$/);
     expect(guest.netResult).toBe(0);
     expect(guest.favoriteGame()).toBeNull();
     for (let i = 0; i < 400 && guest.state !== 'play'; i++) world.tick();

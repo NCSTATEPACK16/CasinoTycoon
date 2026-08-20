@@ -564,3 +564,70 @@ export function wagerForMinimum(defId: string, minimum: number): number {
 // four of seven winnable seeds, and the heads-up anchor cost every campaign
 // nearly all of them. A2's trade is carried by the wager and the bankroll gate
 // instead, which is where the elasticity was always specified to be emergent.
+
+// ---------------------------------------------------------------------------
+// P3 / A1b — the persistent patron registry.
+// ---------------------------------------------------------------------------
+
+/**
+ * A1b — carded patrons.
+ *
+ * The anonymous crowd stays the economic base; a bounded roster of carded
+ * patrons sits beside it as lightweight data records, rehydrated into a live
+ * guest only on a return visit. That is the Cities: Skylines instanced-vs-data
+ * split, and it is what makes a persistent roster affordable in a browser: at
+ * `rosterCap` records of roughly 120 bytes the whole registry is ~18KB of save.
+ *
+ * **Promotion is on theo, not visit count** — mirroring real player
+ * development, and reusing the math A1a already ships. **Tier thresholds are
+ * geometric**: real ladders step 2.5-10x (Caesars 15k -> 25k -> 75k -> 150k
+ * tier credits; MGM 20k -> 75k -> 200k), and the ~4x steps below are that
+ * shape at this game's scale. The *ratios* are the researched part; the
+ * absolute numbers are tuned against this economy.
+ */
+export const PATRONS = {
+  /** Lifetime theo at which a guest gets carded. Roughly four times A1a's
+   *  comp floor, so being carded means more than having sat down once. */
+  cardThresholdTheo: 60, // [design guess]
+  /** Hard bound on the roster. Records past it are evicted lowest-theo first,
+   *  which is also who the player is least likely to have noticed. */
+  rosterCap: 150,
+  /** A patron unseen this long is dropped. Without a prune the roster is a
+   *  ratchet, and the save grows for a player who has moved on. */
+  pruneAfterDaysAbsent: 12,
+  /** Base chance, per patron per day, that they turn up. Tier adds to it. */
+  returnBaseChancePerDay: 0.12, // [design guess]
+  /** Cap on how many patrons can be due on one day. Without it a mature
+   *  roster front-loads the door with returning faces and the anonymous crowd
+   *  stops being the base — plus every one of them holds a spawn slot. */
+  maxReturnsPerDay: 8,
+  /** A patron who wanted a host and left un-comped is less likely to come
+   *  back. This is the whole weight behind `wantsHost` — a tier benefit the
+   *  player can lose is a tier benefit the player can feel. */
+  hostNeglectReturnPenalty: 0.5,
+  /**
+   * The ladder. `returnBonus` adds to the daily return chance; `compRate`
+   * scales the session comp budget A1a bounds, so a black-tier regular can be
+   * looked after in a way a walk-in cannot. Carded patrons also skip A1a's
+   * theo floor entirely — their lifetime record already cleared a far higher
+   * bar than one session's play ever asks for.
+   */
+  tiers: [
+    { id: 'silver', name: 'Silver', theo: 0, returnBonus: 0.05, compRate: 0.15, wantsHost: false },
+    { id: 'gold', name: 'Gold', theo: 400, returnBonus: 0.18, compRate: 0.22, wantsHost: false },
+    { id: 'black', name: 'Black', theo: 1600, returnBonus: 0.35, compRate: 0.35, wantsHost: true },
+  ],
+} as const;
+
+export type PatronTierId = (typeof PATRONS.tiers)[number]['id'];
+export type PatronTier = (typeof PATRONS.tiers)[number];
+
+/** The highest tier this lifetime theo has earned. Never null — a carded
+ *  patron is at least the base tier. */
+export function patronTierFor(lifetimeTheo: number): PatronTier {
+  let best: PatronTier = PATRONS.tiers[0]!;
+  for (const tier of PATRONS.tiers) {
+    if (lifetimeTheo >= tier.theo) best = tier;
+  }
+  return best;
+}

@@ -98,28 +98,54 @@ describe('acceptEnvelope', () => {
 // the outgoing version's file is added here and never edited again — these are
 // the shapes actually sitting in players' browsers.
 import fixtureV2 from './__fixtures__/save-v2.json';
+import fixtureV3 from './__fixtures__/save-v3.json';
 
 describe('committed save fixtures', () => {
-  it('the current fixture loads as-is', () => {
-    const res = acceptEnvelope(fixtureV2);
-    expect(res.status).toBe('ok');
-    expect(res.world).toMatchObject({ state: { cash: 2000 } });
+  it('every committed fixture migrates up to the current version', () => {
+    for (const [label, fixture] of [
+      ['v2', fixtureV2],
+      ['v3', fixtureV3],
+    ] as const) {
+      const res = acceptEnvelope(fixture);
+      expect(res.status, label).toBe('ok');
+      expect(res.world, label).not.toBeNull();
+    }
   });
 
-  it('survives a replay through a full ladder above it', () => {
-    // Stands in for what a returning player's file will do after several
-    // releases: walk every migration in sequence, not just the newest one.
-    const aged = { ...fixtureV2, version: SAVE_VERSION - 1 };
-    const res = acceptEnvelope(aged, { [SAVE_VERSION]: ladder[3]! });
+  it('a v2 file walks the whole ladder, not just the newest step', () => {
+    // This is what a returning player's file actually does after several
+    // releases. Testing each step in isolation would not catch a migration
+    // that only works against a shape one version old.
+    const res = acceptEnvelope(fixtureV2);
     expect(res.status).toBe('ok');
-    expect(res.world).toMatchObject({ state: { cash: 2000 }, minBet: null });
+    // Every step's defaults are present at once: v3's Track 2 systems and v4's
+    // patron registry, on a file that predates both.
+    expect(res.world).toMatchObject({
+      state: { cash: 2000 },
+      modifiers: { activeIds: [] },
+      reputation: { value: 50 },
+      patrons: { patrons: [] },
+    });
+  });
+
+  it('a v3 file gains an empty patron roster rather than a missing key', () => {
+    const res = acceptEnvelope(fixtureV3);
+    // The v3 snapshot has real modifier and reputation state, and it must
+    // survive untouched — a migration that resets what it does not own would
+    // quietly wipe a player's standing.
+    expect(res.world).toMatchObject({
+      reputation: (fixtureV3 as { world: { reputation: unknown } }).world.reputation,
+      patrons: { patrons: [], dueToday: [], drawnForDay: 0, nextPatronNum: 1 },
+    });
   });
 
   it('a real world snapshot still round-trips into the sim after migration', async () => {
     const { CasinoWorld } = await import('../sim/world');
-    const res = acceptEnvelope(fixtureV2);
-    const world = new CasinoWorld({ seed: 1 });
-    expect(() => world.loadJSON(res.world!)).not.toThrow();
-    expect(world.state.cash).toBe(2000);
+    for (const fixture of [fixtureV2, fixtureV3]) {
+      const res = acceptEnvelope(fixture);
+      const world = new CasinoWorld({ seed: 1 });
+      expect(() => world.loadJSON(res.world!)).not.toThrow();
+      expect(world.patrons.size).toBe(0);
+    }
   });
 });

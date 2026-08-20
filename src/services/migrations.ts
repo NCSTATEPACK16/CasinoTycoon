@@ -7,7 +7,7 @@ import type { CasinoWorldJSON } from '../sim/world';
 // with null, the player saw an *empty slot* rather than an error. Every schema
 // change lands here in the same commit that bumps the version.
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 /** Loosely-typed world JSON. Migrations run on shapes older than the current
  *  CasinoWorldJSON, so they cannot be typed against it. */
@@ -34,6 +34,14 @@ export const MIGRATIONS: Record<number, Migration> = {
     ...w,
     modifiers: { activeIds: [], drawnForDay: 0 },
     reputation: { value: 50, pendingDelta: 0 },
+  }),
+  // 3 → 4: Track 4's patron registry. A v3 file has no carded roster and no
+  // honest way to invent one — theo was never accumulated per guest across
+  // visits before this version — so it starts empty and the player earns it
+  // from their next session onward.
+  4: (w) => ({
+    ...w,
+    patrons: { patrons: [], dueToday: [], drawnForDay: 0, nextPatronNum: 1 },
   }),
 };
 

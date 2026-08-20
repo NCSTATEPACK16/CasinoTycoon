@@ -1,5 +1,5 @@
 import { eventBus } from '../../EventBus';
-import type { CompKind } from '../../data/balance';
+import type { CompKind, PatronTier } from '../../data/balance';
 import {
   BAR_BALANCE,
   CASHIER_BALANCE,
@@ -61,6 +61,14 @@ export class Guest extends Walker {
   nearMess = false;
   readonly archetype: GuestArchetype;
   readonly name: string;
+  /** A1b — the carded patron this guest is a live instance of, or null for a
+   *  walk-in. Set once at spawn; the record itself lives in the registry, so
+   *  nothing about a patron is duplicated onto the transient agent. */
+  readonly patronId: string | null;
+  /** The tier that patron currently holds. Cached at spawn rather than looked
+   *  up per call because comps read it on every UI refresh, and a tier cannot
+   *  change mid-visit — promotion is settled on departure. */
+  readonly patronTier: PatronTier | null;
   /** Running total of payout − wager across every play this guest has made
    *  since the last time the session folded into the day's report. */
   netResult = 0;
@@ -97,13 +105,24 @@ export class Guest extends Walker {
   private barId: string | null = null;
   private cageId: string | null = null;
 
-  constructor(id: string, wallet: number, start: Cell, archetype: GuestArchetype = 'regular') {
+  constructor(
+    id: string,
+    wallet: number,
+    start: Cell,
+    archetype: GuestArchetype = 'regular',
+    patron: { id: string; name: string; tier: PatronTier } | null = null,
+  ) {
     super(start);
     this.id = id;
     this.wallet = wallet;
     this.startingWallet = wallet;
     this.archetype = archetype;
-    this.name = flavorName(id);
+    // A returning patron keeps the name the player learned. It comes off the
+    // saved record rather than being re-derived from the guest id, which is
+    // freshly allocated on every visit and after every load.
+    this.name = patron ? patron.name : flavorName(id);
+    this.patronId = patron ? patron.id : null;
+    this.patronTier = patron ? patron.tier : null;
     this.needs = {
       energy: 100,
       bladder: 100,
@@ -489,16 +508,24 @@ export class Guest extends Walker {
    *  a $25 match play, which turns the cap from a bound on propping someone up
    *  into a bar on comping them at all. */
   compHeadroom(): number {
-    const budget = Math.max(
-      this.startingWallet * COMPS.maxSessionExtensionPct,
-      COMPS.compUnit.matchPlay,
-    );
+    // A1b: a carded patron's tier widens the budget. This is the tier benefit
+    // the player operates rather than merely reads — a black-tier regular can
+    // be looked after in a way a walk-in cannot.
+    const tierBonus = 1 + (this.patronTier?.compRate ?? 0);
+    const budget =
+      Math.max(this.startingWallet * COMPS.maxSessionExtensionPct, COMPS.compUnit.matchPlay) *
+      tierBonus;
     return Math.max(0, budget - this.compsReceived);
   }
 
-  /** Whether this guest has played enough to be worth comping. */
+  /** Whether this guest has played enough to be worth comping.
+   *
+   *  A carded patron skips the session floor outright: their lifetime record
+   *  already cleared a far higher bar than one session's play ever asks for,
+   *  and making the player wait to greet a known regular is exactly the
+   *  bookkeeping this feature is not allowed to become. */
   get compEligible(): boolean {
-    return this.theo() >= COMPS.theoFloorToComp;
+    return this.patronTier !== null || this.theo() >= COMPS.theoFloorToComp;
   }
 
   /**

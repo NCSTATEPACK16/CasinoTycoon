@@ -92,6 +92,9 @@ const ICONS = {
   reputation: 'megaphone',
   comp: 'gift',
   overlay: 'layers',
+  // Track 4 — carded patrons
+  patrons: 'id-card',
+  patronTier: 'crown',
 };
 
 /** Strips the wrapper <svg> down to its drawing content. Presentation

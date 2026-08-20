@@ -6,6 +6,7 @@ import type { PanelSpec, WindowManager } from './WindowManager';
 import { makeBuildPanel } from './panels/BuildPanel';
 import { makeFinancePanel } from './panels/FinancePanel';
 import { makeGuestsPanel } from './panels/GuestsPanel';
+import { makePatronsPanel } from './panels/PatronsPanel';
 import { makeThoughtsPanel } from './panels/ThoughtsPanel';
 import { makeStaffPanel } from './panels/StaffPanel';
 import { makeObjectivesPanel } from './panels/ObjectivesPanel';
@@ -31,6 +32,7 @@ export class Toolbar {
       { id: 'build', label: 'Build', icon: 'build', make: makeBuildPanel },
       { id: 'finance', label: 'Finance', icon: 'finance', make: () => makeFinancePanel(windows) },
       { id: 'guests', label: 'Guests', icon: 'guests', make: makeGuestsPanel },
+      { id: 'patrons', label: 'Patrons', icon: 'patrons', make: makePatronsPanel },
       { id: 'thoughts', label: 'Thoughts', icon: 'thought', make: makeThoughtsPanel },
       { id: 'staff', label: 'Staff', icon: 'staff', make: makeStaffPanel },
       { id: 'overlays', label: 'Overlays', icon: 'overlay', make: makeOverlayPanel },
@@ -80,6 +82,12 @@ export class Toolbar {
         return;
       }
       if (e.key === ' ') {
+        // Space activates a focused button. Since opening a panel now moves
+        // focus into it, claiming the key unconditionally would pause the game
+        // every time a keyboard player pressed a panel control.
+        if ((document.activeElement as HTMLElement | null)?.closest('button, a, [role="button"]')) {
+          return;
+        }
         // Toggle, and resume at whatever speed was running before the pause
         // rather than snapping back to 1x.
         eventBus.emit('speedChanged', { speed: currentSpeed === 0 ? resumeSpeed : 0 });
