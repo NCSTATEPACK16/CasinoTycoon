@@ -35,6 +35,7 @@ export const HOUSE_SOURCES = {
   wages: { id: 'house:wages', defId: 'wages' },
   comps: { id: 'house:comps', defId: 'comps' },
   fines: { id: 'house:fines', defId: 'fines' },
+  interest: { id: 'house:interest', defId: 'interest' },
 } as const;
 
 const emptyTotals = (): SourceTotals => ({ wagered: 0, won: 0, revenue: 0, upkeep: 0 });
@@ -54,6 +55,10 @@ export interface DailyRecord {
   /** A1a: comp dollars issued today. Already counted inside `expenses` — this
    *  breaks out how much of the day's cost was reinvestment. */
   compSpend: number;
+  /** P16: interest charged on a negative closing balance. Already counted
+   *  inside `expenses` — broken out so the report can name the cost of debt
+   *  rather than burying it in overheads, exactly as compSpend does. */
+  interestPaid: number;
   /** A12: reputation after this day's roll, and the movement that produced it. */
   reputation: number;
   reputationDelta: number;
@@ -119,6 +124,7 @@ export class Ledger {
   private dayJackpotCount = 0;
   private dayRageQuitCount = 0;
   private dayCompSpend = 0;
+  private dayInterestPaid = 0;
   private daySessions: GuestSession[] = [];
   /** Live per-source accrual for the day in progress. Written at the same
    *  moment as addRevenue/addExpense rather than through a parallel path —
@@ -192,6 +198,14 @@ export class Ledger {
     return this.dayCompSpend;
   }
 
+  /** P16: interest on the day's negative closing balance. Books through the
+   *  ordinary expense path so the day still reconciles to its sources. */
+  addInterest(amount: number): void {
+    if (amount <= 0) return;
+    this.dayInterestPaid += amount;
+    this.addExpense(amount);
+  }
+
   /** A guest's session folds in here on leave or at midnight. */
   recordGuestSession(session: GuestSession): void {
     this.daySessions.push(session);
@@ -239,6 +253,7 @@ export class Ledger {
       jackpotCount: this.dayJackpotCount,
       rageQuitCount: this.dayRageQuitCount,
       compSpend: this.dayCompSpend,
+      interestPaid: this.dayInterestPaid,
       reputation: ctx.reputation ?? 0,
       reputationDelta: ctx.reputationDelta ?? 0,
       modifierIds: ctx.modifierIds ?? [],
@@ -254,6 +269,7 @@ export class Ledger {
     this.dayJackpotCount = 0;
     this.dayRageQuitCount = 0;
     this.dayCompSpend = 0;
+    this.dayInterestPaid = 0;
     this.daySessions = [];
     this.daySources.clear();
     return record;

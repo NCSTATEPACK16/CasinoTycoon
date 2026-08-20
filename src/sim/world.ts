@@ -7,6 +7,7 @@ import {
   COMPS,
   type CompKind,
   DEALER_BALANCE,
+  DEBT,
   GUEST_BALANCE,
   MESS_BALANCE,
   RAGE_BALANCE,
@@ -31,6 +32,7 @@ import { ModifierSystem, type ModifierSystemJSON } from './modifiers';
 import { type Patron, PatronRegistry, type PatronRegistryJSON } from './patrons';
 import { Reputation, type ReputationJSON } from './reputation';
 import { ScenarioManager, type ScenarioJSON } from './scenario/ScenarioManager';
+import { interestFor } from './solvency';
 import { TimeSystem, type TimeSystemJSON } from './TimeSystem';
 import { type CasinoGame, type PlayCadence, type PlayResult } from './entities/machines/CasinoGame';
 import { GameState, type GameStateJSON, type PlacedObject } from './GameState';
@@ -386,6 +388,22 @@ export class CasinoWorld {
       }
       const repDelta = this.reputation.closeDay();
       eventBus.emit('reputationChanged', { value: this.reputation.value, delta: repDelta });
+      // P16: interest on the closing balance, charged before the books close
+      // so the cost of the debt lands in the day that ran it — the same
+      // reasoning as the modifier fine above.
+      const interest = interestFor(this.state.cash, DEBT.dailyInterestRate);
+      if (interest > 0) {
+        this.state.cash -= interest;
+        this.ledger.addInterest(interest);
+        this.ledger.accrue(HOUSE_SOURCES.interest.id, HOUSE_SOURCES.interest.defId, {
+          upkeep: interest,
+        });
+        eventBus.emit('moneyChanged', { cash: this.state.cash, delta: -interest });
+        eventBus.emit('tickerMessage', {
+          text: `Interest on the overdraft — ${formatDollarAmount(interest)}.`,
+          severity: 'alert',
+        });
+      }
       const record = this.ledger.closeDay(closedDay, {
         reputation: this.reputation.value,
         reputationDelta: repDelta,
@@ -564,6 +582,12 @@ export class CasinoWorld {
   /** Casino rating 0–100 — drives guest arrivals; shown in UI later. */
   get rating(): number {
     return this.ratingBreakdown().total;
+  }
+
+  /** P16 — how far below zero this run may go. Campaigns name their own; the
+   *  sandbox takes the module default. */
+  get creditLimit(): number {
+    return this.scenario?.def.creditLimit ?? DEBT.defaultCreditLimit;
   }
 
   private maybeSpawn(): void {

@@ -11,6 +11,10 @@ export interface CampaignDef {
   dayLimit: number;
   /** Placeable object ids; omitted = everything is allowed. */
   allowedObjects?: readonly string[];
+  /** P16: overdraft ceiling this campaign allows; omitted falls back to the
+   *  sandbox's DEBT.defaultCreditLimit. None of the three campaigns set this
+   *  yet — nothing here should reach liquidation until it's tuned. */
+  creditLimit?: number;
 }
 
 export const CAMPAIGNS: readonly CampaignDef[] = [
