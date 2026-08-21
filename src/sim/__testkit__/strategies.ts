@@ -1,6 +1,7 @@
 import { eventBus } from '../../EventBus';
 import { HOURS_PER_DAY, TICKS_PER_HOUR } from '../../config';
 import type { CampaignDef } from '../../data/campaigns';
+import { getObjectDef } from '../../data/objects';
 import { CasinoWorld } from '../world';
 
 /**
@@ -42,6 +43,21 @@ export interface CampaignRun {
   best: number;
   minCash: number;
   profits: number[];
+  /** Total interest the run paid. Zero across a whole tournament means debt
+   *  never cost anything and criterion 3 cannot possibly separate anyone. */
+  interestPaid: number;
+  /** Objects the house was forced to sell. The bot never sells voluntarily, so
+   *  every objectSold in a run is a liquidation. */
+  forcedSales: number;
+  /** Cash at each midnight close. Interest and liquidation both key off this,
+   *  not off the intraday trough — a run that dips at 4pm and recovers by
+   *  midnight pays nothing. */
+  closes: number[];
+  /** Revenue objects still standing when the run ended. Acceptance criterion 4
+   *  reads this on an insolvency: liquidation is only allowed to run out of
+   *  things to sell once the floor is genuinely stripped, never while a
+   *  saleable earner is still on it. */
+  revenueObjectsAtEnd: number;
 }
 
 /** Cash held back before expanding. The only axis reckless and managed differ on. */
@@ -72,6 +88,10 @@ export function runCampaign(def: CampaignDef, seed: number, strategy: Strategy):
     outcome = 'won';
     wonOnDay = (e as { day: number }).day;
   });
+  eventBus.on('dayEnded', () => closes.push(world.state.cash));
+  let forcedSales = 0;
+  eventBus.on('objectSold', () => forcedSales++);
+  const closes: number[] = [];
   eventBus.on('scenarioFailed', (e) => {
     const detail = e as { day: number; reason: 'timeUp' | 'insolvent' };
     outcome = 'failed';
@@ -187,5 +207,12 @@ export function runCampaign(def: CampaignDef, seed: number, strategy: Strategy):
     best: world.scenario?.bestDailyProfit ?? 0,
     minCash,
     profits: world.ledger.history.map((r) => r.profit),
+    interestPaid: world.ledger.history.reduce((a, r) => a + r.interestPaid, 0),
+    forcedSales,
+    closes,
+    revenueObjectsAtEnd: world.state.allObjects().filter((o) => {
+      const d = getObjectDef(o.defId);
+      return d?.category === 'game' || d?.isRevenueSource === true;
+    }).length,
   };
 }

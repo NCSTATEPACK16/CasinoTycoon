@@ -152,13 +152,18 @@ describe('insolvency', () => {
     eventBus.on('goalReached', () => outcomes.push('won'));
     eventBus.on('scenarioFailed', () => outcomes.push('failed'));
     world.place('slot-machine', 6, 6);
-    // Drives qualifying days until the run resolves, rather than naming a
-    // number of them. Task 6 is what introduces `goalConsecutiveDays`, so this
-    // test cannot reference it — and once Task 9 raises the streak, a loop
-    // still reaches the win where a hard-coded single day would not.
-    for (let d = 0; d < 4 && outcomes.length === 0; d++) {
+    // Drives exactly as many qualifying days as the campaign's streak asks for,
+    // rather than naming a number, so this stays true if the streak is retuned.
+    //
+    // Only the day that *completes* the streak is driven under the limit.
+    // Sinking an earlier qualifying day would have the bank end the run before
+    // the streak can finish — true, but a different property: this test is
+    // about onDayEnded resolving before the insolvency check, so the day that
+    // wins the run wins it rather than losing it to the bank.
+    const need = def.goalConsecutiveDays;
+    for (let d = 0; d < need && outcomes.length === 0; d++) {
       world.ledger.addRevenue(def.goalDailyProfit + 20_000);
-      world.state.cash = -world.creditLimit - 50_000;
+      world.state.cash = d === need - 1 ? -world.creditLimit - 50_000 : 50_000;
       for (let i = 0; i < DAY_TICKS; i++) world.tick();
     }
     expect(outcomes[0]).toBe('won');

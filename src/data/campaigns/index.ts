@@ -1,7 +1,11 @@
 // Campaign scenario definitions. Goals are validated by campaigns.test.ts —
-// a scripted build strategy must be able to win each one within its day limit.
-
-import { DEBT } from '../balance';
+// a scripted build strategy must be able to win each one within its day limit —
+// and by difficulty.test.ts, which is the stricter bar: active play has to beat
+// building once and walking away.
+//
+// P16: every number below was set by measurement, not by feel. See §11 of
+// docs/superpowers/specs/2026-08-19-difficulty-curve-solvency-design.md for
+// what each one is answering. Changing one in isolation will break a guard.
 
 export interface CampaignDef {
   id: string;
@@ -26,10 +30,10 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     name: 'The Dusty Dime',
     tagline: 'A dusty roadside hall with one working outlet. Prove it can pay.',
     startingCash: 2000,
-    goalDailyProfit: 350,
-    dayLimit: 3,
-    goalConsecutiveDays: 1,
-    creditLimit: DEBT.defaultCreditLimit,
+    goalDailyProfit: 600,
+    dayLimit: 12,
+    goalConsecutiveDays: 2,
+    creditLimit: 1000,
   },
   {
     id: 'neon-nights',
@@ -37,19 +41,19 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     tagline: 'A strip-corner lease and impatient backers. Scale it fast.',
     startingCash: 3500,
     goalDailyProfit: 1000,
-    dayLimit: 5,
-    goalConsecutiveDays: 1,
-    creditLimit: DEBT.defaultCreditLimit,
+    dayLimit: 11,
+    goalConsecutiveDays: 2,
+    creditLimit: 1000,
   },
   {
     id: 'high-roller',
     name: 'The High Roller Club',
     tagline: 'Members only, tables only. Slots would cheapen the carpet.',
     startingCash: 5000,
-    goalDailyProfit: 1400,
-    dayLimit: 6,
-    goalConsecutiveDays: 1,
-    creditLimit: DEBT.defaultCreditLimit,
+    goalDailyProfit: 700,
+    dayLimit: 10,
+    goalConsecutiveDays: 2,
+    creditLimit: 800,
     allowedObjects: ['blackjack-table', 'toilet', 'food-stall', 'plant'],
   },
 ];
