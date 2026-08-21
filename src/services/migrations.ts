@@ -1,3 +1,4 @@
+import { DEBT } from '../data/balance';
 import type { CasinoWorldJSON } from '../sim/world';
 
 // Forward-only save migrations.
@@ -7,7 +8,7 @@ import type { CasinoWorldJSON } from '../sim/world';
 // with null, the player saw an *empty slot* rather than an error. Every schema
 // change lands here in the same commit that bumps the version.
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 /** Loosely-typed world JSON. Migrations run on shapes older than the current
  *  CasinoWorldJSON, so they cannot be typed against it. */
@@ -43,6 +44,30 @@ export const MIGRATIONS: Record<number, Migration> = {
     ...w,
     patrons: { patrons: [], dueToday: [], drawnForDay: 0, nextPatronNum: 1 },
   }),
+  // 4 → 5: P16's sustained goal. A v4 file was played under a single-peak-day
+  // win rule, so it has no streak and no honest way to infer one — zero is the
+  // truthful default. Its embedded CampaignDef also predates the two fields the
+  // rule needs, and leaving them absent is not harmless: `streak >= undefined`
+  // is always false, so a migrated campaign could never be won. They default to
+  // the rule the file was actually played under. Sandbox saves have a null
+  // scenario and must pass through untouched rather than growing one.
+  5: (w) => {
+    if (!w.scenario || typeof w.scenario !== 'object') return w;
+    const scenario = w.scenario as Record<string, unknown>;
+    const def = (scenario.def ?? {}) as Record<string, unknown>;
+    return {
+      ...w,
+      scenario: {
+        ...scenario,
+        consecutiveDaysAtGoal: 0,
+        def: {
+          ...def,
+          goalConsecutiveDays: def.goalConsecutiveDays ?? 1,
+          creditLimit: def.creditLimit ?? DEBT.defaultCreditLimit,
+        },
+      },
+    };
+  },
 };
 
 /**

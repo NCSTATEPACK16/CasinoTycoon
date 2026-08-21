@@ -68,9 +68,11 @@ describe('importSaveText', () => {
     const world = playedWorld();
     const env = JSON.parse(exportSaveText(world.toJSON(), at));
     // A file exported before the patron registry existed. The whole point of
-    // portability is that a backup outlives the build that wrote it.
+    // portability is that a backup outlives the build that wrote it. Pinned to
+    // the version that actually predates patrons, not SAVE_VERSION - 1 — the
+    // latter stops meaning "before patrons" the moment the version climbs.
     delete env.world.patrons;
-    env.version = SAVE_VERSION - 1;
+    env.version = 3;
     const res = importSaveText(JSON.stringify(env));
     expect(res.status).toBe('ok');
     expect(res.world!.patrons).toEqual({
