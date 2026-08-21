@@ -7,69 +7,121 @@ import { iconLabel } from '../icons';
 
 const REFRESH_MS = 500;
 
-// Live campaign progress: goal, best day so far, days remaining, rating.
+/** A label/value row whose value can be rewritten without rebuilding it. */
+function liveRow(label: string): {
+  el: HTMLElement;
+  val: HTMLElement;
+  set: (value: string) => void;
+} {
+  const r = row(label, '—');
+  const val = r.lastElementChild as HTMLElement;
+  return { el: r, val, set: (value) => (val.textContent = value) };
+}
+
+// Live campaign progress: goal, best day so far, days remaining, rating, and
+// (P16) the goal streak and how much credit is left before the bank starts
+// selling the floor.
+//
+// Built once and updated in place. An earlier version rebuilt the whole list
+// every render, which at 2Hz threw away the sandbox branch's "Choose a
+// scenario…" button — and any click in flight on it — twice a second.
 export function makeObjectivesPanel(): PanelSpec {
   const content = el('div');
-  // render() rebuilds from world.scenario.status alone, which only says
-  // *that* the run failed. The reason lives on the event, so it is captured
-  // here and read back in on the next render.
+  // render() reads world.scenario.status, which only says *that* the run
+  // failed. The reason lives on the event, so it is captured here and read
+  // back in on the next render.
   let failReason: 'timeUp' | 'insolvent' | null = null;
   const offFailed = eventBus.on('scenarioFailed', (e) => {
     failReason = e.reason;
   });
 
+  // --- Sandbox branch ---
+  const sandbox = el('div');
+  sandbox.appendChild(el('div', 'p-heading', 'Sandbox'));
+  sandbox.appendChild(row('Goal', 'None — free play'));
+  const sandboxRating = liveRow('Casino rating');
+  sandbox.appendChild(sandboxRating.el);
+  const pick = el('button', 'p-tool');
+  pick.appendChild(iconLabel('objectives', 'Choose a scenario…'));
+  pick.addEventListener('click', () => {
+    const uiRoot = document.getElementById('ui-root');
+    if (uiRoot) showScenarioSelect(uiRoot);
+  });
+  sandbox.appendChild(pick);
+
+  // --- Campaign branch ---
+  const campaign = el('div');
+  const name = el('div', 'p-heading');
+  const tagline = el('div', 'p-note');
+  const goal = liveRow('Goal');
+  const streak = liveRow('Days at goal');
+  const best = liveRow('Best day');
+  const day = liveRow('Day');
+  const take = liveRow("Today's take");
+  const credit = liveRow('Credit remaining');
+  const rating = liveRow('Casino rating');
+  const progress = el('div', 'p-progress');
+  const fill = el('i');
+  progress.appendChild(fill);
+  const status = el('div', 'p-heading');
+  campaign.append(
+    name,
+    tagline,
+    goal.el,
+    streak.el,
+    best.el,
+    day.el,
+    take.el,
+    credit.el,
+    rating.el,
+    progress,
+    status,
+  );
+  content.append(sandbox, campaign);
+
   const render = () => {
-    content.textContent = '';
     const sm = world.scenario;
+    sandbox.hidden = sm !== null;
+    campaign.hidden = sm === null;
     if (!sm) {
-      content.appendChild(el('div', 'p-heading', 'Sandbox'));
-      content.appendChild(row('Goal', 'None — free play'));
-      content.appendChild(row('Casino rating', `${world.rating}/100`));
-      const pick = el('button', 'p-tool');
-      pick.appendChild(iconLabel('objectives', 'Choose a scenario\u2026'));
-      pick.addEventListener('click', () => {
-        const uiRoot = document.getElementById('ui-root');
-        if (uiRoot) showScenarioSelect(uiRoot);
-      });
-      content.appendChild(pick);
+      sandboxRating.set(`${world.rating}/100`);
       return;
     }
 
-    content.appendChild(el('div', 'p-heading', sm.def.name));
-    content.appendChild(el('div', 'p-note', sm.def.tagline));
-    content.appendChild(row('Goal', `${formatCash(sm.def.goalDailyProfit)} daily profit`));
-    content.appendChild(
-      row('Best day', sm.bestDailyProfit === null ? '—' : formatCash(sm.bestDailyProfit)),
-    );
-    content.appendChild(
-      row('Day', `${Math.min(world.time.day, sm.def.dayLimit)} of ${sm.def.dayLimit}`),
-    );
-    content.appendChild(
-      row("Today's take", formatCash(world.ledger.todayRevenue - world.ledger.todayExpenses)),
-    );
-    content.appendChild(row('Casino rating', `${world.rating}/100`));
+    name.textContent = sm.def.name;
+    tagline.textContent = sm.def.tagline;
+    goal.set(`${formatCash(sm.def.goalDailyProfit)} daily profit`);
+    // P16: a win is sustained, so the streak is the number the player is
+    // actually playing towards — the goal figure alone no longer says where
+    // they are.
+    streak.set(`${sm.consecutiveDaysAtGoal} of ${sm.def.goalConsecutiveDays}`);
+    best.set(sm.bestDailyProfit === null ? '—' : formatCash(sm.bestDailyProfit));
+    day.set(`${Math.min(world.time.day, sm.def.dayLimit)} of ${sm.def.dayLimit}`);
+    take.set(formatCash(world.ledger.todayRevenue - world.ledger.todayExpenses));
+    // Headroom, not the limit itself: what the player needs to know is how far
+    // they can still fall before the bank sells something.
+    const headroom = world.creditLimit + world.state.cash;
+    credit.set(formatCash(headroom));
+    // Reuses the panel's existing loss colour rather than inventing one.
+    credit.val.classList.toggle('down', world.state.cash < 0);
+    rating.set(`${world.rating}/100`);
 
-    const progress = el('div', 'p-progress');
-    const fill = el('i');
     const frac = sm.bestDailyProfit === null ? 0 : sm.bestDailyProfit / sm.def.goalDailyProfit;
     fill.style.width = `${Math.round(Math.min(1, Math.max(0, frac)) * 100)}%`;
-    progress.appendChild(fill);
-    content.appendChild(progress);
 
-    if (sm.status === 'won') {
-      const won = el('div', 'p-heading');
-      won.appendChild(iconLabel('celebrate', 'Scenario complete!'));
-      content.appendChild(won);
-    } else if (sm.status === 'failed') {
-      const lost = el('div', 'p-heading');
-      lost.appendChild(
-        iconLabel(
-          'fail',
-          failReason === 'insolvent' ? 'Scenario failed — insolvent' : 'Scenario failed — out of time',
-        ),
-      );
-      content.appendChild(lost);
-    }
+    status.hidden = sm.status === 'active';
+    if (sm.status === 'active') return;
+    status.textContent = '';
+    status.appendChild(
+      sm.status === 'won'
+        ? iconLabel('celebrate', 'Scenario complete!')
+        : iconLabel(
+            'fail',
+            failReason === 'insolvent'
+              ? 'Scenario failed — insolvent'
+              : 'Scenario failed — out of time',
+          ),
+    );
   };
 
   render();

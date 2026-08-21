@@ -94,6 +94,12 @@ export function makeDailyReportPanel(record: DailyRecord): PanelSpec {
   // Comps are already inside `expenses`; breaking them out is what makes the
   // spend legible as a decision rather than as overhead.
   if (record.compSpend > 0) content.appendChild(row('Comps', formatCash(record.compSpend)));
+  // P16: interest is inside `expenses` like comps are. Broken out so the cost
+  // of running on the bank's money is legible as a decision, and suppressed
+  // entirely on a solvent day rather than sitting there as a permanent $0.
+  if (record.interestPaid > 0) {
+    content.appendChild(row('Interest', formatCash(record.interestPaid)));
+  }
 
   // A12: the movement, not just the level — a player needs to see that
   // yesterday's play is what moved it.

@@ -20,5 +20,9 @@ export function row(label: string, value: string): HTMLElement {
 }
 
 export function formatCash(cash: number): string {
-  return `$${Math.round(cash).toLocaleString('en-US')}`;
+  // The sign goes outside the symbol: P16 made debt an ordinary state the
+  // player sees on the toolbar and in the report, and `$-500` reads as a typo
+  // where `-$500` reads as money owed.
+  const n = Math.round(cash);
+  return `${n < 0 ? '-' : ''}$${Math.abs(n).toLocaleString('en-US')}`;
 }

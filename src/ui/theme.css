@@ -245,6 +245,12 @@
   color: var(--gold);
 }
 
+/* P16: the house is running on the bank's money. Same tabular-nums metrics as
+   the solvent readout — the rAF tick-up would jitter the digits otherwise. */
+.tb-cash--negative {
+  color: var(--warning);
+}
+
 .tb-cash.flash-up {
   animation: cash-up 0.6s ease-out;
 }
