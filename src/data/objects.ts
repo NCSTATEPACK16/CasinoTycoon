@@ -23,6 +23,12 @@ export interface ObjectDef {
   displaySize?: { w: number; h: number };
   ratingBonus?: number; // small, capped casino-rating contribution (RATING_BALANCE.signageBonusCap)
   category: ObjectCategory;
+  /** `category: 'service'` covers both objects that take money (food stall,
+   *  bar, cage) and one that doesn't (toilet) — the category alone can't
+   *  tell liquidation's last-revenue-object protection which is which.
+   *  Unset/false for everything else; games don't need it, since
+   *  `category === 'game'` already implies revenue. */
+  isRevenueSource?: boolean;
 }
 
 export const OBJECT_CATALOG: readonly ObjectDef[] = [
@@ -128,6 +134,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     spriteKey: 'img-food-stall',
     displaySize: { w: 190, h: 158 },
     category: 'service',
+    isRevenueSource: true,
   },
   {
     id: 'plant',
@@ -173,6 +180,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     footprint: { w: 2, h: 1 },
     spriteKey: 'obj-bar',
     category: 'service',
+    isRevenueSource: true,
   },
   {
     id: 'cage',
@@ -184,6 +192,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     spriteKey: 'img-cage',
     displaySize: { w: 220, h: 120 },
     category: 'service',
+    isRevenueSource: true,
   },
 ];
 

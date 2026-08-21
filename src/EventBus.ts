@@ -26,7 +26,7 @@ export interface GameEvents {
   staffHired: { id: string; kind: string };
   staffFired: { id: string; kind: string };
   goalReached: { campaignId: string; day: number; profit: number };
-  scenarioFailed: { campaignId: string; day: number };
+  scenarioFailed: { campaignId: string; day: number; reason: 'timeUp' | 'insolvent' };
   worldReset: { scenarioId: string | null };
   worldLoaded: { scenarioId: string | null };
   speedChanged: { speed: number };

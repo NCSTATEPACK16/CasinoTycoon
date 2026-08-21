@@ -1,5 +1,13 @@
 import { eventBus } from '../EventBus';
-import { ENTRANCE_TILE, GRID_COLS, GRID_ROWS, HOURS_PER_DAY, JACKPOT_PAYOUT_MULT, STARTING_CASH } from '../config';
+import {
+  ENTRANCE_TILE,
+  GRID_COLS,
+  GRID_ROWS,
+  HOURS_PER_DAY,
+  JACKPOT_PAYOUT_MULT,
+  SELL_REFUND_RATIO,
+  STARTING_CASH,
+} from '../config';
 import {
   ARCHETYPE_BALANCE,
   BAR_BALANCE,
@@ -7,6 +15,7 @@ import {
   COMPS,
   type CompKind,
   DEALER_BALANCE,
+  DEBT,
   GUEST_BALANCE,
   MESS_BALANCE,
   RAGE_BALANCE,
@@ -31,6 +40,7 @@ import { ModifierSystem, type ModifierSystemJSON } from './modifiers';
 import { type Patron, PatronRegistry, type PatronRegistryJSON } from './patrons';
 import { Reputation, type ReputationJSON } from './reputation';
 import { ScenarioManager, type ScenarioJSON } from './scenario/ScenarioManager';
+import { interestFor, pickLiquidation, type LiquidationCandidate } from './solvency';
 import { TimeSystem, type TimeSystemJSON } from './TimeSystem';
 import { type CasinoGame, type PlayCadence, type PlayResult } from './entities/machines/CasinoGame';
 import { GameState, type GameStateJSON, type PlacedObject } from './GameState';
@@ -42,6 +52,9 @@ import { Rng } from './rng';
  *  SIM_TICKS_PER_SECOND — far finer than a player can perceive a heat map
  *  changing, and a fifth of the work of doing it every tick. */
 const OVERLAY_SAMPLE_TICKS = 5;
+
+/** Objects guests depend on. The last one of these is never liquidated. */
+const SERVICE_DEFIDS = new Set(['toilet', 'food-stall']);
 
 // The sim's composition root and tick orchestrator. Owns state, grid, machine
 // and guest registries. Presentation calls place/sell/tick and reads registries;
@@ -386,12 +399,37 @@ export class CasinoWorld {
       }
       const repDelta = this.reputation.closeDay();
       eventBus.emit('reputationChanged', { value: this.reputation.value, delta: repDelta });
+      // P16: interest on the closing balance, charged before the books close
+      // so the cost of the debt lands in the day that ran it — the same
+      // reasoning as the modifier fine above.
+      const interest = interestFor(this.state.cash, DEBT.dailyInterestRate);
+      if (interest > 0) {
+        this.state.cash -= interest;
+        this.ledger.addInterest(interest);
+        this.ledger.accrue(HOUSE_SOURCES.interest.id, HOUSE_SOURCES.interest.defId, {
+          upkeep: interest,
+        });
+        eventBus.emit('moneyChanged', { cash: this.state.cash, delta: -interest });
+        eventBus.emit('tickerMessage', {
+          text: `Interest on the overdraft — ${formatDollarAmount(interest)}.`,
+          severity: 'alert',
+        });
+      }
       const record = this.ledger.closeDay(closedDay, {
         reputation: this.reputation.value,
         reputationDelta: repDelta,
         modifierIds,
       });
       this.scenario?.onDayEnded(record);
+      // P16: the bank takes what it is owed. After onDayEnded, so a day that
+      // reached the goal is a win even if it also closed under the limit.
+      this.liquidateToLimit();
+      if (this.scenario?.status === 'active' && this.state.cash < -this.creditLimit) {
+        // Liquidation ran and could not free enough. Sandbox has no scenario
+        // and so never reaches here: free play applies the pressure without
+        // the fail state.
+        this.scenario.fail('insolvent');
+      }
       // Draw for the day that just began, after the close so the report shows
       // the conditions the closed day was played under.
       this.modifiers.drawForDay(this.time.day, this.modifierRng);
@@ -564,6 +602,75 @@ export class CasinoWorld {
   /** Casino rating 0–100 — drives guest arrivals; shown in UI later. */
   get rating(): number {
     return this.ratingBreakdown().total;
+  }
+
+  /** P16 — how far below zero this run may go. Campaigns name their own; the
+   *  sandbox takes the module default. */
+  get creditLimit(): number {
+    return this.scenario?.def.creditLimit ?? DEBT.defaultCreditLimit;
+  }
+
+  /** True for anything that can appear as a P1 revenue source — a game, or a
+   *  service catalogued as one (food stall, bar, cage — see ObjectDef.isRevenueSource).
+   *  A toilet is a service guests need but never a source, so it is protected
+   *  by SERVICE_DEFIDS rather than counted here. */
+  private isRevenueObject(defId: string): boolean {
+    const def = getObjectDef(defId);
+    if (!def) return false;
+    return def.category === 'game' || def.isRevenueSource === true;
+  }
+
+  /** Attributed net for one object over the last three closed days. Three
+   *  rather than one because a single quiet day is noise, and rather than
+   *  lifetime because a table bought yesterday would otherwise always look
+   *  like the weakest asset on the floor. */
+  private trailingNetFor(objectId: string): number {
+    let net = 0;
+    for (const record of this.ledger.history.slice(-3)) {
+      for (const source of record.sources) {
+        if (source.id === objectId) net += source.revenue - source.upkeep;
+      }
+    }
+    return net;
+  }
+
+  /**
+   * P16 — sell assets until the house is back above its credit limit.
+   *
+   * Returns the defIds sold, in order. An empty return while still below the
+   * limit is the insolvency condition; Task 5's caller reads it that way.
+   */
+  private liquidateToLimit(): string[] {
+    const sold: string[] = [];
+    // Bounded by the floor: every pass removes one object, so this cannot spin.
+    while (this.state.cash < -this.creditLimit) {
+      const objects = this.state.allObjects();
+      const revenueIds = new Set(
+        objects.filter((o) => this.isRevenueObject(o.defId)).map((o) => o.id),
+      );
+      const serviceCounts = new Map<string, number>();
+      for (const o of objects) {
+        serviceCounts.set(o.defId, (serviceCounts.get(o.defId) ?? 0) + 1);
+      }
+      const candidates: LiquidationCandidate[] = objects.map((o) => ({
+        id: o.id,
+        defId: o.defId,
+        isDecor: getObjectDef(o.defId)?.category === 'decor',
+        isLastOfService: SERVICE_DEFIDS.has(o.defId) && (serviceCounts.get(o.defId) ?? 0) <= 1,
+        isLastRevenueObject: revenueIds.has(o.id) && revenueIds.size <= 1,
+        trailingNet: this.trailingNetFor(o.id),
+        refund: Math.round((getObjectDef(o.defId)?.cost ?? 0) * SELL_REFUND_RATIO),
+      }));
+      const pick = pickLiquidation(candidates);
+      if (!pick) break;
+      const refund = this.sell(pick.id);
+      sold.push(pick.defId);
+      eventBus.emit('tickerMessage', {
+        text: `The bank forced a sale — ${pick.defId.replace(/-/g, ' ')} gone for ${formatDollarAmount(refund ?? 0)}.`,
+        severity: 'alert',
+      });
+    }
+    return sold;
   }
 
   private maybeSpawn(): void {

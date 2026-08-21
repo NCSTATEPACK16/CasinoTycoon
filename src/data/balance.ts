@@ -305,6 +305,23 @@ export const SCORE_BALANCE = {
   ratingWeight: 0.01, // rating is 0-100; this keeps its influence proportional
 } as const;
 
+/**
+ * P16 — the cost of running the house on credit.
+ *
+ * Before this, `state.cash` was a plain signed number with no consequence for
+ * going under, which made "spend past zero" strictly dominant: free leverage.
+ * Interest is charged on the *closing* balance only, so recovering by midnight
+ * costs nothing.
+ */
+export const DEBT = {
+  /** Charged at midnight on a negative closing balance. */
+  dailyInterestRate: 0.05, // [design guess]
+  /** How far below zero the house may run when a campaign names no limit of
+   *  its own. Deliberately loose — Task 9 tightens the per-campaign values
+   *  under measurement. Sandbox uses this permanently. */
+  defaultCreditLimit: 10_000, // [design guess]
+} as const;
+
 // ---------------------------------------------------------------------------
 // Track 2 — the depth spine (A5 modifiers, A1a comps, A12 reputation).
 //

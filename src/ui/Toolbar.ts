@@ -203,15 +203,23 @@ export class Toolbar {
 
     const easeOutQuad = (t: number) => 1 - (1 - t) * (1 - t);
 
+    // P16: debt is a real state now — interest is charged on it and the bank
+    // liquidates the floor past the credit limit. Tracking the *displayed*
+    // figure rather than the target keeps the colour and the digits agreeing
+    // for the whole interpolation, instead of flipping a frame early.
+    const syncNegative = () => cash.classList.toggle('tb-cash--negative', displayedCash < 0);
+
     const stepTickUp = (now: number) => {
       const t = Math.min(1, (now - animStart) / TICKUP_MS);
       displayedCash = animFrom + (targetCash - animFrom) * easeOutQuad(t);
       cashValue.textContent = formatCash(Math.round(displayedCash));
+      syncNegative();
       if (t < 1) {
         rafHandle = requestAnimationFrame(stepTickUp);
       } else {
         displayedCash = targetCash;
         cashValue.textContent = formatCash(targetCash);
+        syncNegative();
       }
     };
 

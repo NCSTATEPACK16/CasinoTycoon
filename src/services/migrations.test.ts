@@ -82,7 +82,15 @@ describe('acceptEnvelope', () => {
   });
 
   it('rejects junk without throwing', () => {
-    for (const junk of [null, undefined, 42, 'nope', {}, { version: 2 }, { version: 'x', world: {} }]) {
+    for (const junk of [
+      null,
+      undefined,
+      42,
+      'nope',
+      {},
+      { version: 2 },
+      { version: 'x', world: {} },
+    ]) {
       expect(acceptEnvelope(junk, ladder).status).toBe('unreadable');
     }
   });
@@ -99,12 +107,15 @@ describe('acceptEnvelope', () => {
 // the shapes actually sitting in players' browsers.
 import fixtureV2 from './__fixtures__/save-v2.json';
 import fixtureV3 from './__fixtures__/save-v3.json';
+import fixtureV4 from './__fixtures__/save-v4.json';
+import { ScenarioManager, type ScenarioJSON } from '../sim/scenario/ScenarioManager';
 
 describe('committed save fixtures', () => {
   it('every committed fixture migrates up to the current version', () => {
     for (const [label, fixture] of [
       ['v2', fixtureV2],
       ['v3', fixtureV3],
+      ['v4', fixtureV4],
     ] as const) {
       const res = acceptEnvelope(fixture);
       expect(res.status, label).toBe('ok');
@@ -128,6 +139,43 @@ describe('committed save fixtures', () => {
     });
   });
 
+  it('migrates a v4 file forward with the goal streak defaulted', () => {
+    const res = acceptEnvelope(fixtureV4);
+    expect(res.status).toBe('ok');
+    // A v4 file was played under a single-peak-day win rule, so it has no
+    // streak and no honest way to infer one. Zero is the truthful default.
+    const scenario = (res.world as unknown as { scenario: { consecutiveDaysAtGoal: number } })
+      .scenario;
+    expect(scenario.consecutiveDaysAtGoal).toBe(0);
+    // The embedded def predates both P16 fields. Absent is not harmless:
+    // `streak >= undefined` is always false, so the run could never be won.
+    expect(scenario).toMatchObject({
+      status: 'active',
+      def: { id: 'dusty-dime', goalDailyProfit: 350, goalConsecutiveDays: 1 },
+    });
+    expect(
+      (scenario as unknown as { def: { creditLimit: number } }).def.creditLimit,
+    ).toBeGreaterThan(0);
+  });
+
+  it('leaves a migrated v4 campaign winnable under its old peak-day rule', () => {
+    const res = acceptEnvelope(fixtureV4);
+    const sm = ScenarioManager.fromJSON(
+      (res.world as unknown as { scenario: ScenarioJSON }).scenario,
+    );
+    sm.onDayEnded({ day: 4, profit: 400 } as unknown as Parameters<
+      ScenarioManager['onDayEnded']
+    >[0]);
+    expect(sm.status).toBe('won');
+  });
+
+  it('tolerates a sandbox v4 file, which has no scenario at all', () => {
+    const res = acceptEnvelope({ version: 4, savedAt: null, world: { scenario: null } });
+    expect(res.status).toBe('ok');
+    // A sandbox save must pass through rather than growing a scenario.
+    expect((res.world as unknown as { scenario: unknown }).scenario).toBeNull();
+  });
+
   it('a v3 file gains an empty patron roster rather than a missing key', () => {
     const res = acceptEnvelope(fixtureV3);
     // The v3 snapshot has real modifier and reputation state, and it must
@@ -141,7 +189,7 @@ describe('committed save fixtures', () => {
 
   it('a real world snapshot still round-trips into the sim after migration', async () => {
     const { CasinoWorld } = await import('../sim/world');
-    for (const fixture of [fixtureV2, fixtureV3]) {
+    for (const fixture of [fixtureV2, fixtureV3, fixtureV4]) {
       const res = acceptEnvelope(fixture);
       const world = new CasinoWorld({ seed: 1 });
       expect(() => world.loadJSON(res.world!)).not.toThrow();
