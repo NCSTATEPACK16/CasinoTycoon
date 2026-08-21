@@ -1,6 +1,8 @@
 // Campaign scenario definitions. Goals are validated by campaigns.test.ts —
 // a scripted build strategy must be able to win each one within its day limit.
 
+import { DEBT } from '../balance';
+
 export interface CampaignDef {
   id: string;
   name: string;
@@ -11,10 +13,11 @@ export interface CampaignDef {
   dayLimit: number;
   /** Placeable object ids; omitted = everything is allowed. */
   allowedObjects?: readonly string[];
-  /** P16: overdraft ceiling this campaign allows; omitted falls back to the
-   *  sandbox's DEBT.defaultCreditLimit. None of the three campaigns set this
-   *  yet — nothing here should reach liquidation until it's tuned. */
-  creditLimit?: number;
+  /** P16: days *running* at or above goal needed to win. 1 is a single peak
+   *  day — which is what shipped before P16 and is not enough on its own. */
+  goalConsecutiveDays: number;
+  /** P16: how far below zero this campaign may run before forced sales. */
+  creditLimit: number;
 }
 
 export const CAMPAIGNS: readonly CampaignDef[] = [
@@ -25,6 +28,8 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     startingCash: 2000,
     goalDailyProfit: 350,
     dayLimit: 3,
+    goalConsecutiveDays: 1,
+    creditLimit: DEBT.defaultCreditLimit,
   },
   {
     id: 'neon-nights',
@@ -33,6 +38,8 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     startingCash: 3500,
     goalDailyProfit: 1000,
     dayLimit: 5,
+    goalConsecutiveDays: 1,
+    creditLimit: DEBT.defaultCreditLimit,
   },
   {
     id: 'high-roller',
@@ -41,6 +48,8 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     startingCash: 5000,
     goalDailyProfit: 1400,
     dayLimit: 6,
+    goalConsecutiveDays: 1,
+    creditLimit: DEBT.defaultCreditLimit,
     allowedObjects: ['blackjack-table', 'toilet', 'food-stall', 'plant'],
   },
 ];

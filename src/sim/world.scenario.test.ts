@@ -14,6 +14,8 @@ const DEF: CampaignDef = {
   goalDailyProfit: 300,
   dayLimit: 2,
   allowedObjects: ['slot-machine', 'toilet', 'plant'],
+  goalConsecutiveDays: 1,
+  creditLimit: 5000,
 };
 
 const TICKS_TO_MIDNIGHT = (HOURS_PER_DAY - START_HOUR) * TICKS_PER_HOUR;

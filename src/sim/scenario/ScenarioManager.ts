@@ -14,12 +14,15 @@ export interface ScenarioJSON {
   def: CampaignDef;
   status: ScenarioStatus;
   bestDailyProfit: number | null;
+  consecutiveDaysAtGoal: number;
 }
 
 export class ScenarioManager {
   readonly def: CampaignDef;
   status: ScenarioStatus = 'active';
   bestDailyProfit: number | null = null;
+  // P16: a win is something you sustain. Days *running* at or above goal.
+  consecutiveDaysAtGoal = 0;
   // P16: fail() needs a day number for its own emit, but insolvency is
   // discovered outside onDayEnded (after liquidation runs) — so it is
   // tracked here rather than threaded through as a parameter.
@@ -39,6 +42,14 @@ export class ScenarioManager {
     this.bestDailyProfit =
       this.bestDailyProfit === null ? record.profit : Math.max(this.bestDailyProfit, record.profit);
     if (record.profit >= this.def.goalDailyProfit) {
+      this.consecutiveDaysAtGoal++;
+    } else {
+      // Reset rather than a rolling window: it reads to the player as "two
+      // days running", and it cannot be satisfied by one outlier sitting
+      // inside an averaging window.
+      this.consecutiveDaysAtGoal = 0;
+    }
+    if (this.consecutiveDaysAtGoal >= this.def.goalConsecutiveDays) {
       this.status = 'won';
       eventBus.emit('goalReached', {
         campaignId: this.def.id,
@@ -66,13 +77,19 @@ export class ScenarioManager {
   }
 
   toJSON(): ScenarioJSON {
-    return { def: { ...this.def }, status: this.status, bestDailyProfit: this.bestDailyProfit };
+    return {
+      def: { ...this.def },
+      status: this.status,
+      bestDailyProfit: this.bestDailyProfit,
+      consecutiveDaysAtGoal: this.consecutiveDaysAtGoal,
+    };
   }
 
   static fromJSON(data: ScenarioJSON): ScenarioManager {
     const sm = new ScenarioManager(data.def);
     sm.status = data.status;
     sm.bestDailyProfit = data.bestDailyProfit;
+    sm.consecutiveDaysAtGoal = data.consecutiveDaysAtGoal ?? 0;
     return sm;
   }
 }
