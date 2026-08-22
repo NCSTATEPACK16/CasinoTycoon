@@ -19,10 +19,19 @@ export const GUEST_BALANCE = {
   happinessOnLoss: -1,
   happinessOnService: 3,
   maxGuests: 30,
-  spawnBasePerTick: 0.004,
+  // P16 — both terms scaled up 12% (0.004 / 0.06) to hold average traffic flat
+  // while the modifier magnitudes came down. Milder events cut the expected
+  // daily spawn multiplier from 1.216 to 1.084, and leaving these alone would
+  // have shipped a 10.9% traffic nerf under the banner of a variance fix.
+  spawnBasePerTick: 0.0045,
   // Word of mouth: rating 0–100 scales this on top of the base rate.
-  spawnRatingScalePerTick: 0.06,
+  spawnRatingScalePerTick: 0.0673,
   spawnCapPerTick: 0.08,
+  /** P16 — how much of word of mouth is the casino's standing rather than the
+   *  state of the floor right now. Reputation moves a few points a day at most
+   *  and drifts back to neutral, so this is the term that makes yesterday
+   *  predict today; at 0 the formula is the pre-P16 rating-only one. */
+  spawnReputationWeight: 0.5, // [design guess]
 } as const;
 
 // Casino rating (0–100): happiness carries half; games, variety, and
@@ -58,10 +67,23 @@ export const SLOT_BALANCE = {
   spinIntervalTicks: 8,
   spinsMin: 3,
   spinsMax: 8,
+  // P16 — reshaped at an identical 0.92 RTP to cut per-pull variance.
+  //
+  // A day's profit is a few hundred pulls summed, so the 8% edge only shows
+  // through once the pull count is large next to the payout spread. The old
+  // table (0.25@2x, 0.10@3x, 0.008@15x) had a per-pull sd 21x the edge, needing
+  // ~450 pulls before the edge dominated — several times what a small floor
+  // sees in a day. Daily profit was therefore a coin flip by construction, and
+  // no amount of retuning the modifiers could have fixed it.
+  //
+  // Most of that variance lived in the 15x tail, so it is rarer here, and the
+  // RTP it gives up comes back as a frequent 1x "money back" band — which is
+  // how real slot floors hold players at low volatility. Same edge, same
+  // jackpot, sd now 11.8x the edge: ~140 pulls, which a day does reach.
   payoutTable: [
-    { p: 0.25, multiplier: 2 },
-    { p: 0.1, multiplier: 3 },
-    { p: 0.008, multiplier: 15 },
+    { p: 0.49, multiplier: 1 },
+    { p: 0.2, multiplier: 2 },
+    { p: 0.002, multiplier: 15 },
   ] as readonly PayoutOutcome[],
 } as const;
 
@@ -416,13 +438,20 @@ type GuestArchetypeId = 'regular' | 'highRoller' | 'biker' | 'tourist';
 
 export const MODIFIERS = {
   maxActivePerDay: 2,
+  // Deliberately left at 0.55 while P16 cut the magnitudes below. Every spawn
+  // modifier in the catalog is upside, so making events *rarer* lowers average
+  // traffic rather than its swing — it cuts the mean, not the variance, which
+  // is the opposite of what was wanted. Milder events on the same cadence keep
+  // the flavour and take the noise out.
   drawChance: 0.55,
   catalog: [
     {
       id: 'convention',
       name: 'Convention in town',
       blurb: 'The hotel next door is full. Expect a crowd, and expect it to bet big.',
-      spawnMult: 1.45,
+      // P16 — was 1.45. The archetype bias is the interesting half of a
+      // convention; the raw volume spike was mostly variance.
+      spawnMult: 1.2,
       archetypeBias: { highRoller: 3.0 },
     },
     {
@@ -442,9 +471,11 @@ export const MODIFIERS = {
       id: 'bus-junket',
       name: 'Bus junket',
       blurb: 'Two coaches of day-trippers. Lots of them, and not much in their pockets.',
-      spawnMult: 1.8,
+      // P16 — was 1.8 / 0.7. A near-doubling of arrivals on a coin flip put
+      // more variance into one day than a whole build order did.
+      spawnMult: 1.3,
       archetypeBias: { tourist: 2.5 },
-      walletMult: 0.7,
+      walletMult: 0.85,
     },
     {
       id: 'heat-wave',

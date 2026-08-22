@@ -8,7 +8,7 @@ import type { CasinoWorldJSON } from '../sim/world';
 // with null, the player saw an *empty slot* rather than an error. Every schema
 // change lands here in the same commit that bumps the version.
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 /** Loosely-typed world JSON. Migrations run on shapes older than the current
  *  CasinoWorldJSON, so they cannot be typed against it. */
@@ -64,6 +64,35 @@ export const MIGRATIONS: Record<number, Migration> = {
           ...def,
           goalConsecutiveDays: def.goalConsecutiveDays ?? 1,
           creditLimit: def.creditLimit ?? DEBT.defaultCreditLimit,
+        },
+      },
+    };
+  },
+  // 5 → 6: P16's goal becomes a rolling average rather than a run of
+  // qualifying days. A v5 file carries a streak counter, which does not convert
+  // — a streak of 2 says two days cleared the goal but not by how much, and the
+  // window needs the profits themselves. An empty window is the truthful
+  // default: the player re-earns it over the next few days, and cannot lose a
+  // run to it, since an unfilled window simply never wins.
+  //
+  // goalWindowDays takes the old streak length so a file keeps roughly the
+  // commitment it was played under. Sandbox saves pass through untouched.
+  6: (w) => {
+    if (!w.scenario || typeof w.scenario !== 'object') return w;
+    const scenario = w.scenario as Record<string, unknown>;
+    const def = (scenario.def ?? {}) as Record<string, unknown>;
+    const rest = { ...scenario };
+    // The streak field goes rather than lingering as dead weight in every
+    // future save; recentProfits replaces it outright.
+    delete rest.consecutiveDaysAtGoal;
+    return {
+      ...w,
+      scenario: {
+        ...rest,
+        recentProfits: [],
+        def: {
+          ...def,
+          goalWindowDays: def.goalConsecutiveDays ?? 1,
         },
       },
     };

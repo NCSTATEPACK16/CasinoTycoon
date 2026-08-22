@@ -14,15 +14,16 @@ export interface ScenarioJSON {
   def: CampaignDef;
   status: ScenarioStatus;
   bestDailyProfit: number | null;
-  consecutiveDaysAtGoal: number;
+  recentProfits: number[];
 }
 
 export class ScenarioManager {
   readonly def: CampaignDef;
   status: ScenarioStatus = 'active';
   bestDailyProfit: number | null = null;
-  // P16: a win is something you sustain. Days *running* at or above goal.
-  consecutiveDaysAtGoal = 0;
+  // P16: a win is something you sustain, measured as an average rather than a
+  // run of qualifying days. The last goalWindowDays closes, oldest first.
+  recentProfits: number[] = [];
   // P16: fail() needs a day number for its own emit, but insolvency is
   // discovered outside onDayEnded (after liquidation runs) — so it is
   // tracked here rather than threaded through as a parameter.
@@ -36,20 +37,31 @@ export class ScenarioManager {
     return !this.def.allowedObjects || this.def.allowedObjects.includes(defId);
   }
 
+  /** Mean profit across the window so far. Null until a day has closed. */
+  get windowAverage(): number | null {
+    if (this.recentProfits.length === 0) return null;
+    return this.recentProfits.reduce((a, b) => a + b, 0) / this.recentProfits.length;
+  }
+
+  /** True once the window is both full and averaging at or above the goal. */
+  private get windowClearsGoal(): boolean {
+    if (this.recentProfits.length < this.def.goalWindowDays) return false;
+    return (this.windowAverage ?? 0) >= this.def.goalDailyProfit;
+  }
+
   onDayEnded(record: DailyRecord): void {
     if (this.status !== 'active') return;
     this.lastClosedDay = record.day;
     this.bestDailyProfit =
       this.bestDailyProfit === null ? record.profit : Math.max(this.bestDailyProfit, record.profit);
-    if (record.profit >= this.def.goalDailyProfit) {
-      this.consecutiveDaysAtGoal++;
-    } else {
-      // Reset rather than a rolling window: it reads to the player as "two
-      // days running", and it cannot be satisfied by one outlier sitting
-      // inside an averaging window.
-      this.consecutiveDaysAtGoal = 0;
-    }
-    if (this.consecutiveDaysAtGoal >= this.def.goalConsecutiveDays) {
+    // A run of qualifying days was a test of luck as much as of management: with
+    // a high-variance daily profit, "N days running" is waiting for N heads in a
+    // row. Averaging over the window is what lets a steady casino beat a lucky
+    // one — and it accepts, deliberately, that one day at N times the goal
+    // carries the window. That is a good day, not an outlier to be filtered.
+    this.recentProfits.push(record.profit);
+    if (this.recentProfits.length > this.def.goalWindowDays) this.recentProfits.shift();
+    if (this.windowClearsGoal) {
       this.status = 'won';
       eventBus.emit('goalReached', {
         campaignId: this.def.id,
@@ -81,7 +93,7 @@ export class ScenarioManager {
       def: { ...this.def },
       status: this.status,
       bestDailyProfit: this.bestDailyProfit,
-      consecutiveDaysAtGoal: this.consecutiveDaysAtGoal,
+      recentProfits: [...this.recentProfits],
     };
   }
 
@@ -89,7 +101,7 @@ export class ScenarioManager {
     const sm = new ScenarioManager(data.def);
     sm.status = data.status;
     sm.bestDailyProfit = data.bestDailyProfit;
-    sm.consecutiveDaysAtGoal = data.consecutiveDaysAtGoal ?? 0;
+    sm.recentProfits = [...(data.recentProfits ?? [])];
     return sm;
   }
 }

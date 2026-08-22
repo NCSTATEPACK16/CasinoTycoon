@@ -12,7 +12,10 @@
     "lint": "eslint src",
     "fetch-assets": "node scripts/fetch-assets.mjs",
     "optimize-sprites": "node scripts/optimize-sprites.mjs",
-    "build-icons": "node scripts/build-icons.mjs"
+    "build-icons": "node scripts/build-icons.mjs",
+    "capture": "node scripts/capture-evidence.mjs",
+    "capture:screens": "node scripts/capture-evidence.mjs --screens",
+    "capture:runlog": "node scripts/capture-evidence.mjs --runlog"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",

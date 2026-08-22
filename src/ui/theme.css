@@ -1139,3 +1139,21 @@ label.p-mute input {
 .p-save-portable .p-save-btns .p-tool {
   flex: 1;
 }
+
+/* P16 — People panel tab strip, and the Save panel's account section.
+   Both reuse .p-tool buttons; these only handle the row and its rule. */
+.p-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--bevel-dark, rgba(0, 0, 0, 0.35));
+  padding-bottom: 6px;
+}
+.p-tabs .p-tool {
+  flex: 1;
+}
+.p-section {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--bevel-dark, rgba(0, 0, 0, 0.35));
+}

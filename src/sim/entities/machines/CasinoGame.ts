@@ -95,7 +95,17 @@ export abstract class CasinoGame {
     // a richer table turns away everyone who cannot show up with a stake.
     const ratio = this.minimum / (TABLE_MINIMUMS.defaultByType[this.defId] ?? this.minimum);
     if (ratio <= 1) return 0;
-    return this.costToPlay * TABLE_MINIMUMS.minWalletMultiple * (ratio - 1);
+    // P16 — measured against the wager at the *default* tier, not the raised
+    // one. Using costToPlay here made the gate quadratic in the tier (the wager
+    // scales with ratio, and it was multiplied by ratio - 1 again) while
+    // revenue per hand is only linear. Raising a table therefore shed occupancy
+    // faster than it gained stake at every rung and for every crowd, so the
+    // default was the only sensible setting and the dial was not a decision at
+    // all: `tuned`, `mistuned` and a bot that never touched it finished within
+    // one seed of each other over 21 runs. Linear in (ratio - 1) makes the
+    // trade two-sided, which is the whole point of having the dial.
+    const wagerAtDefault = this.costToPlay / ratio;
+    return wagerAtDefault * TABLE_MINIMUMS.minWalletMultiple * (ratio - 1);
   }
 
   isPlayableBy(guestId: string): boolean {

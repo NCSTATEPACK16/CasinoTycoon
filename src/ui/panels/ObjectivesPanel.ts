@@ -54,11 +54,11 @@ export function makeObjectivesPanel(): PanelSpec {
   const name = el('div', 'p-heading');
   const tagline = el('div', 'p-note');
   const goal = liveRow('Goal');
-  const streak = liveRow('Days at goal');
+  const streak = liveRow('3-day average');
   const best = liveRow('Best day');
   const day = liveRow('Day');
   const take = liveRow("Today's take");
-  const credit = liveRow('Credit remaining');
+  const credit = liveRow('Room to fall');
   const rating = liveRow('Casino rating');
   const progress = el('div', 'p-progress');
   const fill = el('i');
@@ -91,22 +91,38 @@ export function makeObjectivesPanel(): PanelSpec {
     name.textContent = sm.def.name;
     tagline.textContent = sm.def.tagline;
     goal.set(`${formatCash(sm.def.goalDailyProfit)} daily profit`);
-    // P16: a win is sustained, so the streak is the number the player is
-    // actually playing towards — the goal figure alone no longer says where
-    // they are.
-    streak.set(`${sm.consecutiveDaysAtGoal} of ${sm.def.goalConsecutiveDays}`);
+    // P16: a win is sustained and measured as an average, so the running mean
+    // is the number the player is actually playing towards. Days counted is
+    // shown alongside it, because an average over one day is not yet a claim
+    // about anything — the window has to fill before it can win.
+    streak.el.firstElementChild!.textContent = `${sm.def.goalWindowDays}-day average`;
+    const avg = sm.windowAverage;
+    streak.set(
+      avg === null
+        ? '—'
+        : `${formatCash(Math.round(avg))} (${sm.recentProfits.length}/${sm.def.goalWindowDays} days)`,
+    );
     best.set(sm.bestDailyProfit === null ? '—' : formatCash(sm.bestDailyProfit));
     day.set(`${Math.min(world.time.day, sm.def.dayLimit)} of ${sm.def.dayLimit}`);
     take.set(formatCash(world.ledger.todayRevenue - world.ledger.todayExpenses));
     // Headroom, not the limit itself: what the player needs to know is how far
     // they can still fall before the bank sells something.
+    //
+    // This is cash *plus* the credit line, so it is emphatically not "credit
+    // remaining" — at $5,000 cash against a $1,000 limit the credit line is
+    // untouched and the answer is $6,000. Labelling that "Credit remaining"
+    // misreported the one system the campaign layer is built on, so the row is
+    // named for the quantity it actually holds. When the house is in the red
+    // the two coincide, which is how the old name survived being read.
     const headroom = world.creditLimit + world.state.cash;
     credit.set(formatCash(headroom));
     // Reuses the panel's existing loss colour rather than inventing one.
     credit.val.classList.toggle('down', world.state.cash < 0);
     rating.set(`${world.rating}/100`);
 
-    const frac = sm.bestDailyProfit === null ? 0 : sm.bestDailyProfit / sm.def.goalDailyProfit;
+    // Tracks the average rather than the best day: the bar should show progress
+    // towards the thing that actually wins the run.
+    const frac = avg === null ? 0 : avg / sm.def.goalDailyProfit;
     fill.style.width = `${Math.round(Math.min(1, Math.max(0, frac)) * 100)}%`;
 
     status.hidden = sm.status === 'active';

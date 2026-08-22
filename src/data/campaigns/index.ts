@@ -17,9 +17,11 @@ export interface CampaignDef {
   dayLimit: number;
   /** Placeable object ids; omitted = everything is allowed. */
   allowedObjects?: readonly string[];
-  /** P16: days *running* at or above goal needed to win. 1 is a single peak
-   *  day — which is what shipped before P16 and is not enough on its own. */
-  goalConsecutiveDays: number;
+  /** P16: how many closed days the goal is averaged over. The run is won when
+   *  the mean of the last N days reaches goalDailyProfit, so a steady casino
+   *  beats a lucky one — "N days running" rewarded the coin, not the operator.
+   *  1 degenerates to the single-peak-day rule that shipped before P16. */
+  goalWindowDays: number;
   /** P16: how far below zero this campaign may run before forced sales. */
   creditLimit: number;
 }
@@ -29,10 +31,22 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     id: 'dusty-dime',
     name: 'The Dusty Dime',
     tagline: 'A dusty roadside hall with one working outlet. Prove it can pay.',
-    startingCash: 2000,
-    goalDailyProfit: 600,
+    // P16 — was $2000 / $600 / 3 days, which let a do-nothing build sneak a
+    // win. The goal figure was never the problem: at $2000 a greedy player can
+    // afford roughly what `minimal` builds and then stops, so the two produced
+    // near-identical casinos and their profit distributions overlapped. No goal
+    // separates distributions that sit on top of each other.
+    //
+    // Starting cash is the lever, because `minimal` stops building once its
+    // opening set is down and simply banks the rest — every extra dollar goes
+    // to the player who keeps playing. At $3000, build-and-walk-away wins none
+    // of the seven seeds and a straightforward build-out wins six. The 4-day
+    // window is the anti-luck half: this is the hall where you prove the place
+    // runs, not that it had one good night.
+    startingCash: 3000,
+    goalDailyProfit: 700,
     dayLimit: 12,
-    goalConsecutiveDays: 2,
+    goalWindowDays: 4,
     creditLimit: 1000,
   },
   {
@@ -42,7 +56,7 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     startingCash: 3500,
     goalDailyProfit: 1000,
     dayLimit: 11,
-    goalConsecutiveDays: 2,
+    goalWindowDays: 3,
     creditLimit: 1000,
   },
   {
@@ -52,7 +66,7 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     startingCash: 5000,
     goalDailyProfit: 700,
     dayLimit: 10,
-    goalConsecutiveDays: 2,
+    goalWindowDays: 3,
     creditLimit: 800,
     allowedObjects: ['blackjack-table', 'toilet', 'food-stall', 'plant'],
   },

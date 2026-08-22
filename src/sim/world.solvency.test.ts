@@ -112,6 +112,32 @@ describe('forced liquidation', () => {
     for (let i = 0; i < DAY_TICKS; i++) world.tick();
     expect(world.state.allObjects().length).toBe(objectsBefore);
   });
+
+  // P16 — the limit is enforced continuously, not only at the close.
+  //
+  // While the check lived in the day-close block alone, a breach at 3pm that
+  // recovered by midnight cost nothing at all, so the ceiling only ever bound
+  // the closing balance. Now that the house can expand on credit, that gap is
+  // the difference between a limit and a suggestion.
+  it('sells the moment the limit is breached, without waiting for midnight', () => {
+    const world = overdrawnFloor();
+    world.state.cash = -DEBT.defaultCreditLimit - 5000;
+    // A handful of ticks — a small fraction of a day, and nowhere near a close.
+    for (let i = 0; i < 3; i++) world.tick();
+    expect(world.time.day).toBe(1);
+    expect(world.state.allObjects().map((o) => o.defId)).not.toContain('plant');
+  });
+
+  it('stops selling as soon as the balance is back inside the limit', () => {
+    const world = overdrawnFloor();
+    // Only just under: one sale covers it, so a continuously-running check must
+    // not strip the floor simply because it now runs 1200 times a day.
+    world.state.cash = -DEBT.defaultCreditLimit - 1;
+    const before = world.state.allObjects().length;
+    for (let i = 0; i < 200; i++) world.tick();
+    expect(world.state.cash).toBeGreaterThanOrEqual(-DEBT.defaultCreditLimit);
+    expect(world.state.allObjects().length).toBe(before - 1);
+  });
 });
 
 describe('insolvency', () => {
@@ -160,7 +186,7 @@ describe('insolvency', () => {
     // the streak can finish — true, but a different property: this test is
     // about onDayEnded resolving before the insolvency check, so the day that
     // wins the run wins it rather than losing it to the bank.
-    const need = def.goalConsecutiveDays;
+    const need = def.goalWindowDays;
     for (let d = 0; d < need && outcomes.length === 0; d++) {
       world.ledger.addRevenue(def.goalDailyProfit + 20_000);
       world.state.cash = d === need - 1 ? -world.creditLimit - 50_000 : 50_000;

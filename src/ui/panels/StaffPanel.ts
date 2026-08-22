@@ -1,4 +1,6 @@
 import { STAFF_BALANCE } from '../../data/balance';
+import { pluralize } from '../plural';
+import { flavorName } from '../../data/names';
 import { world } from '../../gameContext';
 import type { StaffKind, StaffState } from '../../sim/entities/staff/Staff';
 import { el } from '../dom';
@@ -46,7 +48,10 @@ export function makeStaffPanel(): PanelSpec {
   const summary = el('div');
   const hireRow = el('div', 'p-row');
   const roster = el('div');
-  const note = el('div', 'p-note', 'Drag a staffer on the floor to move them (RCT pincer).');
+  // P16 — was "(RCT pincer)". Naming the genre convention this borrows from
+  // tells a player who already knows it nothing, and a player who does not that
+  // they are missing something.
+  const note = el('div', 'p-note', 'Drag a staffer on the floor to move them.');
 
   const hireButtons: HTMLButtonElement[] = [];
   for (const kind of STAFF_KINDS) {
@@ -85,7 +90,7 @@ export function makeStaffPanel(): PanelSpec {
     for (const kind of STAFF_KINDS) {
       const meta = KIND_META[kind];
       const r = el('div', 'p-row');
-      r.appendChild(iconLabel(meta.icon, `${meta.label}s`));
+      r.appendChild(iconLabel(meta.icon, pluralize(meta.label)));
       r.appendChild(el('span', 'val', `${counts[kind]} hired`));
       summary.appendChild(r);
     }
@@ -102,7 +107,12 @@ export function makeStaffPanel(): PanelSpec {
     for (const m of members) {
       const meta = KIND_META[m.kind];
       const r = el('div', 'p-row g-row');
-      r.appendChild(iconLabel(meta.icon, `${meta.label} #${m.id.slice(2)}`));
+      // P16 — staff are people, not stock. Guests have had full names since
+      // P3 while the roster listed "Mechanic #1", which is the Two Point model
+      // run backwards: their staff are a primary charm vector and the reason
+      // the repetition carries. Seeded off the id, so a staffer keeps their
+      // name across renders and reloads.
+      r.appendChild(iconLabel(meta.icon, `${flavorName(m.id)}, ${meta.label}`));
       const right = el('span', 'val');
       right.appendChild(el('span', '', STATE_LABEL[m.state]));
       const fire = el('button', 'win-btn fire-btn', 'Fire');
