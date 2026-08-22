@@ -130,6 +130,37 @@ describe('A2 — the bankroll gate', () => {
     expect(machine.minWallet).toBeGreaterThan(atOneTier);
   });
 
+  // P16 — the gate rises in step with the wager, not faster than it.
+  //
+  // It used to be a multiple of the *raised* wager times (ratio - 1), which is
+  // quadratic in the tier while revenue per hand is only linear. Raising a
+  // table therefore lost occupancy faster than it gained stake, at every rung
+  // and for every crowd, so the only sensible minimum was the default one.
+  // That is what made the dial inert: `tuned`, `mistuned` and a bot that never
+  // touched it finished within one seed of each other across 21 runs.
+  it('gates in proportion to the tier, not to its square', () => {
+    const { machine } = tableWorld('blackjack-table');
+    const base = TABLE_MINIMUMS.defaultByType['blackjack-table']!;
+    machine.setTableMinimum(base * 2);
+    const atDouble = machine.minWallet;
+    machine.setTableMinimum(base * 4);
+    const atQuadruple = machine.minWallet;
+    // Linear in (ratio - 1): 2x is one step above default, 4x is three.
+    expect(atQuadruple).toBeCloseTo(atDouble * 3, 6);
+  });
+
+  it('keeps a raised table worth raising for a guest who can afford it', () => {
+    // The trade has to be two-sided or there is no decision. At double the
+    // minimum the stake doubles, so the gate must cost less than double the
+    // occupancy it buys — otherwise the rung is dominated and never chosen.
+    const { machine } = tableWorld('blackjack-table');
+    const base = TABLE_MINIMUMS.defaultByType['blackjack-table']!;
+    const wagerAtDefault = machine.costToPlay;
+    machine.setTableMinimum(base * 2);
+    expect(machine.costToPlay).toBe(wagerAtDefault * 2);
+    expect(machine.minWallet).toBeLessThan(wagerAtDefault * TABLE_MINIMUMS.minWalletMultiple * 2);
+  });
+
   it('turns away a guest who cannot show a stake at a raised table', () => {
     const { world, machine } = tableWorld('blackjack-table');
     machine.setTableMinimum(100);
