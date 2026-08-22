@@ -108,7 +108,7 @@ try {
   const md = [];
   md.push('# Run log — measured difficulty', '');
   md.push(
-    'Every number here is produced by replaying the game, not by hand-tuning. Seven scripted',
+    'Every number here is produced by replaying the game, not by hand-tuning. Nine scripted',
     'players compete on identical seeds; the spread between them *is* the difficulty. A game',
     'where every strategy scores the same is a game that plays itself.',
     '',
@@ -121,6 +121,8 @@ try {
     '- `reckless` — greedy, but spends to $0 with no cash reserve.',
     '- `managed` — greedy, but always holds back 25% of the credit limit.',
     '- `levered` — greedy, but expands *on credit*, spending down to the exact balance the bank liquidates against. The only bot that borrows: every other strategy gates expansion on a non-negative cash threshold, so none of them can reach the credit line at all.',
+    '- `tuned` — greedy, but sets table minimums each day against the crowd the conditions announced. Identical in every *buying* decision, so the gap between the two is the one choice in the game that costs no capital.',
+    '- `mistuned` — the control for `tuned`: same signals, opposite conclusion. If both finish level with `greedy` the dial is inert; if `mistuned` loses, the dial is live and greedy simply had a good default.',
     '',
     `Seeds: ${seeds.join(', ')}. Campaigns run to a win, a bankruptcy, or the day limit.`,
     '',
@@ -216,6 +218,42 @@ try {
       : managedTotal > recklessTotal
         ? '> Holding a reserve pays. The credit limit is creating a real decision.'
         : '> Reserving does not pay. Either the buffer is mistuned or debt is too cheap to matter.',
+    '',
+  );
+
+  // P16 — the review's sharpest structural criticism: every bot in the field is
+  // a capital-deployment policy, so the harness can measure "spending well" and
+  // never "playing well". `tuned` and `mistuned` are the pair that answers it.
+  md.push('## 3b. Does *playing* matter, separately from spending?', '');
+  const greedyTotal = CAMPAIGNS.reduce((a, d) => a + wins(d.id, 'greedy'), 0);
+  const tunedTotal = CAMPAIGNS.reduce((a, d) => a + wins(d.id, 'tuned'), 0);
+  const mistunedTotal = CAMPAIGNS.reduce((a, d) => a + wins(d.id, 'mistuned'), 0);
+  md.push(
+    'Every other bot in this field differs from `greedy` only in *where it puts money*. These two',
+    'buy exactly what `greedy` buys and differ solely in the table-minimum dial — the one repeating',
+    'decision in the game that costs no capital. `mistuned` reads the same signals and deliberately',
+    'draws the opposite conclusion, so it is the control: a live decision must punish getting it wrong.',
+    '',
+    table(
+      ['Strategy', 'Wins', 'The dial'],
+      [
+        ['greedy', `${greedyTotal}/${CAMPAIGNS.length * seeds.length}`, 'never touched'],
+        ['tuned', `${tunedTotal}/${CAMPAIGNS.length * seeds.length}`, 'set to the day\'s crowd'],
+        ['mistuned', `${mistunedTotal}/${CAMPAIGNS.length * seeds.length}`, 'set against it'],
+      ],
+    ),
+    '',
+    Math.max(tunedTotal, greedyTotal) - Math.min(mistunedTotal, greedyTotal) <= 1
+      ? [
+          '> **The dial is inert.** Setting minimums well and setting them deliberately badly land',
+          '> within a seed of never touching them, and that holds on The High Roller Club, whose only',
+          '> game *is* a tunable table. The cause is structural rather than a tuning miss: a tier',
+          '> raise scales the wager linearly and the wallet gate linearly, so occupancy falls by about',
+          '> what the wager gains and the elasticity is unity by construction. Until the payoff is',
+          '> non-linear in the tier, this is a dial and not a decision — and the strategy space is',
+          '> still "buy several revenue objects, hold a little back".',
+        ].join('\n')
+      : '> The dial is live: getting it wrong costs real seeds, so playing well is separable from spending well.',
     '',
   );
 

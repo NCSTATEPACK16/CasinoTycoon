@@ -144,4 +144,14 @@ describe('Reputation', () => {
     }
     expect(labels.size).toBe(5);
   });
+
+  it('names the neutral band as neutral', () => {
+    // P16 — this rung was 'Known', the only label on the ladder carrying no
+    // verdict. A player at the starting reputation must be able to read the
+    // readout and tell that the town has no opinion of them yet, rather than
+    // that it has a mildly good one.
+    const rep = new Reputation();
+    rep.value = REPUTATION.start;
+    expect(rep.label).toBe('Unremarkable');
+  });
 });

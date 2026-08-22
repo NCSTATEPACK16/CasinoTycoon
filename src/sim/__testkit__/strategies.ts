@@ -3,6 +3,8 @@ import { HOURS_PER_DAY, TICKS_PER_HOUR } from '../../config';
 import type { CampaignDef } from '../../data/campaigns';
 import { getObjectDef } from '../../data/objects';
 import { CasinoWorld } from '../world';
+import { tierForCrowd } from '../tableTuning';
+import { TABLE_MINIMUMS } from '../../data/balance';
 
 /**
  * The strategy tournament — scripted players, run head-to-head on the same
@@ -26,7 +28,9 @@ export type Strategy =
   | 'noStaff'
   | 'reckless'
   | 'managed'
-  | 'levered';
+  | 'levered'
+  | 'tuned'
+  | 'mistuned';
 
 export const STRATEGIES: readonly Strategy[] = [
   'greedy',
@@ -36,6 +40,8 @@ export const STRATEGIES: readonly Strategy[] = [
   'reckless',
   'managed',
   'levered',
+  'tuned',
+  'mistuned',
 ];
 
 /** The seeds the winnability guard has always used. Keep them identical across
@@ -164,6 +170,15 @@ export function runCampaign(def: CampaignDef, seed: number, strategy: Strategy):
   const buffer = bufferFor(strategy, def.creditLimit);
   const hires = strategy !== 'noStaff';
   const expands = strategy !== 'minimal' && strategy !== 'oneGame';
+  // P16 — the only bot that makes a decision costing no capital. Identical to
+  // greedy in every buying choice, so any difference between the two is the
+  // dial and nothing else.
+  const tunesTables = strategy === 'tuned' || strategy === 'mistuned';
+  // The control. Reads the same signals and draws the opposite conclusion —
+  // gate up when the crowd is broke, down when it is rich. If `tuned` and
+  // `mistuned` finish level with `greedy`, the dial is inert; if `mistuned`
+  // loses, the dial is live and greedy's default was simply already good.
+  const invertsTables = strategy === 'mistuned';
   // A food stall is catalogued isRevenueSource, so "exactly one revenue object"
   // has to mean the stall too, not just a second game. A toilet is a pure
   // service and stays.
@@ -216,6 +231,23 @@ export function runCampaign(def: CampaignDef, seed: number, strategy: Strategy):
         } else if (world.isObjectAllowed('slot-machine') && world.state.cash >= 500 + buffer) {
           if (!tryPlace('slot-machine')) break;
         } else break;
+      }
+    }
+    if (tunesTables) {
+      // Set each table against the crowd the day's conditions announced. The
+      // high-roller bias says who is coming; walletMult says what they brought.
+      const richBias = world.modifiers.archetypeBias('highRoller');
+      const walletMult = world.modifiers.walletMult();
+      for (const machine of world.machines.values()) {
+        if (!machine.supportsMinimum) continue;
+        const base = TABLE_MINIMUMS.defaultByType[machine.defId];
+        if (base === undefined) continue;
+        const purse = richBias * walletMult;
+        machine.setTableMinimum(
+          invertsTables
+            ? tierForCrowd(base, 1 / (purse || 1), 1)
+            : tierForCrowd(base, richBias, walletMult),
+        );
       }
     }
     if (strategy === 'minimal') {

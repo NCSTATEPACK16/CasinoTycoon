@@ -8,12 +8,14 @@ import {
 import { world } from '../../gameContext';
 import { eventBus } from '../../EventBus';
 import { el, formatCash } from '../dom';
-import type { PanelSpec } from '../WindowManager';
+import type { PanelSpec, WindowManager } from '../WindowManager';
+import { makeLoginPanel } from './LoginPanel';
+import { makeLeaderboardPanel } from './LeaderboardPanel';
 
 const slotLabel = (slot: string) =>
   slot === AUTOSAVE_SLOT ? 'Autosave' : `Slot ${slot.slice(-1)}`;
 
-export function makeSavePanel(): PanelSpec {
+export function makeSavePanel(windows: WindowManager): PanelSpec {
   const content = el('div');
 
   const render = async () => {
@@ -159,8 +161,25 @@ export function makeSavePanel(): PanelSpec {
   portableBtns.append(exportBtn, importBtn, file);
   portable.appendChild(portableBtns);
 
+  // P16 — Account and Ranks left the main toolbar. Neither is part of running
+  // a casino, and a bar that lists everything a build can do stops saying what
+  // the build is about. They live here because signing in is what makes the
+  // cloud slots above work: this is the panel where an account already matters.
+  const account = el('div', 'p-section');
+  account.appendChild(el('div', 'p-heading', 'Account'));
+  const accountBtns = el('div', 'p-save-btns');
+  for (const [label, id, make] of [
+    ['Sign in', 'account', makeLoginPanel],
+    ['Ranks', 'leaderboard', makeLeaderboardPanel],
+  ] as const) {
+    const btn = el('button', 'p-tool', label);
+    btn.addEventListener('click', () => windows.toggle(id, make));
+    accountBtns.appendChild(btn);
+  }
+  account.appendChild(accountBtns);
+
   void render();
-  return { title: 'Save / Load', width: 340, content: wrap(content, portable) };
+  return { title: 'Save / Load', width: 340, content: wrap(content, portable, account) };
 }
 
 /** Slot list above, backup controls below, in one panel body. */

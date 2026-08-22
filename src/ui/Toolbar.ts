@@ -5,17 +5,13 @@ import { el, formatCash } from './dom';
 import type { PanelSpec, WindowManager } from './WindowManager';
 import { makeBuildPanel } from './panels/BuildPanel';
 import { makeFinancePanel } from './panels/FinancePanel';
-import { makeGuestsPanel } from './panels/GuestsPanel';
-import { makePatronsPanel } from './panels/PatronsPanel';
-import { makeThoughtsPanel } from './panels/ThoughtsPanel';
+import { makePeoplePanel } from './panels/PeoplePanel';
 import { makeStaffPanel } from './panels/StaffPanel';
 import { makeObjectivesPanel } from './panels/ObjectivesPanel';
 import { makeOverlayPanel } from './panels/OverlayPanel';
 import { makeRatingPanel } from './panels/RatingPanel';
 import { makeSoundPanel } from './panels/SoundPanel';
 import { makeSavePanel } from './panels/SavePanel';
-import { makeLoginPanel } from './panels/LoginPanel';
-import { makeLeaderboardPanel } from './panels/LeaderboardPanel';
 import { icon, type IconName } from './icons';
 
 interface ToolbarButton {
@@ -31,16 +27,16 @@ export class Toolbar {
     const BUTTONS: ToolbarButton[] = [
       { id: 'build', label: 'Build', icon: 'build', make: makeBuildPanel },
       { id: 'finance', label: 'Finance', icon: 'finance', make: () => makeFinancePanel(windows) },
-      { id: 'guests', label: 'Guests', icon: 'guests', make: makeGuestsPanel },
-      { id: 'patrons', label: 'Patrons', icon: 'patrons', make: makePatronsPanel },
-      { id: 'thoughts', label: 'Thoughts', icon: 'thought', make: makeThoughtsPanel },
+      { id: 'people', label: 'People', icon: 'guests', make: makePeoplePanel },
       { id: 'staff', label: 'Staff', icon: 'staff', make: makeStaffPanel },
       { id: 'overlays', label: 'Overlays', icon: 'overlay', make: makeOverlayPanel },
       { id: 'objectives', label: 'Objectives', icon: 'objectives', make: makeObjectivesPanel },
       { id: 'sound', label: 'Sound', icon: 'sound', make: makeSoundPanel },
-      { id: 'save', label: 'Save', icon: 'save', make: makeSavePanel },
-      { id: 'account', label: 'Account', icon: 'account', make: makeLoginPanel },
-      { id: 'leaderboard', label: 'Ranks', icon: 'leaderboard', make: makeLeaderboardPanel },
+      { id: 'save', label: 'Save', icon: 'save', make: () => makeSavePanel(windows) },
+      // P16 — Account and Ranks are off the main bar. Neither is part of
+      // running a casino, and a toolbar that lists everything a build can do
+      // stops telling the player what this build is about. Both still open
+      // from the Save panel, which is where an account already belongs.
     ];
 
     let currentSpeed = 1;
@@ -103,12 +99,17 @@ export class Toolbar {
     });
     windows.onChange((id, open) => buttons.get(id)?.classList.toggle('pressed', open));
 
-    // Game speed: pause / 1× / 3× (render-side tick multiplier).
+    // Game speed: pause / 1× / 2× / 3× (render-side tick multiplier).
+    // P16 adds the middle rung. 1× to 3× was the whole ladder, and 3× is too
+    // fast to watch a floor on while 1× is too slow to run a day out — so the
+    // speed control was really a two-position switch between "observe" and
+    // "skip", with nothing for the pace you actually play at.
     const speedGroup = el('div', 'tb-group tb-speed');
     const speedButtons: [number, HTMLButtonElement][] = [];
     for (const [label, value] of [
       ['pause', 0],
       ['1\u00d7', 1],
+      ['2\u00d7', 2],
       ['3\u00d7', 3],
     ] as const) {
       const btn = el('button', 'tb-btn tb-speed-btn');

@@ -73,11 +73,19 @@ export class Reputation {
     return 1 + (1 / bias - 1) * t;
   }
 
-  /** Player-facing band for the readout — the scalar alone means nothing. */
+  /**
+   * Player-facing band for the readout — the scalar alone means nothing.
+   *
+   * P16 — the middle rung was 'Known', the only label on the ladder with no
+   * valence in it. Renowned, Well regarded, Shaky and Notorious all tell a
+   * player where they stand; 'Known' reads as mild praise while actually
+   * meaning "nobody has an opinion", which is the one thing a five-rung
+   * standing readout must not be vague about.
+   */
   get label(): string {
     if (this.value >= 80) return 'Renowned';
     if (this.value >= 62) return 'Well regarded';
-    if (this.value >= 38) return 'Known';
+    if (this.value >= 38) return 'Unremarkable';
     if (this.value >= 20) return 'Shaky';
     return 'Notorious';
   }
