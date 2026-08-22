@@ -281,12 +281,15 @@ export class CasinoWorld {
 
   canPlace(defId: string, col: number, row: number): PlaceCheck {
     if (!this.isObjectAllowed(defId)) return { ok: false, reason: 'not-allowed' };
-    return canPlaceObject(this.state, this.grid, defId, col, row);
+    // P16: the house may expand on credit, down to the same line the bank
+    // liquidates against. Buying is the only way a player can reach that line
+    // deliberately — upkeep drift alone never got near it.
+    return canPlaceObject(this.state, this.grid, defId, col, row, this.creditLimit);
   }
 
   place(defId: string, col: number, row: number): PlacedObject | null {
     if (!this.isObjectAllowed(defId)) return null;
-    const po = placeObject(this.state, this.grid, defId, col, row);
+    const po = placeObject(this.state, this.grid, defId, col, row, this.creditLimit);
     if (po) {
       const machine = createMachine(defId, po.id);
       if (machine) this.machines.set(po.id, machine);
@@ -365,6 +368,16 @@ export class CasinoWorld {
       this.traffic.decay();
     }
     if (t.hourPassed) this.onHourBoundary(t.midnight);
+    // P16 — the bank watches continuously. While this lived only in the
+    // day-close block, a breach at 3pm that recovered by midnight cost nothing,
+    // so the ceiling bound the closing balance rather than the run. Now that
+    // the house can expand on credit, that gap is what separates a limit from a
+    // suggestion. Cheap when solvent: one comparison, and the loop never turns.
+    //
+    // Only the *selling* is continuous. The terminal verdict stays at the close,
+    // after onDayEnded — a day that reaches the goal still wins it, even from
+    // under the limit, which is the ordering world.solvency.test.ts pins down.
+    this.liquidateToLimit();
   }
 
   /** Bookkeeping at every hour boundary; midnight also rolls the day over. */
@@ -423,6 +436,9 @@ export class CasinoWorld {
       this.scenario?.onDayEnded(record);
       // P16: the bank takes what it is owed. After onDayEnded, so a day that
       // reached the goal is a win even if it also closed under the limit.
+      // The tick-level check above will already have sold against any breach
+      // during the day; this catches the one the close itself just opened,
+      // since upkeep, wages, interest and fines all land immediately above.
       this.liquidateToLimit();
       if (this.scenario?.status === 'active' && this.state.cash < -this.creditLimit) {
         // Liquidation ran and could not free enough. Sandbox has no scenario

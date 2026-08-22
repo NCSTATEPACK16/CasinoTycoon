@@ -83,6 +83,52 @@ describe('build system', () => {
     expect(state.cash).toBe(10);
   });
 
+  // P16 — the credit line is what makes over-expansion possible, and
+  // over-expansion is the only action that can plausibly bankrupt a player.
+  // Before this, purchases were hard-blocked at cash >= cost, so debt could
+  // only ever accrue through wage and upkeep drift and the spiral the campaign
+  // layer is built around was unreachable by play.
+  describe('buying on credit', () => {
+    it('lets a purchase draw the balance down to the credit limit', () => {
+      const cost = getObjectDef('slot-machine')!.cost;
+      state.cash = 0;
+      expect(canPlaceObject(state, grid, 'slot-machine', 1, 1, cost)).toEqual({ ok: true });
+      expect(placeObject(state, grid, 'slot-machine', 1, 1, cost)).not.toBeNull();
+      expect(state.cash).toBe(-cost);
+    });
+
+    it('refuses the purchase that would breach the limit, by a single dollar', () => {
+      const cost = getObjectDef('slot-machine')!.cost;
+      state.cash = 0;
+      // One dollar short of covering the overdraft this purchase would open.
+      expect(canPlaceObject(state, grid, 'slot-machine', 1, 1, cost - 1)).toEqual({
+        ok: false,
+        reason: 'insufficient-funds',
+      });
+      expect(placeObject(state, grid, 'slot-machine', 1, 1, cost - 1)).toBeNull();
+      expect(state.cash).toBe(0);
+    });
+
+    it('measures the limit from the balance, not from zero', () => {
+      const cost = getObjectDef('slot-machine')!.cost;
+      // Already in the red: the line is nearly spent, so the same purchase
+      // that was affordable at zero is not affordable here.
+      state.cash = -cost + 1;
+      expect(canPlaceObject(state, grid, 'slot-machine', 1, 1, cost).ok).toBe(false);
+      expect(canPlaceObject(state, grid, 'slot-machine', 1, 1, cost * 2).ok).toBe(true);
+    });
+
+    it('omitting the limit keeps the old cash-only rule', () => {
+      // Every existing caller passes nothing, so the default has to be the
+      // behaviour that shipped: no credit at all.
+      state.cash = 10;
+      expect(canPlaceObject(state, grid, 'slot-machine', 1, 1)).toEqual({
+        ok: false,
+        reason: 'insufficient-funds',
+      });
+    });
+  });
+
   it('rejects unknown object ids', () => {
     expect(canPlaceObject(state, grid, 'mystery-box', 1, 1)).toEqual({
       ok: false,

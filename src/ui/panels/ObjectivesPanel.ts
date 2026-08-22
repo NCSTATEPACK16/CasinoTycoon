@@ -58,7 +58,7 @@ export function makeObjectivesPanel(): PanelSpec {
   const best = liveRow('Best day');
   const day = liveRow('Day');
   const take = liveRow("Today's take");
-  const credit = liveRow('Credit remaining');
+  const credit = liveRow('Room to fall');
   const rating = liveRow('Casino rating');
   const progress = el('div', 'p-progress');
   const fill = el('i');
@@ -100,6 +100,13 @@ export function makeObjectivesPanel(): PanelSpec {
     take.set(formatCash(world.ledger.todayRevenue - world.ledger.todayExpenses));
     // Headroom, not the limit itself: what the player needs to know is how far
     // they can still fall before the bank sells something.
+    //
+    // This is cash *plus* the credit line, so it is emphatically not "credit
+    // remaining" — at $5,000 cash against a $1,000 limit the credit line is
+    // untouched and the answer is $6,000. Labelling that "Credit remaining"
+    // misreported the one system the campaign layer is built on, so the row is
+    // named for the quantity it actually holds. When the house is in the red
+    // the two coincide, which is how the old name survived being read.
     const headroom = world.creditLimit + world.state.cash;
     credit.set(formatCash(headroom));
     // Reuses the panel's existing loss colour rather than inventing one.
