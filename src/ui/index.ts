@@ -1,8 +1,9 @@
 import './theme.css';
 import { eventBus } from '../EventBus';
 import { audio } from '../services/AudioService';
-import { el, formatCash } from './dom';
+import { el } from './dom';
 import { showScenarioSelect } from './ScenarioSelect';
+import { endCardCopy } from './endCard';
 import { ConditionsBanner } from './ConditionsBanner';
 import { Ticker } from './Ticker';
 import { Toolbar } from './Toolbar';
@@ -75,24 +76,12 @@ export function initUI(): void {
     windows.open('scenario-end', spec);
   };
   eventBus.on('goalReached', ({ day, profit }) => {
-    endCard(
-      makeEndCard(
-        uiRoot,
-        windows,
-        'Scenario complete!',
-        `The books closed day ${day} at ${formatCash(profit)} profit — goal smashed.`,
-      ),
-    );
+    const { heading, message } = endCardCopy({ kind: 'won', day, profit });
+    endCard(makeEndCard(uiRoot, windows, heading, message));
   });
-  eventBus.on('scenarioFailed', ({ day }) => {
-    endCard(
-      makeEndCard(
-        uiRoot,
-        windows,
-        'The backers walk',
-        `Day ${day} ended without hitting the goal. The keys go back to the bank.`,
-      ),
-    );
+  eventBus.on('scenarioFailed', ({ day, reason }) => {
+    const { heading, message } = endCardCopy({ kind: 'failed', reason, day });
+    endCard(makeEndCard(uiRoot, windows, heading, message));
   });
 
   // Boot straight into the scenario picker.
