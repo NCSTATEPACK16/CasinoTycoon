@@ -31,10 +31,22 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     id: 'dusty-dime',
     name: 'The Dusty Dime',
     tagline: 'A dusty roadside hall with one working outlet. Prove it can pay.',
-    startingCash: 2000,
-    goalDailyProfit: 600,
+    // P16 — was $2000 / $600 / 3 days, which let a do-nothing build sneak a
+    // win. The goal figure was never the problem: at $2000 a greedy player can
+    // afford roughly what `minimal` builds and then stops, so the two produced
+    // near-identical casinos and their profit distributions overlapped. No goal
+    // separates distributions that sit on top of each other.
+    //
+    // Starting cash is the lever, because `minimal` stops building once its
+    // opening set is down and simply banks the rest — every extra dollar goes
+    // to the player who keeps playing. At $3000, build-and-walk-away wins none
+    // of the seven seeds and a straightforward build-out wins six. The 4-day
+    // window is the anti-luck half: this is the hall where you prove the place
+    // runs, not that it had one good night.
+    startingCash: 3000,
+    goalDailyProfit: 700,
     dayLimit: 12,
-    goalWindowDays: 3,
+    goalWindowDays: 4,
     creditLimit: 1000,
   },
   {

@@ -45,6 +45,20 @@ describe('the game does not solve itself', () => {
     it(`${def.name}: cannot be won on a single day`, () => {
       expect(def.goalWindowDays).toBeGreaterThanOrEqual(2);
     });
+
+    // Criterion 6. The stronger form of criterion 1, and the harder bar: a
+    // player who builds the opening set and never touches the casino again
+    // must not win *at all*. A margin of 3 is satisfied by 5-2; this is not.
+    //
+    // The Dusty Dime failed this until P16 retuned it, and the fix was not the
+    // goal figure. At $2000 starting cash a greedy player could afford roughly
+    // what `minimal` builds and then stopped, so the two produced near-identical
+    // casinos — and no goal separates distributions sitting on top of each
+    // other. Starting cash is the lever, because `minimal` banks every dollar
+    // past its opening set while an active player keeps spending it.
+    it(`${def.name}: build-and-abandon never wins`, { timeout: 300_000 }, () => {
+      expect(wins(i, 'minimal')).toBe(0);
+    });
   }
 
   // Criterion 3. If reckless ties managed, interest and the credit limit did
