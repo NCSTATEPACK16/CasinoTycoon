@@ -19,7 +19,14 @@ import { CasinoWorld } from '../world';
  * wants to re-run the tournament.
  */
 
-export type Strategy = 'greedy' | 'minimal' | 'oneGame' | 'noStaff' | 'reckless' | 'managed';
+export type Strategy =
+  | 'greedy'
+  | 'minimal'
+  | 'oneGame'
+  | 'noStaff'
+  | 'reckless'
+  | 'managed'
+  | 'levered';
 
 export const STRATEGIES: readonly Strategy[] = [
   'greedy',
@@ -28,6 +35,7 @@ export const STRATEGIES: readonly Strategy[] = [
   'noStaff',
   'reckless',
   'managed',
+  'levered',
 ];
 
 /** The seeds the winnability guard has always used. Keep them identical across
@@ -41,6 +49,23 @@ export interface CampaignRun {
   failReason: 'timeUp' | 'insolvent' | null;
   failedOnDay: number | null;
   best: number;
+  /** The run's true low-water mark, taken off the moneyChanged stream.
+   *
+   *  This was once sampled every 50th tick, on the bot's own acting cadence,
+   *  reasoning that a trough the player could not react to was not one the
+   *  strategy should answer for. That is a fair argument about *strategy* and
+   *  the wrong number for *solvency* — which is all anyone reads it for.
+   *  TICKS_PER_HOUR is 50, so the stride only ever sampled the top of an hour.
+   *  Worse, the trough is not visible *between* ticks at all: the day-close
+   *  tick charges fines, interest, wages and upkeep and then calls
+   *  liquidateToLimit() before it returns, so the balance is already repaired
+   *  by the time the tick ends. `closes` cannot see it either — dayEnded is
+   *  emitted after liquidation.
+   *
+   *  The old number was provably wrong, not merely coarse: of the 26 runs in
+   *  the Aug-2026 tournament that the bank forced into a sale — which happens
+   *  only when the close is under the limit — 17 reported a minCash *above*
+   *  that limit, hiding up to $277 of an $800 line. */
   minCash: number;
   profits: number[];
   /** Total interest the run paid. Zero across a whole tournament means debt
@@ -49,9 +74,11 @@ export interface CampaignRun {
   /** Objects the house was forced to sell. The bot never sells voluntarily, so
    *  every objectSold in a run is a liquidation. */
   forcedSales: number;
-  /** Cash at each midnight close. Interest and liquidation both key off this,
-   *  not off the intraday trough — a run that dips at 4pm and recovers by
-   *  midnight pays nothing. */
+  /** Cash at each midnight close, as the day *settled* — dayEnded is emitted
+   *  after liquidateToLimit(), so this is the post-liquidation balance, never
+   *  the one the bank actually judged. Interest keys off the pre-liquidation
+   *  figure; read minCash for that. A run that dips at 4pm and recovers by
+   *  midnight still pays nothing. */
   closes: number[];
   /** Revenue objects still standing when the run ended. Acceptance criterion 4
    *  reads this on an insolvency: liquidation is only allowed to run out of
@@ -60,10 +87,18 @@ export interface CampaignRun {
   revenueObjectsAtEnd: number;
 }
 
-/** Cash held back before expanding. The only axis reckless and managed differ on. */
+/** Cash held back before expanding. The only axis reckless, managed and levered
+ *  differ on — a reserve is just a negative overdraft, so one number spans
+ *  "hold a quarter of the line back" through to "spend the whole line". */
 function bufferFor(strategy: Strategy, creditLimit: number): number {
   if (strategy === 'reckless') return 0;
   if (strategy === 'managed') return Math.max(400, creditLimit * 0.25);
+  // P16: the only bot that borrows. Every other strategy gates expansion on a
+  // non-negative cash threshold, so none of them could ever reach the credit
+  // line however permissive canPlace became — which made the facility
+  // unmeasurable rather than unused. A negative buffer expands straight into
+  // the overdraft, down to the exact balance the bank liquidates against.
+  if (strategy === 'levered') return -creditLimit;
   return 150; // greedy and its variants — today's winnability bot, unchanged
 }
 
@@ -92,6 +127,15 @@ export function runCampaign(def: CampaignDef, seed: number, strategy: Strategy):
   let forcedSales = 0;
   eventBus.on('objectSold', () => forcedSales++);
   const closes: number[] = [];
+  // The trough exists only *inside* a tick — the day-close tick charges fines,
+  // interest, wages and upkeep and then calls liquidateToLimit() before it
+  // returns, so no per-tick or per-event-after sample can see it. Every one of
+  // the sim's twelve cash mutations emits moneyChanged with the post-mutation
+  // balance, so the event stream is the one exhaustive view of the curve.
+  let minCash = world.state.cash;
+  eventBus.on('moneyChanged', (e) => {
+    minCash = Math.min(minCash, (e as { cash: number }).cash);
+  });
   eventBus.on('scenarioFailed', (e) => {
     const detail = e as { day: number; reason: 'timeUp' | 'insolvent' };
     outcome = 'failed';
@@ -186,15 +230,9 @@ export function runCampaign(def: CampaignDef, seed: number, strategy: Strategy):
     }
   };
 
-  let minCash = world.state.cash;
   const maxTicks = def.dayLimit * HOURS_PER_DAY * TICKS_PER_HOUR;
   for (let t = 0; t < maxTicks && !outcome; t++) {
-    if (t % 50 === 0) {
-      manage();
-      // Sampled on the same cadence the bot acts on: a trough the player could
-      // not have reacted to is not a trough the strategy is answerable for.
-      minCash = Math.min(minCash, world.state.cash);
-    }
+    if (t % 50 === 0) manage();
     world.tick();
   }
   minCash = Math.min(minCash, world.state.cash);
