@@ -186,7 +186,7 @@ describe('insolvency', () => {
     // the streak can finish — true, but a different property: this test is
     // about onDayEnded resolving before the insolvency check, so the day that
     // wins the run wins it rather than losing it to the bank.
-    const need = def.goalConsecutiveDays;
+    const need = def.goalWindowDays;
     for (let d = 0; d < need && outcomes.length === 0; d++) {
       world.ledger.addRevenue(def.goalDailyProfit + 20_000);
       world.state.cash = d === need - 1 ? -world.creditLimit - 50_000 : 50_000;

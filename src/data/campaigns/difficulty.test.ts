@@ -43,7 +43,7 @@ describe('the game does not solve itself', () => {
     // Criterion 5. A campaign won on one lucky modifier day is a campaign the
     // player did not earn.
     it(`${def.name}: cannot be won on a single day`, () => {
-      expect(def.goalConsecutiveDays).toBeGreaterThanOrEqual(2);
+      expect(def.goalWindowDays).toBeGreaterThanOrEqual(2);
     });
   }
 

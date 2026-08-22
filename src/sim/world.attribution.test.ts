@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { eventBus } from '../EventBus';
-import { HOURS_PER_DAY, TICKS_PER_HOUR } from '../config';
+import { HOURS_PER_DAY, START_HOUR, TICKS_PER_HOUR } from '../config';
 import { HOUSE_SOURCES } from './economy';
 import { CasinoWorld } from './world';
 
@@ -114,7 +114,13 @@ describe('P1 — revenue attribution', () => {
 
   it('clears the live accrual at midnight so a day is not double-counted', () => {
     const world = busyWorld();
-    for (let t = 0; t < TICKS_PER_DAY + 5; t++) world.tick();
+    // Stop a handful of ticks past the FIRST midnight. This used to run
+    // TICKS_PER_DAY + 5, but day 1 opens at noon, so that landed 605 ticks into
+    // day 2 and compared two half-days rather than a day against a sliver —
+    // it passed on the accident that day 1 was the busier of the two.
+    const ticksToFirstMidnight = (HOURS_PER_DAY - START_HOUR) * TICKS_PER_HOUR;
+    for (let t = 0; t < ticksToFirstMidnight + 5; t++) world.tick();
+    expect(world.ledger.history.length).toBe(1);
     // Straight after the roll the new day has at most the fresh day's activity,
     // never the closed day's rows.
     const closed = world.ledger.history[0]!.sources.reduce((s, r) => s + r.revenue, 0);

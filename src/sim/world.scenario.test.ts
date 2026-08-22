@@ -14,7 +14,7 @@ const DEF: CampaignDef = {
   goalDailyProfit: 300,
   dayLimit: 2,
   allowedObjects: ['slot-machine', 'toilet', 'plant'],
-  goalConsecutiveDays: 1,
+  goalWindowDays: 1,
   creditLimit: 5000,
 };
 

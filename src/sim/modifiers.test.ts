@@ -64,7 +64,12 @@ describe('ModifierSystem', () => {
       activeIds: ['convention', 'bus-junket'],
       drawnForDay: 1,
     });
-    expect(restored.spawnMult()).toBeCloseTo(1.45 * 1.8, 5);
+    // Read from the catalog rather than repeating its numbers: this test is
+    // about multiplying stacked effects, not about what any one of them is
+    // worth, and P16 retuned both of these.
+    const spawnOf = (id: string) =>
+      MODIFIERS.catalog.find((m) => m.id === id)?.spawnMult ?? 1;
+    expect(restored.spawnMult()).toBeCloseTo(spawnOf('convention') * spawnOf('bus-junket'), 5);
     expect(sys.spawnMult()).toBe(1);
   });
 

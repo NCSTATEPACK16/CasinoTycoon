@@ -20,6 +20,7 @@ import {
   MESS_BALANCE,
   RAGE_BALANCE,
   RATING_BALANCE,
+  REPUTATION,
   SECURITY_BALANCE,
 } from '../data/balance';
 import type { CampaignDef } from '../data/campaigns';
@@ -70,13 +71,33 @@ function formatDollarAmount(n: number): string {
   return `$${Math.round(Math.abs(n)).toLocaleString()}`;
 }
 
-/** Guests only come for the games; word of mouth (rating) does the rest. */
-export function spawnChance(rating: number, machineCount: number): number {
+/**
+ * Guests only come for the games; word of mouth does the rest.
+ *
+ * P16 — word of mouth is half today's floor and half the casino's standing.
+ * Keying arrivals on the instantaneous rating alone made each day nearly
+ * independent of the one before it: lag-1 autocorrelation across the tournament
+ * was +0.20 and the daily standard deviation ran two to three times the mean,
+ * which is a coin-flip rather than a difficulty curve. Reputation was already
+ * the persistent scalar this wants — capped per day and drifting to the mean,
+ * so it moves over several days and cannot become absorbing — but it only ever
+ * reached the archetype mix, never the arrival rate.
+ *
+ * The two terms are a redistribution, not a bonus: at REPUTATION.start the
+ * result is exactly what the rating-only formula returned, so no downstream
+ * tuning number moves for an averagely-regarded casino.
+ */
+export function spawnChance(rating: number, machineCount: number, reputation: number): number {
   if (machineCount === 0) return 0;
   const b = GUEST_BALANCE;
+  const w = b.spawnReputationWeight;
+  // Reputation is expressed relative to neutral so that a middling name is
+  // worth exactly the rating it replaces.
+  const standing = rating + (reputation - REPUTATION.start) * (100 / REPUTATION.max);
+  const wordOfMouth = (rating * (1 - w) + standing * w) / 100;
   return Math.min(
     b.spawnCapPerTick,
-    b.spawnBasePerTick + (rating / 100) * b.spawnRatingScalePerTick,
+    b.spawnBasePerTick + Math.max(0, wordOfMouth) * b.spawnRatingScalePerTick,
   );
 }
 
@@ -691,7 +712,9 @@ export class CasinoWorld {
 
   private maybeSpawn(): void {
     if (this.guests.size >= GUEST_BALANCE.maxGuests) return;
-    const chance = spawnChance(this.rating, this.machines.size) * this.modifiers.spawnMult();
+    const chance =
+      spawnChance(this.rating, this.machines.size, this.reputation.value) *
+      this.modifiers.spawnMult();
     if (!this.rng.chance(chance)) return;
     if (!this.grid.isWalkable(this.entranceTile.col, this.entranceTile.row)) return;
     this.spawnGuest();

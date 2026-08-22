@@ -42,7 +42,11 @@ function playOutOneGuest(world: CasinoWorld): void {
 describe('P3 — the registry inside a running sim', () => {
   it('cards guests off their own play, without the player doing anything', () => {
     const world = stockedWorld(4242);
-    for (let i = 0; i < DAY_TICKS * 3; i++) world.tick();
+    // Five days rather than three. This test is about ambient play carding
+    // somebody with no player input, so it must not also be a bet on how fast
+    // a particular seed gets one guest over the theo threshold — a margin that
+    // moves whenever traffic or payout variance is retuned.
+    for (let i = 0; i < DAY_TICKS * 5; i++) world.tick();
     expect(world.patrons.size).toBeGreaterThan(0);
     for (const patron of world.patrons.all()) {
       expect(patron.lifetimeTheo).toBeGreaterThanOrEqual(PATRONS.cardThresholdTheo);
@@ -170,8 +174,16 @@ describe('P3 — tier benefits', () => {
 
 describe('P3 — persistence', () => {
   it('carries the roster through a save and load', () => {
-    const world = stockedWorld(1234);
-    for (let i = 0; i < DAY_TICKS * 3; i++) world.tick();
+    // autoSpawn off, as at every other playOutOneGuest call site: ambient
+    // traffic competes for the three machines and the high roller never
+    // reaches the card threshold.
+    const world = stockedWorld(1234, false);
+    // Card a patron deterministically rather than hoping three days of ambient
+    // traffic on this seed produces one. This test is about the roster
+    // surviving a round-trip; whether a given seed happens to card anybody is
+    // a different property, and one that moves whenever traffic is retuned.
+    playOutOneGuest(world);
+    for (let i = 0; i < DAY_TICKS; i++) world.tick();
     expect(world.patrons.size).toBeGreaterThan(0);
     const before = world.patrons.toJSON();
 

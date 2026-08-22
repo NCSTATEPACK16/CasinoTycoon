@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { eventBus } from '../EventBus';
 import { CasinoWorld, spawnChance } from './world';
+import { GUEST_BALANCE, REPUTATION } from '../data/balance';
 
 afterEach(() => eventBus.clear());
 
@@ -56,8 +57,41 @@ describe('CasinoWorld — rating & spawning', () => {
   });
 
   it('spawn chance is zero without machines and rises with rating', () => {
-    expect(spawnChance(90, 0)).toBe(0);
-    expect(spawnChance(80, 3)).toBeGreaterThan(spawnChance(40, 3));
-    expect(spawnChance(100, 5)).toBeLessThanOrEqual(0.08);
+    expect(spawnChance(90, 0, REPUTATION.start)).toBe(0);
+    expect(spawnChance(80, 3, REPUTATION.start)).toBeGreaterThan(
+      spawnChance(40, 3, REPUTATION.start),
+    );
+    expect(spawnChance(100, 5, REPUTATION.max)).toBeLessThanOrEqual(0.08);
+  });
+
+  // P16 — word of mouth carries between days.
+  //
+  // Traffic used to key on the instantaneous rating alone, so a day's takings
+  // were near-independent of the day before it: lag-1 autocorrelation across
+  // the tournament was +0.20, and the daily standard deviation ran two to three
+  // times the mean. That is a coin-flip wearing a difficulty curve. Reputation
+  // was already the persistent, capped, drifting scalar this needs — it simply
+  // never reached the arrival *rate*, only the archetype mix.
+  describe('reputation carries traffic between days', () => {
+    it('draws better than an identical floor with a worse name', () => {
+      expect(spawnChance(70, 3, 90)).toBeGreaterThan(spawnChance(70, 3, 20));
+    });
+
+    it('still cannot conjure a crowd with nothing to play', () => {
+      expect(spawnChance(100, 0, 100)).toBe(0);
+    });
+
+    it('leaves the shipped calibration alone at a neutral reputation', () => {
+      // The blend has to be a redistribution of word of mouth, not a buff: a
+      // casino with an average name draws exactly what it drew before, or every
+      // tuning number downstream of this silently moves.
+      const b = GUEST_BALANCE;
+      const neutral = spawnChance(60, 3, REPUTATION.start);
+      expect(neutral).toBeCloseTo(b.spawnBasePerTick + 0.6 * b.spawnRatingScalePerTick, 10);
+    });
+
+    it('respects the cap however good the name gets', () => {
+      expect(spawnChance(100, 5, 100)).toBeLessThanOrEqual(GUEST_BALANCE.spawnCapPerTick);
+    });
   });
 });

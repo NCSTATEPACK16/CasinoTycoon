@@ -108,6 +108,7 @@ describe('acceptEnvelope', () => {
 import fixtureV2 from './__fixtures__/save-v2.json';
 import fixtureV3 from './__fixtures__/save-v3.json';
 import fixtureV4 from './__fixtures__/save-v4.json';
+import fixtureV5 from './__fixtures__/save-v5.json';
 import { ScenarioManager, type ScenarioJSON } from '../sim/scenario/ScenarioManager';
 
 describe('committed save fixtures', () => {
@@ -116,6 +117,7 @@ describe('committed save fixtures', () => {
       ['v2', fixtureV2],
       ['v3', fixtureV3],
       ['v4', fixtureV4],
+      ['v5', fixtureV5],
     ] as const) {
       const res = acceptEnvelope(fixture);
       expect(res.status, label).toBe('ok');
@@ -139,19 +141,22 @@ describe('committed save fixtures', () => {
     });
   });
 
-  it('migrates a v4 file forward with the goal streak defaulted', () => {
+  it('migrates a v4 file forward with an empty goal window', () => {
     const res = acceptEnvelope(fixtureV4);
     expect(res.status).toBe('ok');
-    // A v4 file was played under a single-peak-day win rule, so it has no
-    // streak and no honest way to infer one. Zero is the truthful default.
-    const scenario = (res.world as unknown as { scenario: { consecutiveDaysAtGoal: number } })
-      .scenario;
-    expect(scenario.consecutiveDaysAtGoal).toBe(0);
-    // The embedded def predates both P16 fields. Absent is not harmless:
-    // `streak >= undefined` is always false, so the run could never be won.
+    const scenario = (res.world as unknown as { scenario: Record<string, unknown> }).scenario;
+    // A v4 file predates the window entirely, and the v5 streak it gains on the
+    // way through does not convert — a streak says how many days cleared the
+    // goal, never by how much. An empty window is the truthful default: it is
+    // re-earned over the next few days and can never lose a run, since an
+    // unfilled window simply does not win.
+    expect(scenario.recentProfits).toEqual([]);
+    expect(scenario.consecutiveDaysAtGoal).toBeUndefined();
+    // The embedded def predates the P16 fields. Absent is not harmless:
+    // `length >= undefined` is always false, so the run could never be won.
     expect(scenario).toMatchObject({
       status: 'active',
-      def: { id: 'dusty-dime', goalDailyProfit: 350, goalConsecutiveDays: 1 },
+      def: { id: 'dusty-dime', goalDailyProfit: 350, goalWindowDays: 1 },
     });
     expect(
       (scenario as unknown as { def: { creditLimit: number } }).def.creditLimit,
@@ -167,6 +172,23 @@ describe('committed save fixtures', () => {
       ScenarioManager['onDayEnded']
     >[0]);
     expect(sm.status).toBe('won');
+  });
+
+  it('converts a v5 streak into an empty window rather than inventing profits', () => {
+    // The v5 file is mid-run with a streak of 1. A streak records that a day
+    // cleared the goal but never by how much, so there is no honest set of
+    // profits to seed the window with — and inventing some would hand the
+    // player progress they did not earn, or take some away.
+    const res = acceptEnvelope(fixtureV5);
+    expect(res.status).toBe('ok');
+    const scenario = (res.world as unknown as { scenario: Record<string, unknown> }).scenario;
+    expect(scenario.recentProfits).toEqual([]);
+    expect(scenario.consecutiveDaysAtGoal).toBeUndefined();
+    // The window length inherits the streak it replaces, so the file keeps
+    // roughly the commitment it was played under.
+    expect(scenario).toMatchObject({ def: { goalWindowDays: 2 } });
+    // Untouched state still survives the step.
+    expect(scenario.bestDailyProfit).toBe(420);
   });
 
   it('tolerates a sandbox v4 file, which has no scenario at all', () => {

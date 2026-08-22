@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { eventBus } from '../EventBus';
-import { STARTING_CASH } from '../config';
+import { HOURS_PER_DAY, STARTING_CASH, TICKS_PER_HOUR } from '../config';
 import { getObjectDef } from '../data/objects';
 import { CasinoWorld } from './world';
 
@@ -98,18 +98,41 @@ describe('CasinoWorld', () => {
   });
 
   it('counts a jackpot the moment it pays out', () => {
-    const world = new CasinoWorld({ seed: 33, autoSpawn: false });
-    const po = world.place('slot-machine', 5, 5)!;
-    const guest = world.spawnGuest();
-    guest.wallet = 5000;
-    let sawJackpot = false;
-    for (let i = 0; i < 20000 && !sawJackpot; i++) {
-      const res = world.playMachine(po.id, guest.id);
-      if (res && res.payout >= res.wager * 10) sawJackpot = true;
+    // Driven by a running casino rather than by hand-pulling one machine.
+    //
+    // The hand-pulled version was capped at ~200 pulls by two ceilings it never
+    // mentioned — the slot breaks after 200 plays at wearPerPlay 0.5, and a
+    // guest is done after cadence.playsMin..Max — so it was really a coin flip
+    // on hitting a jackpot inside 200 pulls. It passed on the old payout
+    // table's 0.008 band and broke the moment P16 made the tail rarer; the
+    // fragility was always there, just never provoked. A floor of machines
+    // with a mechanic on it produces thousands of pulls, which is what makes a
+    // rare band a certainty instead of a bet.
+    const world = new CasinoWorld({ seed: 33, autoSpawn: true });
+    world.state.cash = 500_000;
+    for (const [col, row] of [
+      [6, 6],
+      [8, 6],
+      [10, 6],
+      [12, 6],
+    ] as const) {
+      world.place('slot-machine', col, row);
     }
-    expect(sawJackpot).toBe(true);
-    const record = world.ledger.closeDay(1);
-    expect(record.jackpotCount).toBeGreaterThan(0);
+    world.place('toilet', 6, 12);
+    world.hireStaff('mechanic');
+    world.hireStaff('janitor');
+    let plays = 0;
+    let jackpots = 0;
+    eventBus.on('machinePlayed', ({ wager, payout }) => {
+      plays++;
+      if (payout >= wager * 10) jackpots++;
+    });
+    for (let i = 0; i < HOURS_PER_DAY * TICKS_PER_HOUR * 10; i++) world.tick();
+    expect(plays).toBeGreaterThan(3000);
+    expect(jackpots).toBeGreaterThan(0);
+    // The ledger counted every one of them, which is the actual claim.
+    const counted = world.ledger.history.reduce((n, r) => n + r.jackpotCount, 0);
+    expect(counted).toBe(jackpots);
   });
 
   it('folds all still-present guests at midnight without losing them from the floor', () => {
@@ -137,9 +160,13 @@ describe('CasinoWorld', () => {
 
   it("the dawn ticker headline names yesterday's top winner", () => {
     const world = new CasinoWorld({ seed: 44, autoSpawn: false });
-    world.place('slot-machine', 5, 5);
+    // No machine, and the win is stated outright — the same shape as the
+    // sibling test below, and for the same reason: autonomous play during the
+    // tick loop perturbs netResult, so leaving a machine down made this a bet
+    // on the guest finishing the day ahead.
     const guest = world.spawnGuest();
     guest.wallet = 5000;
+    guest.netResult = 250;
     const lines: string[] = [];
     eventBus.on('tickerMessage', ({ text }) => lines.push(text));
     for (let i = 0; i < 1250; i++) world.tick(); // past midnight
