@@ -195,3 +195,33 @@ describe('insolvency', () => {
     expect(outcomes[0]).toBe('won');
   });
 });
+
+describe('insolvency after continuation', () => {
+  it('still fails an endless run that goes broke', () => {
+    const def = CAMPAIGNS[0]!;
+    const world = new CasinoWorld({ seed: 5, autoSpawn: false });
+    world.startScenario(def);
+    world.scenario!.status = 'won';
+    world.scenario!.continue();
+    expect(world.scenario!.status).toBe('endless');
+
+    world.state.cash = -100000; // far past any campaign's creditLimit
+    let failed = false;
+    eventBus.on('scenarioFailed', () => (failed = true));
+    for (let i = 0; i < DAY_TICKS; i++) world.tick();
+
+    expect(failed).toBe(true);
+    expect(world.scenario!.status).toBe('failed');
+  });
+
+  it('does not fail an endless run that stays solvent', () => {
+    const def = CAMPAIGNS[0]!;
+    const world = new CasinoWorld({ seed: 6, autoSpawn: false });
+    world.startScenario(def);
+    world.scenario!.status = 'won';
+    world.scenario!.continue();
+    world.state.cash = 50000;
+    for (let i = 0; i < DAY_TICKS; i++) world.tick();
+    expect(world.scenario!.status).toBe('endless');
+  });
+});

@@ -461,10 +461,14 @@ export class CasinoWorld {
       // during the day; this catches the one the close itself just opened,
       // since upkeep, wages, interest and fines all land immediately above.
       this.liquidateToLimit();
-      if (this.scenario?.status === 'active' && this.state.cash < -this.creditLimit) {
+      if (
+        (this.scenario?.status === 'active' || this.scenario?.status === 'endless') &&
+        this.state.cash < -this.creditLimit
+      ) {
         // Liquidation ran and could not free enough. Sandbox has no scenario
         // and so never reaches here: free play applies the pressure without
-        // the fail state.
+        // the fail state. Endless keeps this gate live deliberately — see
+        // ScenarioManager.fail()'s doc comment.
         this.scenario.fail('insolvent');
       }
       // Draw for the day that just began, after the close so the report shows

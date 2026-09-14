@@ -79,6 +79,58 @@ describe('ScenarioManager', () => {
   });
 });
 
+describe('continuation', () => {
+  it('continue() only moves a won scenario to endless', () => {
+    const sm = new ScenarioManager(DEF);
+    sm.continue(); // not won yet — no-op
+    expect(sm.status).toBe('active');
+    sm.onDayEnded(record(1, 500));
+    expect(sm.status).toBe('won');
+    sm.continue();
+    expect(sm.status).toBe('endless');
+    sm.continue(); // idempotent
+    expect(sm.status).toBe('endless');
+  });
+
+  it('isAllowed ignores allowedObjects once endless', () => {
+    const sm = new ScenarioManager({ ...DEF, allowedObjects: ['blackjack-table'] });
+    expect(sm.isAllowed('slot-machine')).toBe(false);
+    sm.onDayEnded(record(1, 500));
+    sm.continue();
+    expect(sm.isAllowed('slot-machine')).toBe(true);
+  });
+
+  it('keeps tracking best day and closed-day bookkeeping while endless, but evaluates no goal', () => {
+    const sm = new ScenarioManager(DEF);
+    sm.onDayEnded(record(1, 500));
+    sm.continue();
+    let goalEvents = 0;
+    eventBus.on('goalReached', () => goalEvents++);
+    sm.onDayEnded(record(2, 900)); // far past dayLimit=3, and far past the goal too
+    expect(sm.status).toBe('endless'); // no re-win, no timeUp fail
+    expect(sm.bestDailyProfit).toBe(900);
+    expect(goalEvents).toBe(0);
+  });
+
+  it('fail() still works from endless, not just active', () => {
+    const sm = new ScenarioManager(DEF);
+    sm.onDayEnded(record(1, 500));
+    sm.continue();
+    let failed: { reason: string } | null = null;
+    eventBus.on('scenarioFailed', (e) => (failed = e));
+    sm.fail('insolvent');
+    expect(sm.status).toBe('failed');
+    expect(failed).toEqual({ campaignId: 'test-run', day: 1, reason: 'insolvent' });
+  });
+
+  it('fail() is still a no-op once already failed or won-not-continued', () => {
+    const sm = new ScenarioManager(DEF);
+    sm.onDayEnded(record(1, 500)); // won
+    sm.fail('insolvent'); // won, not endless — must not override a win
+    expect(sm.status).toBe('won');
+  });
+});
+
 // P16 — the goal is a rolling average, not a run of qualifying days.
 //
 // "N days running at goal" sounds like a test of consistency and behaves like

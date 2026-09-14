@@ -24,7 +24,10 @@ export function endCardCopy(outcome: EndCardOutcome): EndCardCopy {
   if (outcome.kind === 'won') {
     return {
       heading: 'Scenario complete!',
-      message: `The books closed day ${outcome.day} at ${formatCash(outcome.profit)} profit — goal smashed.`,
+      message:
+        `The books closed day ${outcome.day} at ${formatCash(outcome.profit)} profit — goal smashed. ` +
+        `Keep playing and the floor opens up completely — no day limit, no restrictions on what you ` +
+        `can build — but the bank still calls it if the balance runs out.`,
     };
   }
   if (outcome.reason === 'insolvent') {

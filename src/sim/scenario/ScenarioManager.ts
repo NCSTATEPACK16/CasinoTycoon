@@ -5,7 +5,7 @@ import type { DailyRecord } from '../economy';
 // Evaluates one campaign run against the daily rollup. The world calls
 // onDayEnded after closing each day's books.
 
-export type ScenarioStatus = 'active' | 'won' | 'failed';
+export type ScenarioStatus = 'active' | 'won' | 'failed' | 'endless';
 
 // P16: two ways to lose. The UI reads this to say which one happened.
 export type ScenarioFailReason = 'timeUp' | 'insolvent';
@@ -34,7 +34,15 @@ export class ScenarioManager {
   }
 
   isAllowed(defId: string): boolean {
+    if (this.status === 'endless') return true;
     return !this.def.allowedObjects || this.def.allowedObjects.includes(defId);
+  }
+
+  /** Moves a completed run into unrestricted, un-timed play. Only meaningful
+   *  from 'won' — calling it on a run that hasn't won, or twice, is a no-op. */
+  continue(): void {
+    if (this.status !== 'won') return;
+    this.status = 'endless';
   }
 
   /** Mean profit across the window so far. Null until a day has closed. */
@@ -50,6 +58,12 @@ export class ScenarioManager {
   }
 
   onDayEnded(record: DailyRecord): void {
+    if (this.status === 'endless') {
+      this.lastClosedDay = record.day;
+      this.bestDailyProfit =
+        this.bestDailyProfit === null ? record.profit : Math.max(this.bestDailyProfit, record.profit);
+      return;
+    }
     if (this.status !== 'active') return;
     this.lastClosedDay = record.day;
     this.bestDailyProfit =
@@ -74,9 +88,12 @@ export class ScenarioManager {
     }
   }
 
-  /** End the run as a loss. Idempotent: a scenario already decided stays decided. */
+  /** End the run as a loss. Idempotent: a scenario already decided (won and
+   *  not continued, or already failed) stays decided. Endless is not decided
+   *  — continuation keeps the fail state live, which is the entire point of
+   *  A1: the bank still calls it, the goal just doesn't. */
   fail(reason: ScenarioFailReason): void {
-    if (this.status !== 'active') return;
+    if (this.status !== 'active' && this.status !== 'endless') return;
     this.status = 'failed';
     eventBus.emit('scenarioFailed', { campaignId: this.def.id, day: this.lastClosedDay, reason });
     eventBus.emit('tickerMessage', {

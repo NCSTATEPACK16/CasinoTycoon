@@ -34,4 +34,10 @@ describe('endCardCopy', () => {
     const insolvent = endCardCopy({ kind: 'failed', reason: 'insolvent', day: 4 });
     expect(timeUp.heading).not.toBe(insolvent.heading);
   });
+
+  it("tells the player what continuing changes, on a win", () => {
+    const { message } = endCardCopy({ kind: 'won', day: 7, profit: 1250 });
+    expect(message).toMatch(/keep playing/i);
+    expect(message).toMatch(/no day limit|no time limit/i);
+  });
 });

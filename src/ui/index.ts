@@ -1,6 +1,8 @@
 import './theme.css';
 import { eventBus } from '../EventBus';
+import { world } from '../gameContext';
 import { audio } from '../services/AudioService';
+import { markContinued } from '../services/progress';
 import { el } from './dom';
 import { showScenarioSelect } from './ScenarioSelect';
 import { endCardCopy } from './endCard';
@@ -75,13 +77,18 @@ export function initUI(): void {
     windows.close('scenario-end');
     windows.open('scenario-end', spec);
   };
-  eventBus.on('goalReached', ({ day, profit }) => {
+  eventBus.on('goalReached', ({ day, profit, campaignId }) => {
     const { heading, message } = endCardCopy({ kind: 'won', day, profit });
-    endCard(makeEndCard(uiRoot, windows, heading, message));
+    endCard(
+      makeEndCard(uiRoot, windows, heading, message, () => {
+        world.scenario?.continue();
+        markContinued(campaignId);
+      }),
+    );
   });
   eventBus.on('scenarioFailed', ({ day, reason }) => {
     const { heading, message } = endCardCopy({ kind: 'failed', reason, day });
-    endCard(makeEndCard(uiRoot, windows, heading, message));
+    endCard(makeEndCard(uiRoot, windows, heading, message, null));
   });
 
   // Boot straight into the scenario picker.
@@ -98,13 +105,17 @@ function makeEndCard(
   windows: WindowManager,
   heading: string,
   message: string,
+  onKeepPlaying: (() => void) | null,
 ): PanelSpec {
   const content = el('div');
   content.appendChild(el('div', 'p-heading', heading));
   content.appendChild(el('div', 'p-note', message));
   const buttons = el('div', 'p-row');
   const keep = el('button', 'p-tool', 'Keep playing');
-  keep.addEventListener('click', () => windows.close('scenario-end'));
+  keep.addEventListener('click', () => {
+    onKeepPlaying?.();
+    windows.close('scenario-end');
+  });
   const pick = el('button', 'p-tool', 'Scenarios');
   pick.addEventListener('click', () => {
     windows.close('scenario-end');
