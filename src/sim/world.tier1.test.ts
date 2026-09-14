@@ -9,7 +9,7 @@ import {
   pennySlotExpectedRtp,
   videoPokerExpectedRtp,
 } from '../data/balance';
-import { getObjectDef } from '../data/objects';
+import { getObjectDef, OBJECT_CATALOG } from '../data/objects';
 import { createMachine } from './entities/machines/factory';
 import { KenoLounge } from './entities/machines/KenoLounge';
 import { PachinkoMachine } from './entities/machines/PachinkoMachine';
@@ -41,6 +41,29 @@ describe('Tier 1 catalogue entries', () => {
     });
   }
 
+  it('declares a displaySize matching the rendered art, so nothing is stretched', () => {
+    // ObjectViews calls setDisplaySize(w, h), which scales each axis
+    // independently — so if displaySize's aspect differs from the PNG's, the
+    // sprite is distorted. The whole point of the render rig is an exact
+    // projection; losing it to a rounded number in the catalog would be absurd.
+    // Sizes are half the rendered PNG (2x display is the pipeline convention).
+    const RENDERED: Record<string, [number, number]> = {
+      'penny-slots': [141, 240],
+      pachinko: [156, 278],
+      'keno-lounge': [433, 400],
+      'video-poker': [340, 349],
+    };
+    // Stated as the invariant rather than an aspect tolerance: half of an odd
+    // dimension is not an integer, so +/-1px is the floor on how exact this can
+    // be and a percentage threshold just obscures that.
+    for (const id of TIER1) {
+      const [pw, ph] = RENDERED[id]!;
+      const d = getObjectDef(id)!.displaySize!;
+      expect(Math.abs(d.w * 2 - pw), `${id}: width ${d.w}x2 vs ${pw}`).toBeLessThanOrEqual(1);
+      expect(Math.abs(d.h * 2 - ph), `${id}: height ${d.h}x2 vs ${ph}`).toBeLessThanOrEqual(1);
+    }
+  });
+
   it('prices the tier as a ladder, cheapest to dearest', () => {
     const costs = TIER1.map((id) => getObjectDef(id)!.cost);
     expect(costs).toEqual([...costs].sort((a, b) => a - b));
@@ -50,13 +73,11 @@ describe('Tier 1 catalogue entries', () => {
   });
 
   it('gives pachinko the only ratingBonus in the game catalogue', () => {
-    const games: readonly string[] = [
-      ...TIER1,
-      'slot-machine',
-      'craps-table',
-      'blackjack-table',
-    ];
-    const gamesWithBonus = games.filter((id) => (getObjectDef(id)?.ratingBonus ?? 0) > 0);
+    // Derived from the catalog, not enumerated: a hand-written list silently
+    // stops covering the catalogue the moment a game is added to it.
+    const gamesWithBonus = OBJECT_CATALOG.filter(
+      (d) => d.category === 'game' && (d.ratingBonus ?? 0) > 0,
+    ).map((d) => d.id);
     expect(gamesWithBonus).toEqual(['pachinko']);
   });
 });
@@ -146,7 +167,7 @@ describe('Tier 1 on a live floor', () => {
       // Every Tier 1 game has a positive house edge, so a long run must end up
       // ahead. Zero means it was never played; negative means its payout table
       // is inverted.
-      expect(machine!.lifetimeProfit, `${id} never earned over 12k ticks`).toBeGreaterThan(0);
+      expect(machine!.lifetimeProfit, `${id} never earned over ${TICKS[id]} ticks`).toBeGreaterThan(0);
       // Wear only accrues on a real play, so this is the independent check that
       // guests actually sat down rather than the profit coming from elsewhere.
       expect(machine!.reliability, `${id} was never played`).toBeLessThan(100);

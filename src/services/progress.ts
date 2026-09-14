@@ -56,7 +56,11 @@ function isProgress(v: unknown): v is Progress {
  * this only reads). Same discipline as migrations.ts's acceptEnvelope.
  */
 export function loadProgress(store: KVStore = globalThis.localStorage): Progress {
-  const raw = store.getItem(STORAGE_KEY);
+  // `store` can be undefined where there is no localStorage at all — the Vitest
+  // node environment, an SSR pass — and the contract above says this never
+  // throws. Reading through an optional chain makes that literally true rather
+  // than true-by-not-being-called-yet.
+  const raw = store?.getItem(STORAGE_KEY);
   if (!raw) return emptyProgress();
   try {
     const parsed: unknown = JSON.parse(raw);
@@ -66,8 +70,24 @@ export function loadProgress(store: KVStore = globalThis.localStorage): Progress
   }
 }
 
-export function saveProgress(progress: Progress, store: KVStore = globalThis.localStorage): void {
-  store.setItem(STORAGE_KEY, JSON.stringify(progress));
+/**
+ * Writes progress, and swallows a storage failure rather than propagating it.
+ *
+ * recordCampaignCompletion is called synchronously from main.ts's `goalReached`
+ * handler, so an exception here would take the victory flow down with it —
+ * losing the end card and the leaderboard write over a failed bookkeeping
+ * entry. setItem genuinely does throw in the wild: quota exhaustion, and Safari
+ * private browsing. Losing a completion record is a small, recoverable harm;
+ * losing the win is not. Returns whether the write landed, so a caller that
+ * cares can tell.
+ */
+export function saveProgress(progress: Progress, store: KVStore = globalThis.localStorage): boolean {
+  try {
+    store.setItem(STORAGE_KEY, JSON.stringify(progress));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Reads, merges in one campaign's result (overwriting any prior result for
@@ -99,5 +119,7 @@ export function markContinued(campaignId: string, store: KVStore = globalThis.lo
 /** Pure — the single controlled read path for unlocked object ids, so
  *  callers never reach into progress.unlocked directly. */
 export function unlockedObjectIds(progress: Progress): string[] {
-  return progress.unlocked;
+  // A copy: this is documented as the controlled read path, and returning the
+  // live array would let any caller mutate stored progress through it.
+  return [...progress.unlocked];
 }

@@ -32,7 +32,8 @@ export type Strategy =
   | 'tuned'
   | 'mistuned'
   | 'catalogue'
-  | 'throughput';
+  | 'throughput'
+  | 'minimalTier1';
 
 export const STRATEGIES: readonly Strategy[] = [
   'greedy',
@@ -46,6 +47,7 @@ export const STRATEGIES: readonly Strategy[] = [
   'mistuned',
   'catalogue',
   'throughput',
+  'minimalTier1',
 ];
 
 /** The seeds the winnability guard has always used. Keep them identical across
@@ -140,7 +142,7 @@ const TIER1_SPREAD: readonly string[] = ['penny-slots', 'pachinko', 'video-poker
 
 function purchaseLadder(strategy: Strategy): readonly string[] {
   if (strategy === 'catalogue') return CATALOGUE_BY_COST;
-  if (strategy === 'throughput') return TIER1_SPREAD;
+  if (strategy === 'throughput' || strategy === 'minimalTier1') return TIER1_SPREAD;
   return LEGACY_LADDER;
 }
 
@@ -167,7 +169,19 @@ function bufferFor(strategy: Strategy, creditLimit: number): number {
  * greedily on a small buffer. The others vary exactly one thing each, so a
  * difference between two runs points at that one thing.
  */
-export function runCampaign(def: CampaignDef, seed: number, strategy: Strategy): CampaignRun {
+export function runCampaign(
+  def: CampaignDef,
+  seed: number,
+  strategy: Strategy,
+  /** Restrict this run to these games only.
+   *
+   *  The ablation hook for acceptance criterion 4. Asking "is this game bought
+   *  by a winning line" is nearly tautological when the bot's ladder names it
+   *  outright — a game with a 0.1% edge would pass. Handing a run ONE game and
+   *  measuring whether it is still a going concern asks the question criterion
+   *  4 is actually for: is this thing worth buying? */
+  ladderOverride?: readonly string[],
+): CampaignRun {
   eventBus.clear();
   const world = new CasinoWorld({ seed, autoSpawn: true });
   world.startScenario(def);
@@ -219,7 +233,7 @@ export function runCampaign(def: CampaignDef, seed: number, strategy: Strategy):
   };
 
   const gamesBuilt = new Set<string>();
-  const ladder = purchaseLadder(strategy);
+  const ladder = ladderOverride ?? purchaseLadder(strategy);
   // `throughput` spreads across its ladder instead of draining the first
   // affordable rung; every other strategy takes the first rung it can afford,
   // which is exactly what the old two-branch if/else did.
@@ -231,9 +245,9 @@ export function runCampaign(def: CampaignDef, seed: number, strategy: Strategy):
     for (let i = 0; i < ladder.length; i++) {
       const idx = spreads ? (ladderCursor + i) % ladder.length : i;
       const defId = ladder[idx]!;
-      const def = getObjectDef(defId);
-      if (!def || !world.isObjectAllowed(defId)) continue;
-      if (world.state.cash < def.cost + reserve) continue;
+      const objDef = getObjectDef(defId);
+      if (!objDef || !world.isObjectAllowed(defId)) continue;
+      if (world.state.cash < objDef.cost + reserve) continue;
       // Out of floor, not out of money — stop, rather than walking down to a
       // cheaper rung that has nowhere to go either.
       if (!tryPlace(defId)) return false;
@@ -246,7 +260,7 @@ export function runCampaign(def: CampaignDef, seed: number, strategy: Strategy):
 
   const buffer = bufferFor(strategy, def.creditLimit);
   const hires = strategy !== 'noStaff';
-  const expands = strategy !== 'minimal' && strategy !== 'oneGame';
+  const expands = strategy !== 'minimal' && strategy !== 'oneGame' && strategy !== 'minimalTier1';
   // P16 — the only bot that makes a decision costing no capital. Identical to
   // greedy in every buying choice, so any difference between the two is the
   // dial and nothing else.
@@ -260,6 +274,9 @@ export function runCampaign(def: CampaignDef, seed: number, strategy: Strategy):
   // has to mean the stall too, not just a second game. A toilet is a pure
   // service and stays.
   const buysStall = strategy !== 'oneGame';
+  // `minimalTier1` is the same build-once line pointed at the Tier 1 ladder —
+  // the control that proves P16's criterion 6 ("build-and-abandon never wins")
+  // survives the new catalogue rather than merely having survived it by luck.
   // `minimal` is the build-once-then-never-touch-it line the spec measured. It
   // stops acting the moment its opening set is on the floor — not after a fixed
   // number of ticks, which would make it a slower greedy rather than a
@@ -318,7 +335,7 @@ export function runCampaign(def: CampaignDef, seed: number, strategy: Strategy):
         );
       }
     }
-    if (strategy === 'minimal') {
+    if (strategy === 'minimal' || strategy === 'minimalTier1') {
       const now = world.state.allObjects();
       const staffKinds = [...world.staff.values()].map((s) => s.kind);
       done =

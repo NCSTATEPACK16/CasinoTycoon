@@ -11,6 +11,13 @@ export class KenoLounge extends SeatedCasinoGame {
     super(id, 'keno-lounge', costToPlay, KENO_BALANCE.seats);
   }
 
+  // Inherits needsDealer = true, and that is the intended answer rather than an
+  // oversight: a keno lounge is staffed by a keno writer at the counter, which
+  // is a real dealt position in a real casino. The distinction the capability
+  // draws is not "does anything mechanical move" — by that test the wheel games
+  // would qualify and this would not — it is "is there a person running it".
+  // Three video poker cabinets have nobody behind them; a keno counter does.
+
   get cadence(): PlayCadence {
     return {
       intervalTicks: KENO_BALANCE.playIntervalTicks,

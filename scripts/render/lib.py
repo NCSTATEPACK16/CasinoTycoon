@@ -1,4 +1,4 @@
-"""Isometric sprite render rig (Blender headless).
+"""Isometric sprite render rig (Blender headless). REQUIRES BLENDER 5.0+.
 
 Why this exists: every prior art batch was hand-prompted in an image model, and
 assets/ASSET-BRIEF-2026-08-22-p17-catalogue.md's first three sections are a catalogue of
@@ -23,6 +23,19 @@ import math
 
 import bpy
 from mathutils import Vector
+
+# The rig requires Blender 5.x. Two APIs below pin it and they only coexist
+# there: `scene.eevee.use_raytracing` is EEVEE-Next (4.2+), while the engine
+# enum is spelled "BLENDER_EEVEE" only in 5.0 onward — throughout 4.2-4.5 that
+# same engine is "BLENDER_EEVEE_NEXT". On a 4.2-4.5 LTS install setup() would
+# raise inside Blender and render-sprites.mjs would report nothing more useful
+# than "blender failed for <object>". Fail here instead, with the reason.
+if bpy.app.version < (5, 0, 0):
+    raise SystemExit(
+        "Casino Tycoon's render rig needs Blender 5.0 or newer "
+        f"(found {'.'.join(str(v) for v in bpy.app.version)}). "
+        "The EEVEE engine id and raytracing toggle it sets only line up from 5.0."
+    )
 
 # The pair that produces a true 2:1 diamond, matching TILE_W=128 / TILE_H=64 in
 # src/config.ts. Verified empirically: a unit plate renders at a bbox ratio of 2.0000.

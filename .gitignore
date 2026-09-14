@@ -18,3 +18,7 @@ docs/superpowers/
 
 # Third-party pack archive — re-downloadable from kenney.nl; contents already extracted to public/audio/
 assets/kenney_casino-audio.zip
+
+# Python bytecode from the Blender render rig (scripts/render/)
+__pycache__/
+*.pyc

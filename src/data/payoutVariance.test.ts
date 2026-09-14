@@ -13,6 +13,7 @@ import {
   slotExpectedRtp,
   type PayoutOutcome,
 } from './balance';
+import { getObjectDef } from './objects';
 
 /**
  * P16 — the daily-profit coin flip is a payout-table property.
@@ -117,8 +118,9 @@ const ALL_TABLES: readonly TableSpec[] = [
     allowance: {
       max: 14,
       because:
-        'Sits at 13.1, just over the bar, on a 9% edge with a 6x proposition tail. Craps ' +
-        'without a rare big hit is not craps, and one rung over 12 does not dissolve a day.',
+        'Sits at 13.1 on a 9% edge with a 6x proposition tail. Squared, that is ~1.2x the ' +
+        "plays the bar implies — a real but small cost, and craps without a rare big hit is " +
+        'not craps.',
     },
   },
   {
@@ -128,7 +130,10 @@ const ALL_TABLES: readonly TableSpec[] = [
     allowance: {
       max: 33,
       because:
-        'The highest in the game at 32.2, and deliberately so: P13 built roulette as the ' +
+        'The highest in the game at 32.2 — and note plays-to-signal scales as (sd/edge)^2, ' +
+        'so this needs ~7x the plays of the bar, which means a roulette day genuinely IS a ' +
+        'coin flip. That is an inherited P13/P16 property, not something Tier 1 introduced. ' +
+        'Deliberate, though: P13 built roulette as the ' +
         'table whose point IS variance, and its 20x straight-up branch is what drives the ' +
         "P11 strut and jackpot beats. Flattening it would delete the game's identity.",
     },
@@ -192,30 +197,95 @@ describe('every payout table in the catalogue', () => {
 });
 
 describe('Tier 1 differentiation', () => {
-  // The spec's non-negotiable rule: a new game must differ from every existing
-  // one on at least TWO axes, or it is a reskin that makes the catalogue wider
-  // and shallower. Cadence, wager and edge are pinned here; the remaining axes
-  // are documented per-table in balance.ts.
-  it('gives each Tier 1 game a distinct wager', () => {
-    const wagers = [
-      PENNY_SLOT_BALANCE.costToPlay,
-      PACHINKO_BALANCE.costToPlay,
-      KENO_BALANCE.costToPlay,
-      SLOT_BALANCE.costToPlay,
-    ];
-    expect(new Set(wagers).size).toBe(wagers.length);
+  /**
+   * The spec's non-negotiable rule: a new game must differ from every existing
+   * one on at least TWO axes, or it is a reskin that makes the catalogue wider
+   * and shallower.
+   *
+   * This replaces an earlier test that compared four hand-picked wagers and
+   * quietly left video poker out of the list — because video poker and pachinko
+   * both wager $5, so including it would have failed. That test was shaped
+   * around its own counterexample. The rule was never "every wager is unique";
+   * it is "every PAIR differs on two or more axes", so this asserts that
+   * directly, over every pair in the catalogue, and reports the offender.
+   */
+  const AXES = ['wager', 'rtp', 'cadence', 'sessionMin', 'sessionMax', 'seats', 'wear', 'footprint', 'upkeep', 'ratingBonus'] as const;
+
+  interface Profile {
+    id: string;
+    wager: number;
+    rtp: number;
+    cadence: number;
+    sessionMin: number;
+    sessionMax: number;
+    seats: number;
+    wear: number;
+    footprint: string;
+    upkeep: number;
+    ratingBonus: number;
+  }
+
+  function profile(id: string, b: Record<string, unknown>, table?: readonly PayoutOutcome[]): Profile {
+    const def = getObjectDef(id)!;
+    return {
+      id,
+      wager: b.costToPlay as number,
+      rtp: table ? Number(moments(table).rtp.toFixed(4)) : -1,
+      cadence: (b.playIntervalTicks ?? b.spinIntervalTicks) as number,
+      sessionMin: (b.playsMin ?? b.spinsMin) as number,
+      sessionMax: (b.playsMax ?? b.spinsMax) as number,
+      seats: (b.seats as number) ?? 1,
+      wear: b.wearPerPlay as number,
+      footprint: `${def.footprint.w}x${def.footprint.h}`,
+      upkeep: def.upkeepPerDay,
+      ratingBonus: def.ratingBonus ?? 0,
+    };
+  }
+
+  const PROFILES: readonly Profile[] = [
+    profile('slot-machine', SLOT_BALANCE, SLOT_BALANCE.payoutTable),
+    profile('blackjack-table', BLACKJACK_BALANCE, BLACKJACK_BALANCE.payoutTable),
+    profile('craps-table', CRAPS_BALANCE, CRAPS_BALANCE.payoutTable),
+    profile('roulette-table', ROULETTE_BALANCE, ROULETTE_BALANCE.payoutTable),
+    profile('big-six-wheel', BIG_SIX_BALANCE, BIG_SIX_BALANCE.payoutTable),
+    profile('high-limit-table', HIGH_LIMIT_BALANCE, HIGH_LIMIT_BALANCE.payoutTable),
+    profile('penny-slots', PENNY_SLOT_BALANCE, PENNY_SLOT_BALANCE.payoutTable),
+    profile('pachinko', PACHINKO_BALANCE, PACHINKO_BALANCE.payoutTable),
+    profile('keno-lounge', KENO_BALANCE, KENO_BALANCE.payoutTable),
+    profile('video-poker', VIDEO_POKER_BALANCE, VIDEO_POKER_BALANCE.payoutTable),
+  ];
+
+  it('differs every pair of games on at least two axes', () => {
+    for (let i = 0; i < PROFILES.length; i++) {
+      for (let j = i + 1; j < PROFILES.length; j++) {
+        const a = PROFILES[i]!;
+        const b = PROFILES[j]!;
+        const differing = AXES.filter((axis) => a[axis] !== b[axis]);
+        expect(
+          differing.length,
+          `${a.id} vs ${b.id} differ only on [${differing.join(', ')}] — two axes minimum`,
+        ).toBeGreaterThanOrEqual(2);
+      }
+    }
+  });
+
+  it('records that video poker and pachinko share a wager, and differ elsewhere', () => {
+    // Kept explicit so the overlap is a documented fact rather than something a
+    // future edit rediscovers. They share costToPlay ($5) and nothing else.
+    const vp = PROFILES.find((p) => p.id === 'video-poker')!;
+    const pa = PROFILES.find((p) => p.id === 'pachinko')!;
+    expect(vp.wager).toBe(pa.wager);
+    const differing = AXES.filter((axis) => vp[axis] !== pa[axis]);
+    expect(differing).not.toContain('wager');
+    expect(differing.length).toBeGreaterThanOrEqual(4);
   });
 
   it('makes keno the slowest game and video poker the fastest', () => {
-    const everyOtherInterval = [
-      SLOT_BALANCE.spinIntervalTicks,
-      BLACKJACK_BALANCE.playIntervalTicks,
-      CRAPS_BALANCE.playIntervalTicks,
-      PENNY_SLOT_BALANCE.spinIntervalTicks,
-      PACHINKO_BALANCE.spinIntervalTicks,
-    ];
-    expect(KENO_BALANCE.playIntervalTicks).toBeGreaterThan(Math.max(...everyOtherInterval));
-    expect(VIDEO_POKER_BALANCE.playIntervalTicks).toBeLessThan(Math.min(...everyOtherInterval));
+    const cadences = PROFILES.filter((p) => p.id !== 'keno-lounge' && p.id !== 'video-poker').map(
+      (p) => p.cadence,
+    );
+    expect(KENO_BALANCE.playIntervalTicks).toBeGreaterThan(Math.max(...cadences));
+    expect(VIDEO_POKER_BALANCE.playIntervalTicks).toBeLessThan(Math.min(...cadences));
   });
 
   it('makes keno the thickest edge and video poker the thinnest', () => {

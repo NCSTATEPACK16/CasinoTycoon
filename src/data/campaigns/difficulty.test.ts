@@ -63,7 +63,15 @@ describe('the game does not solve itself', () => {
 
   // Criterion 3. If reckless ties managed, interest and the credit limit did
   // not create a decision and the constants are wrong — not the test.
-  it('rewards holding a reserve over spending every last dollar', { timeout: 300_000 }, () => {
+  // 600s, not 300s. This is the heaviest single test in the suite — `managed`
+  // and `reckless` share no runs with the criteria above, so it simulates 42
+  // fresh campaigns — and P17's catalogue measurements added a second heavy
+  // measurement file that competes with it for workers. It blew 300s once the
+  // two ran together. The real fix is a shared run cache across the measurement
+  // files (they each memoise per-file, so greedy-on-Dusty-Dime is simulated in
+  // three separate processes), which needs fileParallelism/isolate changes and
+  // is a bigger change than this branch should carry.
+  it('rewards holding a reserve over spending every last dollar', { timeout: 600_000 }, () => {
     let managedTotal = 0;
     let recklessTotal = 0;
     for (let i = 0; i < CAMPAIGNS.length; i++) {

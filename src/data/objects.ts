@@ -120,8 +120,14 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
   // two-plus axes it differs from every existing game on.
   //
   // Art is real: rendered by `npm run render-sprites` (the Blender iso rig in
-  // scripts/render/), not hand-prompted. displaySize matches the delivery table
-  // in assets/ASSET-BRIEF-2026-08-22-p17-catalogue.md.
+  // scripts/render/), not hand-prompted.
+  //
+  // displaySize is exactly half the rendered PNG, NOT the round number from the
+  // brief's delivery table. ObjectViews calls setDisplaySize(w, h), which
+  // stretches each axis independently — so a declared size whose aspect differs
+  // from the art's distorts the sprite. Against the brief's figures these were
+  // out by up to 3%, which is a silly way to lose fidelity in a pipeline built
+  // to make the projection exact. world.tier1.test.ts pins the two together.
   {
     id: 'penny-slots',
     name: 'Penny Slots',
@@ -130,7 +136,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     upkeepPerDay: 8,
     footprint: { w: 1, h: 1 },
     spriteKey: 'img-penny-slots',
-    displaySize: { w: 72, h: 120 },
+    displaySize: { w: 71, h: 120 },
     category: 'game',
   },
   {
@@ -143,7 +149,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     upkeepPerDay: 12,
     footprint: { w: 1, h: 1 },
     spriteKey: 'img-pachinko',
-    displaySize: { w: 78, h: 140 },
+    displaySize: { w: 78, h: 139 },
     ratingBonus: 1,
     category: 'game',
   },
@@ -158,7 +164,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     upkeepPerDay: 14,
     footprint: { w: 2, h: 2 },
     spriteKey: 'img-keno-lounge',
-    displaySize: { w: 220, h: 200 },
+    displaySize: { w: 217, h: 200 },
     category: 'game',
   },
   {
@@ -172,7 +178,7 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     upkeepPerDay: 18,
     footprint: { w: 1, h: 2 },
     spriteKey: 'img-video-poker',
-    displaySize: { w: 170, h: 180 },
+    displaySize: { w: 170, h: 175 },
     category: 'game',
   },
   {
