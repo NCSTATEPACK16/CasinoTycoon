@@ -47,6 +47,10 @@ export type IconName =
   | 'big-six-wheel'
   | 'poker-table'
   | 'high-limit-table'
+  | 'penny-slots'
+  | 'pachinko'
+  | 'keno-lounge'
+  | 'video-poker'
   | 'toilet'
   | 'food-stall'
   | 'plant'
@@ -113,6 +117,10 @@ export const ICON_SPRITE =
   "<symbol id=\"i-big-six-wheel\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"M6 12c0-1.7.7-3.2 1.8-4.2\" /><circle cx=\"12\" cy=\"12\" r=\"2\" /><path d=\"M18 12c0 1.7-.7 3.2-1.8 4.2\" /></symbol>" +
   "<symbol id=\"i-poker-table\" viewBox=\"0 0 24 24\"><path d=\"M17.28 9.05a5.5 5.5 0 1 0-10.56 0A5.5 5.5 0 1 0 12 17.66a5.5 5.5 0 1 0 5.28-8.6Z\" /><path d=\"M12 17.66L12 22\" /></symbol>" +
   "<symbol id=\"i-high-limit-table\" viewBox=\"0 0 24 24\"><path d=\"M10.5 3 8 9l4 13 4-13-2.5-6\" /><path d=\"M17 3a2 2 0 0 1 1.6.8l3 4a2 2 0 0 1 .013 2.382l-7.99 10.986a2 2 0 0 1-3.247 0l-7.99-10.986A2 2 0 0 1 2.4 7.8l2.998-3.997A2 2 0 0 1 7 3z\" /><path d=\"M2 9h20\" /></symbol>" +
+  "<symbol id=\"i-penny-slots\" viewBox=\"0 0 24 24\"><path d=\"M13.744 17.736a6 6 0 1 1-7.48-7.48\" /><path d=\"M15 6h1v4\" /><path d=\"m6.134 14.768.866-.5 2 3.464\" /><circle cx=\"16\" cy=\"8\" r=\"6\" /></symbol>" +
+  "<symbol id=\"i-pachinko\" viewBox=\"0 0 24 24\"><path d=\"M10.1 2.18a9.93 9.93 0 0 1 3.8 0\" /><path d=\"M17.6 3.71a9.95 9.95 0 0 1 2.69 2.7\" /><path d=\"M21.82 10.1a9.93 9.93 0 0 1 0 3.8\" /><path d=\"M20.29 17.6a9.95 9.95 0 0 1-2.7 2.69\" /><path d=\"M13.9 21.82a9.94 9.94 0 0 1-3.8 0\" /><path d=\"M6.4 20.29a9.95 9.95 0 0 1-2.69-2.7\" /><path d=\"M2.18 13.9a9.93 9.93 0 0 1 0-3.8\" /><path d=\"M3.71 6.4a9.95 9.95 0 0 1 2.7-2.69\" /><circle cx=\"12\" cy=\"12\" r=\"1\" /></symbol>" +
+  "<symbol id=\"i-keno-lounge\" viewBox=\"0 0 24 24\"><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" /><path d=\"M3 9h18\" /><path d=\"M3 15h18\" /><path d=\"M9 3v18\" /><path d=\"M15 3v18\" /></symbol>" +
+  "<symbol id=\"i-video-poker\" viewBox=\"0 0 24 24\"><rect width=\"20\" height=\"14\" x=\"2\" y=\"3\" rx=\"2\" /><line x1=\"8\" x2=\"16\" y1=\"21\" y2=\"21\" /><line x1=\"12\" x2=\"12\" y1=\"17\" y2=\"21\" /></symbol>" +
   "<symbol id=\"i-toilet\" viewBox=\"0 0 24 24\"><path d=\"M7 12h13a1 1 0 0 1 1 1 5 5 0 0 1-5 5h-.598a.5.5 0 0 0-.424.765l1.544 2.47a.5.5 0 0 1-.424.765H5.402a.5.5 0 0 1-.424-.765L7 18\" /><path d=\"M8 18a5 5 0 0 1-5-5V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8\" /></symbol>" +
   "<symbol id=\"i-food-stall\" viewBox=\"0 0 24 24\"><path d=\"m2.37 11.223 8.372-6.777a2 2 0 0 1 2.516 0l8.371 6.777\" /><path d=\"M21 15a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-5.25\" /><path d=\"M3 15a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h9\" /><path d=\"m6.67 15 6.13 4.6a2 2 0 0 0 2.8-.4l3.15-4.2\" /><rect width=\"20\" height=\"4\" x=\"2\" y=\"11\" rx=\"1\" /></symbol>" +
   "<symbol id=\"i-plant\" viewBox=\"0 0 24 24\"><path d=\"M14 9.536V7a4 4 0 0 1 4-4h1.5a.5.5 0 0 1 .5.5V5a4 4 0 0 1-4 4 4 4 0 0 0-4 4c0 2 1 3 1 5a5 5 0 0 1-1 3\" /><path d=\"M4 9a5 5 0 0 1 8 4 5 5 0 0 1-8-4\" /><path d=\"M5 21h14\" /></symbol>" +

@@ -113,6 +113,68 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     displaySize: { w: 212, h: 160 },
     category: 'game',
   },
+  // P17 Part B Tier 1 — throughput. Cheap, small, fast: these fill dead floor
+  // and pull volume, they do not make you rich. Costs and upkeeps are the
+  // spec's ladder; the per-game balance (wager, RTP, variance, cadence, seats)
+  // lives in src/data/balance.ts, which is also where each game documents the
+  // two-plus axes it differs from every existing game on.
+  //
+  // Art is real: rendered by `npm run render-sprites` (the Blender iso rig in
+  // scripts/render/), not hand-prompted. displaySize matches the delivery table
+  // in assets/ASSET-BRIEF-2026-08-22-p17-catalogue.md.
+  {
+    id: 'penny-slots',
+    name: 'Penny Slots',
+    icon: 'penny-slots',
+    cost: 180,
+    upkeepPerDay: 8,
+    footprint: { w: 1, h: 1 },
+    spriteKey: 'img-penny-slots',
+    displaySize: { w: 72, h: 120 },
+    category: 'game',
+  },
+  {
+    // The only game carrying a ratingBonus: a pachinko hall is loud and busy,
+    // and that busyness is an amenity the floor gets paid for.
+    id: 'pachinko',
+    name: 'Pachinko Machine',
+    icon: 'pachinko',
+    cost: 320,
+    upkeepPerDay: 12,
+    footprint: { w: 1, h: 1 },
+    spriteKey: 'img-pachinko',
+    displaySize: { w: 78, h: 140 },
+    ratingBonus: 1,
+    category: 'game',
+  },
+  {
+    // Six seats, slowest cadence, longest sessions, thickest edge. Cheap per
+    // hour of guest occupancy and poor per square foot — worth four tiles only
+    // when the floor has bodies and nowhere to put them.
+    id: 'keno-lounge',
+    name: 'Keno Lounge',
+    icon: 'keno-lounge',
+    cost: 450,
+    upkeepPerDay: 14,
+    footprint: { w: 2, h: 2 },
+    spriteKey: 'img-keno-lounge',
+    displaySize: { w: 220, h: 200 },
+    category: 'game',
+  },
+  {
+    // Thinnest edge in the house sold on the fastest cadence, across three
+    // cabinets. Earns well with all three seats filled and close to nothing
+    // with one, so its value depends on the rest of the build.
+    id: 'video-poker',
+    name: 'Video Poker Bank',
+    icon: 'video-poker',
+    cost: 560,
+    upkeepPerDay: 18,
+    footprint: { w: 1, h: 2 },
+    spriteKey: 'img-video-poker',
+    displaySize: { w: 170, h: 180 },
+    category: 'game',
+  },
   {
     id: 'toilet',
     name: 'Restroom',

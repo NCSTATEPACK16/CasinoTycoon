@@ -984,7 +984,7 @@ export class CasinoWorld {
    * second dealer's scan already sees the first's claim. */
   claimDealerTable(staffId: string): { tableId: string; stand: Cell } | null {
     for (const po of this.state.allObjects()) {
-      if (!(this.machines.get(po.id) instanceof SeatedCasinoGame)) continue;
+      if (this.machines.get(po.id)?.needsDealer !== true) continue;
       if (this.dealerAssignments.has(po.id)) continue;
       const stand = this.standTileFor(po);
       if (!stand) continue;

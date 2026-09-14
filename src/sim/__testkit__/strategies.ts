@@ -1,7 +1,7 @@
 import { eventBus } from '../../EventBus';
 import { HOURS_PER_DAY, TICKS_PER_HOUR } from '../../config';
 import type { CampaignDef } from '../../data/campaigns';
-import { getObjectDef } from '../../data/objects';
+import { getObjectDef, OBJECT_CATALOG } from '../../data/objects';
 import { CasinoWorld } from '../world';
 import { tierForCrowd } from '../tableTuning';
 import { TABLE_MINIMUMS } from '../../data/balance';
@@ -30,7 +30,9 @@ export type Strategy =
   | 'managed'
   | 'levered'
   | 'tuned'
-  | 'mistuned';
+  | 'mistuned'
+  | 'catalogue'
+  | 'throughput';
 
 export const STRATEGIES: readonly Strategy[] = [
   'greedy',
@@ -42,6 +44,8 @@ export const STRATEGIES: readonly Strategy[] = [
   'levered',
   'tuned',
   'mistuned',
+  'catalogue',
+  'throughput',
 ];
 
 /** The seeds the winnability guard has always used. Keep them identical across
@@ -86,11 +90,58 @@ export interface CampaignRun {
    *  figure; read minCash for that. A run that dips at 4pm and recovers by
    *  midnight still pays nothing. */
   closes: number[];
+  /** Every distinct game defId this run ever placed. P17 acceptance criterion 4
+   *  ("no dead stock") is a statement about what bots actually buy, and without
+   *  this the tournament can only report that a strategy won, not what it won
+   *  with — which is exactly the blind spot B2 exists to close. */
+  gamesBuilt: string[];
   /** Revenue objects still standing when the run ended. Acceptance criterion 4
    *  reads this on an insolvency: liquidation is only allowed to run out of
    *  things to sell once the floor is genuinely stripped, never while a
    *  saleable earner is still on it. */
   revenueObjectsAtEnd: number;
+}
+
+/**
+ * P17 B2 — what a strategy is willing to buy, in the order it prefers it.
+ *
+ * The spec calls this the single highest-risk item in the whole of P17, and the
+ * reason is worth stating plainly: before this, every bot's entire purchasing
+ * logic was "blackjack-table if cash >= 1200, else slot-machine". Add games to
+ * the catalogue and change nothing here, and every acceptance bar in
+ * difficulty.test.ts carries on measuring a floor the player would no longer
+ * build — the bars stay green and stop meaning anything.
+ *
+ * The fix deliberately does NOT change what `greedy` buys. LEGACY_LADDER is
+ * that same pair, now expressed as data and priced from the catalogue rather
+ * than from two hardcoded numbers, so every P16 measurement stays comparable
+ * run for run. Rewriting greedy to chase the widest catalogue would have moved
+ * all of P16's numbers at the same moment the new games arrived, leaving no way
+ * to tell a balance regression from a bot that simply started shopping
+ * differently.
+ *
+ * Instead the new catalogue gets its own lines, and they are what the Tier 1
+ * measurements read.
+ */
+const LEGACY_LADDER: readonly string[] = ['blackjack-table', 'slot-machine'];
+
+/** Every game in the catalogue, dearest first — "buy the best you can afford",
+ *  which is what greedy's two-rung ladder always was in miniature. */
+const CATALOGUE_BY_COST: readonly string[] = OBJECT_CATALOG.filter((d) => d.category === 'game')
+  .slice()
+  .sort((a, b) => b.cost - a.cost)
+  .map((d) => d.id);
+
+/** The Tier 1 throughput line: fill dead floor with cheap volume. Bought
+ *  round-robin rather than cheapest-first, because cheapest-first would carpet
+ *  the floor in penny slots and never exercise the other three — and "every
+ *  game is bought by at least one winning line" is an acceptance criterion. */
+const TIER1_SPREAD: readonly string[] = ['penny-slots', 'pachinko', 'video-poker', 'keno-lounge'];
+
+function purchaseLadder(strategy: Strategy): readonly string[] {
+  if (strategy === 'catalogue') return CATALOGUE_BY_COST;
+  if (strategy === 'throughput') return TIER1_SPREAD;
+  return LEGACY_LADDER;
 }
 
 /** Cash held back before expanding. The only axis reckless, managed and levered
@@ -167,6 +218,32 @@ export function runCampaign(def: CampaignDef, seed: number, strategy: Strategy):
     return false;
   };
 
+  const gamesBuilt = new Set<string>();
+  const ladder = purchaseLadder(strategy);
+  // `throughput` spreads across its ladder instead of draining the first
+  // affordable rung; every other strategy takes the first rung it can afford,
+  // which is exactly what the old two-branch if/else did.
+  const spreads = strategy === 'throughput';
+  let ladderCursor = 0;
+  /** Buy the best game this strategy can afford while keeping `reserve` back.
+   *  Returns false when nothing is affordable, allowed, or placeable. */
+  const buyGame = (reserve: number): boolean => {
+    for (let i = 0; i < ladder.length; i++) {
+      const idx = spreads ? (ladderCursor + i) % ladder.length : i;
+      const defId = ladder[idx]!;
+      const def = getObjectDef(defId);
+      if (!def || !world.isObjectAllowed(defId)) continue;
+      if (world.state.cash < def.cost + reserve) continue;
+      // Out of floor, not out of money — stop, rather than walking down to a
+      // cheaper rung that has nowhere to go either.
+      if (!tryPlace(defId)) return false;
+      gamesBuilt.add(defId);
+      if (spreads) ladderCursor = idx + 1;
+      return true;
+    }
+    return false;
+  };
+
   const buffer = bufferFor(strategy, def.creditLimit);
   const hires = strategy !== 'noStaff';
   const expands = strategy !== 'minimal' && strategy !== 'oneGame';
@@ -194,13 +271,8 @@ export function runCampaign(def: CampaignDef, seed: number, strategy: Strategy):
     const objs = world.state.allObjects();
     const has = (id: string) => objs.some((o) => o.defId === id);
     // A revenue engine comes first; comfort and staff follow from its takings.
-    if (world.machines.size === 0) {
-      if (world.isObjectAllowed('blackjack-table') && world.state.cash >= 1200) {
-        tryPlace('blackjack-table');
-      } else if (world.isObjectAllowed('slot-machine') && world.state.cash >= 500) {
-        tryPlace('slot-machine');
-      }
-    }
+    // No buffer on the opening buy — there is nothing yet to hold a reserve for.
+    if (world.machines.size === 0) buyGame(0);
     if (world.isObjectAllowed('toilet') && !has('toilet') && world.state.cash >= 500) {
       tryPlace('toilet');
     }
@@ -225,12 +297,8 @@ export function runCampaign(def: CampaignDef, seed: number, strategy: Strategy):
       world.hireStaff('janitor');
     }
     if (expands) {
-      for (;;) {
-        if (world.isObjectAllowed('blackjack-table') && world.state.cash >= 1200 + buffer) {
-          if (!tryPlace('blackjack-table')) break;
-        } else if (world.isObjectAllowed('slot-machine') && world.state.cash >= 500 + buffer) {
-          if (!tryPlace('slot-machine')) break;
-        } else break;
+      while (buyGame(buffer)) {
+        /* keep buying until cash, the ladder or the floor runs out */
       }
     }
     if (tunesTables) {
@@ -280,6 +348,7 @@ export function runCampaign(def: CampaignDef, seed: number, strategy: Strategy):
     interestPaid: world.ledger.history.reduce((a, r) => a + r.interestPaid, 0),
     forcedSales,
     closes,
+    gamesBuilt: [...gamesBuilt],
     revenueObjectsAtEnd: world.state.allObjects().filter((o) => {
       const d = getObjectDef(o.defId);
       return d?.category === 'game' || d?.isRevenueSource === true;

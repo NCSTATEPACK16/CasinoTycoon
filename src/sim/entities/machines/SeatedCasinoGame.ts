@@ -22,6 +22,11 @@ export abstract class SeatedCasinoGame extends CasinoGame {
     return !this.broken && this.seats.includes(null);
   }
 
+  /** A dealt table by default — see CasinoGame.needsDealer. */
+  override get needsDealer(): boolean {
+    return true;
+  }
+
   isSeatFree(seat: number): boolean {
     return this.seats[seat] === null;
   }

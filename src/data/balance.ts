@@ -226,6 +226,136 @@ export function highLimitExpectedRtp(): number {
   return HIGH_LIMIT_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
 }
 
+// ---------------------------------------------------------------------------
+// P17 Part B, Tier 1 — throughput.
+//
+// Cheap, small, fast. These fill dead floor and pull volume; they do not make
+// you rich. The spec's non-negotiable design rule is that every new game must
+// differ from every existing one on at least TWO of: costToPlay, RTP, payout
+// variance, cadence, session length, seats, minWallet, wearPerPlay, footprint,
+// upkeep, ratingBonus. Each table below says which two (or more) it moves.
+//
+// None of the four carries a table minimum. That is deliberate and follows the
+// rule CasinoGame already states for slots: these are fixed-denomination
+// machines and a fixed-price keno ticket, so they have a coin size, not a
+// minimum. A "minimum" dial on them would be the same lever wearing a
+// misleading name. Tier 2's sic-bo / three-card-poker / pai-gow are the real
+// table games, and they are where TABLE_MINIMUMS.defaultByType grows.
+
+// Penny slots: the cheapest way to occupy a tile. Differs from slot-machine on
+// costToPlay (2 vs 10), variance (sd/edge 6.9 vs 11.8), cadence (5 vs 8 ticks),
+// session length (5-14 vs 3-8 spins) and RTP (0.90 vs 0.92).
+//
+// The higher hold is not a nerf dressed as flavour — a low-denomination machine
+// really does hold more, and it is what keeps a $2 wager worth building at all.
+export const PENNY_SLOT_BALANCE = {
+  costToPlay: 2,
+  wearPerPlay: 0.35,
+  spinIntervalTicks: 5,
+  spinsMin: 5,
+  spinsMax: 14,
+  // RTP 0.90. Deliberately the flattest table in the house: a big 1x "money
+  // back" band, a modest 2x, and a 5x tail small enough that it never drives a
+  // day. sd/edge = 6.9, well under the 12 bar — this game's identity is that it
+  // pays out predictably and slowly, so a floor of them is a floor you can plan
+  // around rather than gamble on.
+  payoutTable: [
+    { p: 0.55, multiplier: 1 },
+    { p: 0.17, multiplier: 2 },
+    { p: 0.002, multiplier: 5 },
+  ] as readonly PayoutOutcome[],
+} as const;
+
+/** Expected RTP implied by the penny-slot payout table (0.90 → 10% house edge). */
+export function pennySlotExpectedRtp(): number {
+  return PENNY_SLOT_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+}
+
+// Pachinko: noise as an amenity. Differs from penny-slots on costToPlay (5 vs
+// 2), RTP (0.88 vs 0.90), cadence (6 vs 5), upkeep and — the one that matters —
+// ratingBonus, which no other game in the catalogue carries. A pachinko hall is
+// loud and busy, and the rating bonus is that busyness paying rent.
+export const PACHINKO_BALANCE = {
+  costToPlay: 5,
+  wearPerPlay: 0.45,
+  spinIntervalTicks: 6,
+  spinsMin: 4,
+  spinsMax: 10,
+  // RTP 0.88. sd/edge = 7.2.
+  payoutTable: [
+    { p: 0.42, multiplier: 1 },
+    { p: 0.2, multiplier: 2 },
+    { p: 0.012, multiplier: 5 },
+  ] as readonly PayoutOutcome[],
+} as const;
+
+/** Expected RTP implied by the pachinko payout table (0.88 → 12% house edge). */
+export function pachinkoExpectedRtp(): number {
+  return PACHINKO_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+}
+
+// Keno lounge: cheap per hour of guest occupancy, poor per square foot. The
+// slowest cadence and the longest sessions in the game, against the highest
+// house edge — which is what real keno is. Differs from every existing game on
+// cadence (30 ticks vs blackjack's 12), session length (10-24 vs 4-10), seats
+// (6), RTP (0.75) and footprint-to-earnings.
+//
+// It parks six guests somewhere for a long time and takes a little from each.
+// That is worth building when the floor has bodies and nowhere to put them, and
+// a waste of four tiles when it does not.
+export const KENO_BALANCE = {
+  costToPlay: 6,
+  wearPerPlay: 0.1, // barely anything moves — a board and a blower
+  playIntervalTicks: 30,
+  playsMin: 10,
+  playsMax: 24,
+  seats: 6,
+  // RTP 0.75 — the thickest edge in the house, and still the lowest variance
+  // (sd/edge = 2.7). High edge plus low variance is exactly why a keno lounge
+  // is a reliable earner rather than an exciting one.
+  payoutTable: [
+    { p: 0.5, multiplier: 1 },
+    { p: 0.12, multiplier: 2 },
+    { p: 0.0025, multiplier: 4 },
+  ] as readonly PayoutOutcome[],
+} as const;
+
+/** Expected RTP implied by the keno payout table (0.75 → 25% house edge). */
+export function kenoExpectedRtp(): number {
+  return KENO_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+}
+
+// Video poker: the thinnest edge in the house, sold on throughput. Three
+// cabinets in one object, the fastest cadence of any game (4 ticks), and a 4%
+// edge — so it earns well with three guests on it and close to nothing with
+// one. It rewards a busy floor and punishes a quiet one, which is the only
+// earner in the catalogue whose value depends on the rest of the build.
+//
+// NO JACKPOT BAND, and that is a finding rather than an omission. At a 4% edge
+// the variance bar is brutal: a 0.0005 chance of 20x on its own takes sd/edge
+// from 11.1 to 15.6, and even a 0.0002 tail lands at 13.1. A thin edge simply
+// cannot carry a tail and still leave a day's takings meaningful — sd/edge
+// scales as 1/edge. So the royal flush is deliberately not modelled, and video
+// poker's identity is grind, not glory.
+export const VIDEO_POKER_BALANCE = {
+  costToPlay: 5,
+  wearPerPlay: 0.3,
+  playIntervalTicks: 4,
+  playsMin: 8,
+  playsMax: 20,
+  seats: 3, // one per cabinet in the bank
+  // RTP 0.96. sd/edge = 11.1.
+  payoutTable: [
+    { p: 0.8, multiplier: 1 },
+    { p: 0.08, multiplier: 2 },
+  ] as readonly PayoutOutcome[],
+} as const;
+
+/** Expected RTP implied by the video-poker payout table (0.96 → 4% house edge). */
+export function videoPokerExpectedRtp(): number {
+  return VIDEO_POKER_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+}
+
 // Staff: hourly wages come out of casino cash at each hour boundary.
 export const STAFF_BALANCE = {
   moveTicksPerTile: 2,

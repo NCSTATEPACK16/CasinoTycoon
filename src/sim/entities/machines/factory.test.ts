@@ -6,9 +6,13 @@ import { BigSixWheel } from './BigSixWheel';
 import { BlackjackTable } from './BlackjackTable';
 import { CrapsTable } from './CrapsTable';
 import { HighLimitTable } from './HighLimitTable';
+import { KenoLounge } from './KenoLounge';
+import { PachinkoMachine } from './PachinkoMachine';
+import { PennySlots } from './PennySlots';
 import { PokerTable } from './PokerTable';
 import { RouletteTable } from './RouletteTable';
 import { SlotMachine } from './SlotMachine';
+import { VideoPokerBank } from './VideoPokerBank';
 import { CasinoWorld } from '../../world';
 import { createMachine, createMachineOrThrow, isMachineDefId } from './factory';
 
@@ -24,6 +28,11 @@ const GAME_CLASSES: Record<string, unknown> = {
   'big-six-wheel': BigSixWheel,
   'poker-table': PokerTable,
   'high-limit-table': HighLimitTable,
+  // P17 Part B Tier 1 — throughput.
+  'penny-slots': PennySlots,
+  pachinko: PachinkoMachine,
+  'keno-lounge': KenoLounge,
+  'video-poker': VideoPokerBank,
 };
 
 describe('createMachine', () => {

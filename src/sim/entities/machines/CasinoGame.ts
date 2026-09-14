@@ -108,6 +108,21 @@ export abstract class CasinoGame {
     return wagerAtDefault * TABLE_MINIMUMS.minWalletMultiple * (ratio - 1);
   }
 
+  /**
+   * Whether a hired dealer can station at this game.
+   *
+   * P13 made this a capability check rather than a list of defIds, which was
+   * right, but expressed it as `instanceof SeatedCasinoGame` at the call site —
+   * so "has seats" and "has a dealer" were the same fact. P17's video poker
+   * bank is the case that separates them: three cabinets bolted together have
+   * seats and emphatically do not have a dealer. Seating still implies a dealer
+   * by default, so every P13 table is unchanged; a game that seats players
+   * without being dealt to says so itself.
+   */
+  get needsDealer(): boolean {
+    return false;
+  }
+
   isPlayableBy(guestId: string): boolean {
     return !this.broken && this.reservedBy === guestId;
   }

@@ -74,6 +74,11 @@ const ICONS = {
   'big-six-wheel': 'disc-3',
   'poker-table': 'club',
   'high-limit-table': 'gem',
+  // P17 Part B Tier 1
+  'penny-slots': 'coins',
+  pachinko: 'circle-dot-dashed',
+  'keno-lounge': 'grid-3x3',
+  'video-poker': 'monitor',
   toilet: 'toilet',
   'food-stall': 'sandwich',
   plant: 'sprout',
