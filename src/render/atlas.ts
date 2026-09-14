@@ -24,6 +24,15 @@ export const FILE_ASSETS: readonly FileAsset[] = [
   { key: 'img-poker-table', url: 'sprites/poker-table.png' },
   { key: 'img-big-six-wheel', url: 'sprites/big-six-wheel.png' },
   { key: 'img-high-limit-table', url: 'sprites/high-limit-table.png' },
+  // P17 Tier 1, produced by `npm run render-sprites` (the Blender iso rig in
+  // scripts/render/) rather than hand-prompted. Registered here so BootScene
+  // loads the real art; the matching OBJECT_CATALOG entries and sim classes are
+  // Part B of the P17 spec and deliberately do not exist yet, so nothing places
+  // these on the floor until the games are balanced.
+  { key: 'img-penny-slots', url: 'sprites/penny-slots.png' },
+  { key: 'img-pachinko', url: 'sprites/pachinko.png' },
+  { key: 'img-keno-lounge', url: 'sprites/keno-lounge.png' },
+  { key: 'img-video-poker', url: 'sprites/video-poker.png' },
   // Self-generated (Kenney has no casino/chip pack — see assets/ASSETS.md).
   // Not consumed by any render code yet; P11 swaps fx-coin for these.
   { key: 'img-chip-white', url: 'sprites/chips/chip_white.png' },
