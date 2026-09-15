@@ -51,6 +51,10 @@ export type IconName =
   | 'pachinko'
   | 'keno-lounge'
   | 'video-poker'
+  | 'sic-bo'
+  | 'three-card-poker'
+  | 'pai-gow'
+  | 'bingo-hall'
   | 'toilet'
   | 'food-stall'
   | 'plant'
@@ -121,6 +125,10 @@ export const ICON_SPRITE =
   "<symbol id=\"i-pachinko\" viewBox=\"0 0 24 24\"><path d=\"M10.1 2.18a9.93 9.93 0 0 1 3.8 0\" /><path d=\"M17.6 3.71a9.95 9.95 0 0 1 2.69 2.7\" /><path d=\"M21.82 10.1a9.93 9.93 0 0 1 0 3.8\" /><path d=\"M20.29 17.6a9.95 9.95 0 0 1-2.7 2.69\" /><path d=\"M13.9 21.82a9.94 9.94 0 0 1-3.8 0\" /><path d=\"M6.4 20.29a9.95 9.95 0 0 1-2.69-2.7\" /><path d=\"M2.18 13.9a9.93 9.93 0 0 1 0-3.8\" /><path d=\"M3.71 6.4a9.95 9.95 0 0 1 2.7-2.69\" /><circle cx=\"12\" cy=\"12\" r=\"1\" /></symbol>" +
   "<symbol id=\"i-keno-lounge\" viewBox=\"0 0 24 24\"><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" /><path d=\"M3 9h18\" /><path d=\"M3 15h18\" /><path d=\"M9 3v18\" /><path d=\"M15 3v18\" /></symbol>" +
   "<symbol id=\"i-video-poker\" viewBox=\"0 0 24 24\"><rect width=\"20\" height=\"14\" x=\"2\" y=\"3\" rx=\"2\" /><line x1=\"8\" x2=\"16\" y1=\"21\" y2=\"21\" /><line x1=\"12\" x2=\"12\" y1=\"17\" y2=\"21\" /></symbol>" +
+  "<symbol id=\"i-sic-bo\" viewBox=\"0 0 24 24\"><rect width=\"12\" height=\"12\" x=\"2\" y=\"10\" rx=\"2\" ry=\"2\" /><path d=\"m17.92 14 3.5-3.5a2.24 2.24 0 0 0 0-3l-5-4.92a2.24 2.24 0 0 0-3 0L10 6\" /><path d=\"M6 18h.01\" /><path d=\"M10 14h.01\" /><path d=\"M15 6h.01\" /><path d=\"M18 9h.01\" /></symbol>" +
+  "<symbol id=\"i-three-card-poker\" viewBox=\"0 0 24 24\"><path d=\"M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z\" /></symbol>" +
+  "<symbol id=\"i-pai-gow\" viewBox=\"0 0 24 24\"><path d=\"M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z\" /></symbol>" +
+  "<symbol id=\"i-bingo-hall\" viewBox=\"0 0 24 24\"><path d=\"M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z\" /><path d=\"M13 5v2\" /><path d=\"M13 17v2\" /><path d=\"M13 11v2\" /></symbol>" +
   "<symbol id=\"i-toilet\" viewBox=\"0 0 24 24\"><path d=\"M7 12h13a1 1 0 0 1 1 1 5 5 0 0 1-5 5h-.598a.5.5 0 0 0-.424.765l1.544 2.47a.5.5 0 0 1-.424.765H5.402a.5.5 0 0 1-.424-.765L7 18\" /><path d=\"M8 18a5 5 0 0 1-5-5V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8\" /></symbol>" +
   "<symbol id=\"i-food-stall\" viewBox=\"0 0 24 24\"><path d=\"m2.37 11.223 8.372-6.777a2 2 0 0 1 2.516 0l8.371 6.777\" /><path d=\"M21 15a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-5.25\" /><path d=\"M3 15a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h9\" /><path d=\"m6.67 15 6.13 4.6a2 2 0 0 0 2.8-.4l3.15-4.2\" /><rect width=\"20\" height=\"4\" x=\"2\" y=\"11\" rx=\"1\" /></symbol>" +
   "<symbol id=\"i-plant\" viewBox=\"0 0 24 24\"><path d=\"M14 9.536V7a4 4 0 0 1 4-4h1.5a.5.5 0 0 1 .5.5V5a4 4 0 0 1-4 4 4 4 0 0 0-4 4c0 2 1 3 1 5a5 5 0 0 1-1 3\" /><path d=\"M4 9a5 5 0 0 1 8 4 5 5 0 0 1-8-4\" /><path d=\"M5 21h14\" /></symbol>" +

@@ -49,6 +49,14 @@ SHADE_LEFT = 0.72
 SHADE_RIGHT = 0.52
 SHADE_BOTTOM = 0.34
 
+# Resolved from palette.py at import time. Kept as one-tuples so a builder can swap
+# a table's timber without the helper growing another four parameters.
+import palette as _pal  # noqa: E402
+
+WOOD_REF = (_pal.WOOD,)
+WOOD_DARK_REF = (_pal.WOOD_DARK,)
+BLACK_LEATHER = _pal.BEZEL
+
 _MATERIALS: dict[tuple, bpy.types.Material] = {}
 # Rectangles to hand to scripts/lib/light-layers.mjs, in world space. Converted to render
 # pixels at the end, once the camera is known.
@@ -223,6 +231,76 @@ def panel(name, center, size, colour, bezel_colour, bezel=0.014, flat=True):
         flat=flat,
     )
     return face, back
+
+
+def table_base(name, a, b, height, felt_colour, *, oval=False, rail_colour=None, trim=None):
+    """A casino table: plinth, wood carcass, padded rail, felt playing surface.
+
+    Three of Tier 2's five objects are 2x2 tables that differ only in felt colour,
+    printed layout and the fixtures standing on them, so the shared form lives here
+    rather than being copy-pasted three times with three chances to drift. Returns
+    the felt object plus its top-surface z, which is what every caller needs to
+    stand chip racks, shoes and domes on.
+
+    `oval=True` rounds the carcass into a cylinder — pai gow's broad oval and
+    three-card-poker's semicircle both read better than a box at this scale.
+    """
+    rail_colour = rail_colour or BLACK_LEATHER
+    plinth_h = height * 0.34
+    body_h = height - plinth_h
+
+    if oval:
+        cylinder(f"{name}_plinth", (0, 0, plinth_h / 2), min(a, b) * 0.40, plinth_h,
+                 WOOD_DARK_REF[0], verts=28)
+        cylinder(f"{name}_body", (0, 0, plinth_h + body_h / 2), min(a, b) * 0.49, body_h,
+                 WOOD_REF[0], verts=28)
+        rail = cylinder(f"{name}_rail", (0, 0, height + 0.012), min(a, b) * 0.51, 0.045,
+                        rail_colour, verts=28)
+        felt = cylinder(f"{name}_felt", (0, 0, height + 0.028), min(a, b) * 0.44, 0.02,
+                        felt_colour, verts=28, flat=True)
+    else:
+        box(f"{name}_plinth", (0, 0, plinth_h / 2), (a * 0.74, b * 0.74, plinth_h), WOOD_DARK_REF[0])
+        box(f"{name}_body", (0, 0, plinth_h + body_h / 2), (a * 0.90, b * 0.90, body_h), WOOD_REF[0])
+        rail = box(f"{name}_rail", (0, 0, height + 0.012), (a * 0.99, b * 0.99, 0.045), rail_colour)
+        felt = box(f"{name}_felt", (0, 0, height + 0.030), (a * 0.86, b * 0.86, 0.02),
+                   felt_colour, flat=True)
+
+    if trim is not None:
+        # A thin bright line just inside the rail. Reads as gold trim at final size
+        # and, more usefully, separates rail from felt so a crop edge has somewhere
+        # dark-then-bright to land.
+        if oval:
+            cylinder(f"{name}_trim", (0, 0, height + 0.026), min(a, b) * 0.455, 0.016,
+                     trim, verts=28, flat=True)
+        else:
+            box(f"{name}_trim", (0, 0, height + 0.026), (a * 0.885, b * 0.885, 0.016),
+                trim, flat=True)
+
+    return felt, rail, height + 0.040
+
+
+def felt_cell(name, centre, size, colour, edge=None):
+    """One printed betting cell on a felt surface: a flat patch, optionally with a
+    hard bright border. Printed layout, not a raised object — so it sits a hair
+    above the felt and never casts or catches anything."""
+    made = []
+    if edge is not None:
+        made.append(box(f"{name}_edge", centre, (size[0] + 0.018, size[1] + 0.018, 0.006),
+                        edge, flat=True))
+    made.append(box(f"{name}_fill", (centre[0], centre[1], centre[2] + 0.004),
+                    (size[0], size[1], 0.006), colour, flat=True))
+    return made
+
+
+def chip_rack(name, centre, width, colour, chip_colour):
+    """The dealer's chip rack — a fixture, so it sits outside every betting spot and
+    never moves. The brief is explicit that loose chips must not be painted on the
+    felt, because the dealing FX needs somewhere clean to land."""
+    box(f"{name}_tray", centre, (width, 0.10, 0.035), colour)
+    for i in range(5):
+        cylinder(f"{name}_chips_{i}",
+                 (centre[0] - width * 0.36 + i * width * 0.18, centre[1], centre[2] + 0.032),
+                 0.026, 0.030, chip_colour, verts=10)
 
 
 # ------------------------------------------------------------------------- light boxes

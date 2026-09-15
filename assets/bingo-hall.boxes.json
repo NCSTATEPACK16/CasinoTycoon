@@ -1,0 +1,47 @@
+{
+  "sprite": "bingo-hall.png",
+  "width": 663,
+  "height": 520,
+  "boxes": [
+    {
+      "kind": "spin",
+      "name": "tumbler",
+      "x": 403,
+      "y": 139,
+      "w": 52,
+      "h": 87
+    },
+    {
+      "kind": "light",
+      "name": "row-0",
+      "x": 345,
+      "y": 49,
+      "w": 288,
+      "h": 150
+    },
+    {
+      "kind": "light",
+      "name": "row-1",
+      "x": 345,
+      "y": 41,
+      "w": 288,
+      "h": 150
+    },
+    {
+      "kind": "light",
+      "name": "row-2",
+      "x": 345,
+      "y": 34,
+      "w": 288,
+      "h": 150
+    },
+    {
+      "kind": "light",
+      "name": "row-3",
+      "x": 345,
+      "y": 26,
+      "w": 288,
+      "h": 150
+    }
+  ]
+}

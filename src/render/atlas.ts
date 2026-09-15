@@ -30,6 +30,12 @@ export const FILE_ASSETS: readonly FileAsset[] = [
   { key: 'img-pachinko', url: 'sprites/pachinko.png' },
   { key: 'img-keno-lounge', url: 'sprites/keno-lounge.png' },
   { key: 'img-video-poker', url: 'sprites/video-poker.png' },
+  // Tier 2. sports-book.png is rendered and committed but has no catalogue entry
+  // yet — its scheduled-settlement mechanic is deferred, see balance.ts.
+  { key: 'img-sic-bo', url: 'sprites/sic-bo.png' },
+  { key: 'img-three-card-poker', url: 'sprites/three-card-poker.png' },
+  { key: 'img-pai-gow', url: 'sprites/pai-gow.png' },
+  { key: 'img-bingo-hall', url: 'sprites/bingo-hall.png' },
   // Self-generated (Kenney has no casino/chip pack — see assets/ASSETS.md).
   // Not consumed by any render code yet; P11 swaps fx-coin for these.
   { key: 'img-chip-white', url: 'sprites/chips/chip_white.png' },

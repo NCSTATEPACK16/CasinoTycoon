@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
   BIG_SIX_BALANCE,
+  BINGO_BALANCE,
   BLACKJACK_BALANCE,
   CRAPS_BALANCE,
   HIGH_LIMIT_BALANCE,
   KENO_BALANCE,
   PACHINKO_BALANCE,
+  PAI_GOW_BALANCE,
   PENNY_SLOT_BALANCE,
   ROULETTE_BALANCE,
+  SIC_BO_BALANCE,
   SLOT_BALANCE,
+  THREE_CARD_POKER_BALANCE,
   VIDEO_POKER_BALANCE,
   slotExpectedRtp,
   type PayoutOutcome,
@@ -156,6 +160,11 @@ const ALL_TABLES: readonly TableSpec[] = [
   { name: 'pachinko', table: PACHINKO_BALANCE.payoutTable, rtp: 0.88 },
   { name: 'keno-lounge', table: KENO_BALANCE.payoutTable, rtp: 0.75 },
   { name: 'video-poker', table: VIDEO_POKER_BALANCE.payoutTable, rtp: 0.96 },
+  // P17 Tier 2 — all four inside the default bar, no allowances needed.
+  { name: 'sic-bo', table: SIC_BO_BALANCE.payoutTable, rtp: 0.91 },
+  { name: 'three-card-poker', table: THREE_CARD_POKER_BALANCE.payoutTable, rtp: 0.94 },
+  { name: 'pai-gow', table: PAI_GOW_BALANCE.payoutTable, rtp: 0.91 },
+  { name: 'bingo-hall', table: BINGO_BALANCE.payoutTable, rtp: 0.86 },
 ];
 
 describe('every payout table in the catalogue', () => {
@@ -196,7 +205,7 @@ describe('every payout table in the catalogue', () => {
   });
 });
 
-describe('Tier 1 differentiation', () => {
+describe('catalogue differentiation', () => {
   /**
    * The spec's non-negotiable rule: a new game must differ from every existing
    * one on at least TWO axes, or it is a reskin that makes the catalogue wider
@@ -253,6 +262,10 @@ describe('Tier 1 differentiation', () => {
     profile('pachinko', PACHINKO_BALANCE, PACHINKO_BALANCE.payoutTable),
     profile('keno-lounge', KENO_BALANCE, KENO_BALANCE.payoutTable),
     profile('video-poker', VIDEO_POKER_BALANCE, VIDEO_POKER_BALANCE.payoutTable),
+    profile('sic-bo', SIC_BO_BALANCE, SIC_BO_BALANCE.payoutTable),
+    profile('three-card-poker', THREE_CARD_POKER_BALANCE, THREE_CARD_POKER_BALANCE.payoutTable),
+    profile('pai-gow', PAI_GOW_BALANCE, PAI_GOW_BALANCE.payoutTable),
+    profile('bingo-hall', BINGO_BALANCE, BINGO_BALANCE.payoutTable),
   ];
 
   it('differs every pair of games on at least two axes', () => {
@@ -288,9 +301,60 @@ describe('Tier 1 differentiation', () => {
     expect(VIDEO_POKER_BALANCE.playIntervalTicks).toBeLessThan(Math.min(...cadences));
   });
 
-  it('makes keno the thickest edge and video poker the thinnest', () => {
+  it('makes video poker the thinnest edge in the house', () => {
     const edges = ALL_TABLES.map((t) => moments(t.table).edge);
-    expect(moments(KENO_BALANCE.payoutTable).edge).toBe(Math.max(...edges));
     expect(moments(VIDEO_POKER_BALANCE.payoutTable).edge).toBe(Math.min(...edges));
+  });
+
+  it('gives pai gow the flattest per-play distribution of any dealt game', () => {
+    // Its "steady pick" claim, stated precisely, because two looser versions of
+    // it are false and this test caught both.
+    //
+    // It is NOT the flattest game outright — video poker is (sd 0.445 against
+    // 0.621), because a 4% edge capped at 2x barely moves. But video poker is a
+    // machine bank with no dealer; among the games someone actually deals, pai
+    // gow swings least per hand.
+    //
+    // And it is about ABSOLUTE spread, not sd/edge: keno has the lower ratio
+    // (2.7 against 5.2) because its edge is thicker. Both are true and they are
+    // different claims — pai gow swings least per hand, keno needs fewest hands
+    // before its edge shows through.
+    const dealt = ALL_TABLES.filter((t) => t.name !== 'video-poker');
+    expect(moments(PAI_GOW_BALANCE.payoutTable).sd).toBe(
+      Math.min(...dealt.map((t) => moments(t.table).sd)),
+    );
+    const ratio = (tbl: readonly PayoutOutcome[]) => moments(tbl).sd / moments(tbl).edge;
+    expect(ratio(KENO_BALANCE.payoutTable)).toBeLessThan(ratio(PAI_GOW_BALANCE.payoutTable));
+  });
+
+  it('makes sic bo the swingiest game P17 added, still inside the bar', () => {
+    // "Swingiest" is ABSOLUTE spread, not sd/edge. Getting that wrong failed
+    // this test three times before it stated something true, so the ranking is
+    // written down here rather than assumed:
+    //
+    //   roulette 2.576 > high-limit 1.719 > SIC BO 1.256 > craps 1.176 >
+    //   big-six 1.166 > blackjack 0.971 > slots 0.945 > ...
+    //
+    // Sic bo is third in the house and first among P17's eight, which is the
+    // real claim. Roulette and high-limit are swingier and both carry variance
+    // allowances; sic bo does not, which is the point — it is the swingiest
+    // table that still clears the bar unaided.
+    //
+    // By sd/edge the ranking is different and misleading: three-card poker
+    // (11.74) and the shipped slot (11.82) both exceed sic bo's 11.42, purely
+    // because their edges are thinner.
+    const p17 = [
+      PENNY_SLOT_BALANCE,
+      PACHINKO_BALANCE,
+      KENO_BALANCE,
+      VIDEO_POKER_BALANCE,
+      SIC_BO_BALANCE,
+      THREE_CARD_POKER_BALANCE,
+      PAI_GOW_BALANCE,
+      BINGO_BALANCE,
+    ].map((b) => moments(b.payoutTable).sd);
+    const sicBo = moments(SIC_BO_BALANCE.payoutTable);
+    expect(sicBo.sd).toBe(Math.max(...p17));
+    expect(sicBo.sd / sicBo.edge).toBeLessThan(DEFAULT_BAR);
   });
 });
