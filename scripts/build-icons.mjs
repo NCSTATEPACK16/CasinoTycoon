@@ -79,6 +79,11 @@ const ICONS = {
   pachinko: 'circle-dot-dashed',
   'keno-lounge': 'grid-3x3',
   'video-poker': 'monitor',
+  // P17 Part B Tier 2
+  'sic-bo': 'dices',
+  'three-card-poker': 'diamond',
+  'pai-gow': 'hexagon',
+  'bingo-hall': 'ticket',
   toilet: 'toilet',
   'food-stall': 'sandwich',
   plant: 'sprout',

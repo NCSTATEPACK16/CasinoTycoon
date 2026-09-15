@@ -356,6 +356,140 @@ export function videoPokerExpectedRtp(): number {
   return VIDEO_POKER_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
 }
 
+// ---------------------------------------------------------------------------
+// P17 Part B, Tier 2 — the working floor.
+//
+// Mid-price tables that carry a floor once Tier 1 has filled it. Same
+// non-negotiable rule as Tier 1: every game differs from every other on at
+// least two axes, now enforced mechanically — payoutVariance.test.ts checks all
+// pairs in the catalogue and names the axes an offending pair shares.
+//
+// EVERY WAGER AND EDGE BELOW WAS CUT after measurement. The first pass gave sic
+// bo a $20 wager at an 11% edge and three-card poker $30 at 6%, and the
+// `workingFloor` bot then won 14/14 with best days of $2,371-$4,181 against
+// goals of $700 and $1,000 — several times what a comparable shipped table
+// earns. The dominant term is extraction per guest, not price: a guest plays
+// playsMin..playsMax times and leaves, so a table's take is roughly
+// plays x wager x edge. Sic bo was pulling $26 a guest against blackjack's $10.
+//
+// Three of the four carry a real table minimum (sic-bo, three-card-poker,
+// pai-gow are dealt table games, so the dial means something on them) and are
+// registered in TABLE_MINIMUMS.defaultByType and BASE_WAGER_BY_TYPE below.
+// Bingo is a fixed-price card, like keno — a coin size, not a minimum.
+//
+// Sports Book is specified in the P17 spec as Tier 2's fifth game and is NOT
+// here. Its defining property is that "revenue settles on a schedule rather
+// than per-guest", which needs a per-tick machine hook, a pending-stake pool
+// and its own revenue attribution path — none of which exist. That is a new sim
+// pattern of the same shape the bar got its own spec for in P10.6, not a
+// balance table. Its art is rendered and committed; the mechanic is deferred.
+
+// Sic Bo: the swingiest table in the house, and the number is deliberate. At
+// sd/edge 11.4 it sits just inside the bar — high variance is a legitimate
+// design choice, but the spec requires it be a choice with a figure attached
+// rather than an accident of picking multipliers that looked exciting.
+export const SIC_BO_BALANCE = {
+  costToPlay: 12,
+  wearPerPlay: 0.3,
+  playIntervalTicks: 9,
+  playsMin: 5,
+  playsMax: 12,
+  seats: 4,
+  // RTP 0.91, sd/edge 11.3. The 10x branch is what makes a sic bo day swing, and
+  // it is fat enough to clear JACKPOT_PAYOUT_MULT so the table drives P11's
+  // strut and jackpot beats — but only 0.6% likely, because a thinner edge
+  // pushes sd/edge up and the first cut of this table (11% edge, 1.2% tail)
+  // measured 13.9, outside the bar.
+  payoutTable: [
+    { p: 0.43, multiplier: 1 },
+    { p: 0.21, multiplier: 2 },
+    { p: 0.006, multiplier: 10 },
+  ] as readonly PayoutOutcome[],
+} as const;
+
+/** Expected RTP implied by the sic bo payout table (0.91 → 9% house edge). */
+export function sicBoExpectedRtp(): number {
+  return SIC_BO_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+}
+
+// Three-Card Poker: the reliable mid table. Four seats, fast rounds, a moderate
+// edge and no tail at all — nothing about it is exciting, which is the point.
+// It is what a floor buys when it wants the day to be predictable.
+export const THREE_CARD_POKER_BALANCE = {
+  costToPlay: 18,
+  wearPerPlay: 0.22,
+  playIntervalTicks: 9,
+  playsMin: 5,
+  playsMax: 12,
+  seats: 4,
+  // RTP 0.94, sd/edge 11.7 — high only because the edge is thin, not because
+  // the spread is wide (the table's largest multiplier is 2x). Same effect that
+  // puts blackjack at 24.3; see payoutVariance.test.ts.
+  payoutTable: [
+    { p: 0.5, multiplier: 1 },
+    { p: 0.22, multiplier: 2 },
+  ] as readonly PayoutOutcome[],
+} as const;
+
+/** Expected RTP implied by the three-card-poker payout table (0.94 → 6% edge). */
+export function threeCardPokerExpectedRtp(): number {
+  return THREE_CARD_POKER_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+}
+
+// Pai Gow Poker: the steady pick. Very slow, very long sessions, and a huge
+// push band — the lowest per-play standard deviation of any game in the
+// catalogue at 0.610, under keno's 0.677.
+//
+// Note keno still has the lower sd/EDGE ratio (2.7 against 5.2), because its
+// edge is thicker. Both statements are true and they are different claims: pai
+// gow swings least in absolute dollars per hand, keno needs fewest hands before
+// its edge shows through.
+export const PAI_GOW_BALANCE = {
+  costToPlay: 22,
+  wearPerPlay: 0.12,
+  playIntervalTicks: 22,
+  playsMin: 8,
+  playsMax: 18,
+  seats: 6,
+  // RTP 0.91. The 0.62 band at 1x is the push — pai gow's real signature, and
+  // what flattens the distribution.
+  payoutTable: [
+    { p: 0.62, multiplier: 1 },
+    { p: 0.145, multiplier: 2 },
+  ] as readonly PayoutOutcome[],
+} as const;
+
+/** Expected RTP implied by the pai gow payout table (0.91 → 9% house edge). */
+export function paiGowExpectedRtp(): number {
+  return PAI_GOW_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+}
+
+// Bingo Hall: a crowd draw that pays in arrivals more than in takings. Twelve
+// seats at a $4 card, so the per-head margin is trivial and the object only
+// works if it is full — and its ratingBonus of 3 (the largest on any game) is
+// the real return, pulling the arrivals that fill everything else on the floor.
+// Four tiles wide by three deep, so it is also the most expensive object in the
+// game per square foot of floor it eats.
+export const BINGO_BALANCE = {
+  costToPlay: 4,
+  wearPerPlay: 0.08,
+  playIntervalTicks: 20,
+  playsMin: 6,
+  playsMax: 14,
+  seats: 12,
+  // RTP 0.86, sd/edge 4.85 — thick edge on a tiny wager, so a bingo hall is
+  // reliable and nearly irrelevant as a direct earner.
+  payoutTable: [
+    { p: 0.52, multiplier: 1 },
+    { p: 0.17, multiplier: 2 },
+  ] as readonly PayoutOutcome[],
+} as const;
+
+/** Expected RTP implied by the bingo payout table (0.86 → 14% house edge). */
+export function bingoExpectedRtp(): number {
+  return BINGO_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+}
+
 // Staff: hourly wages come out of casino cash at each hour boundary.
 export const STAFF_BALANCE = {
   moveTicksPerTile: 2,
@@ -676,6 +810,11 @@ export const TABLE_MINIMUMS = {
     'poker-table': 25,
     'high-limit-table': 100,
     'big-six-wheel': 5,
+    // P17 Tier 2 — dealt table games, so the minimum dial is a real decision on
+    // them. Bingo and keno are fixed-price cards and deliberately absent.
+    'sic-bo': 10,
+    'three-card-poker': 25,
+    'pai-gow': 25,
   } as Readonly<Record<string, number>>,
   /**
    * Wallet a guest needs before it will sit, as a multiple of the wager.
@@ -702,6 +841,9 @@ const BASE_WAGER_BY_TYPE: Readonly<Record<string, number>> = {
   'poker-table': POKER_BALANCE.costToPlay,
   'high-limit-table': HIGH_LIMIT_BALANCE.costToPlay,
   'big-six-wheel': BIG_SIX_BALANCE.costToPlay,
+  'sic-bo': SIC_BO_BALANCE.costToPlay,
+  'three-card-poker': THREE_CARD_POKER_BALANCE.costToPlay,
+  'pai-gow': PAI_GOW_BALANCE.costToPlay,
 };
 
 /** True for game types that carry a table minimum at all. Slots have a coin

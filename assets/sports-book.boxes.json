@@ -1,0 +1,47 @@
+{
+  "sprite": "sports-book.png",
+  "width": 512,
+  "height": 500,
+  "boxes": [
+    {
+      "kind": "light",
+      "name": "screens-0",
+      "x": 160,
+      "y": 40,
+      "w": 317,
+      "h": 208
+    },
+    {
+      "kind": "light",
+      "name": "screens-1",
+      "x": 160,
+      "y": 106,
+      "w": 317,
+      "h": 208
+    },
+    {
+      "kind": "light",
+      "name": "odds-0",
+      "x": 168,
+      "y": 164,
+      "w": 298,
+      "h": 150
+    },
+    {
+      "kind": "light",
+      "name": "odds-1",
+      "x": 168,
+      "y": 160,
+      "w": 298,
+      "h": 150
+    },
+    {
+      "kind": "light",
+      "name": "odds-2",
+      "x": 168,
+      "y": 156,
+      "w": 298,
+      "h": 150
+    }
+  ]
+}

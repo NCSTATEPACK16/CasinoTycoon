@@ -72,13 +72,21 @@ describe('Tier 1 catalogue entries', () => {
     expect(Math.max(...costs)).toBeLessThan(getObjectDef('craps-table')!.cost);
   });
 
-  it('gives pachinko the only ratingBonus in the game catalogue', () => {
+  it('gives pachinko the only ratingBonus in its own tier', () => {
     // Derived from the catalog, not enumerated: a hand-written list silently
     // stops covering the catalogue the moment a game is added to it.
-    const gamesWithBonus = OBJECT_CATALOG.filter(
+    //
+    // Tier 2's bingo-hall later took a bonus too, and a larger one (3 against
+    // 1) — that is the point of the object, which earns in arrivals rather than
+    // in takings. So the claim is now two claims: the draw games are exactly
+    // these two, and pachinko is the smaller of them.
+    const withBonus = OBJECT_CATALOG.filter(
       (d) => d.category === 'game' && (d.ratingBonus ?? 0) > 0,
-    ).map((d) => d.id);
-    expect(gamesWithBonus).toEqual(['pachinko']);
+    );
+    expect(withBonus.map((d) => d.id)).toEqual(['pachinko', 'bingo-hall']);
+    expect(getObjectDef('pachinko')!.ratingBonus).toBeLessThan(
+      getObjectDef('bingo-hall')!.ratingBonus!,
+    );
   });
 });
 

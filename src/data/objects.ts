@@ -181,6 +181,58 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     displaySize: { w: 170, h: 175 },
     category: 'game',
   },
+  // P17 Part B Tier 2 — the working floor. Mid-price tables that carry a floor
+  // once Tier 1 has filled it. displaySize is half the rendered PNG, per the
+  // note on Tier 1 above. Sports Book is Tier 2's fifth game in the spec and is
+  // deliberately absent — see the note in balance.ts.
+  {
+    id: 'sic-bo',
+    name: 'Sic Bo Table',
+    icon: 'sic-bo',
+    cost: 780,
+    upkeepPerDay: 28,
+    footprint: { w: 2, h: 2 },
+    spriteKey: 'img-sic-bo',
+    displaySize: { w: 220, h: 146 },
+    category: 'game',
+  },
+  {
+    id: 'three-card-poker',
+    name: 'Three-Card Poker',
+    icon: 'three-card-poker',
+    cost: 980,
+    upkeepPerDay: 34,
+    footprint: { w: 2, h: 2 },
+    spriteKey: 'img-three-card-poker',
+    displaySize: { w: 205, h: 150 },
+    category: 'game',
+  },
+  {
+    id: 'pai-gow',
+    name: 'Pai Gow Poker',
+    icon: 'pai-gow',
+    cost: 1150,
+    upkeepPerDay: 30,
+    footprint: { w: 2, h: 2 },
+    spriteKey: 'img-pai-gow',
+    displaySize: { w: 205, h: 150 },
+    category: 'game',
+  },
+  {
+    // The largest ratingBonus on any game. A bingo hall is a poor direct earner
+    // by design — twelve seats at a $4 card — and returns its cost in arrivals,
+    // which fill everything else on the floor.
+    id: 'bingo-hall',
+    name: 'Bingo Hall',
+    icon: 'bingo-hall',
+    cost: 1450,
+    upkeepPerDay: 45,
+    footprint: { w: 4, h: 3 },
+    spriteKey: 'img-bingo-hall',
+    displaySize: { w: 332, h: 260 },
+    ratingBonus: 3,
+    category: 'game',
+  },
   {
     id: 'toilet',
     name: 'Restroom',

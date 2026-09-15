@@ -21,6 +21,12 @@ BUILDERS = {
     "pachinko": "objects.pachinko",
     "keno-lounge": "objects.keno_lounge",
     "video-poker": "objects.video_poker",
+    # Tier 2 -- the working floor.
+    "sic-bo": "objects.sic_bo",
+    "three-card-poker": "objects.three_card_poker",
+    "pai-gow": "objects.pai_gow",
+    "bingo-hall": "objects.bingo_hall",
+    "sports-book": "objects.sports_book",
 }
 
 

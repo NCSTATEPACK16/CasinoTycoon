@@ -33,6 +33,7 @@ export type Strategy =
   | 'mistuned'
   | 'catalogue'
   | 'throughput'
+  | 'workingFloor'
   | 'minimalTier1';
 
 export const STRATEGIES: readonly Strategy[] = [
@@ -47,6 +48,7 @@ export const STRATEGIES: readonly Strategy[] = [
   'mistuned',
   'catalogue',
   'throughput',
+  'workingFloor',
   'minimalTier1',
 ];
 
@@ -140,9 +142,16 @@ const CATALOGUE_BY_COST: readonly string[] = OBJECT_CATALOG.filter((d) => d.cate
  *  game is bought by at least one winning line" is an acceptance criterion. */
 const TIER1_SPREAD: readonly string[] = ['penny-slots', 'pachinko', 'video-poker', 'keno-lounge'];
 
+/** Tier 2's working floor, same round-robin shape and for the same reason: a
+ *  cost-ordered ladder would buy one game forever and leave the other three
+ *  unmeasured. `sports-book` is absent because it has no catalogue entry — its
+ *  scheduled-settlement mechanic is deferred, see balance.ts. */
+const TIER2_SPREAD: readonly string[] = ['sic-bo', 'three-card-poker', 'pai-gow', 'bingo-hall'];
+
 function purchaseLadder(strategy: Strategy): readonly string[] {
   if (strategy === 'catalogue') return CATALOGUE_BY_COST;
   if (strategy === 'throughput' || strategy === 'minimalTier1') return TIER1_SPREAD;
+  if (strategy === 'workingFloor') return TIER2_SPREAD;
   return LEGACY_LADDER;
 }
 
@@ -237,23 +246,69 @@ export function runCampaign(
   // `throughput` spreads across its ladder instead of draining the first
   // affordable rung; every other strategy takes the first rung it can afford,
   // which is exactly what the old two-branch if/else did.
-  const spreads = strategy === 'throughput';
+  const spreads = strategy === 'throughput' || strategy === 'workingFloor';
   let ladderCursor = 0;
   /** Buy the best game this strategy can afford while keeping `reserve` back.
    *  Returns false when nothing is affordable, allowed, or placeable. */
   const buyGame = (reserve: number): boolean => {
-    for (let i = 0; i < ladder.length; i++) {
-      const idx = spreads ? (ladderCursor + i) % ladder.length : i;
-      const defId = ladder[idx]!;
+    const affordable = (defId: string): boolean => {
       const objDef = getObjectDef(defId);
-      if (!objDef || !world.isObjectAllowed(defId)) continue;
-      if (world.state.cash < objDef.cost + reserve) continue;
+      return (
+        !!objDef && world.isObjectAllowed(defId) && world.state.cash >= objDef.cost + reserve
+      );
+    };
+    const take = (defId: string): boolean => {
       // Out of floor, not out of money — stop, rather than walking down to a
       // cheaper rung that has nowhere to go either.
       if (!tryPlace(defId)) return false;
       gamesBuilt.add(defId);
-      if (spreads) ladderCursor = idx + 1;
       return true;
+    };
+
+    if (spreads) {
+      // One of each first — CHEAPEST of the unowned that is affordable — and
+      // only then a second copy of anything.
+      //
+      // Two orderings were tried and measured before this one. A plain
+      // round-robin cursor fell back to a cheap rung whenever the next was
+      // briefly unaffordable and reset the cursor behind itself, so
+      // `workingFloor` bought sic bo and three-card poker over and over and
+      // reached pai gow and bingo on zero of fourteen runs. Dearest-first fixed
+      // that and broke the mirror image of it: the opening bankroll went
+      // straight into the $1,450 bingo hall, and the set completed at two games
+      // on The Dusty Dime and three on Neon Nights, with three-card poker never
+      // bought on any of the fourteen.
+      //
+      // Cheapest-first completes the set for the least capital, which is what
+      // "every game is bought by a winning line" actually measures. It does NOT
+      // reintroduce the penny-slot carpet the cost-ordered `catalogue` ladder
+      // has, because this branch only ever considers games it does not already
+      // own — repeats fall through to the round-robin below.
+      //
+      // And while the set is incomplete the line SAVES rather than buying a
+      // second copy of something it already owns. Without that it never
+      // completed at all: cheapest-first bought sic bo and three-card poker,
+      // then spent every subsequent dollar on more of the same two through the
+      // round-robin below, and never once held the $1,150 pai gow needs.
+      const unowned = ladder.filter((id) => !gamesBuilt.has(id));
+      if (unowned.length > 0) {
+        const cheapest = unowned.reduce((best, id) =>
+          getObjectDef(id)!.cost < getObjectDef(best)!.cost ? id : best,
+        );
+        return affordable(cheapest) ? take(cheapest) : false;
+      }
+      for (let i = 0; i < ladder.length; i++) {
+        const idx = (ladderCursor + i) % ladder.length;
+        if (!affordable(ladder[idx]!)) continue;
+        ladderCursor = idx + 1;
+        return take(ladder[idx]!);
+      }
+      return false;
+    }
+
+    for (const defId of ladder) {
+      if (!affordable(defId)) continue;
+      return take(defId);
     }
     return false;
   };

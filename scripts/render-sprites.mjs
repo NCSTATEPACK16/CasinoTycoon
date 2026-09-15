@@ -50,6 +50,12 @@ const OBJECTS = [
   { id: 'pachinko', display: [78, 140] },
   { id: 'keno-lounge', display: [220, 200] },
   { id: 'video-poker', display: [170, 180] },
+  // Tier 2 -- the working floor.
+  { id: 'sic-bo', display: [220, 158] },
+  { id: 'three-card-poker', display: [220, 150] },
+  { id: 'pai-gow', display: [220, 150] },
+  { id: 'bingo-hall', display: [385, 260] },
+  { id: 'sports-book', display: [275, 250] },
 ];
 
 // Render well above the target so the downscale has real information to average, then
