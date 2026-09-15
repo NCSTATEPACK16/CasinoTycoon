@@ -1,7 +1,7 @@
 import { eventBus } from '../../EventBus';
 import { HOURS_PER_DAY, TICKS_PER_HOUR } from '../../config';
 import type { CampaignDef } from '../../data/campaigns';
-import { getObjectDef } from '../../data/objects';
+import { getObjectDef, OBJECT_CATALOG } from '../../data/objects';
 import { CasinoWorld } from '../world';
 import { tierForCrowd } from '../tableTuning';
 import { TABLE_MINIMUMS } from '../../data/balance';
@@ -30,7 +30,11 @@ export type Strategy =
   | 'managed'
   | 'levered'
   | 'tuned'
-  | 'mistuned';
+  | 'mistuned'
+  | 'catalogue'
+  | 'throughput'
+  | 'workingFloor'
+  | 'minimalTier1';
 
 export const STRATEGIES: readonly Strategy[] = [
   'greedy',
@@ -42,6 +46,10 @@ export const STRATEGIES: readonly Strategy[] = [
   'levered',
   'tuned',
   'mistuned',
+  'catalogue',
+  'throughput',
+  'workingFloor',
+  'minimalTier1',
 ];
 
 /** The seeds the winnability guard has always used. Keep them identical across
@@ -86,11 +94,65 @@ export interface CampaignRun {
    *  figure; read minCash for that. A run that dips at 4pm and recovers by
    *  midnight still pays nothing. */
   closes: number[];
+  /** Every distinct game defId this run ever placed. P17 acceptance criterion 4
+   *  ("no dead stock") is a statement about what bots actually buy, and without
+   *  this the tournament can only report that a strategy won, not what it won
+   *  with — which is exactly the blind spot B2 exists to close. */
+  gamesBuilt: string[];
   /** Revenue objects still standing when the run ended. Acceptance criterion 4
    *  reads this on an insolvency: liquidation is only allowed to run out of
    *  things to sell once the floor is genuinely stripped, never while a
    *  saleable earner is still on it. */
   revenueObjectsAtEnd: number;
+}
+
+/**
+ * P17 B2 — what a strategy is willing to buy, in the order it prefers it.
+ *
+ * The spec calls this the single highest-risk item in the whole of P17, and the
+ * reason is worth stating plainly: before this, every bot's entire purchasing
+ * logic was "blackjack-table if cash >= 1200, else slot-machine". Add games to
+ * the catalogue and change nothing here, and every acceptance bar in
+ * difficulty.test.ts carries on measuring a floor the player would no longer
+ * build — the bars stay green and stop meaning anything.
+ *
+ * The fix deliberately does NOT change what `greedy` buys. LEGACY_LADDER is
+ * that same pair, now expressed as data and priced from the catalogue rather
+ * than from two hardcoded numbers, so every P16 measurement stays comparable
+ * run for run. Rewriting greedy to chase the widest catalogue would have moved
+ * all of P16's numbers at the same moment the new games arrived, leaving no way
+ * to tell a balance regression from a bot that simply started shopping
+ * differently.
+ *
+ * Instead the new catalogue gets its own lines, and they are what the Tier 1
+ * measurements read.
+ */
+const LEGACY_LADDER: readonly string[] = ['blackjack-table', 'slot-machine'];
+
+/** Every game in the catalogue, dearest first — "buy the best you can afford",
+ *  which is what greedy's two-rung ladder always was in miniature. */
+const CATALOGUE_BY_COST: readonly string[] = OBJECT_CATALOG.filter((d) => d.category === 'game')
+  .slice()
+  .sort((a, b) => b.cost - a.cost)
+  .map((d) => d.id);
+
+/** The Tier 1 throughput line: fill dead floor with cheap volume. Bought
+ *  round-robin rather than cheapest-first, because cheapest-first would carpet
+ *  the floor in penny slots and never exercise the other three — and "every
+ *  game is bought by at least one winning line" is an acceptance criterion. */
+const TIER1_SPREAD: readonly string[] = ['penny-slots', 'pachinko', 'video-poker', 'keno-lounge'];
+
+/** Tier 2's working floor, same round-robin shape and for the same reason: a
+ *  cost-ordered ladder would buy one game forever and leave the other three
+ *  unmeasured. `sports-book` is absent because it has no catalogue entry — its
+ *  scheduled-settlement mechanic is deferred, see balance.ts. */
+const TIER2_SPREAD: readonly string[] = ['sic-bo', 'three-card-poker', 'pai-gow', 'bingo-hall'];
+
+function purchaseLadder(strategy: Strategy): readonly string[] {
+  if (strategy === 'catalogue') return CATALOGUE_BY_COST;
+  if (strategy === 'throughput' || strategy === 'minimalTier1') return TIER1_SPREAD;
+  if (strategy === 'workingFloor') return TIER2_SPREAD;
+  return LEGACY_LADDER;
 }
 
 /** Cash held back before expanding. The only axis reckless, managed and levered
@@ -116,7 +178,19 @@ function bufferFor(strategy: Strategy, creditLimit: number): number {
  * greedily on a small buffer. The others vary exactly one thing each, so a
  * difference between two runs points at that one thing.
  */
-export function runCampaign(def: CampaignDef, seed: number, strategy: Strategy): CampaignRun {
+export function runCampaign(
+  def: CampaignDef,
+  seed: number,
+  strategy: Strategy,
+  /** Restrict this run to these games only.
+   *
+   *  The ablation hook for acceptance criterion 4. Asking "is this game bought
+   *  by a winning line" is nearly tautological when the bot's ladder names it
+   *  outright — a game with a 0.1% edge would pass. Handing a run ONE game and
+   *  measuring whether it is still a going concern asks the question criterion
+   *  4 is actually for: is this thing worth buying? */
+  ladderOverride?: readonly string[],
+): CampaignRun {
   eventBus.clear();
   const world = new CasinoWorld({ seed, autoSpawn: true });
   world.startScenario(def);
@@ -167,9 +241,81 @@ export function runCampaign(def: CampaignDef, seed: number, strategy: Strategy):
     return false;
   };
 
+  const gamesBuilt = new Set<string>();
+  const ladder = ladderOverride ?? purchaseLadder(strategy);
+  // `throughput` spreads across its ladder instead of draining the first
+  // affordable rung; every other strategy takes the first rung it can afford,
+  // which is exactly what the old two-branch if/else did.
+  const spreads = strategy === 'throughput' || strategy === 'workingFloor';
+  let ladderCursor = 0;
+  /** Buy the best game this strategy can afford while keeping `reserve` back.
+   *  Returns false when nothing is affordable, allowed, or placeable. */
+  const buyGame = (reserve: number): boolean => {
+    const affordable = (defId: string): boolean => {
+      const objDef = getObjectDef(defId);
+      return (
+        !!objDef && world.isObjectAllowed(defId) && world.state.cash >= objDef.cost + reserve
+      );
+    };
+    const take = (defId: string): boolean => {
+      // Out of floor, not out of money — stop, rather than walking down to a
+      // cheaper rung that has nowhere to go either.
+      if (!tryPlace(defId)) return false;
+      gamesBuilt.add(defId);
+      return true;
+    };
+
+    if (spreads) {
+      // One of each first — CHEAPEST of the unowned that is affordable — and
+      // only then a second copy of anything.
+      //
+      // Two orderings were tried and measured before this one. A plain
+      // round-robin cursor fell back to a cheap rung whenever the next was
+      // briefly unaffordable and reset the cursor behind itself, so
+      // `workingFloor` bought sic bo and three-card poker over and over and
+      // reached pai gow and bingo on zero of fourteen runs. Dearest-first fixed
+      // that and broke the mirror image of it: the opening bankroll went
+      // straight into the $1,450 bingo hall, and the set completed at two games
+      // on The Dusty Dime and three on Neon Nights, with three-card poker never
+      // bought on any of the fourteen.
+      //
+      // Cheapest-first completes the set for the least capital, which is what
+      // "every game is bought by a winning line" actually measures. It does NOT
+      // reintroduce the penny-slot carpet the cost-ordered `catalogue` ladder
+      // has, because this branch only ever considers games it does not already
+      // own — repeats fall through to the round-robin below.
+      //
+      // And while the set is incomplete the line SAVES rather than buying a
+      // second copy of something it already owns. Without that it never
+      // completed at all: cheapest-first bought sic bo and three-card poker,
+      // then spent every subsequent dollar on more of the same two through the
+      // round-robin below, and never once held the $1,150 pai gow needs.
+      const unowned = ladder.filter((id) => !gamesBuilt.has(id));
+      if (unowned.length > 0) {
+        const cheapest = unowned.reduce((best, id) =>
+          getObjectDef(id)!.cost < getObjectDef(best)!.cost ? id : best,
+        );
+        return affordable(cheapest) ? take(cheapest) : false;
+      }
+      for (let i = 0; i < ladder.length; i++) {
+        const idx = (ladderCursor + i) % ladder.length;
+        if (!affordable(ladder[idx]!)) continue;
+        ladderCursor = idx + 1;
+        return take(ladder[idx]!);
+      }
+      return false;
+    }
+
+    for (const defId of ladder) {
+      if (!affordable(defId)) continue;
+      return take(defId);
+    }
+    return false;
+  };
+
   const buffer = bufferFor(strategy, def.creditLimit);
   const hires = strategy !== 'noStaff';
-  const expands = strategy !== 'minimal' && strategy !== 'oneGame';
+  const expands = strategy !== 'minimal' && strategy !== 'oneGame' && strategy !== 'minimalTier1';
   // P16 — the only bot that makes a decision costing no capital. Identical to
   // greedy in every buying choice, so any difference between the two is the
   // dial and nothing else.
@@ -183,6 +329,9 @@ export function runCampaign(def: CampaignDef, seed: number, strategy: Strategy):
   // has to mean the stall too, not just a second game. A toilet is a pure
   // service and stays.
   const buysStall = strategy !== 'oneGame';
+  // `minimalTier1` is the same build-once line pointed at the Tier 1 ladder —
+  // the control that proves P16's criterion 6 ("build-and-abandon never wins")
+  // survives the new catalogue rather than merely having survived it by luck.
   // `minimal` is the build-once-then-never-touch-it line the spec measured. It
   // stops acting the moment its opening set is on the floor — not after a fixed
   // number of ticks, which would make it a slower greedy rather than a
@@ -194,13 +343,8 @@ export function runCampaign(def: CampaignDef, seed: number, strategy: Strategy):
     const objs = world.state.allObjects();
     const has = (id: string) => objs.some((o) => o.defId === id);
     // A revenue engine comes first; comfort and staff follow from its takings.
-    if (world.machines.size === 0) {
-      if (world.isObjectAllowed('blackjack-table') && world.state.cash >= 1200) {
-        tryPlace('blackjack-table');
-      } else if (world.isObjectAllowed('slot-machine') && world.state.cash >= 500) {
-        tryPlace('slot-machine');
-      }
-    }
+    // No buffer on the opening buy — there is nothing yet to hold a reserve for.
+    if (world.machines.size === 0) buyGame(0);
     if (world.isObjectAllowed('toilet') && !has('toilet') && world.state.cash >= 500) {
       tryPlace('toilet');
     }
@@ -225,12 +369,8 @@ export function runCampaign(def: CampaignDef, seed: number, strategy: Strategy):
       world.hireStaff('janitor');
     }
     if (expands) {
-      for (;;) {
-        if (world.isObjectAllowed('blackjack-table') && world.state.cash >= 1200 + buffer) {
-          if (!tryPlace('blackjack-table')) break;
-        } else if (world.isObjectAllowed('slot-machine') && world.state.cash >= 500 + buffer) {
-          if (!tryPlace('slot-machine')) break;
-        } else break;
+      while (buyGame(buffer)) {
+        /* keep buying until cash, the ladder or the floor runs out */
       }
     }
     if (tunesTables) {
@@ -250,7 +390,7 @@ export function runCampaign(def: CampaignDef, seed: number, strategy: Strategy):
         );
       }
     }
-    if (strategy === 'minimal') {
+    if (strategy === 'minimal' || strategy === 'minimalTier1') {
       const now = world.state.allObjects();
       const staffKinds = [...world.staff.values()].map((s) => s.kind);
       done =
@@ -280,6 +420,7 @@ export function runCampaign(def: CampaignDef, seed: number, strategy: Strategy):
     interestPaid: world.ledger.history.reduce((a, r) => a + r.interestPaid, 0),
     forcedSales,
     closes,
+    gamesBuilt: [...gamesBuilt],
     revenueObjectsAtEnd: world.state.allObjects().filter((o) => {
       const d = getObjectDef(o.defId);
       return d?.category === 'game' || d?.isRevenueSource === true;

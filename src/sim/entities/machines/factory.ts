@@ -3,13 +3,21 @@
 // to one path and forgotten in the other — the failure mode that would
 // otherwise deserialize an unknown defId as a SlotMachine.
 import { BigSixWheel } from './BigSixWheel';
+import { BingoHall } from './BingoHall';
 import { BlackjackTable } from './BlackjackTable';
 import type { CasinoGame } from './CasinoGame';
 import { CrapsTable } from './CrapsTable';
 import { HighLimitTable } from './HighLimitTable';
+import { KenoLounge } from './KenoLounge';
+import { PachinkoMachine } from './PachinkoMachine';
+import { PaiGowTable } from './PaiGowTable';
+import { PennySlots } from './PennySlots';
 import { PokerTable } from './PokerTable';
 import { RouletteTable } from './RouletteTable';
+import { SicBoTable } from './SicBoTable';
 import { SlotMachine } from './SlotMachine';
+import { ThreeCardPokerTable } from './ThreeCardPokerTable';
+import { VideoPokerBank } from './VideoPokerBank';
 
 type MachineCtor = (id: string, costToPlay?: number) => CasinoGame;
 
@@ -21,6 +29,16 @@ const MACHINE_CTORS: Record<string, MachineCtor> = {
   'big-six-wheel': (id, cost) => new BigSixWheel(id, cost),
   'poker-table': (id, cost) => new PokerTable(id, cost),
   'high-limit-table': (id, cost) => new HighLimitTable(id, cost),
+  // P17 Part B Tier 1 — throughput.
+  'penny-slots': (id, cost) => new PennySlots(id, cost),
+  pachinko: (id, cost) => new PachinkoMachine(id, cost),
+  'keno-lounge': (id, cost) => new KenoLounge(id, cost),
+  'video-poker': (id, cost) => new VideoPokerBank(id, cost),
+  // P17 Part B Tier 2 — the working floor.
+  'sic-bo': (id, cost) => new SicBoTable(id, cost),
+  'three-card-poker': (id, cost) => new ThreeCardPokerTable(id, cost),
+  'pai-gow': (id, cost) => new PaiGowTable(id, cost),
+  'bingo-hall': (id, cost) => new BingoHall(id, cost),
 };
 
 /** True only for defIds this factory can actually build (not inherited keys). */

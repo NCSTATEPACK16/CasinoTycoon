@@ -1,0 +1,39 @@
+{
+  "sprite": "pachinko.png",
+  "width": 156,
+  "height": 278,
+  "boxes": [
+    {
+      "kind": "light",
+      "name": "band-0",
+      "x": 11,
+      "y": 150,
+      "w": 63,
+      "h": 60
+    },
+    {
+      "kind": "light",
+      "name": "band-1",
+      "x": 11,
+      "y": 116,
+      "w": 63,
+      "h": 60
+    },
+    {
+      "kind": "light",
+      "name": "band-2",
+      "x": 11,
+      "y": 83,
+      "w": 63,
+      "h": 60
+    },
+    {
+      "kind": "light",
+      "name": "score",
+      "x": 24,
+      "y": 51,
+      "w": 37,
+      "h": 40
+    }
+  ]
+}

@@ -15,7 +15,8 @@
     "build-icons": "node scripts/build-icons.mjs",
     "capture": "node scripts/capture-evidence.mjs",
     "capture:screens": "node scripts/capture-evidence.mjs --screens",
-    "capture:runlog": "node scripts/capture-evidence.mjs --runlog"
+    "capture:runlog": "node scripts/capture-evidence.mjs --runlog",
+    "render-sprites": "node scripts/render-sprites.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",

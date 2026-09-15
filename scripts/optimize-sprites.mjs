@@ -11,7 +11,7 @@
 //      tens of KB with no visible loss.
 // Idempotent: real alpha is left untouched, and images already at or below
 // target size are left untouched, so rerunning after an asset lands is safe.
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PNG } from 'pngjs';
@@ -19,6 +19,7 @@ import { recoverAlpha, cropToContent, downscale, encode } from './lib/sprite-alp
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
+const ASSETS = path.join(ROOT, 'assets');
 
 // { file relative to public/, target: [maxW, maxH] | null }
 // Target is ~2x the ObjectDef.displaySize (src/data/objects.ts) for catalog
@@ -123,7 +124,64 @@ const TARGETS = [
     sourceSize: [1456, 720],
     preCrop: { x: 0, y: 0, w: 526, h: 720 },
   },
+  // P17 catalogue (assets/ASSET-BRIEF-2026-08-22-p17-catalogue.md): 14 new
+  // objects. Targets are exactly 2x each object's final displaySize from the
+  // brief's delivery table, matching the convention every entry above follows.
+  // optimizeOne() below skips any entry whose source isn't there yet, so this
+  // list is safe to ship ahead of the art and fills in as files land.
+  //
+  // Tier 1 is produced by `npm run render-sprites` (the Blender iso rig in
+  // scripts/render/) rather than hand-prompted, so it arrives with real alpha
+  // already correct and at target size — hence sourceHasAlpha, and hence no
+  // bgTolerance/preErase/preCrop, none of which can apply to a render. The
+  // remaining ten still expect a hand-delivered flat-magenta PNG per the
+  // brief's rule 3 until a rig builder exists for them.
+  { file: 'sprites/penny-slots.png', target: [144, 240], sourceHasAlpha: true },
+  { file: 'sprites/pachinko.png', target: [156, 280], sourceHasAlpha: true },
+  { file: 'sprites/keno-lounge.png', target: [440, 400], sourceHasAlpha: true },
+  { file: 'sprites/video-poker.png', target: [340, 360], sourceHasAlpha: true },
+  { file: 'sprites/sic-bo.png', target: [440, 316] },
+  { file: 'sprites/three-card-poker.png', target: [440, 300] },
+  { file: 'sprites/pai-gow.png', target: [440, 300] },
+  { file: 'sprites/bingo-hall.png', target: [770, 520] },
+  { file: 'sprites/sports-book.png', target: [550, 500] },
+  { file: 'sprites/baccarat-pit.png', target: [440, 340] },
+  { file: 'sprites/french-roulette.png', target: [440, 300] },
+  { file: 'sprites/poker-room.png', target: [660, 460] },
+  { file: 'sprites/salon-prive.png', target: [660, 500] },
+  { file: 'sprites/sky-lounge.png', target: [660, 580] },
 ];
+
+/**
+ * Every past batch was hand-copied from assets/<file> into public/<file>
+ * before this script ran. Generalized so `npm run optimize-sprites` can be
+ * rerun at any point during a 16-file manual delivery batch — already-copied
+ * files are untouched (readFile succeeds immediately), a freshly dropped
+ * assets/ file gets copied in once, and a TARGETS entry with no source
+ * anywhere yet returns null so its object is skipped instead of crashing the
+ * whole run (see optimizeOne's caller).
+ */
+async function ensureSourceCopied(file) {
+  const abs = path.join(ROOT, 'public', file);
+  try {
+    await readFile(abs);
+    return abs;
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+  }
+  const fromAssets = path.join(ASSETS, path.basename(file));
+  let raw;
+  try {
+    raw = await readFile(fromAssets);
+  } catch (err) {
+    if (err.code === 'ENOENT') return null;
+    throw err;
+  }
+  await mkdir(path.dirname(abs), { recursive: true });
+  await writeFile(abs, raw);
+  console.log(`${file}: copied from assets/${path.basename(file)} (first run for this file)`);
+  return abs;
+}
 
 /** Paint a rect with the image's top-left background color (pre-alpha-recovery). */
 function eraseRect(png, { x, y, w, h }) {
@@ -160,8 +218,21 @@ function cropRect(png, { x, y, w, h }) {
 // source dimensions, which makes them idempotent: after the first run the image
 // has been cropped and downscaled, so the source-space coordinates no longer
 // apply and must not be re-applied to a different region.
-async function optimizeOne({ file, target, walkGradient, bgTolerance, sourceSize, preErase, preCrop }) {
-  const abs = path.join(ROOT, 'public', file);
+async function optimizeOne({
+  file,
+  target,
+  walkGradient,
+  bgTolerance,
+  sourceSize,
+  preErase,
+  preCrop,
+  sourceHasAlpha,
+}) {
+  const abs = await ensureSourceCopied(file);
+  if (!abs) {
+    console.log(`${file}: not delivered yet (missing from assets/ and public/) — skipped`);
+    return;
+  }
   const before = await readFile(abs);
   let png = PNG.sync.read(before);
 
@@ -170,7 +241,12 @@ async function optimizeOne({ file, target, walkGradient, bgTolerance, sourceSize
   if (isPristine && preErase) png = eraseRect(png, preErase);
   if (isPristine && preCrop) png = cropRect(png, preCrop);
 
-  const recovered = recoverAlpha(png, { walkGradient, bgTolerance });
+  // recoverAlpha flood-fills inward from the border against a sampled background
+  // colour. That is the right tool for an opaque export with a background baked
+  // into the pixels, and the wrong tool for a render: the alpha is already
+  // correct, and running the fill over it can only eat shaded surfaces that
+  // happen to match the sampled edge colour.
+  const recovered = sourceHasAlpha ? false : recoverAlpha(png, { walkGradient, bgTolerance });
   if (recovered) png = cropToContent(png);
 
   const [maxW, maxH] = target;

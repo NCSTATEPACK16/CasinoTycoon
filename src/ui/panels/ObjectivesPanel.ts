@@ -90,20 +90,36 @@ export function makeObjectivesPanel(): PanelSpec {
 
     name.textContent = sm.def.name;
     tagline.textContent = sm.def.tagline;
-    goal.set(`${formatCash(sm.def.goalDailyProfit)} daily profit`);
-    // P16: a win is sustained and measured as an average, so the running mean
-    // is the number the player is actually playing towards. Days counted is
-    // shown alongside it, because an average over one day is not yet a claim
-    // about anything — the window has to fill before it can win.
-    streak.el.firstElementChild!.textContent = `${sm.def.goalWindowDays}-day average`;
-    const avg = sm.windowAverage;
-    streak.set(
-      avg === null
-        ? '—'
-        : `${formatCash(Math.round(avg))} (${sm.recentProfits.length}/${sm.def.goalWindowDays} days)`,
-    );
+    // A1: continuation drops the goal entirely — no day limit, no goal
+    // evaluation — so the rows built to show progress towards a goal show
+    // lifetime figures instead. `best` (below, unconditional) already *is*
+    // the lifetime figure: ScenarioManager keeps updating it while endless.
+    if (sm.status === 'endless') {
+      goal.set('No goal — playing on');
+      streak.el.firstElementChild!.textContent = 'Status';
+      streak.set('Unrestricted play');
+      day.set(`${world.time.day}`);
+      fill.style.width = '100%';
+    } else {
+      goal.set(`${formatCash(sm.def.goalDailyProfit)} daily profit`);
+      // P16: a win is sustained and measured as an average, so the running mean
+      // is the number the player is actually playing towards. Days counted is
+      // shown alongside it, because an average over one day is not yet a claim
+      // about anything — the window has to fill before it can win.
+      streak.el.firstElementChild!.textContent = `${sm.def.goalWindowDays}-day average`;
+      const avg = sm.windowAverage;
+      streak.set(
+        avg === null
+          ? '—'
+          : `${formatCash(Math.round(avg))} (${sm.recentProfits.length}/${sm.def.goalWindowDays} days)`,
+      );
+      day.set(`${Math.min(world.time.day, sm.def.dayLimit)} of ${sm.def.dayLimit}`);
+      // Tracks the average rather than the best day: the bar should show progress
+      // towards the thing that actually wins the run.
+      const frac = avg === null ? 0 : avg / sm.def.goalDailyProfit;
+      fill.style.width = `${Math.round(Math.min(1, Math.max(0, frac)) * 100)}%`;
+    }
     best.set(sm.bestDailyProfit === null ? '—' : formatCash(sm.bestDailyProfit));
-    day.set(`${Math.min(world.time.day, sm.def.dayLimit)} of ${sm.def.dayLimit}`);
     take.set(formatCash(world.ledger.todayRevenue - world.ledger.todayExpenses));
     // Headroom, not the limit itself: what the player needs to know is how far
     // they can still fall before the bank sells something.
@@ -120,24 +136,23 @@ export function makeObjectivesPanel(): PanelSpec {
     credit.val.classList.toggle('down', world.state.cash < 0);
     rating.set(`${world.rating}/100`);
 
-    // Tracks the average rather than the best day: the bar should show progress
-    // towards the thing that actually wins the run.
-    const frac = avg === null ? 0 : avg / sm.def.goalDailyProfit;
-    fill.style.width = `${Math.round(Math.min(1, Math.max(0, frac)) * 100)}%`;
-
     status.hidden = sm.status === 'active';
     if (sm.status === 'active') return;
     status.textContent = '';
-    status.appendChild(
-      sm.status === 'won'
-        ? iconLabel('celebrate', 'Scenario complete!')
-        : iconLabel(
-            'fail',
-            failReason === 'insolvent'
-              ? 'Scenario failed — insolvent'
-              : 'Scenario failed — out of time',
-          ),
-    );
+    if (sm.status === 'endless') {
+      status.appendChild(iconLabel('celebrate', 'Playing on — no limits'));
+    } else {
+      status.appendChild(
+        sm.status === 'won'
+          ? iconLabel('celebrate', 'Scenario complete!')
+          : iconLabel(
+              'fail',
+              failReason === 'insolvent'
+                ? 'Scenario failed — insolvent'
+                : 'Scenario failed — out of time',
+            ),
+      );
+    }
   };
 
   render();

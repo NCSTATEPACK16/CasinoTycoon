@@ -3,12 +3,20 @@ import { eventBus } from '../../../EventBus';
 import { SLOT_BALANCE } from '../../../data/balance';
 import { OBJECT_CATALOG } from '../../../data/objects';
 import { BigSixWheel } from './BigSixWheel';
+import { BingoHall } from './BingoHall';
 import { BlackjackTable } from './BlackjackTable';
 import { CrapsTable } from './CrapsTable';
 import { HighLimitTable } from './HighLimitTable';
+import { KenoLounge } from './KenoLounge';
+import { PachinkoMachine } from './PachinkoMachine';
+import { PaiGowTable } from './PaiGowTable';
+import { PennySlots } from './PennySlots';
 import { PokerTable } from './PokerTable';
 import { RouletteTable } from './RouletteTable';
+import { SicBoTable } from './SicBoTable';
 import { SlotMachine } from './SlotMachine';
+import { ThreeCardPokerTable } from './ThreeCardPokerTable';
+import { VideoPokerBank } from './VideoPokerBank';
 import { CasinoWorld } from '../../world';
 import { createMachine, createMachineOrThrow, isMachineDefId } from './factory';
 
@@ -24,6 +32,16 @@ const GAME_CLASSES: Record<string, unknown> = {
   'big-six-wheel': BigSixWheel,
   'poker-table': PokerTable,
   'high-limit-table': HighLimitTable,
+  // P17 Part B Tier 1 — throughput.
+  'penny-slots': PennySlots,
+  pachinko: PachinkoMachine,
+  'keno-lounge': KenoLounge,
+  'video-poker': VideoPokerBank,
+  // P17 Part B Tier 2 — the working floor.
+  'sic-bo': SicBoTable,
+  'three-card-poker': ThreeCardPokerTable,
+  'pai-gow': PaiGowTable,
+  'bingo-hall': BingoHall,
 };
 
 describe('createMachine', () => {

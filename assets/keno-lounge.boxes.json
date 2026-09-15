@@ -1,0 +1,47 @@
+{
+  "sprite": "keno-lounge.png",
+  "width": 433,
+  "height": 400,
+  "boxes": [
+    {
+      "kind": "light",
+      "name": "row-0",
+      "x": 105,
+      "y": 99,
+      "w": 292,
+      "h": 161
+    },
+    {
+      "kind": "light",
+      "name": "row-1",
+      "x": 105,
+      "y": 71,
+      "w": 292,
+      "h": 161
+    },
+    {
+      "kind": "light",
+      "name": "row-2",
+      "x": 105,
+      "y": 44,
+      "w": 292,
+      "h": 161
+    },
+    {
+      "kind": "light",
+      "name": "row-3",
+      "x": 105,
+      "y": 16,
+      "w": 292,
+      "h": 161
+    },
+    {
+      "kind": "spin",
+      "name": "dome",
+      "x": 251,
+      "y": 205,
+      "w": 70,
+      "h": 117
+    }
+  ]
+}

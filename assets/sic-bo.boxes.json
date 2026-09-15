@@ -1,0 +1,39 @@
+{
+  "sprite": "sic-bo.png",
+  "width": 440,
+  "height": 292,
+  "boxes": [
+    {
+      "kind": "light",
+      "name": "layout-0",
+      "x": 93,
+      "y": 84,
+      "w": 176,
+      "h": 89
+    },
+    {
+      "kind": "light",
+      "name": "layout-1",
+      "x": 132,
+      "y": 65,
+      "w": 176,
+      "h": 89
+    },
+    {
+      "kind": "light",
+      "name": "layout-2",
+      "x": 170,
+      "y": 45,
+      "w": 176,
+      "h": 89
+    },
+    {
+      "kind": "spin",
+      "name": "dome",
+      "x": 273,
+      "y": 11,
+      "w": 39,
+      "h": 66
+    }
+  ]
+}

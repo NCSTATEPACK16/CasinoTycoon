@@ -1,0 +1,63 @@
+{
+  "sprite": "video-poker.png",
+  "width": 340,
+  "height": 349,
+  "boxes": [
+    {
+      "kind": "light",
+      "name": "header",
+      "x": 11,
+      "y": 57,
+      "w": 216,
+      "h": 129
+    },
+    {
+      "kind": "light",
+      "name": "screen-0",
+      "x": 17,
+      "y": 111,
+      "w": 53,
+      "h": 63
+    },
+    {
+      "kind": "light",
+      "name": "buttons-0",
+      "x": 17,
+      "y": 159,
+      "w": 51,
+      "h": 36
+    },
+    {
+      "kind": "light",
+      "name": "screen-1",
+      "x": 93,
+      "y": 149,
+      "w": 53,
+      "h": 63
+    },
+    {
+      "kind": "light",
+      "name": "buttons-1",
+      "x": 93,
+      "y": 197,
+      "w": 51,
+      "h": 36
+    },
+    {
+      "kind": "light",
+      "name": "screen-2",
+      "x": 168,
+      "y": 187,
+      "w": 53,
+      "h": 63
+    },
+    {
+      "kind": "light",
+      "name": "buttons-2",
+      "x": 168,
+      "y": 234,
+      "w": 51,
+      "h": 36
+    }
+  ]
+}

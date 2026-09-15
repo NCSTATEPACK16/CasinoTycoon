@@ -1,0 +1,71 @@
+{
+  "sprite": "penny-slots.png",
+  "width": 141,
+  "height": 240,
+  "boxes": [
+    {
+      "kind": "light",
+      "name": "marquee",
+      "x": 7,
+      "y": 34,
+      "w": 61,
+      "h": 54
+    },
+    {
+      "kind": "light",
+      "name": "reel",
+      "x": 12,
+      "y": 84,
+      "w": 51,
+      "h": 67
+    },
+    {
+      "kind": "light",
+      "name": "bulbs-l0",
+      "x": 7,
+      "y": 114,
+      "w": 8,
+      "h": 27
+    },
+    {
+      "kind": "light",
+      "name": "bulbs-l1",
+      "x": 7,
+      "y": 87,
+      "w": 8,
+      "h": 27
+    },
+    {
+      "kind": "light",
+      "name": "bulbs-l2",
+      "x": 7,
+      "y": 61,
+      "w": 8,
+      "h": 27
+    },
+    {
+      "kind": "light",
+      "name": "bulbs-r0",
+      "x": 59,
+      "y": 140,
+      "w": 8,
+      "h": 27
+    },
+    {
+      "kind": "light",
+      "name": "bulbs-r1",
+      "x": 59,
+      "y": 113,
+      "w": 8,
+      "h": 27
+    },
+    {
+      "kind": "light",
+      "name": "bulbs-r2",
+      "x": 59,
+      "y": 87,
+      "w": 8,
+      "h": 27
+    }
+  ]
+}

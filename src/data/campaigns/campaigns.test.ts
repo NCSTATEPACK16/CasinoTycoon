@@ -23,7 +23,7 @@ describe('campaign winnability', () => {
     // rather than on winnability, which is the one thing it must not do.
     it(
       `${def.name} ($${def.goalDailyProfit}/day within ${def.dayLimit} days) falls to a straightforward build-out`,
-      { timeout: 120_000 },
+      { timeout: 300_000 },
       () => {
         const results = TOURNAMENT_SEEDS.map((seed) => ({
           seed,

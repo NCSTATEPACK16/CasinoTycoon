@@ -24,6 +24,18 @@ export const FILE_ASSETS: readonly FileAsset[] = [
   { key: 'img-poker-table', url: 'sprites/poker-table.png' },
   { key: 'img-big-six-wheel', url: 'sprites/big-six-wheel.png' },
   { key: 'img-high-limit-table', url: 'sprites/high-limit-table.png' },
+  // P17 Tier 1, produced by `npm run render-sprites` (the Blender iso rig in
+  // scripts/render/) rather than hand-prompted.
+  { key: 'img-penny-slots', url: 'sprites/penny-slots.png' },
+  { key: 'img-pachinko', url: 'sprites/pachinko.png' },
+  { key: 'img-keno-lounge', url: 'sprites/keno-lounge.png' },
+  { key: 'img-video-poker', url: 'sprites/video-poker.png' },
+  // Tier 2. sports-book.png is rendered and committed but has no catalogue entry
+  // yet — its scheduled-settlement mechanic is deferred, see balance.ts.
+  { key: 'img-sic-bo', url: 'sprites/sic-bo.png' },
+  { key: 'img-three-card-poker', url: 'sprites/three-card-poker.png' },
+  { key: 'img-pai-gow', url: 'sprites/pai-gow.png' },
+  { key: 'img-bingo-hall', url: 'sprites/bingo-hall.png' },
   // Self-generated (Kenney has no casino/chip pack — see assets/ASSETS.md).
   // Not consumed by any render code yet; P11 swaps fx-coin for these.
   { key: 'img-chip-white', url: 'sprites/chips/chip_white.png' },
