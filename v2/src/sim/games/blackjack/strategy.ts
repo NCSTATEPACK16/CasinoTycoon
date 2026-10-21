@@ -195,7 +195,13 @@ export function basicStrategyFor(rules: Pick<BlackjackRules, 'h17' | 'das'>): Ba
 }
 
 const UP_LABELS = ['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', 'T'];
-const CODE: Record<BjAction, string> = { hit: 'H', stand: 'S', double: 'D', split: 'P', surrender: 'R' };
+const CODE: Record<BjAction, string> = {
+  hit: 'H',
+  stand: 'S',
+  double: 'D',
+  split: 'P',
+  surrender: 'R',
+};
 
 /**
  * The printable chart — rows of hard 5–17, soft 13–20 and pairs against 2–A —
@@ -216,10 +222,11 @@ export function strategyChart(rules: BlackjackRules): {
   });
   const rows = [];
   for (let t = 5; t <= 17; t++) rows.push(row(`${t}`, { sum: t, ace: false, pair: null }, opening));
-  for (let o = 2; o <= 9; o++) rows.push(row(`A,${o}`, { sum: 1 + o, ace: true, pair: null }, opening));
+  for (let o = 2; o <= 9; o++)
+    rows.push(row(`A,${o}`, { sum: 1 + o, ace: true, pair: null }, opening));
   for (let v = 2; v <= 11; v++) {
     const card = v === 11 ? 1 : v;
-    const label = v === 11 ? 'A,A' : `${v},${v}`;
+    const label = v === 11 ? 'A,A' : v === 10 ? 'T,T' : `${v},${v}`;
     rows.push(row(label, { sum: card * 2, ace: card === 1, pair: card }, [...opening, 'split']));
   }
   return { ups: ups.map((u) => UP_LABELS[u]!), rows };

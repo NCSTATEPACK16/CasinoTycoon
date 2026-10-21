@@ -33,7 +33,8 @@ export const POINTS = [4, 5, 6, 8, 9, 10] as const;
 
 /** Maximum odds multiple behind a point. */
 export function maxOddsMultiple(odds: OddsOption, point: number): number {
-  if (odds === '3-4-5x') return point === 4 || point === 10 ? 3 : point === 5 || point === 9 ? 4 : 5;
+  if (odds === '3-4-5x')
+    return point === 4 || point === 10 ? 3 : point === 5 || point === 9 ? 4 : 5;
   return Number(odds.slice(0, -1));
 }
 
@@ -44,7 +45,14 @@ function trueOdds(point: number, right: boolean): number {
 }
 
 /** Place-bet winnings per unit: 9:5 on 4/10, 7:5 on 5/9, 7:6 on 6/8. */
-const PLACE_PAYS: Record<number, number> = { 4: 9 / 5, 10: 9 / 5, 5: 7 / 5, 9: 7 / 5, 6: 7 / 6, 8: 7 / 6 };
+const PLACE_PAYS: Record<number, number> = {
+  4: 9 / 5,
+  10: 9 / 5,
+  5: 7 / 5,
+  9: 7 / 5,
+  6: 7 / 6,
+  8: 7 / 6,
+};
 
 // ---------- exact edges ----------
 
@@ -157,7 +165,8 @@ function isLegalSpot(spot: string): boolean {
   if (OPENING_SPOTS.has(spot)) return true;
   const [kind, arg] = spot.split(':');
   return (
-    (kind === 'odds' || kind === 'layOdds') && POINTS.includes(Number(arg) as (typeof POINTS)[number])
+    (kind === 'odds' || kind === 'layOdds') &&
+    POINTS.includes(Number(arg) as (typeof POINTS)[number])
   );
 }
 
@@ -166,7 +175,14 @@ function isLegalSpot(spot: string): boolean {
 type BetState =
   | { kind: 'line'; right: boolean; amount: number; point: number | null; odds: number }
   // A come bet waits for the next roll after a point is up before it is in action.
-  | { kind: 'come'; right: boolean; amount: number; point: number | null; odds: number; live: boolean }
+  | {
+      kind: 'come';
+      right: boolean;
+      amount: number;
+      point: number | null;
+      odds: number;
+      live: boolean;
+    }
   | { kind: 'place'; number: number; amount: number }
   | { kind: 'hard'; number: number; amount: number }
   | { kind: 'oneRoll'; spot: string; amount: number };
@@ -210,7 +226,14 @@ class CrapsRound implements Round {
       if (kind === 'pass' || kind === 'dontPass') {
         state = { kind: 'line', right: kind === 'pass', amount: b.amount, point: null, odds: 0 };
       } else if (kind === 'come' || kind === 'dontCome') {
-        state = { kind: 'come', right: kind === 'come', amount: b.amount, point: null, odds: 0, live: false };
+        state = {
+          kind: 'come',
+          right: kind === 'come',
+          amount: b.amount,
+          point: null,
+          odds: 0,
+          live: false,
+        };
       } else if (kind === 'place') state = { kind: 'place', number: n, amount: b.amount };
       else if (kind === 'hard') state = { kind: 'hard', number: n, amount: b.amount };
       else state = { kind: 'oneRoll', spot: b.spot, amount: b.amount };
@@ -284,7 +307,8 @@ class CrapsRound implements Round {
         case 'place':
           // Off on the come-out by house convention: only a point roll can decide it.
           if (comeOut) break;
-          if (total === s.number) this.pay(t, s.amount * (1 + PLACE_PAYS[s.number]!), `place ${s.number} wins`);
+          if (total === s.number)
+            this.pay(t, s.amount * (1 + PLACE_PAYS[s.number]!), `place ${s.number} wins`);
           else if (total === 7) this.pay(t, 0, `place ${s.number} loses`);
           break;
         case 'hard':
@@ -296,7 +320,11 @@ class CrapsRound implements Round {
           break;
         case 'oneRoll': {
           const pays = ONE_ROLL[s.spot]!.pays(this.rules, total);
-          this.pay(t, pays === null ? 0 : s.amount * (1 + pays), `${s.spot} ${pays === null ? 'loses' : 'wins'}`);
+          this.pay(
+            t,
+            pays === null ? 0 : s.amount * (1 + pays),
+            `${s.spot} ${pays === null ? 'loses' : 'wins'}`,
+          );
           break;
         }
       }
@@ -466,8 +494,19 @@ export const crapsEngine: CasinoEngine<CrapsRules> = {
     // prop or place bet beside their line bet — which is where craps earns.
     if (r < 0.55) return [{ spot: 'pass', amount: stake }];
     if (r < 0.65) return [{ spot: 'dontPass', amount: stake }];
-    if (r < 0.8) return [{ spot: 'pass', amount: stake }, { spot: 'place:6', amount: stake }];
-    if (r < 0.9) return [{ spot: 'pass', amount: stake }, { spot: 'field', amount: stake }];
-    return [{ spot: 'pass', amount: stake }, { spot: 'hard:8', amount: clampBet(rules, stake / 3) }];
+    if (r < 0.8)
+      return [
+        { spot: 'pass', amount: stake },
+        { spot: 'place:6', amount: stake },
+      ];
+    if (r < 0.9)
+      return [
+        { spot: 'pass', amount: stake },
+        { spot: 'field', amount: stake },
+      ];
+    return [
+      { spot: 'pass', amount: stake },
+      { spot: 'hard:8', amount: clampBet(rules, stake / 3) },
+    ];
   },
 };

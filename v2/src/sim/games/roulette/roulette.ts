@@ -56,7 +56,8 @@ const OUTSIDE: Record<string, (n: number) => boolean> = {
   high: (n) => n >= 19 && n <= 36,
 };
 
-const range = (a: number, b: number): number[] => Array.from({ length: b - a + 1 }, (_, i) => a + i);
+const range = (a: number, b: number): number[] =>
+  Array.from({ length: b - a + 1 }, (_, i) => a + i);
 
 /**
  * Parse a spot id into what it covers and pays, or null if the wheel has no
@@ -177,7 +178,8 @@ class RouletteRound implements Round {
       wagered += b.amount;
       returned += returnFor(def, b.amount, pocket, this.rules);
     }
-    const colour = pocket === 0 || pocket === DOUBLE_ZERO ? 'green' : isRed(pocket) ? 'red' : 'black';
+    const colour =
+      pocket === 0 || pocket === DOUBLE_ZERO ? 'green' : isRed(pocket) ? 'red' : 'black';
     this.settled = {
       wagered,
       returned,

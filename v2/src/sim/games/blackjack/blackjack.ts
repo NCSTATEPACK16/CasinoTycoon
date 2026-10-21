@@ -4,7 +4,12 @@
 import type { Bet, Round, RoundResult, RngLike } from '../../../shared/games';
 import { cardLabel, rankOf, shuffle } from '../cards';
 import { clampBet, type CasinoEngine } from '../types';
-import { blackjackEdge, DEFAULT_BLACKJACK_RULES, validateBlackjackRules, type BlackjackRules } from './rules';
+import {
+  blackjackEdge,
+  DEFAULT_BLACKJACK_RULES,
+  validateBlackjackRules,
+  type BlackjackRules,
+} from './rules';
 import { basicStrategyFor, type BjAction, type HandFacts } from './strategy';
 
 export type { BlackjackRules } from './rules';
@@ -90,7 +95,8 @@ export function handTotal(cards: readonly number[]): number {
   return ace && sum + 10 <= 21 ? sum + 10 : sum;
 }
 
-const isBlackjack = (cards: readonly number[]): boolean => cards.length === 2 && handTotal(cards) === 21;
+const isBlackjack = (cards: readonly number[]): boolean =>
+  cards.length === 2 && handTotal(cards) === 21;
 
 export interface BlackjackView {
   dealerUp: number;
@@ -153,10 +159,15 @@ class BlackjackRound implements Round {
     if (h.splitAces) return this.hands.length < r.maxSplitHands ? ['stand', 'split'] : ['stand'];
     const opts: BjAction[] = ['stand', 'hit'];
     if (two && (!h.split || r.das)) opts.push('double');
-    if (two && bjValue(h.cards[0]!) === bjValue(h.cards[1]!) && this.hands.length < r.maxSplitHands) {
+    if (
+      two &&
+      bjValue(h.cards[0]!) === bjValue(h.cards[1]!) &&
+      this.hands.length < r.maxSplitHands
+    ) {
       opts.push('split');
     }
-    if (two && !h.split && this.hands.length === 1 && r.surrender === 'late') opts.push('surrender');
+    if (two && !h.split && this.hands.length === 1 && r.surrender === 'late')
+      opts.push('surrender');
     return opts;
   }
 
@@ -246,7 +257,13 @@ class BlackjackRound implements Round {
       else ret = 0;
       returned += ret;
       notes.push(
-        h.surrendered ? 'surrender' : natural ? 'blackjack' : total > 21 ? `bust ${total}` : `${total}`,
+        h.surrendered
+          ? 'surrender'
+          : natural
+            ? 'blackjack'
+            : total > 21
+              ? `bust ${total}`
+              : `${total}`,
       );
     }
     this.settled = {
@@ -266,7 +283,9 @@ class BlackjackRound implements Round {
     if (h && !this.settled) {
       const f = facts(h.cards);
       const pair =
-        h.cards.length === 2 && bjValue(h.cards[0]!) === bjValue(h.cards[1]!) ? bjValue(h.cards[0]!) : null;
+        h.cards.length === 2 && bjValue(h.cards[0]!) === bjValue(h.cards[1]!)
+          ? bjValue(h.cards[0]!)
+          : null;
       handFacts = { ...f, pair };
     }
     return {
@@ -330,7 +349,9 @@ export const blackjackEngine: BlackjackEngine = {
       view.facts,
       bjValue(view.dealerUp),
       // Conservative plays first so EV ties resolve to them.
-      (['stand', 'hit', 'double', 'split', 'surrender'] as const).filter((a) => options.includes(a)),
+      (['stand', 'hit', 'double', 'split', 'surrender'] as const).filter((a) =>
+        options.includes(a),
+      ),
     );
   },
 
