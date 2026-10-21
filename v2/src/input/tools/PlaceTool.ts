@@ -39,8 +39,8 @@ export class PlaceTool implements Tool {
   private squash = 0;
   private shown = false;
   private lastClient = { x: 0, y: 0 };
-  /** Rects already placed (or in flight) during the current shift-drag. */
-  private row: { col: number; row: number; w: number; h: number }[] | null = null;
+  /** The current shift-drag: where it started and which origins it has laid. */
+  private row: { start: Cell; placed: Set<string> } | null = null;
 
   constructor(
     private ctx: ToolContext,
@@ -80,8 +80,8 @@ export class PlaceTool implements Tool {
     const { w, h } = this.size;
     const origin = footprintOrigin(hit.point.x, hit.point.z, w, h);
     if (this.cell?.col !== origin.col || this.cell?.row !== origin.row) this.moveTo(origin);
-    // placeInRow skips anything overlapping this drag's row, so calling it on every move is safe.
-    if (this.row) void this.placeInRow(origin);
+    // layRow skips footprints already laid this drag, so calling it on every move is safe.
+    if (this.row) this.layRow(origin);
     this.renderTag();
   }
 
@@ -89,13 +89,13 @@ export class PlaceTool implements Tool {
     this.pointerMove(hit, e);
     if (!this.cell) return;
     if (e.shiftKey) {
-      this.row = [];
-      void this.placeInRow(this.cell);
-    } else void this.placeAt(this.cell, true);
+      this.row = { start: this.cell, placed: new Set() };
+      this.layRow(this.cell);
+    } else void this.placeAt(this.cell, !e.shiftKey);
   }
 
-  pointerUp(): void {
-    if (this.row && !this.ctx.keys.shift) this.ctx.done();
+  pointerUp(_hit: PickHit, e: PointerEvent): void {
+    if (this.row && !e.shiftKey && !this.ctx.keys.shift) this.ctx.done();
     this.row = null;
   }
 
@@ -182,21 +182,28 @@ export class PlaceTool implements Tool {
       this.ctx.tag.show(this.lastClient.x, this.lastClient.y, `${money(this.cost)}${hint}`, 'ok');
   }
 
-  /** Shift-drag: place at `origin` unless it overlaps something laid this drag. */
-  private async placeInRow(origin: Cell): Promise<void> {
+  /** Shift-drag lays a straight row from the drag start toward `to`, along
+   *  whichever axis the drag mostly follows, one footprint per step. Every
+   *  step is filled even when the pointer skips cells on a fast drag. */
+  private layRow(to: Cell): void {
     const row = this.row;
     if (!row) return;
     const { w, h } = this.size;
-    const overlaps = row.some(
-      (r) =>
-        origin.col < r.col + r.w &&
-        r.col < origin.col + w &&
-        origin.row < r.row + r.h &&
-        r.row < origin.row + h,
-    );
-    if (overlaps) return;
-    row.push({ ...origin, w, h });
-    await this.placeAt(origin, false);
+    const dc = to.col - row.start.col;
+    const dr = to.row - row.start.row;
+    const alongCols = Math.abs(dc) >= Math.abs(dr);
+    const step = alongCols ? w : h;
+    const n = Math.trunc((alongCols ? dc : dr) / step);
+    for (let k = 0; k <= Math.abs(n); k++) {
+      const off = Math.sign(n) * k * step;
+      const cell = alongCols
+        ? { col: row.start.col + off, row: row.start.row }
+        : { col: row.start.col, row: row.start.row + off };
+      const key = `${cell.col},${cell.row}`;
+      if (row.placed.has(key)) continue;
+      row.placed.add(key);
+      void this.placeAt(cell, false);
+    }
   }
 
   private async placeAt(cell: Cell, oneShot: boolean): Promise<void> {

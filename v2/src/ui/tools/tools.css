@@ -116,7 +116,7 @@ kbd {
   transition: opacity 0.12s;
   white-space: nowrap;
 }
-.cursor-tag.show {
+#ui > .cursor-tag.show {
   opacity: 1;
 }
 .cursor-tag[data-tone='ok'] {
@@ -147,7 +147,7 @@ kbd {
   pointer-events: none;
   transition: opacity 0.15s;
 }
-.interact-prompt.show {
+#ui > .interact-prompt.show {
   opacity: 1;
 }
 .interact-prompt kbd {
@@ -168,7 +168,7 @@ kbd {
   pointer-events: none;
   transition: opacity 0.3s;
 }
-.mode-hint.show {
+#ui > .mode-hint.show {
   opacity: 1;
 }
 #ui > .crosshair {
@@ -184,6 +184,6 @@ kbd {
   opacity: 0;
   pointer-events: none;
 }
-.crosshair.show {
+#ui > .crosshair.show {
   opacity: 1;
 }

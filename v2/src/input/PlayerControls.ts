@@ -62,7 +62,6 @@ export class PlayerControls {
     });
     this.build = new BuildTool(this.tools);
     this.avatar = new Avatar(o.stage.scene, this.world);
-    this.avatar.mesh.visible = false;
     this.director = new CameraDirector(o.canvas, this.god, this.avatar, o.sim, this.keys);
     this.prompt = new InteractPrompt(o.ui);
     this.interaction = new Interaction(
@@ -76,6 +75,14 @@ export class PlayerControls {
     );
     this.toolbar = new BuildToolbar(o.ui, this.build, () => this.director.setMode('third'));
     this.director.onModeChange = (_from, to) => this.onMode(to);
+    // The avatar stays hidden until the first snap; compile its shaders now so
+    // that snap doesn't open with a shader-compile stall.
+    this.avatar.mesh.visible = true;
+    void o.stage.renderer
+      .compileAsync(this.avatar.mesh, this.god.camera, o.stage.scene)
+      .finally(() => {
+        if (!this.avatar.spawned) this.avatar.mesh.visible = false;
+      });
     // Lot bounds follow the floor plan once one arrives.
     o.sim.onSnapshot((s) => {
       if (s.floor) this.god.bounds = { cols: s.floor.cols, rows: s.floor.rows };

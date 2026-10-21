@@ -218,7 +218,8 @@ export class CameraDirector {
     const cam = this.camera;
     if (this.blend) {
       const b = this.blend;
-      b.t = Math.min(1, b.t + dt / TRANSITION_S);
+      // A hitch must not skip a chunk of the flight: advance at most a 30 fps frame.
+      b.t = Math.min(1, b.t + Math.min(dt, 1 / 30) / TRANSITION_S);
       const s = smootherstep(b.t);
       this.blendPose(b, target, s);
       const inner = this.mode === 'god' ? 1 - s : DEPTH[b.fromMode] > 0 ? 1 : s;
