@@ -1,18 +1,30 @@
 import { BAR_BALANCE, STAFF_BALANCE } from '../../../data/balance';
+import { Anim } from '../../../shared/contracts';
+import { approachPose } from '../../agents/seats';
 import type { Cell } from '../../grid/astar';
+import { NavFilter, STAFF_SPEED } from '../../nav/NavSystem';
 import type { CasinoWorld } from '../../world';
+import type { Guest } from '../Guest';
 import { Walker } from '../Walker';
 
+/** Security: how close (m) a guard must get to walk a guest out, and how
+ *  often (ticks) the chase re-aims at a target who keeps moving. */
+const ESCORT_REACH = 1.5;
+const CHASE_RETARGET_TICKS = 10;
+
+// guestId → staffId, per world: two guards never chase the same drunk. Held
+// beside the world rather than on it, like the queue book.
+const securityClaims = new WeakMap<CasinoWorld, Map<string, string>>();
+function claims(world: CasinoWorld): Map<string, string> {
+  let m = securityClaims.get(world);
+  if (!m) securityClaims.set(world, (m = new Map()));
+  return m;
+}
+
 export type StaffKind =
-  | 'mechanic'
-  | 'janitor'
-  | 'bartender'
-  | 'waitress'
-  | 'pitBoss'
-  | 'security'
-  | 'dealer'
-  | 'cashier';
-export type StaffState = 'idle' | 'patrol' | 'toJob' | 'working' | 'brewing' | 'stationed' | 'carried';
+  'mechanic' | 'janitor' | 'bartender' | 'waitress' | 'pitBoss' | 'security' | 'dealer' | 'cashier';
+export type StaffState =
+  'idle' | 'patrol' | 'toJob' | 'working' | 'brewing' | 'stationed' | 'carried';
 
 // One class for every role. Mechanic/janitor share the job-queue dispatch
 // below (the only difference is which jobs the world hands them and how long
@@ -31,6 +43,9 @@ export class Staff extends Walker {
   private workTimer = 0;
   private brewTimer = 0;
   private idleTimer = 0;
+  /** Security only: the guest being walked out. */
+  targetGuestId: string | null = null;
+  private chaseTimer = 0;
 
   constructor(id: string, kind: StaffKind, start: Cell) {
     super(start);
@@ -40,6 +55,23 @@ export class Staff extends Walker {
 
   get moveTicksPerTile(): number {
     return STAFF_BALANCE.moveTicksPerTile;
+  }
+
+  get navSpeed(): number {
+    return STAFF_SPEED;
+  }
+
+  get navFilter(): NavFilter {
+    return NavFilter.Staff;
+  }
+
+  isInWorld(world: CasinoWorld): boolean {
+    return world.staff.get(this.id) === this;
+  }
+
+  get anim(): Anim {
+    if (this.walking) return Anim.Walk;
+    return this.state === 'working' || this.state === 'brewing' ? Anim.Play : Anim.Idle;
   }
 
   get wagePerHour(): number {
@@ -69,6 +101,7 @@ export class Staff extends Walker {
     this.assignedTableId = null;
     this.assignedCageId = null;
     this.clearMovement();
+    this.parkHere();
     this.state = 'carried';
   }
 
@@ -90,6 +123,7 @@ export class Staff extends Walker {
       this.actCashier(world);
       return;
     }
+    if (this.kind === 'security' && this.actSecurity(world)) return;
     switch (this.state) {
       case 'idle':
         this.findWork(world);
@@ -165,12 +199,78 @@ export class Staff extends Walker {
     }
     const claim = world.claimDealerTable(this.id);
     if (!claim) return;
-    if (this.goTo(world, claim.stand)) {
+    const stand = this.dealerStation(world, claim.tableId) ?? claim.stand;
+    if (this.goTo(world, stand, approachPose(world, stand, claim.tableId) ?? undefined)) {
       this.assignedTableId = claim.tableId;
       this.state = 'toJob';
       return;
     }
     world.releaseDealerClaim(claim.tableId); // claimed but unreachable — put it back
+  }
+
+  /**
+   * Where a dealer stands: the first walkable perimeter cell past the table's
+   * seats, so the dealer never takes a guest's chair. Seat cells come from the
+   * world's own enumeration (the same one reserveMachine seats guests by).
+   */
+  private dealerStation(world: CasinoWorld, tableId: string): Cell | null {
+    const po = world.state.getObject(tableId);
+    const machine = world.machines.get(tableId);
+    if (!po || !machine) return null;
+    const seats = 'seatCount' in machine ? (machine.seatCount as number) : 0;
+    const cells = world.seatCellsForTest(po);
+    for (let i = seats; i < cells.length; i++) {
+      const c = cells[i]!;
+      if (world.grid.isWalkable(c.col, c.row)) return c;
+    }
+    return null;
+  }
+
+  /**
+   * Security: pick the nearest unclaimed drunk or raging guest, chase them
+   * down, and walk them out. Returns false when there is nobody to deal with,
+   * so the guard falls back to the ambient patrol below.
+   */
+  private actSecurity(world: CasinoWorld): boolean {
+    const book = claims(world);
+    let target: Guest | undefined = this.targetGuestId
+      ? world.guests.get(this.targetGuestId)
+      : undefined;
+    if (!target || target.escorted || target.state === 'gone') {
+      if (this.targetGuestId) book.delete(this.targetGuestId);
+      this.targetGuestId = null;
+      target = undefined;
+      let best = Infinity;
+      for (const g of world.guests.values()) {
+        if (!(g.drunk || g.raging) || g.escorted || g.state === 'gone' || book.has(g.id)) continue;
+        const d = Math.hypot(g.x - this.x, g.z - this.z);
+        if (d < best) [best, target] = [d, g];
+      }
+      if (!target) {
+        if (this.state === 'toJob' && !this.jobId) this.state = 'idle';
+        return false;
+      }
+      book.set(target.id, this.id);
+      this.targetGuestId = target.id;
+      this.chaseTimer = CHASE_RETARGET_TICKS;
+    }
+    const near =
+      Math.abs(target.pos.col - this.pos.col) + Math.abs(target.pos.row - this.pos.row) <= 1 ||
+      Math.hypot(target.x - this.x, target.z - this.z) <= ESCORT_REACH;
+    if (near) {
+      target.escortOut(world);
+      book.delete(target.id);
+      this.targetGuestId = null;
+      this.clearMovement();
+      this.state = 'idle';
+      return true;
+    }
+    if (++this.chaseTimer >= CHASE_RETARGET_TICKS || this.arrived) {
+      this.chaseTimer = 0;
+      this.goTo(world, target.pos);
+      this.state = 'toJob';
+    }
+    return true;
   }
 
   /** Cashier: same "assign once, stay stationed forever" shape as the

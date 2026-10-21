@@ -196,7 +196,7 @@ export class NavSystem {
         pathOptimizationRange: AGENT_RADIUS * 30,
         separationWeight: 1.2,
         updateFlags: CROWD_FLAGS,
-        obstacleAvoidanceType: 0,
+        obstacleAvoidanceType: 1,
         queryFilterType: slot,
       },
     );
