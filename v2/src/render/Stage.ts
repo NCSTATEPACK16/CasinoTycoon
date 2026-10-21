@@ -1,163 +1,283 @@
-// Walking-skeleton renderer: placeholder boxes per object def, capsules per
-// agent, a floor and a sun. Session 1 (Graphics) replaces the internals; the
-// public surface (constructor, setObjects, updateAgents, render, ghost) is
-// what main.ts depends on.
+// The renderer's public face. main.ts, the camera rig and the build tools
+// talk to this class only; the layers behind it are:
+//   ObjectLayer  placed objects as per-(asset, LOD) instance pools
+//   FloorLayer   floor / walls / decor / ceiling merged per 8×8 chunk
+//   Crowd        every agent through vertex-animation textures
+//   Overlays     ghost, zone tint, selection, payout labels
+//   Lighting + Post   HDRI, fitted shadows, N8AO, bloom, ACES, SMAA
 
 import * as THREE from 'three';
-import { GRID_COLS, GRID_ROWS } from '../config';
-import { getObjectDef } from '../data/objects';
-import { get3D } from '../shared/catalog';
-import { AGENT_STRIDE, AgentKind, Anim, type ObjectView, type Snapshot } from '../shared/contracts';
+import { ENTRANCE_TILE, GRID_COLS, GRID_ROWS } from '../config';
+import {
+  FLOOR_TYPES,
+  ZONES,
+  type FloorPlanView,
+  type ObjectView,
+  type Rotation,
+  type SimEvent,
+  type Snapshot,
+  type WallSegment,
+} from '../shared/contracts';
+import { AssetLibrary } from './assets/AssetLibrary';
+import { Crowd } from './Crowd';
+import { FloorLayer } from './FloorLayer';
+import { Lighting } from './Lighting';
+import { objectUniforms } from './materials/ObjectMaterial';
+import { ObjectLayer } from './ObjectLayer';
+import { Overlays } from './Overlays';
+import { Post, type Quality } from './Post';
 
-const MAX_AGENTS = 2048;
-const AGENT_COLORS: Record<number, number> = {
-  [AgentKind.Guest]: 0xf5cba7,
-  [AgentKind.Dealer]: 0x1c2833,
-  [AgentKind.Janitor]: 0x5dade2,
-  [AgentKind.Security]: 0x34495e,
-  [AgentKind.Staff]: 0xaab7b8,
+const QUALITY: Record<Quality, { pixelRatio: number; shadow: number; shadows: boolean }> = {
+  // The shadow frustum is refitted to the view every frame, so 2048² is
+  // already ~2 cm texels at god-cam range; 4096² cost ~3× as much on an A18 Pro.
+  high: { pixelRatio: 2, shadow: 2048, shadows: true },
+  medium: { pixelRatio: 1.5, shadow: 2048, shadows: true },
+  low: { pixelRatio: 1, shadow: 1024, shadows: false },
 };
-const OUTFIT = [0x3498db, 0x8e44ad, 0x2c3e50, 0xf39c12];
+
+const focus = new THREE.Vector3();
+const fwd = new THREE.Vector3();
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
 export class Stage {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
+  /** The ground plane under and around the lot; build tools raycast it. */
   readonly ground: THREE.Mesh;
-  private objectGroup = new THREE.Group();
-  private agents: THREE.InstancedMesh;
-  private tmp = new THREE.Object3D();
-  private color = new THREE.Color();
+  /** Legacy box ghost kept for the skeleton BuildTool; prefer showGhost(). */
   readonly ghost: THREE.Mesh;
+  readonly assets = new AssetLibrary();
+  readonly objects: ObjectLayer;
+  readonly floor: FloorLayer;
+  readonly crowd = new Crowd();
+  readonly overlays: Overlays;
+  readonly lighting: Lighting;
+  private post: Post;
+  private quality: Quality = 'high';
+  private lastCamera: THREE.PerspectiveCamera | null = null;
+  private lastAgentsAt = performance.now();
+  private clock = new THREE.Clock();
+  private hasFloor = false;
+  private selected: string | null = null;
+  /** null = automatic (from camera height); otherwise forced ceiling fade. */
+  viewMode: 'god' | 'avatar' | null = null;
+  /** Per-frame stats, read by the lab page and playtests. */
+  readonly stats = { calls: 0, triangles: 0, frameMs: 0, renderScale: 1 };
+  /** Dynamic resolution: when the GPU can't hold ~60 fps, render fewer pixels
+   *  (down to 70 %) rather than drop frames; climb back when there's headroom. */
+  dynamicResolution = true;
+  private renderScale = 1;
+  private frameEma = 16.7;
+  private lastFrameAt = 0;
+  private scaleCheckAt = 0;
+  private upscaleBlockedUntil = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({
       canvas,
-      antialias: true,
+      antialias: false, // SMAA in post
       powerPreference: 'high-performance',
+      stencil: false,
+      depth: true,
     });
-    this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
+    this.renderer.setPixelRatio(Math.min(QUALITY.high.pixelRatio, window.devicePixelRatio));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.scene.background = new THREE.Color(0x14101f);
-    this.scene.fog = new THREE.Fog(0x14101f, 60, 140);
+    // Tone mapping runs in the post stack (ToneMappingEffect, ACES).
+    this.renderer.toneMapping = THREE.NoToneMapping;
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.info.autoReset = false;
 
-    this.scene.add(new THREE.HemisphereLight(0xfff4e0, 0x2a1d3d, 1.2));
-    const sun = new THREE.DirectionalLight(0xffffff, 2.2);
-    sun.position.set(GRID_COLS * 0.3, 40, GRID_ROWS * -0.2);
-    sun.target.position.set(GRID_COLS / 2, 0, GRID_ROWS / 2);
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
-    Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, far: 120 });
-    this.scene.add(sun, sun.target);
+    this.lighting = new Lighting(this.scene, this.renderer);
+    this.objects = new ObjectLayer(this.assets);
+    this.floor = new FloorLayer(this.assets);
+    this.overlays = new Overlays(this.assets);
+    this.floor.onZones = (g) => this.overlays.rebuildZones(g);
+    this.scene.add(this.floor.group, this.objects.group, this.crowd.group, this.overlays.group);
 
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(GRID_COLS, GRID_ROWS)
-        .rotateX(-Math.PI / 2)
-        .translate(GRID_COLS / 2, 0, GRID_ROWS / 2),
-      new THREE.MeshStandardMaterial({ color: 0x6b1e2e, roughness: 0.9 }),
+    // Exterior: a dark stone plaza the lot sits on, faded out by fog.
+    this.ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI / 2).translate(GRID_COLS / 2, -0.02, GRID_ROWS / 2),
+      new THREE.MeshStandardMaterial({ color: 0x1b1720, roughness: 0.85, metalness: 0 }),
     );
-    floor.receiveShadow = true;
-    this.ground = floor;
-    const grid = new THREE.GridHelper(GRID_COLS, GRID_COLS, 0x000000, 0x000000);
-    grid.scale.set(1, 1, GRID_ROWS / GRID_COLS);
-    grid.position.set(GRID_COLS / 2, 0.005, GRID_ROWS / 2);
-    (grid.material as THREE.Material).opacity = 0.15;
-    (grid.material as THREE.Material).transparent = true;
-    this.scene.add(floor, grid, this.objectGroup);
-
-    const capsule = new THREE.CapsuleGeometry(0.18, 0.9, 4, 8).translate(0, 0.63, 0);
-    this.agents = new THREE.InstancedMesh(
-      capsule,
-      new THREE.MeshStandardMaterial({ roughness: 0.6 }),
-      MAX_AGENTS,
-    );
-    this.agents.castShadow = true;
-    this.agents.count = 0;
-    this.agents.frustumCulled = false;
-    this.scene.add(this.agents);
+    this.ground.receiveShadow = true;
+    this.ground.name = 'ground';
+    this.scene.add(this.ground);
 
     this.ghost = new THREE.Mesh(
       new THREE.BoxGeometry(1, 1, 1).translate(0.5, 0.5, 0.5),
-      new THREE.MeshBasicMaterial({
-        color: 0x2ecc71,
-        transparent: true,
-        opacity: 0.45,
-        depthWrite: false,
-      }),
+      new THREE.MeshBasicMaterial({ color: 0x2ecc71, transparent: true, opacity: 0.35, depthWrite: false }),
     );
     this.ghost.visible = false;
     this.scene.add(this.ghost);
+
+    this.post = new Post(this.renderer, this.scene, new THREE.PerspectiveCamera());
+    this.setQuality('high');
+    // Until the sim sends a floor plan, show the v1 lot: carpeted, walls north and west.
+    this.setFloor(defaultPlan());
   }
 
+  // ---------- data in ----------
+
+  /** Diff the object list into the instance pools (no Mesh per object). */
   setObjects(objects: ObjectView[]): void {
-    for (const c of [...this.objectGroup.children]) {
-      this.objectGroup.remove(c);
-      (c as THREE.Mesh).geometry?.dispose();
-    }
-    for (const o of objects) {
-      const def = getObjectDef(o.defId);
-      const d3 = get3D(o.defId);
-      const w = def?.footprint.w ?? 1;
-      const h = def?.footprint.h ?? 1;
-      const mat = new THREE.MeshStandardMaterial({
-        color: o.broken ? 0x555555 : d3.color,
-        roughness: 0.5,
-        emissive: d3.glow ?? 0x000000,
-        emissiveIntensity: d3.glow ? 0.25 : 0,
-      });
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w * 0.9, d3.height, h * 0.9), mat);
-      mesh.position.set(o.col + w / 2, d3.height / 2, o.row + h / 2);
-      mesh.castShadow = mesh.receiveShadow = true;
-      mesh.userData.objectId = o.id;
-      this.objectGroup.add(mesh);
-    }
+    this.objects.setObjects(objects);
+    if (this.selected && !this.objects.get(this.selected)) this.setSelected(null);
+  }
+
+  setFloor(plan: FloorPlanView): void {
+    this.floor.setFloor(plan);
+    this.hasFloor = true;
   }
 
   /** Interpolate agents between two snapshots matched by numeric id. */
   updateAgents(prev: Snapshot | null, curr: Snapshot, alpha: number): void {
-    const prevPos = new Map<number, number>();
-    if (prev)
-      for (let i = 0; i < prev.agentCount; i++)
-        prevPos.set(prev.agents[i * AGENT_STRIDE + 7]! * 8 + prev.agents[i * AGENT_STRIDE + 4]!, i);
-    const a = curr.agents;
-    const n = Math.min(MAX_AGENTS, curr.agentCount);
-    for (let i = 0; i < n; i++) {
-      const o = i * AGENT_STRIDE;
-      let x = a[o]!;
-      let z = a[o + 1]!;
-      const kind = a[o + 4]!;
-      const pi = prev ? prevPos.get(a[o + 7]! * 8 + kind) : undefined;
-      if (prev && pi !== undefined) {
-        const po = pi * AGENT_STRIDE;
-        x = prev.agents[po]! + (x - prev.agents[po]!) * alpha;
-        z = prev.agents[po + 1]! + (z - prev.agents[po + 1]!) * alpha;
-      }
-      const walking = a[o + 3] === Anim.Walk;
-      this.tmp.position.set(
-        x,
-        walking ? Math.abs(Math.sin(performance.now() / 120 + i)) * 0.05 : 0,
-        z,
-      );
-      this.tmp.rotation.set(0, a[o + 2]!, 0);
-      this.tmp.updateMatrix();
-      this.agents.setMatrixAt(i, this.tmp.matrix);
-      const c =
-        kind === AgentKind.Guest
-          ? (OUTFIT[a[o + 5]! | 0] ?? 0xffffff)
-          : (AGENT_COLORS[kind] ?? 0xffffff);
-      this.agents.setColorAt(i, this.color.setHex(c));
-    }
-    this.agents.count = n;
-    this.agents.instanceMatrix.needsUpdate = true;
-    if (this.agents.instanceColor) this.agents.instanceColor.needsUpdate = true;
+    const now = performance.now();
+    const dt = Math.min(0.1, (now - this.lastAgentsAt) / 1000);
+    this.lastAgentsAt = now;
+    if (this.lastCamera) this.crowd.update(prev, curr, alpha, this.lastCamera, dt);
   }
 
+  /** Convenience for main.ts: payout labels + win flashes from sim events. */
+  handleEvents(events: SimEvent[]): void {
+    for (const e of events) if (e.type === 'payout') this.spawnPayout(e.x, e.z, e.amount);
+  }
+
+  // ---------- interaction ----------
+
+  pickObject(raycaster: THREE.Raycaster): string | null {
+    return this.objects.pick(raycaster.ray);
+  }
+
+  pickAgent(raycaster: THREE.Raycaster): number | null {
+    return this.crowd.pick(raycaster.ray);
+  }
+
+  showZoneOverlay(on: boolean): void {
+    this.overlays.showZones(on);
+  }
+
+  /** Floating "+$1,250" and a topper flash on whatever stands at (x, z). */
+  spawnPayout(x: number, z: number, amount: number): void {
+    const t = this.clock.getElapsedTime();
+    this.overlays.spawnPayout(x, z, amount);
+    if (amount > 0) this.objects.flashAt(x, z, t);
+  }
+
+  /** Hologram placement ghost from the real asset; defId null hides it. */
+  showGhost(defId: string | null, col = 0, row = 0, rot: Rotation = 0, valid = true): void {
+    this.ghost.visible = false;
+    this.overlays.showGhost(defId, col, row, rot, valid);
+  }
+
+  setSelected(id: string | null): void {
+    this.selected = id;
+    const o = id ? this.objects.get(id) : null;
+    this.overlays.setSelected(o ? { geometry: o.asset.lods[0], matrix: o.matrix } : null);
+  }
+
+  setHovered(id: string | null): void {
+    this.objects.setHovered(id);
+  }
+
+  setQuality(q: Quality): void {
+    this.quality = q;
+    const cfg = QUALITY[q];
+    this.renderScale = 1;
+    this.applyPixelRatio();
+    this.lighting.setShadowSize(cfg.shadow, cfg.shadows);
+    this.post.setQuality(q);
+    const c = this.renderer.domElement;
+    this.resize(c.clientWidth || 1, c.clientHeight || 1);
+  }
+
+  getQuality(): Quality {
+    return this.quality;
+  }
+
+  private applyPixelRatio(): void {
+    const base = Math.min(QUALITY[this.quality].pixelRatio, window.devicePixelRatio);
+    this.renderer.setPixelRatio(base * this.renderScale);
+    this.stats.renderScale = this.renderScale;
+  }
+
+  private adaptResolution(now: number): void {
+    if (this.lastFrameAt) {
+      const dt = Math.min(100, now - this.lastFrameAt);
+      this.frameEma += (dt - this.frameEma) * 0.05;
+    }
+    this.lastFrameAt = now;
+    if (!this.dynamicResolution || now < this.scaleCheckAt) return;
+    this.scaleCheckAt = now + 1500;
+    let next = this.renderScale;
+    if (this.frameEma > 18.2 && this.renderScale > 0.7) {
+      next = Math.max(0.7, this.renderScale - 0.1);
+      // Just came down from a failed step up: stay put for a while.
+      if (next < this.renderScale) this.upscaleBlockedUntil = Math.max(this.upscaleBlockedUntil, now + 8000);
+    } else if (this.frameEma < 17.2 && this.renderScale < 1 && now > this.upscaleBlockedUntil) {
+      next = Math.min(1, this.renderScale + 0.1);
+      this.upscaleBlockedUntil = now + 4000;
+    }
+    if (next === this.renderScale) return;
+    this.renderScale = Math.round(next * 100) / 100;
+    this.applyPixelRatio();
+    const c = this.renderer.domElement;
+    this.resize(c.clientWidth || 1, c.clientHeight || 1);
+  }
+
+  // ---------- frame ----------
+
   resize(w: number, h: number): void {
-    this.renderer.setSize(w, h, false);
+    // The composer resizes the renderer and every pass at the renderer's pixel ratio.
+    this.post.setSize(w, h);
   }
 
   render(camera: THREE.Camera): void {
-    this.renderer.render(this.scene, camera);
+    const t0 = performance.now();
+    this.adaptResolution(t0);
+    const dt = this.clock.getDelta();
+    const now = this.clock.elapsedTime;
+    const cam = camera as THREE.PerspectiveCamera;
+    this.lastCamera = cam;
+    objectUniforms.uTime.value = now;
+    this.updateView(cam);
+    this.objects.update(cam, now);
+    this.overlays.update(now);
+    if (this.lighting.sun.castShadow) this.lighting.update(cam);
+    this.renderer.info.reset();
+    this.post.render(cam, dt);
+    this.stats.calls = this.renderer.info.render.calls;
+    this.stats.triangles = this.renderer.info.render.triangles;
+    this.stats.frameMs = performance.now() - t0;
+    void this.hasFloor;
   }
+
+  /** God cam: walls between camera and focus cut down, ceiling hidden. Low
+   *  (avatar) cameras: full walls and the coffered ceiling fade in. */
+  private updateView(cam: THREE.PerspectiveCamera): void {
+    cam.getWorldDirection(fwd);
+    const r = new THREE.Ray(cam.position, fwd);
+    if (!r.intersectPlane(groundPlane, focus)) focus.copy(cam.position);
+    objectUniforms.uFocus.value.set(focus.x, focus.z);
+    const flat = Math.hypot(fwd.x, fwd.z) || 1;
+    objectUniforms.uCamDir.value.set(fwd.x / flat, fwd.z / flat);
+    const avatar =
+      this.viewMode === 'avatar' || (this.viewMode === null && cam.position.y < 4.5);
+    const fade = avatar ? 1 : this.viewMode === 'god' ? 0 : 1 - THREE.MathUtils.smoothstep(cam.position.y, 4.5, 9);
+    objectUniforms.uCutOn.value = 1 - (avatar ? 1 : fade);
+    this.floor.setCeiling(fade);
+  }
+}
+
+/** The v1 lot until a real FloorPlanView arrives: red carpet, walls on the
+ *  north and west edges, the entrance gap on the east. */
+export function defaultPlan(): FloorPlanView {
+  const cols = GRID_COLS;
+  const rows = GRID_ROWS;
+  const floor = new Uint8Array(cols * rows).fill(FLOOR_TYPES.indexOf('carpet-red'));
+  const zone = new Uint8Array(cols * rows).fill(ZONES.indexOf('gaming'));
+  const walls: WallSegment[] = [];
+  for (let c = 0; c < cols; c++) walls.push({ col: c, row: 0, edge: 'n', door: false });
+  for (let r = 0; r < rows; r++) walls.push({ col: 0, row: r, edge: 'w', door: false });
+  return { cols, rows, floor, zone, walls, entrance: { ...ENTRANCE_TILE } };
 }

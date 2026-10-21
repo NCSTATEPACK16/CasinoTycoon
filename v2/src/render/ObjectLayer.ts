@@ -17,7 +17,7 @@ import { createObjectMaterial } from './materials/ObjectMaterial';
 const CH_MATRIX = 0;
 const CH_STATE = 1;
 /** Chunk-centre distance bands for LOD0→1 and LOD1→2 (SPEC: box/impostor beyond 45 m). */
-export const LOD_DIST = [26, 45] as const;
+export const LOD_DIST = [34, 72] as const;
 const HYSTERESIS = 3;
 const THUNK_S = 0.42;
 
@@ -51,7 +51,8 @@ class PoolMesh {
     state.setUsage(THREE.DynamicDrawUsage);
     geo.setAttribute('aState', state);
     m.count = 0;
-    m.castShadow = true;
+    // Far LOD boxes are below shadow-texel size anyway.
+    m.castShadow = this.lod < 2;
     m.receiveShadow = true;
     m.name = `${this.asset.key}#${this.lod}`;
     this.parent.add(m);
