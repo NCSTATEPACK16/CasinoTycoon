@@ -237,7 +237,14 @@ function pushFromBox(p: Vec2, r: number, b: Box): Vec2 | null {
 
 /** Push p out to distance `minDist` from the closest point c. When p sits
  *  exactly on c, fall back to the supplied normal (fx, fz). */
-function pushOut(p: Vec2, cx: number, cz: number, minDist: number, fx: number, fz: number): Vec2 | null {
+function pushOut(
+  p: Vec2,
+  cx: number,
+  cz: number,
+  minDist: number,
+  fx: number,
+  fz: number,
+): Vec2 | null {
   let dx = p.x - cx;
   let dz = p.z - cz;
   const d2 = dx * dx + dz * dz;

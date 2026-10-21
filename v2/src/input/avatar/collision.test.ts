@@ -95,7 +95,9 @@ describe('CollisionWorld — walls', () => {
     const w = new CollisionWorld();
     // A short wall stub along x=10, rows 0..4 (ends at z=5).
     w.rebuild(
-      plan(Array.from({ length: 5 }, (_, row) => ({ col: 10, row, edge: 'w' as const, door: false }))),
+      plan(
+        Array.from({ length: 5 }, (_, row) => ({ col: 10, row, edge: 'w' as const, door: false })),
+      ),
       [],
       COLS,
       ROWS,

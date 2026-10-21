@@ -40,7 +40,8 @@ export function wallPath(
   a: Vertex,
   b: Vertex,
 ): { legs: { from: Cell; to: Cell }[]; edges: EdgeKey[] } {
-  const corner: Vertex = Math.abs(b.x - a.x) >= Math.abs(b.z - a.z) ? { x: b.x, z: a.z } : { x: a.x, z: b.z };
+  const corner: Vertex =
+    Math.abs(b.x - a.x) >= Math.abs(b.z - a.z) ? { x: b.x, z: a.z } : { x: a.x, z: b.z };
   const legs: { from: Cell; to: Cell }[] = [];
   const edges: EdgeKey[] = [];
   for (const [p, q] of [
