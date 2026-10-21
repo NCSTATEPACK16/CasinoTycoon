@@ -22,3 +22,6 @@ assets/kenney_casino-audio.zip
 # Python bytecode from the Blender render rig (scripts/render/)
 __pycache__/
 *.pyc
+
+# v2 build output
+v2/dist/
