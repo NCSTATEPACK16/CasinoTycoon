@@ -65,7 +65,7 @@ export function findPath(grid: IsoGrid, from: Cell, to: Cell): Cell[] | null {
       const col = current.col + dc;
       const row = current.row + dr;
       const nKey = key(col, row);
-      if (closed.has(nKey) || !grid.isWalkable(col, row)) continue;
+      if (closed.has(nKey) || !grid.canStep(current.col, current.row, col, row)) continue;
       const tentative = (g.get(currentKey) ?? Infinity) + 1;
       if (tentative < (g.get(nKey) ?? Infinity)) {
         cameFrom.set(nKey, current);

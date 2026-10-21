@@ -1,4 +1,5 @@
 import { STARTING_CASH } from '../config';
+import type { Rotation } from '../shared/contracts';
 
 // Core mutable game state: funds + placed-object registry. Pure data — build
 // orchestration lives in build.ts. Serialization built alongside per PLAN.md.
@@ -8,6 +9,8 @@ export interface PlacedObject {
   defId: string;
   col: number;
   row: number;
+  /** v2 quarter turns. Absent means 0, which keeps every v1 save and fixture valid. */
+  rot?: Rotation;
 }
 
 export interface GameStateJSON {
