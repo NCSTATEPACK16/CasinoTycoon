@@ -2,13 +2,12 @@
 // buffer it owns, so it is unit-testable without a Worker.
 
 import type { CasinoWorld } from '../sim/world';
-import type { Walker } from '../sim/entities/Walker';
 import type { CasinoGame } from '../sim/entities/machines/CasinoGame';
 import { SeatedCasinoGame } from '../sim/entities/machines/SeatedCasinoGame';
 import {
   AGENT_STRIDE,
   AgentKind,
-  Anim,
+  type Anim,
   type HudView,
   type ObjectView,
   type SimEvent,
@@ -37,30 +36,22 @@ function idNum(id: string): number {
   return Number(id.replace(/\D+/g, '')) || 0;
 }
 
-/** Interpolated centre of a grid walker, in metres. */
-function walkerXZ(w: Walker): { x: number; z: number; heading: number; moving: boolean } {
-  const from = w.moveFrom;
-  const to = w.moveTo;
-  if (!to) return { x: w.pos.col + 0.5, z: w.pos.row + 0.5, heading: NaN, moving: false };
-  const t = Math.min(1, w.moveTick / Math.max(1, w.moveTicksPerTile));
-  const dx = to.col - from.col;
-  const dz = to.row - from.row;
-  return {
-    x: from.col + dx * t + 0.5,
-    z: from.row + dz * t + 0.5,
-    heading: Math.atan2(dx, dz),
-    moving: true,
-  };
-}
-
 export class SnapshotBuilder {
   private agents = new Float32Array(512 * AGENT_STRIDE);
-  private headings = new Map<string, number>();
   private lastObjectsKey = '';
+  /** world.floorRevision last sent; -1 so the first snapshot carries the floor. */
+  private sentFloorRevision = -1;
   objectsVersion = 0;
   floorVersion = 0;
   speed = 1;
   pendingEvents: SimEvent[] = [];
+  /** world.tick() wall times (ms), newest last, for the stats command. */
+  readonly tickTimes: number[] = [];
+
+  recordTick(ms: number): void {
+    this.tickTimes.push(ms);
+    if (this.tickTimes.length > 100) this.tickTimes.shift();
+  }
 
   build(world: CasinoWorld, now: number): Snapshot {
     const total = world.guests.size + world.staff.size;
@@ -68,23 +59,17 @@ export class SnapshotBuilder {
     const cap = Math.max(512, total) * AGENT_STRIDE;
     this.agents = new Float32Array(cap);
     let i = 0;
+    // Poses come straight from the walkers: float crowd positions in nav mode,
+    // interpolated grid steps otherwise (see Walker.renderPose).
     for (const g of world.guests.values()) {
       if (g.state === 'gone') continue;
-      const p = walkerXZ(g);
-      const heading = this.heading(g.id, p.heading);
-      const anim = p.moving
-        ? Anim.Walk
-        : g.state === 'play'
-          ? Anim.Play
-          : g.state === 'service'
-            ? Anim.Eat
-            : Anim.Idle;
+      const p = g.renderPose();
       this.write(
         i++,
         p.x,
         p.z,
-        heading,
-        anim,
+        p.heading,
+        g.anim,
         AgentKind.Guest,
         ARCHETYPE_VARIANT[g.archetype] ?? 0,
         g.needs.happiness / 100,
@@ -93,10 +78,9 @@ export class SnapshotBuilder {
     }
     for (const s of world.staff.values()) {
       if (s.state === 'carried') continue;
-      const p = walkerXZ(s);
-      const heading = this.heading(s.id, p.heading);
+      const p = s.renderPose();
       const kind = STAFF_KIND[s.kind] ?? AgentKind.Staff;
-      this.write(i++, p.x, p.z, heading, p.moving ? Anim.Walk : Anim.Idle, kind, 0, 1, idNum(s.id));
+      this.write(i++, p.x, p.z, p.heading, s.anim, kind, 0, 1, idNum(s.id));
     }
 
     const snap: Snapshot = {
@@ -111,14 +95,15 @@ export class SnapshotBuilder {
     };
     const objects = this.objects(world);
     if (objects) snap.objects = objects;
+    if (world.floorRevision !== this.sentFloorRevision) {
+      this.sentFloorRevision = world.floorRevision;
+      this.floorVersion++;
+      snap.floorVersion = this.floorVersion;
+      snap.floor = world.floor.toView();
+    }
     snap.objectsVersion = this.objectsVersion;
     this.pendingEvents = [];
     return snap;
-  }
-
-  private heading(id: string, h: number): number {
-    if (!Number.isNaN(h)) this.headings.set(id, h);
-    return this.headings.get(id) ?? 0;
   }
 
   private write(
@@ -153,13 +138,15 @@ export class SnapshotBuilder {
         defId: o.defId,
         col: o.col,
         row: o.row,
-        rot: 0,
+        rot: o.rot ?? 0,
         broken: m?.broken ?? false,
-        open: true,
+        open: m ? world.isTableOpen(o.id) : true,
         occupants: occupants(m),
       };
     });
-    const key = views.map((v) => `${v.id}:${v.broken ? 1 : 0}:${v.occupants}`).join('|');
+    const key = views
+      .map((v) => `${v.id}:${v.broken ? 1 : 0}:${v.open ? 1 : 0}:${v.occupants}`)
+      .join('|');
     if (key === this.lastObjectsKey) return undefined;
     this.lastObjectsKey = key;
     this.objectsVersion++;
