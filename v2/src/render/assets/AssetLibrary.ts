@@ -141,6 +141,9 @@ export class AssetLibrary {
           part.setAttribute('ao', new THREE.BufferAttribute(ao, 1));
           part.deleteAttribute('color');
         }
+        // glTF stores UVs with v down from the top; the atlas is GL-style (v up).
+        const uv = part.attributes.uv as THREE.BufferAttribute | undefined;
+        if (uv) for (let i = 0; i < uv.count; i++) uv.setY(i, 1 - uv.getY(i));
         const s = surfaceOf(mat);
         if (s.decal && s.flags && s.flags & SurfaceFlag.Variant) this.useVariant(a, s.decal);
         builders[lod]!.add(part, s, mesh.matrixWorld);

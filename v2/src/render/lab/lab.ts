@@ -315,7 +315,7 @@ const SHOTS: Record<string, [number, number, number, number, number, number, num
   craps: [61.3, 2.6, 7.6, 61, 0.7, 4],
   uth: [65.3, 2.6, 7.6, 65, 0.7, 4],
   carnival: [69.3, 2.6, 7.6, 69, 0.7, 4],
-  highlimit: [88, 3.2, 16.5, 83, 0.5, 7],
+  highlimit: [90, 2.1, 19.5, 84, 0.7, 7],
   slots: [7, 2.2, 6.2, 4, 1.2, 3],
   eye: [40, 1.65, 39, 20, 1.5, 38, 70],
   food: [86, 9, 76, 86, 0, 58],

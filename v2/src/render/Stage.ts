@@ -82,7 +82,8 @@ export class Stage {
     });
     this.renderer.setPixelRatio(Math.min(QUALITY.high.pixelRatio, window.devicePixelRatio));
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // Hardware 2×2 PCF: soft enough with the fitted frustum, far cheaper per pixel than PCFSoft.
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     // Tone mapping runs in the post stack (ToneMappingEffect, ACES).
     this.renderer.toneMapping = THREE.NoToneMapping;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -210,6 +211,12 @@ export class Stage {
     if (!this.dynamicResolution || now < this.scaleCheckAt) return;
     this.scaleCheckAt = now + 1500;
     let next = this.renderScale;
+    if (this.frameEma > 18.2 && this.renderScale <= 0.7 && this.quality !== 'low') {
+      // Already at the resolution floor and still slow: shed a quality tier.
+      this.setQuality(this.quality === 'high' ? 'medium' : 'low');
+      this.upscaleBlockedUntil = now + 8000;
+      return;
+    }
     if (this.frameEma > 18.2 && this.renderScale > 0.7) {
       next = Math.max(0.7, this.renderScale - 0.1);
       // Just came down from a failed step up: stay put for a while.

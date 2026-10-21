@@ -12,7 +12,7 @@ const FLOOR_LOOK: Record<(typeof FLOOR_TYPES)[number], [string, number, number, 
   none: ['tile', 2, 0.9, 0x6d6873],
   'carpet-red': ['carpetRed', 1.5, 0.95, 0xffffff],
   'carpet-blue': ['carpetBlue', 1.5, 0.95, 0xffffff],
-  marble: ['marble', 1, 0.16, 0xffffff],
+  marble: ['marble', 1, 0.22, 0xcbc2b6],
   wood: ['wood', 2, 0.45, 0xffffff],
   tile: ['tile', 1.2, 0.3, 0xffffff],
 };

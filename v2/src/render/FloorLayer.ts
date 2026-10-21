@@ -272,11 +272,13 @@ export class FloorLayer {
       for (let c = c0; c < Math.min(g.cols, c0 + CHUNK); c++) {
         if (!g.floorAt(c, r)) continue;
         any = true;
-        const coffer = (c + r) % 2 === 0;
-        b.box(1, 0.08, 1, c + 0.5, CEIL_H + (coffer ? 0.25 : 0), r + 0.5, surf('plaster', { color: 0x3a2030 }));
+        // Recessed 2×2 coffers with a warm cove glow, framed by gold beams.
+        const coffer = c % 2 === 0 && r % 2 === 0;
+        b.box(1, 0.08, 1, c + 0.5, CEIL_H + 0.3, r + 0.5, surf('plaster', { color: 0x4a1f2c }));
         if (coffer) {
-          b.box(0.9, 0.02, 0.9, c + 0.5, CEIL_H + 0.24, r + 0.5, PALETTE.lampWarm);
-          b.box(1, 0.25, 0.06, c + 0.5, CEIL_H, r + 0.03, PALETTE.gold);
+          b.box(1.7, 0.02, 1.7, c + 1, CEIL_H + 0.28, r + 1, { ...PALETTE.lampWarm, emit: 0.55 });
+          b.box(2, 0.3, 0.08, c + 1, CEIL_H, r, PALETTE.gold);
+          b.box(0.08, 0.3, 2, c, CEIL_H, r + 1, PALETTE.gold);
         }
         if (c % 6 === 3 && r % 6 === 3) b.addBuilt(this.chandelier, at(c + 0.5, CEIL_H, r + 0.5));
       }

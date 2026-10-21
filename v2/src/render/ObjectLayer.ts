@@ -16,8 +16,11 @@ import { createObjectMaterial } from './materials/ObjectMaterial';
 
 const CH_MATRIX = 0;
 const CH_STATE = 1;
-/** Chunk-centre distance bands for LOD0→1 and LOD1→2 (SPEC: box/impostor beyond 45 m). */
-export const LOD_DIST = [34, 72] as const;
+/** Chunk-centre distance bands for LOD0→1 and LOD1→2. */
+export const LOD_DIST = [24, 70] as const;
+/** A chunk outside the view frustum: its objects leave every pool. */
+const CULLED = -1;
+type Slot = Lod | typeof CULLED;
 const HYSTERESIS = 3;
 const THUNK_S = 0.42;
 
@@ -102,7 +105,7 @@ interface Placed {
   view: ObjectView;
   asset: Asset;
   chunk: number;
-  lod: Lod;
+  lod: Slot;
   base: THREE.Matrix4;
   /** World AABB of the footprint × nominal height, for picking. */
   box: THREE.Box3;
@@ -114,6 +117,9 @@ const tmpM = new THREE.Matrix4();
 const tmpS = new THREE.Matrix4();
 const tmpV = new THREE.Vector3();
 const state4 = [0, 0, 0, 0];
+const frustum = new THREE.Frustum();
+const projScreen = new THREE.Matrix4();
+const chunkBox = new THREE.Box3();
 
 export class ObjectLayer {
   readonly group = new THREE.Group();
@@ -121,7 +127,7 @@ export class ObjectLayer {
   private pools = new Map<string, PoolMesh>();
   private placed = new Map<string, Placed>();
   private byChunk = new Map<number, Set<string>>();
-  private chunkLod = new Map<number, Lod>();
+  private chunkLod = new Map<number, Slot>();
   private anims = new Map<string, number>();
   private settled = false;
   private hovered: string | null = null;
@@ -215,6 +221,7 @@ export class ObjectLayer {
   }
 
   private insert(p: Placed): void {
+    if (p.lod === CULLED) return;
     const pool = this.poolFor(p.asset, p.lod).pool;
     const i = pool.add(p.view.id);
     pool.set(CH_MATRIX, i, this.matrixOf(p).elements);
@@ -224,13 +231,14 @@ export class ObjectLayer {
   private remove(id: string): void {
     const p = this.placed.get(id);
     if (!p) return;
-    this.poolFor(p.asset, p.lod).pool.remove(id);
+    if (p.lod !== CULLED) this.poolFor(p.asset, p.lod).pool.remove(id);
     this.byChunk.get(p.chunk)?.delete(id);
     this.placed.delete(id);
     this.anims.delete(id);
   }
 
   private writeState(p: Placed): void {
+    if (p.lod === CULLED) return;
     const pool = this.poolFor(p.asset, p.lod).pool;
     const i = pool.indexOf(p.view.id);
     if (i === undefined) return;
@@ -263,34 +271,44 @@ export class ObjectLayer {
   update(camera: THREE.Camera, now: number): void {
     this.now = now;
     const cam = camera.position;
+    camera.updateMatrixWorld();
+    projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    frustum.setFromProjectionMatrix(projScreen);
     for (const [chunk, ids] of this.byChunk) {
       if (!ids.size) continue;
-      const cx = (chunk % 4096) * CHUNK + CHUNK / 2;
-      const cz = Math.floor(chunk / 4096) * CHUNK + CHUNK / 2;
-      const d = tmpV.set(cx, 0, cz).distanceTo(cam);
+      const x0 = (chunk % 4096) * CHUNK;
+      const z0 = Math.floor(chunk / 4096) * CHUNK;
+      // Margin so tall casters just off-screen still throw their shadows in.
+      chunkBox.min.set(x0 - 2, 0, z0 - 2);
+      chunkBox.max.set(x0 + CHUNK + 2, 3.5, z0 + CHUNK + 2);
       const cur = this.chunkLod.get(chunk) ?? 0;
-      let next: Lod = d < LOD_DIST[0] ? 0 : d < LOD_DIST[1] ? 1 : 2;
-      // Only switch once clearly past a band edge, so a chunk on the boundary
-      // doesn't flicker between pools as the camera drifts.
-      if (next !== cur) {
-        const edge = LOD_DIST[Math.min(next, cur) as 0 | 1];
-        if (Math.abs(d - edge) < HYSTERESIS) next = cur;
+      let next: Slot;
+      if (!frustum.intersectsBox(chunkBox)) next = CULLED;
+      else {
+        const d = tmpV.set(x0 + CHUNK / 2, 0, z0 + CHUNK / 2).distanceTo(cam);
+        next = d < LOD_DIST[0] ? 0 : d < LOD_DIST[1] ? 1 : 2;
+        // Only switch once clearly past a band edge, so a chunk on the boundary
+        // doesn't flicker between pools as the camera drifts.
+        if (next !== cur && cur !== CULLED) {
+          const edge = LOD_DIST[Math.min(next, cur) as 0 | 1];
+          if (Math.abs(d - edge) < HYSTERESIS) next = cur;
+        }
       }
       if (next === cur) continue;
       this.chunkLod.set(chunk, next);
       for (const id of ids) {
         const p = this.placed.get(id)!;
-        this.poolFor(p.asset, p.lod).pool.remove(id);
+        if (p.lod !== CULLED) this.poolFor(p.asset, p.lod).pool.remove(id);
         p.lod = next;
         this.insert(p);
       }
     }
     for (const [id, t0] of this.anims) {
       const p = this.placed.get(id);
-      if (!p) continue;
+      if (now - t0 >= THUNK_S) this.anims.delete(id);
+      if (!p || p.lod === CULLED) continue;
       const pool = this.poolFor(p.asset, p.lod).pool;
       const i = pool.indexOf(id);
-      if (now - t0 >= THUNK_S) this.anims.delete(id);
       if (i !== undefined) pool.set(CH_MATRIX, i, this.matrixOf(p).elements);
     }
     this.syncPools();

@@ -1,4 +1,4 @@
-// One 2048² canvas holding every printed surface: felt layouts, reel windows,
+// One 2048-wide canvas holding every printed surface: felt layouts, reel windows,
 // slot toppers, neon words, the big-six face. Painting them in code keeps the
 // text crisp at any zoom and lets every static asset share a single material
 // (see Palette.ts). Variant decals stack `rows` copies vertically; the object
@@ -67,46 +67,51 @@ export class DecalAtlas {
   readonly canvas: HTMLCanvasElement | OffscreenCanvas;
   readonly texture: THREE.Texture;
   readonly white: UvRect;
+  readonly height: number;
   private rects = new Map<string, UvRect>();
 
   constructor() {
-    const canvas =
-      typeof document !== 'undefined'
-        ? Object.assign(document.createElement('canvas'), { width: SIZE, height: SIZE })
-        : new OffscreenCanvas(SIZE, SIZE);
-    this.canvas = canvas;
-    const g = canvas.getContext('2d') as CanvasRenderingContext2D;
-    g.fillStyle = '#ffffff';
-    g.fillRect(0, 0, SIZE, SIZE);
-    // Shelf packer: decals are few and fixed, so a single greedy pass is enough.
+    // Shelf-pack tallest first; the canvas is as tall as the packing needs.
+    const order = Object.entries(DECALS).sort((a, b) => b[1].h * (b[1].rows ?? 1) - a[1].h * (a[1].rows ?? 1));
+    const slots: { key: string; d: DecalSpec; x: number; y: number }[] = [];
     let x = 64;
     let y = 0;
-    let shelf = 0;
-    this.white = this.toUv(8, 8, 48, 48, 1);
-    for (const [key, d] of Object.entries(DECALS)) {
-      const rows = d.rows ?? 1;
-      const h = d.h * rows;
+    let shelf = 64;
+    for (const [key, d] of order) {
+      const h = d.h * (d.rows ?? 1);
       if (x + d.w + PAD * 2 > SIZE) {
         x = 0;
         y += shelf;
         shelf = 0;
       }
+      slots.push({ key, d, x: x + PAD, y: y + PAD });
+      x += d.w + PAD * 2;
+      shelf = Math.max(shelf, h + PAD * 2);
+    }
+    this.height = Math.ceil((y + shelf) / 256) * 256;
+    const canvas =
+      typeof document !== 'undefined'
+        ? Object.assign(document.createElement('canvas'), { width: SIZE, height: this.height })
+        : new OffscreenCanvas(SIZE, this.height);
+    this.canvas = canvas;
+    const g = canvas.getContext('2d') as CanvasRenderingContext2D;
+    g.fillStyle = '#ffffff';
+    g.fillRect(0, 0, SIZE, this.height);
+    this.white = this.toUv(8, 8, 48, 48, 1);
+    for (const { key, d, x: sx, y: sy } of slots) {
+      const rows = d.rows ?? 1;
       for (let r = 0; r < rows; r++) {
         g.save();
-        g.translate(x + PAD, y + PAD + r * d.h);
+        g.translate(sx, sy + r * d.h);
         g.beginPath();
         g.rect(0, 0, d.w, d.h);
         g.clip();
         d.paint(g, d.w, d.h, r);
         g.restore();
       }
-      bleed(g, x + PAD, y + PAD, d.w, h);
-      const rect = this.toUv(x + PAD, y + PAD, d.w, d.h, rows);
-      this.rects.set(key, rect);
-      x += d.w + PAD * 2;
-      shelf = Math.max(shelf, h + PAD * 2);
+      bleed(g, sx, sy, d.w, d.h * rows);
+      this.rects.set(key, this.toUv(sx, sy, d.w, d.h, rows));
     }
-    if (y + shelf > SIZE) console.warn('DecalAtlas overflow', y + shelf);
     const tex = new THREE.CanvasTexture(canvas as HTMLCanvasElement);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 8;
@@ -131,13 +136,14 @@ export class DecalAtlas {
   private toUv(x: number, y: number, w: number, h: number, rows: number): UvRect {
     // CanvasTexture flips Y, so canvas top is v = 1. Inset half a texel.
     const i = 0.5;
+    const H = this.height;
     return {
       u0: (x + i) / SIZE,
       u1: (x + w - i) / SIZE,
-      v1: 1 - (y + i) / SIZE,
-      v0: 1 - (y + h - i) / SIZE,
+      v1: 1 - (y + i) / H,
+      v0: 1 - (y + h - i) / H,
       rows,
-      stepV: h / SIZE,
+      stepV: h / H,
     };
   }
 }
