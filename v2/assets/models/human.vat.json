@@ -1,0 +1,81 @@
+{
+ "clips": [
+  {
+   "name": "idle",
+   "start": 0,
+   "frames": 40,
+   "fps": 20,
+   "loop": true
+  },
+  {
+   "name": "walk",
+   "start": 40,
+   "frames": 20,
+   "fps": 20,
+   "loop": true
+  },
+  {
+   "name": "sit",
+   "start": 60,
+   "frames": 40,
+   "fps": 20,
+   "loop": true
+  },
+  {
+   "name": "play",
+   "start": 100,
+   "frames": 30,
+   "fps": 20,
+   "loop": true
+  },
+  {
+   "name": "cheer",
+   "start": 130,
+   "frames": 20,
+   "fps": 20,
+   "loop": true
+  },
+  {
+   "name": "sad",
+   "start": 150,
+   "frames": 40,
+   "fps": 20,
+   "loop": true
+  },
+  {
+   "name": "eat",
+   "start": 190,
+   "frames": 50,
+   "fps": 20,
+   "loop": true
+  },
+  {
+   "name": "deal",
+   "start": 240,
+   "frames": 40,
+   "fps": 20,
+   "loop": true
+  }
+ ],
+ "frames": 280,
+ "lods": [
+  {
+   "vertexCount": 902,
+   "indexCount": 4860,
+   "width": 902,
+   "height": 560,
+   "indexOffset": 0,
+   "regionOffset": 9720,
+   "vatOffset": 10624
+  },
+  {
+   "vertexCount": 484,
+   "indexCount": 2472,
+   "width": 484,
+   "height": 560,
+   "indexOffset": 4051584,
+   "regionOffset": 4056528,
+   "vatOffset": 4057012
+  }
+ ]
+}
