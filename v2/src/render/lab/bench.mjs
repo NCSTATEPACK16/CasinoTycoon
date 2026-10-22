@@ -33,6 +33,9 @@ const proc = spawn(
     `--user-data-dir=${mkdtempSync(join(tmpdir(), 'lab-'))}`,
     `--window-size=${W},${H}`,
     '--no-first-run',
+    // Never touch the macOS keychain ("Chromium Safe Storage" prompt).
+    '--use-mock-keychain',
+    '--password-store=basic',
     '--no-default-browser-check',
     '--disable-background-timer-throttling',
     '--disable-renderer-backgrounding',
