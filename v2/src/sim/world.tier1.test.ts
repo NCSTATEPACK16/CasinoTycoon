@@ -175,9 +175,7 @@ describe('Tier 1 on a live floor', () => {
       // Every Tier 1 game has a positive house edge, so a long run must end up
       // ahead. Zero means it was never played; negative means its payout table
       // is inverted.
-      expect(machine!.lifetimeProfit, `${id} never earned over ${TICKS[id]} ticks`).toBeGreaterThan(
-        0,
-      );
+      expect(machine!.lifetimeProfit, `${id} never earned over ${TICKS[id]} ticks`).toBeGreaterThan(0);
       // Wear only accrues on a real play, so this is the independent check that
       // guests actually sat down rather than the profit coming from elsewhere.
       expect(machine!.reliability, `${id} was never played`).toBeLessThan(100);

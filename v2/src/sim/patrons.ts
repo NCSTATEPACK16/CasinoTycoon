@@ -209,8 +209,7 @@ export class PatronRegistry {
    * visit and their theo when both copies leave.
    */
   drawForDay(day: number, rng: Rng, onFloor: ReadonlySet<string> = EMPTY_SET): Patron[] {
-    if (day === this.drawnForDay)
-      return this.dueToday.map((id) => this.records.get(id)!).filter(Boolean);
+    if (day === this.drawnForDay) return this.dueToday.map((id) => this.records.get(id)!).filter(Boolean);
     this.drawnForDay = day;
     this.prune(day, onFloor);
     const due: Patron[] = [];

@@ -157,12 +157,7 @@ export const THOUGHTS: readonly ThoughtDef[] = [
     when: (c) => c.thirst < 20 && !c.hasBar,
   },
   // --- Scalar tiers filling gaps in the original set. ---
-  {
-    id: 'flush',
-    text: 'I’m feeling lucky tonight.',
-    cooldownTicks: 600,
-    when: (c) => c.wallet > 400,
-  },
+  { id: 'flush', text: 'I’m feeling lucky tonight.', cooldownTicks: 600, when: (c) => c.wallet > 400 },
   { id: 'worn-out', text: 'I need to sit down.', cooldownTicks: 500, when: (c) => c.energy < 10 },
   {
     id: 'content',

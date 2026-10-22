@@ -133,8 +133,7 @@ export class Guest extends Walker {
   }
 
   get moveTicksPerTile(): number {
-    if (this.raging)
-      return Math.max(1, Math.round(GUEST_BALANCE.moveTicksPerTile / RAGE_BALANCE.speedMult));
+    if (this.raging) return Math.max(1, Math.round(GUEST_BALANCE.moveTicksPerTile / RAGE_BALANCE.speedMult));
     return GUEST_BALANCE.moveTicksPerTile;
   }
 
@@ -194,7 +193,9 @@ export class Guest extends Walker {
       hasToilet: world.hasServiceObject('toilet'),
       hasBar: world.hasServiceObject('bar'),
       hasFoodStall: world.hasServiceObject('food-stall'),
-      waitingForPlayers: this.machineId ? world.isTableWaitingForPlayers(this.machineId) : false,
+      waitingForPlayers: this.machineId
+        ? world.isTableWaitingForPlayers(this.machineId)
+        : false,
     };
   }
 
@@ -455,17 +456,11 @@ export class Guest extends Walker {
   private leave(world: CasinoWorld): void {
     world.releaseMachines(this.id);
     this.machineId = null;
-    if (
-      this.wallet < GUEST_BALANCE.brokeWallet &&
-      this.needs.happiness < RAGE_BALANCE.happinessThreshold
-    ) {
+    if (this.wallet < GUEST_BALANCE.brokeWallet && this.needs.happiness < RAGE_BALANCE.happinessThreshold) {
       this.raging = true;
       world.applyRageQuitPenalty();
       this.recordThought(world.tickCount, 'raging', 'This place ripped me off!');
-      eventBus.emit('tickerMessage', {
-        text: `${this.name} storms out in a rage!`,
-        severity: 'warn',
-      });
+      eventBus.emit('tickerMessage', { text: `${this.name} storms out in a rage!`, severity: 'warn' });
     }
     this.state = 'leaving';
     if (!this.goTo(world, world.entranceTile)) this.state = 'gone';

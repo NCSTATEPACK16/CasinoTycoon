@@ -119,7 +119,7 @@ describe('P3 — determinism', () => {
 });
 
 describe('P3 — tier benefits', () => {
-  it("widens a carded patron's comp budget and waives the session floor", () => {
+  it('widens a carded patron\'s comp budget and waives the session floor', () => {
     const world = stockedWorld(8, false);
     const walkIn = world.spawnGuest('regular');
     // A walk-in who has not played cannot be comped at all — A1a's floor.
@@ -227,10 +227,7 @@ describe('one patron, one guest', () => {
           live.set(guest.patronId, (live.get(guest.patronId) ?? 0) + 1);
           // A guest's record is deleted only by prune or the cap, and neither
           // may touch someone on the floor.
-          expect(
-            world.patrons.get(guest.patronId),
-            `seed ${seed} orphaned ${guest.patronId}`,
-          ).toBeDefined();
+          expect(world.patrons.get(guest.patronId), `seed ${seed} orphaned ${guest.patronId}`).toBeDefined();
         }
         for (const [patronId, count] of live) {
           expect(count, `seed ${seed} day ${world.time.day} duplicated ${patronId}`).toBe(1);

@@ -168,11 +168,7 @@ describe('CasinoWorld — staff', () => {
     for (let i = 0; i < 500 && dealer.state !== 'stationed'; i++) world.tick();
     expect(dealer.assignedTableId).toBe(a.id);
     world.sell(a.id);
-    for (
-      let i = 0;
-      i < 500 && (dealer.assignedTableId !== b.id || dealer.state !== 'stationed');
-      i++
-    ) {
+    for (let i = 0; i < 500 && (dealer.assignedTableId !== b.id || dealer.state !== 'stationed'); i++) {
       world.tick();
     }
     expect(dealer.assignedTableId).toBe(b.id);

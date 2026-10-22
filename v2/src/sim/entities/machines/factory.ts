@@ -47,7 +47,11 @@ export function isMachineDefId(defId: string): boolean {
 }
 
 /** Build a machine for a catalog defId, or null if that object isn't a game. */
-export function createMachine(defId: string, id: string, costToPlay?: number): CasinoGame | null {
+export function createMachine(
+  defId: string,
+  id: string,
+  costToPlay?: number,
+): CasinoGame | null {
   // hasOwn, not a truthy lookup: a plain object literal inherits 'constructor',
   // 'toString', 'valueOf'… off Object.prototype, and those would otherwise
   // resolve to a truthy non-ctor and slip past createMachineOrThrow's guard.
@@ -56,7 +60,11 @@ export function createMachine(defId: string, id: string, costToPlay?: number): C
 }
 
 /** Deserialize variant: a save naming an unknown game must fail loudly. */
-export function createMachineOrThrow(defId: string, id: string, costToPlay?: number): CasinoGame {
+export function createMachineOrThrow(
+  defId: string,
+  id: string,
+  costToPlay?: number,
+): CasinoGame {
   const machine = createMachine(defId, id, costToPlay);
   if (!machine) throw new Error(`Unknown machine defId in save data: ${defId}`);
   return machine;

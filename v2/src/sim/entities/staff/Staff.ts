@@ -4,9 +4,15 @@ import type { CasinoWorld } from '../../world';
 import { Walker } from '../Walker';
 
 export type StaffKind =
-  'mechanic' | 'janitor' | 'bartender' | 'waitress' | 'pitBoss' | 'security' | 'dealer' | 'cashier';
-export type StaffState =
-  'idle' | 'patrol' | 'toJob' | 'working' | 'brewing' | 'stationed' | 'carried';
+  | 'mechanic'
+  | 'janitor'
+  | 'bartender'
+  | 'waitress'
+  | 'pitBoss'
+  | 'security'
+  | 'dealer'
+  | 'cashier';
+export type StaffState = 'idle' | 'patrol' | 'toJob' | 'working' | 'brewing' | 'stationed' | 'carried';
 
 // One class for every role. Mechanic/janitor share the job-queue dispatch
 // below (the only difference is which jobs the world hands them and how long

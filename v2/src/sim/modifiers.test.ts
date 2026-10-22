@@ -67,7 +67,8 @@ describe('ModifierSystem', () => {
     // Read from the catalog rather than repeating its numbers: this test is
     // about multiplying stacked effects, not about what any one of them is
     // worth, and P16 retuned both of these.
-    const spawnOf = (id: string) => MODIFIERS.catalog.find((m) => m.id === id)?.spawnMult ?? 1;
+    const spawnOf = (id: string) =>
+      MODIFIERS.catalog.find((m) => m.id === id)?.spawnMult ?? 1;
     expect(restored.spawnMult()).toBeCloseTo(spawnOf('convention') * spawnOf('bus-junket'), 5);
     expect(sys.spawnMult()).toBe(1);
   });
@@ -90,11 +91,15 @@ describe('ModifierSystem', () => {
     const sys = new ModifierSystem();
     sys.drawForDay(4, alwaysDraws());
     const restored = ModifierSystem.fromJSON(sys.toJSON());
-    expect(restored.activeModifiers.map((m) => m.id)).toEqual(sys.activeModifiers.map((m) => m.id));
+    expect(restored.activeModifiers.map((m) => m.id)).toEqual(
+      sys.activeModifiers.map((m) => m.id),
+    );
     // Still idempotent for its own day after a reload — the whole reason
     // drawnForDay is serialized.
     restored.drawForDay(4, alwaysDraws());
-    expect(restored.activeModifiers.map((m) => m.id)).toEqual(sys.activeModifiers.map((m) => m.id));
+    expect(restored.activeModifiers.map((m) => m.id)).toEqual(
+      sys.activeModifiers.map((m) => m.id),
+    );
   });
 
   it('drops an id no longer in the catalog instead of failing the load', () => {

@@ -9,11 +9,7 @@ describe('Ledger — extended DailyRecord', () => {
     ledger.recordJackpot();
     ledger.recordRageQuit();
     ledger.recordGuestSession({ name: 'Rita B.', netResult: 140, favoriteGame: 'slot-machine' });
-    ledger.recordGuestSession({
-      name: 'Marcus C.',
-      netResult: -80,
-      favoriteGame: 'blackjack-table',
-    });
+    ledger.recordGuestSession({ name: 'Marcus C.', netResult: -80, favoriteGame: 'blackjack-table' });
     const record = ledger.closeDay(1);
     expect(record.takenIn).toBe(20);
     expect(record.paidOut).toBe(150);

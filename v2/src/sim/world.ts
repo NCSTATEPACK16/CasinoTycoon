@@ -1084,10 +1084,7 @@ export class CasinoWorld {
 
   /** One-time rating ding from a rage quit; decays over subsequent hours. */
   applyRageQuitPenalty(): void {
-    this.ragePenalty = Math.min(
-      RAGE_BALANCE.maxRatingPenalty,
-      this.ragePenalty + RAGE_BALANCE.ratingDing,
-    );
+    this.ragePenalty = Math.min(RAGE_BALANCE.maxRatingPenalty, this.ragePenalty + RAGE_BALANCE.ratingDing);
     this.ledger.recordRageQuit();
     this.reputation.onRageQuit();
   }
