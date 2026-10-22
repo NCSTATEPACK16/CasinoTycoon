@@ -71,8 +71,8 @@ export const SLOT_BALANCE = {
   spinIntervalTicks: 8,
   spinsMin: 3,
   spinsMax: 8,
-  // The reels themselves are a par sheet (ENGINE_BALANCE.rules below):
-  // 25¢ × 40 credits on Diamond Lines, a 92% low-volatility sheet.
+  // The reels themselves are a par sheet (ENGINE_RULES below): 25¢ × 40
+  // credits on Lucky Cherries, a 92.1% stepper with v1's flat swing.
 } as const;
 
 /** Expected return-to-player of the slot's default par sheet. */
@@ -919,7 +919,7 @@ export function patronTierFor(lifetimeTheo: number): PatronTier {
 // Limits are low because a guest "play" is a batch of small real rounds (see
 // ENGINE_BALANCE.playShape); the per-play stake is still costToPlay.
 export const ENGINE_RULES: Readonly<Record<string, Record<string, unknown>>> = {
-  'slot-machine': { sheet: 'diamond-lines', denomination: 0.25, credits: 40 },
+  'slot-machine': { sheet: 'lucky-cherries', denomination: 0.25, credits: 40 },
   'penny-slots': { sheet: 'penny-fortune', denomination: 0.01, credits: 200 },
   'roulette-table': { wheel: 'double', laPartage: false, minBet: 5, maxBet: 1000 },
   'blackjack-table': { minBet: 5, maxBet: 1000 },
@@ -952,9 +952,10 @@ export const ENGINE_BALANCE = {
    * round, so each shape is chosen to hold both v1's take per play and v1's
    * per-play swing (P16's day-is-not-a-coin-flip bar):
    *
-   *   blackjack  12 × $6   at ~1.4% (book 0.40% + a regular's errors)
+   *   blackjack  16 × $7.8 at ~1.4% (book 0.40% + a regular's errors);
+   *              the table also has to carry its dealer's $96 a day
    *   craps      10 × $5   at ~2.7% of the opening bets (line plus props)
-   *   UTH         8 × $3.5 Ante at ~5.3% of the Ante (with the errors)
+   *   UTH        12 × $2.3 Ante at ~5.3% of the Ante (with the errors)
    *   roulette    2 × $15  at 5.26% — roulette's swing IS the game
    *   high-limit 12 × $65  at ~1.0% (late surrender, high-roller errors)
    *   slots       1 spin at the machine's own bet
@@ -968,10 +969,10 @@ export const ENGINE_BALANCE = {
     'slot-machine': { rounds: 1, handle: 1 },
     'penny-slots': { rounds: 1, handle: 1 },
     'roulette-table': { rounds: 2, handle: 1.5 },
-    'blackjack-table': { rounds: 12, handle: 2.9 },
+    'blackjack-table': { rounds: 16, handle: 5 },
     'high-limit-table': { rounds: 12, handle: 5.2 },
     'craps-table': { rounds: 10, handle: 3.3 },
-    'poker-table': { rounds: 8, handle: 2.8 },
+    'poker-table': { rounds: 12, handle: 2.8 },
   } as Readonly<Record<string, { rounds: number; handle: number }>>,
   /** Seated players the shapes above are quoted at. */
   referenceSeated: 2,
@@ -990,12 +991,13 @@ export const ENGINE_BALANCE = {
   /** Chance a guest backs a craps point with the free odds when offered.
    *  Odds carry no edge, only swing, so this is a variance dial, not an
    *  income one: the sharp money takes them, tourists rarely know they
-   *  exist. [design guess] */
+   *  exist. Kept low because 3-4-5x odds roughly quadruple a play's swing
+   *  and a day of this sim is a few hundred plays. [design guess] */
   oddsAppetiteByArchetype: {
-    highRoller: 0.9,
-    regular: 0.3,
-    biker: 0.5,
-    tourist: 0.1,
+    highRoller: 0.25,
+    regular: 0,
+    biker: 0.05,
+    tourist: 0,
   } as Readonly<Record<string, number>>,
 } as const;
 

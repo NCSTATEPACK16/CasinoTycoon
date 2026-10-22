@@ -107,6 +107,7 @@ const LINES_5x3 = [
 
 /** Blank-stop weight per sheet (symbol weights are ×WEIGHT_SCALE). */
 export const BLANK_WEIGHTS: Record<string, number> = {
+  'lucky-cherries': 14,
   'classic-sevens': 22,
   'diamond-lines': 216,
   'dragon-hoard': 22,
@@ -115,6 +116,24 @@ export const BLANK_WEIGHTS: Record<string, number> = {
 };
 
 export const SHEET_SPECS: readonly SheetSpec[] = [
+  {
+    // A three-reel stepper whose cherry on the first reel hands the bet back:
+    // a 60% hit rate, mostly money back, and the flattest swing on the floor.
+    // It is the floor's default because a day's slot takings should say
+    // something about the day (the P16 "variance bar"): σ 1.27 bets a pull,
+    // with a 10×+ bar or seven line on ~0.6% of pulls for the winner's strut.
+    id: 'lucky-cherries',
+    name: 'Lucky Cherries',
+    rtp: 0.9211551097058036,
+    volatility: 'low',
+    rows: 1,
+    reels: 3,
+    strip: ['CH', '-', 'B1', '-', '7', '-', 'B2', '-', 'CH', '-', 'B1', '-', 'B2', '-', 'B1', '-'],
+    weights: { CH: [18, 5, 4], B1: [4, 4, 4], B2: [4, 4, 4], '7': [2, 2, 2] },
+    lines: [[0, 0, 0]],
+    pays: { CH: [1, 2, 5], B1: [0, 0, 2], B2: [0, 0, 10], '7': [0, 0, 25] },
+    spinsPerHour: 400,
+  },
   {
     // A three-reel stepper: one line, cherries pay from the left, a top
     // award of 200 on sevens. The textbook 88% bar-top.
@@ -165,7 +184,7 @@ export const SHEET_SPECS: readonly SheetSpec[] = [
     id: 'diamond-lines',
     name: 'Diamond Lines',
     rtp: 0.9200668434754703,
-    volatility: 'low',
+    volatility: 'medium',
     rows: 3,
     reels: 3,
     strip: [
@@ -241,7 +260,7 @@ export const SHEET_SPECS: readonly SheetSpec[] = [
     id: 'garden-twenty',
     name: 'Garden Twenty',
     rtp: 0.9688617331302269,
-    volatility: 'low',
+    volatility: 'medium',
     rows: 3,
     reels: 5,
     strip: ['WI', 'RO', 'A', '-', 'K', 'Q', 'TU', 'J', '-', 'T', 'A', 'K', '-', 'Q', 'J', 'T'],
@@ -311,5 +330,5 @@ export const PAR_SHEETS: Record<string, ParSheet> = Object.fromEntries(
   SHEET_SPECS.map((spec) => [spec.id, buildSheet(spec, BLANK_WEIGHTS[spec.id]!)]),
 );
 
-export const DEFAULT_SHEET = 'diamond-lines';
+export const DEFAULT_SHEET = 'lucky-cherries';
 export const PENNY_SHEET = 'penny-fortune';

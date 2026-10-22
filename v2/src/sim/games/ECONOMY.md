@@ -4,7 +4,7 @@ Every gambling object that used to roll an abstract `{p, multiplier}` table now 
 
 | Object             | Engine      | Default rules                                                            |
 | ------------------ | ----------- | ------------------------------------------------------------------------ |
-| `slot-machine`     | `slots`     | Diamond Lines (3×3, 5 lines, 92.0%), 25¢ × 40 credits                    |
+| `slot-machine`     | `slots`     | Lucky Cherries (3×1 stepper, 92.1%, σ 1.27), 25¢ × 40 credits            |
 | `penny-slots`      | `slots`     | Penny Fortune (5×3, 20 lines, 88.0%), 1¢ × 200 credits                   |
 | `roulette-table`   | `roulette`  | Double zero, $5–$1,000                                                   |
 | `blackjack-table`  | `blackjack` | 6D S17 DAS 3:2, split to 4, no RSA/surrender, 75% penetration, $5–$1,000 |
@@ -26,7 +26,7 @@ Sic bo, big six, video poker, three-card poker, pai gow, keno, bingo and pachink
 
 `theo` for a round is Σ opening bets × each spot's edge, plus the guest's **skill premium**. Raises, doubles and odds add handle but no theo, because edges are quoted per initial wager.
 
-Guests stray from the reference strategy with probability `ENGINE_BALANCE.skillErrorByArchetype`: high roller 1%, regular 2%, biker 3%, tourist 5%. A stray picks uniformly among the other legal actions. The premium is the extra edge that produces. `GameMath.skillPremium` measures it by common-random-numbers Monte Carlo (the same deals played perfectly and with errors), cached per rule set and error rate. This follows the casino convention of rating players at an average-player edge rather than a perfect one, which is why theo predicts hold. At 2% errors the premium is about +1.0 point on blackjack and +2.3 on UTH. Roulette and slots have no decisions; craps' only decision is the zero-edge odds, which guests take with a per-archetype appetite (`ENGINE_BALANCE.oddsAppetiteByArchetype`: high roller 90%, biker 50%, regular 30%, tourist 10%). Declining odds costs nothing, so it is a variance dial, not a skill.
+Guests stray from the reference strategy with probability `ENGINE_BALANCE.skillErrorByArchetype`: high roller 1%, regular 2%, biker 3%, tourist 5%. A stray picks uniformly among the other legal actions. The premium is the extra edge that produces. `GameMath.skillPremium` measures it by common-random-numbers Monte Carlo (the same deals played perfectly and with errors), cached per rule set and error rate. This follows the casino convention of rating players at an average-player edge rather than a perfect one, which is why theo predicts hold. At 2% errors the premium is about +1.0 point on blackjack and +2.3 on UTH. Roulette and slots have no decisions; craps' only decision is the zero-edge odds, which guests take with a per-archetype appetite (`ENGINE_BALANCE.oddsAppetiteByArchetype`: high roller 25%, biker 5%, regulars and tourists never). Declining odds costs nothing, so it is a variance dial, not a skill.
 
 The avatar's rounds book theo at the book edge with no premium.
 
@@ -72,9 +72,9 @@ The forked guest AI still makes one decision per play interval, so one "play" is
 
 | Machine    | Rounds × per-round stake | Effective edge                          |
 | ---------- | ------------------------ | --------------------------------------- |
-| Blackjack  | 12 × $6                  | ~1.4% with a regular's errors           |
+| Blackjack  | 16 × $7.80               | ~1.4% with a regular's errors           |
 | Craps      | 10 × $5                  | ~2.7% of opening bets (line plus props) |
-| UTH        | 8 × $3.50 Ante           | ~5.3% of the Ante                       |
+| UTH        | 12 × $2.30 Ante          | ~5.3% of the Ante                       |
 | Roulette   | 2 × $15                  | 5.26%                                   |
 | High-limit | 12 × $65                 | ~1.0%                                   |
 | Slots      | 1 spin                   | —                                       |

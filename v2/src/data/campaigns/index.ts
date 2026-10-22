@@ -48,8 +48,14 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     // of the seven seeds and a straightforward build-out wins six. The 4-day
     // window is the anti-luck half: this is the hall where you prove the place
     // runs, not that it had one good night.
+    //
+    // v2: the goal rose to $1000 when the tables started dealing real
+    // blackjack. A single table now earns enough that build-and-abandon's best
+    // four-day average reached $864 at a $700 goal; greedy's winners average
+    // $1400+ and its losers are early spirals well short of either figure, so
+    // $1000 sits in the gap (measured over the seven tournament seeds).
     startingCash: 3000,
-    goalDailyProfit: 700,
+    goalDailyProfit: 1000,
     dayLimit: 12,
     goalWindowDays: 4,
     creditLimit: 1000,
@@ -68,8 +74,11 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     id: 'high-roller',
     name: 'The High Roller Club',
     tagline: 'Members only, tables only. Slots would cheapen the carpet.',
+    // v2: $700 → $1000 for the same reason as the Dusty Dime: real blackjack
+    // let a single never-touched table average up to $871; greedy's floor of
+    // staffed tables never averaged under $1025 on any seed.
     startingCash: 5000,
-    goalDailyProfit: 700,
+    goalDailyProfit: 1000,
     dayLimit: 10,
     goalWindowDays: 3,
     creditLimit: 800,

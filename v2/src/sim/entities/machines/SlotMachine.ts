@@ -2,7 +2,8 @@ import { SLOT_BALANCE } from '../../../data/balance';
 import type { PlayCadence } from './CasinoGame';
 import { EngineCabinet } from './EngineGame';
 
-// A video reel cabinet playing a real par sheet (Diamond Lines by default).
+// A reel cabinet playing a real par sheet (Lucky Cherries by default: a flat
+// 92.1% stepper, so a day's slot takings mean something).
 export class SlotMachine extends EngineCabinet {
   constructor(id: string, costToPlay?: number) {
     super(id, 'slot-machine', 'slots', costToPlay);
