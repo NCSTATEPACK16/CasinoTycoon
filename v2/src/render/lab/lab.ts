@@ -28,7 +28,7 @@ const N_AGENTS = Number(q.get('agents') ?? 500);
 if (q.has('clean')) document.body.classList.add('clean');
 
 const COLS = 100;
-const ROWS = 80;
+const ROWS = 96;
 
 let seed = 12345;
 const rnd = () => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) / 4294967296);
@@ -46,7 +46,8 @@ function buildPlan(): FloorPlanView {
       zone[r * COLS + c] = z;
     }
   };
-  rect(0, 0, 100, 80, F('carpet-red'), Z('gaming'));
+  rect(0, 0, 100, ROWS, F('carpet-red'), Z('gaming'));
+  rect(0, 80, 100, 82, F('marble'), Z('gaming'));
   rect(50, 0, 76, 40, F('carpet-blue'), Z('gaming')); // table pit
   rect(0, 37, 100, 40, F('marble'), Z('gaming')); // promenade
   rect(47, 0, 50, 80, F('marble'), Z('gaming'));
@@ -63,9 +64,9 @@ function buildPlan(): FloorPlanView {
     for (let r = r0; r < r1; r++) walls.push({ col: c, row: r, edge: 'w', door: doors.includes(r) });
   };
   hline(0, 100, 0);
-  hline(0, 100, 80, [48]);
-  vline(0, 0, 80);
-  vline(100, 0, 80, [38]);
+  hline(0, 100, ROWS, [48]);
+  vline(0, 0, ROWS);
+  vline(100, 0, ROWS, [38]);
   vline(76, 0, 30, [14, 15]);
   hline(76, 100, 30, [88]);
   vline(76, 40, 50, [44]);
@@ -108,25 +109,26 @@ function buildObjects(): { views: ObjectView[]; seats: Seat[] } {
       );
     }
   };
-  // Slot floor: back-to-back banks of ten along x, aisles between.
-  for (let r = 2; r + 1 < 36; r += 5)
-    for (let c = 2; c + 10 <= 46; c += 12)
-      for (let k = 0; k < 10; k++) {
-        const def = (k + r) % 4 === 0 ? 'penny-slots' : 'slot-machine';
-        add(def, c + k, r, 2);
-        add(def, c + k, r + 1, 0);
-      }
-  for (let r = 42; r + 1 < 78; r += 5)
-    for (let c = 2; c + 10 <= 74; c += 12)
-      for (let k = 0; k < 10; k++) {
-        const def = k === 0 || k === 9 ? 'video-poker' : k % 3 === 0 ? 'penny-slots' : 'slot-machine';
-        if (def === 'video-poker') {
-          if (r % 2 === 0) add(def, c + k, r, 0);
-          continue;
+  // Slot floor: back-to-back banks of ten along x, two-cell aisles between.
+  const bank = (c0: number, c1: number, r0: number, r1: number, vp: boolean) => {
+    for (let r = r0; r + 1 < r1; r += 4) {
+      LANES.push([c0, r + 3, c1, r + 3]);
+      for (let c = c0; c + 10 <= c1; c += 11)
+        for (let k = 0; k < 10; k++) {
+          if (c + k >= 46 && c + k < 51) continue; // keep the north-south promenade clear
+          if (vp && k === 0) {
+            add('video-poker', c + k, r, 0);
+            continue;
+          }
+          const def = (k + r) % 4 === 0 ? 'penny-slots' : 'slot-machine';
+          add(def, c + k, r, 2);
+          add(def, c + k, r + 1, 0);
         }
-        add(def, c + k, r, 2);
-        add(def, c + k, r + 1, 0);
-      }
+    }
+  };
+  bank(2, 46, 2, 36, false);
+  bank(2, 75, 42, 80, true);
+  bank(2, 99, 82, 95, false);
   // Table pit.
   const tables = ['blackjack-table', 'roulette-table', 'craps-table', 'poker-table', 'three-card-poker', 'blackjack-table'];
   let t = 0;
@@ -136,10 +138,10 @@ function buildObjects(): { views: ObjectView[]; seats: Seat[] } {
   for (let r = 6; r + 2 <= 26; r += 6)
     for (let c = 81; c + 2 <= 96; c += 5) add(r === 12 ? 'roulette-table' : 'high-limit-table', c, r, 0);
   add('cage', 72, 41);
-  add('big-six-wheel', 50, 44);
-  add('big-six-wheel', 50, 46);
-  add('pachinko', 50, 50);
-  add('pachinko', 50, 51);
+  add('big-six-wheel', 46, 44);
+  add('big-six-wheel', 46, 47);
+  add('pachinko', 50, 44);
+  add('pachinko', 50, 47);
   // Food court and bars.
   for (let c = 78; c < 98; c += 3) add('food-stall', c, 52, 0);
   add('bar', 80, 60);
@@ -179,18 +181,15 @@ interface Walker {
   until: number;
 }
 
+/** Walkable lanes: slot aisles (filled by buildObjects), promenades, pit edges. */
+const LANES: [number, number, number, number][] = [];
+
 function walkTarget(): [number, number] {
-  // Aisles: rows between slot banks, the promenades, the pit edges.
   const lanes: [number, number, number, number][] = [
+    ...LANES,
     [1, 38, 99, 39],
     [48, 1, 49, 79],
-    [1, 4.5, 46, 4.5],
-    [1, 9.5, 46, 9.5],
-    [1, 14.5, 46, 14.5],
-    [1, 24.5, 46, 24.5],
-    [1, 44.5, 74, 44.5],
-    [1, 54.5, 74, 54.5],
-    [1, 64.5, 74, 64.5],
+    [1, 81, 99, 81],
     [51, 2, 75, 2],
     [51, 7.5, 75, 7.5],
     [51, 17.5, 75, 17.5],

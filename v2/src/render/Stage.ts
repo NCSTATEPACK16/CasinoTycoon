@@ -268,10 +268,12 @@ export class Stage {
     objectUniforms.uFocus.value.set(focus.x, focus.z);
     const flat = Math.hypot(fwd.x, fwd.z) || 1;
     objectUniforms.uCamDir.value.set(fwd.x / flat, fwd.z / flat);
-    const avatar =
-      this.viewMode === 'avatar' || (this.viewMode === null && cam.position.y < 4.5);
-    const fade = avatar ? 1 : this.viewMode === 'god' ? 0 : 1 - THREE.MathUtils.smoothstep(cam.position.y, 4.5, 9);
-    objectUniforms.uCutOn.value = 1 - (avatar ? 1 : fade);
+    // The ceiling (3.4 m) only exists for cameras under it: avatar views, or a
+    // god cam zoomed right down to eye level. From above it would hide the floor.
+    const y = cam.position.y;
+    const auto = 1 - THREE.MathUtils.smoothstep(y, 2.4, 3.1);
+    const fade = this.viewMode === 'avatar' ? 1 : this.viewMode === 'god' ? 0 : auto;
+    objectUniforms.uCutOn.value = 1 - fade;
     this.floor.setCeiling(fade);
   }
 }
