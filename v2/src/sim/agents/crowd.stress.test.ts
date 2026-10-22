@@ -10,7 +10,7 @@ const env =
   (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
 
 const TARGET = 500;
-const TICKS = 10_000;
+const TICKS = Number(env.TICKS ?? 10_000);
 
 describe('crowd stress', () => {
   it(`keeps ${TARGET} agents moving for ${TICKS} ticks: no NaNs, nobody stuck, tick within budget`, async () => {

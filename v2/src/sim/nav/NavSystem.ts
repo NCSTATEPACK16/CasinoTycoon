@@ -40,9 +40,16 @@ export const MAX_AGENTS = 640;
 const zoneBit = (z: Zone) => 1 << ZONES.indexOf(z);
 const ALL_ZONES = (1 << ZONES.length) - 1;
 
-/** Detour crowd update flags: anticipate turns, optimise the corridor both
- *  ways, avoid other agents and keep separation. */
-const CROWD_FLAGS = 1 | 2 | 4 | 8 | 16;
+/** Detour crowd update flags (DetourCrowd.h): anticipate turns (1), obstacle
+ *  avoidance (2), separation (4), optimise the corridor by visibility (8) and
+ *  topology (16). A walking agent gets all of them. */
+export const CROWD_FLAGS_WALKING = 1 | 2 | 4 | 8 | 16;
+/** A standing agent keeps only separation: walkers still steer round it and
+ *  it still gets nudged aside, but it skips obstacle-avoidance velocity
+ *  sampling — the most expensive per-agent step, and pure waste for someone
+ *  browsing in place. With half a full floor standing about, this is the
+ *  difference between the 500-guest tick fitting its budget or not. */
+export const CROWD_FLAGS_IDLE = 4;
 
 export interface Point {
   x: number;
@@ -56,6 +63,11 @@ export class NavSystem {
   private readonly baker: NavBaker;
   private dirty = new Set<number>();
   private readonly halfExtents = { x: 0.6, y: 1, z: 0.6 };
+  /** Agents on the crowd, counted here because Crowd.getActiveAgentCount
+   *  (CrowdUtils in the WASM build) corrupts the heap when called between
+   *  adds: a few hundred calls later the next tile bake dies with "memory
+   *  access out of bounds" inside rcBuildRegions. */
+  private agentCount = 0;
   /** Last full-bake and last rebake wall time in ms, for the perf report. */
   lastBakeMs = 0;
   lastRebakeMs = 0;
@@ -184,7 +196,8 @@ export class NavSystem {
   addAgent(p: Point, slot: NavFilter, maxSpeed: number): CrowdAgent | null {
     const at = this.closest(p, slot, 2) ?? this.closest(p, NavFilter.Staff, 2);
     if (!at) return null;
-    if (this.crowd.getActiveAgentCount() >= MAX_AGENTS) return null;
+    if (this.agentCount >= MAX_AGENTS) return null;
+    this.agentCount++;
     return this.crowd.addAgent(
       { x: at.x, y: 0, z: at.z },
       {
@@ -195,7 +208,7 @@ export class NavSystem {
         collisionQueryRange: AGENT_RADIUS * 8,
         pathOptimizationRange: AGENT_RADIUS * 30,
         separationWeight: 1.2,
-        updateFlags: CROWD_FLAGS,
+        updateFlags: CROWD_FLAGS_WALKING,
         obstacleAvoidanceType: 1,
         queryFilterType: slot,
       },
@@ -204,6 +217,7 @@ export class NavSystem {
 
   removeAgent(agent: CrowdAgent): void {
     this.crowd.removeAgent(agent);
+    this.agentCount--;
   }
 
   update(): void {

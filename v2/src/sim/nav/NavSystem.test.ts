@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { FloorPlan } from '../floor/FloorPlan';
 import { starterFloorPlan } from '../floor/starter';
 import { IsoGrid } from '../grid/IsoGrid';
-import { NavFilter, NavSystem, initNav } from './NavSystem';
+import { MAX_AGENTS, NavFilter, NavSystem, initNav } from './NavSystem';
 import { floorNavSource } from './source';
 
 beforeAll(async () => {
@@ -76,5 +76,26 @@ describe('NavSystem bake', () => {
     const edge = nav.closest({ x: 21, z: 13.9 }, NavFilter.Staff, 0.6);
     expect(edge).not.toBeNull();
     expect(edge!.z).toBeLessThanOrEqual(14 - 0.25);
+  });
+});
+
+describe('NavSystem crowd', () => {
+  it('fills the crowd to its cap and still rebakes every tile', () => {
+    const { plan, grid, nav } = bakeStarter();
+    let seed = 1;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const agents = [];
+    for (let i = 0; i < MAX_AGENTS; i++) {
+      const a = nav.addAgent({ x: 15 + rnd() * 15, z: 6 + rnd() * 18 }, NavFilter.Guest, 1.3);
+      expect(a).not.toBeNull();
+      agents.push(a!);
+    }
+    expect(nav.addAgent({ x: 20, z: 12 }, NavFilter.Guest, 1.3)).toBeNull();
+    nav.removeAgent(agents.pop()!);
+    expect(nav.addAgent({ x: 20, z: 12 }, NavFilter.Guest, 1.3)).not.toBeNull();
+    // Regression: counting agents through the WASM CrowdUtils binding between
+    // adds corrupted the heap, and the next bake died inside rcBuildRegions.
+    nav.markDirty(0, 0, 39, 29);
+    expect(nav.flush(floorNavSource(plan, grid))).toBeGreaterThan(0);
   });
 });

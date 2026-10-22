@@ -300,11 +300,12 @@ export class CasinoWorld {
     nav.rebuild(this);
   }
 
-  /** Hook: whether a game can be played right now. With requireDealers, a
-   *  dealt table needs its dealer actually stationed, not merely en route. */
+  /** Hook: whether a game is staffed to play. With requireDealers, a dealt
+   *  table needs its dealer actually stationed, not merely en route. Broken is
+   *  a separate fact (ObjectView.broken) and deliberately not folded in here. */
   isTableOpen(machineId: string): boolean {
     const machine = this.machines.get(machineId);
-    if (!machine || machine.broken) return false;
+    if (!machine) return false;
     if (!this.requireDealers || !machine.needsDealer) return true;
     const staffId = this.dealerAssignments.get(machineId);
     return !!staffId && this.staff.get(staffId)?.state === 'stationed';

@@ -110,6 +110,29 @@ export function runCommand(world: CasinoWorld, snap: SnapshotBuilder, cmd: Comma
       for (let i = 0; i < n; i++) world.spawnGuest(cmd.archetype);
       return { ok: true, data: world.guests.size };
     }
+    case 'debugTicks': {
+      const n = Math.max(0, Math.min(5000, Math.floor(cmd.count)));
+      const times: number[] = [];
+      for (let i = 0; i < n; i++) {
+        const t0 = performance.now();
+        world.tick();
+        times.push(performance.now() - t0);
+        snap.recordTick(times[i]!);
+      }
+      times.sort((a, b) => a - b);
+      const mean = times.reduce((a, b) => a + b, 0) / Math.max(1, n);
+      return {
+        ok: true,
+        data: {
+          ticks: n,
+          meanMs: mean,
+          p95Ms: times[Math.floor(n * 0.95)] ?? 0,
+          maxMs: times[n - 1] ?? 0,
+          guests: world.guests.size,
+          crowdAgents: world.nav?.activeAgents ?? 0,
+        },
+      };
+    }
     case 'stats': {
       const t = snap.tickTimes;
       const stats: SimStats = {

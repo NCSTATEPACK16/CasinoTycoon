@@ -155,7 +155,10 @@ export type Command =
       count: number;
       archetype?: 'regular' | 'highRoller' | 'biker' | 'tourist';
     }
-  | { type: 'stats' };
+  | { type: 'stats' }
+  // Run N ticks synchronously in the worker and reply with their timings —
+  // unaffected by background-tab timer throttling, unlike the pump.
+  | { type: 'debugTicks'; count: number };
 
 /** Reply to { type: 'stats' }. */
 export interface SimStats {

@@ -11,7 +11,14 @@ import type { CrowdAgent } from '@recast-navigation/core';
 import type { CellRect } from '../../shared/contracts';
 import type { Walker } from '../entities/Walker';
 import type { CasinoWorld } from '../world';
-import { NavSystem, initNav, type NavFilter, type Point } from './NavSystem';
+import {
+  CROWD_FLAGS_IDLE,
+  CROWD_FLAGS_WALKING,
+  NavSystem,
+  initNav,
+  type NavFilter,
+  type Point,
+} from './NavSystem';
 import { floorNavSource } from './source';
 
 /** Detour's DT_CROWDAGENT_STATE_INVALID: the agent is not on any polygon. */
@@ -31,6 +38,7 @@ export class WorldNav {
   private agents = new Map<Walker, CrowdAgent>();
   private speeds = new Map<Walker, number>();
   private filters = new Map<Walker, NavFilter>();
+  private flags = new Map<Walker, number>();
   readonly stats: NavStats = { repaths: 0, teleports: 0, rescues: 0 };
   /** Wall time of the last step's crowd update, for the perf HUD and tests. */
   lastStepMs = 0;
@@ -53,6 +61,7 @@ export class WorldNav {
     this.agents.clear();
     this.speeds.clear();
     this.filters.clear();
+    this.flags.clear();
     this.sys.bakeAll(floorNavSource(world.floor, world.grid));
   }
 
@@ -86,6 +95,7 @@ export class WorldNav {
     this.agents.delete(w);
     this.speeds.delete(w);
     this.filters.delete(w);
+    this.flags.delete(w);
     w.x = at.x;
     w.z = at.z;
     w.heading = heading;
@@ -107,6 +117,7 @@ export class WorldNav {
     if (!this.canReach(w, target)) return false;
     const agent = this.ensureAgent(w);
     if (!agent) return false;
+    this.setFlags(w, agent, CROWD_FLAGS_WALKING);
     return agent.requestMoveTarget({ x: target.x, y: 0, z: target.z });
   }
 
@@ -141,7 +152,16 @@ export class WorldNav {
 
   /** Stop where you are (goal cleared, still on the crowd). */
   halt(w: Walker): void {
-    this.agents.get(w)?.resetMoveTarget();
+    const agent = this.agents.get(w);
+    if (!agent) return;
+    agent.resetMoveTarget();
+    this.setFlags(w, agent, CROWD_FLAGS_IDLE);
+  }
+
+  private setFlags(w: Walker, agent: CrowdAgent, flags: number): void {
+    if (this.flags.get(w) === flags) return;
+    agent.updateParameters({ updateFlags: flags });
+    this.flags.set(w, flags);
   }
 
   /** Agents on the crowd right now. */
@@ -158,6 +178,7 @@ export class WorldNav {
         this.agents.delete(w);
         this.speeds.delete(w);
         this.filters.delete(w);
+        this.flags.delete(w);
         continue;
       }
       // Speed and filter follow the walker's state (a rage-quitter hurries, a
