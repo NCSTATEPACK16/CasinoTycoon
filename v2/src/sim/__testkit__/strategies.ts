@@ -368,6 +368,15 @@ export function runCampaign(
     if (hires && world.machines.size > 0 && !kinds.includes('janitor') && world.state.cash >= 400) {
       world.hireStaff('janitor');
     }
+    // v2: a dealt table without a dealer runs at ENGINE_BALANCE.noDealerSpeed,
+    // half the hands, so staffing every table is part of operating one — the
+    // v1 bot never hired dealers because v1 dealers were only a rating bonus.
+    // One hire per pass, so a table bought on the last dollar waits for cash.
+    if (hires) {
+      const tables = [...world.machines.values()].filter((m) => m.needsDealer).length;
+      const dealers = kinds.filter((k) => k === 'dealer').length;
+      if (tables > dealers && world.state.cash >= 400) world.hireStaff('dealer');
+    }
     if (expands) {
       while (buyGame(buffer)) {
         /* keep buying until cash, the ladder or the floor runs out */

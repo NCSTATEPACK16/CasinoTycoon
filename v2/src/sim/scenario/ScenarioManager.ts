@@ -31,6 +31,9 @@ export class ScenarioManager {
 
   constructor(def: CampaignDef) {
     this.def = def;
+    // Sandbox has nothing to win: it is the post-victory free play from the
+    // first day, with the bank still watching (at a limit nobody reaches).
+    if (def.sandbox) this.status = 'endless';
   }
 
   isAllowed(defId: string): boolean {
@@ -61,7 +64,9 @@ export class ScenarioManager {
     if (this.status === 'endless') {
       this.lastClosedDay = record.day;
       this.bestDailyProfit =
-        this.bestDailyProfit === null ? record.profit : Math.max(this.bestDailyProfit, record.profit);
+        this.bestDailyProfit === null
+          ? record.profit
+          : Math.max(this.bestDailyProfit, record.profit);
       return;
     }
     if (this.status !== 'active') return;

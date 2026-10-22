@@ -16,6 +16,7 @@ import {
   type CompKind,
   DEALER_BALANCE,
   DEBT,
+  ENGINE_BALANCE,
   GUEST_BALANCE,
   MESS_BALANCE,
   RAGE_BALANCE,
@@ -31,7 +32,6 @@ import { starterFloorPlan } from './floor/starter';
 import type { WorldNav } from './nav/WorldNav';
 import type { CellRect, Rotation } from '../shared/contracts';
 import { createMachine, createMachineOrThrow } from './entities/machines/factory';
-import { PokerTable } from './entities/machines/PokerTable';
 import { SeatedCasinoGame } from './entities/machines/SeatedCasinoGame';
 import { Guest, type GuestArchetype } from './entities/Guest';
 import { Bar, type BarJSON } from './entities/Bar';
@@ -47,7 +47,15 @@ import { Reputation, type ReputationJSON } from './reputation';
 import { ScenarioManager, type ScenarioJSON } from './scenario/ScenarioManager';
 import { interestFor, pickLiquidation, type LiquidationCandidate } from './solvency';
 import { TimeSystem, type TimeSystemJSON } from './TimeSystem';
-import { type CasinoGame, type PlayCadence, type PlayResult } from './entities/machines/CasinoGame';
+import {
+  type CasinoGame,
+  type PlayCadence,
+  type PlayContext,
+  type PlayResult,
+} from './entities/machines/CasinoGame';
+import { PlayerPlay, type PlayerPlayJSON, type PlayerRoundReply } from './economy/PlayerPlay';
+import type { RulesIssue } from './games/types';
+import type { Bet, RoundResult } from '../shared/games';
 import { GameState, type GameStateJSON, type PlacedObject } from './GameState';
 import { findPath, type Cell } from './grid/astar';
 import { IsoGrid, type IsoGridJSON } from './grid/IsoGrid';
@@ -117,6 +125,8 @@ interface MachineJSON {
   id: string;
   defId: string;
   costToPlay: number;
+  /** v2: the machine's game rules (engine games only). */
+  rules?: unknown;
   reliability: number;
   lifetimeProfit: number;
   broken: boolean;
@@ -182,6 +192,8 @@ export interface CasinoWorldJSON {
   traffic?: TrafficFieldJSON;
   /** v2 floor plan. Absent from v1-shaped saves, which load onto an open lot. */
   floor?: FloorPlanJSON;
+  /** v2: the avatar's wallet. */
+  player?: PlayerPlayJSON;
 }
 
 export class CasinoWorld {
@@ -208,6 +220,8 @@ export class CasinoWorld {
   staff = new Map<string, Staff>();
   time = new TimeSystem();
   ledger = new Ledger();
+  /** v2 (Session 4): the avatar's wallet and open rounds. */
+  player = new PlayerPlay();
   /** A5 — the day's conditions. Queried at the point of use by spawn, wallet,
    *  cage, and thirst code; it owns no simulation of its own. */
   modifiers = new ModifierSystem();
@@ -458,6 +472,7 @@ export class CasinoWorld {
     }
     for (const member of this.staff.values()) member.tick(this);
     this.nav?.step(this);
+    this.sampleOccupancy();
     if (this.tickCount % OVERLAY_SAMPLE_TICKS === 0) {
       this.sampleMood();
       // Traffic is written on tile-enter, so only its ageing rides this pass.
@@ -1144,7 +1159,10 @@ export class CasinoWorld {
 
   /** One-time rating ding from a rage quit; decays over subsequent hours. */
   applyRageQuitPenalty(): void {
-    this.ragePenalty = Math.min(RAGE_BALANCE.maxRatingPenalty, this.ragePenalty + RAGE_BALANCE.ratingDing);
+    this.ragePenalty = Math.min(
+      RAGE_BALANCE.maxRatingPenalty,
+      this.ragePenalty + RAGE_BALANCE.ratingDing,
+    );
     this.ledger.recordRageQuit();
     this.reputation.onRageQuit();
   }
@@ -1235,8 +1253,10 @@ export class CasinoWorld {
    * answers true as well — it genuinely is waiting for players — but the
    * caller that matters is a guest asking about the table it's sitting at. */
   isTableWaitingForPlayers(machineId: string): boolean {
-    const machine = this.machines.get(machineId);
-    return machine instanceof PokerTable && !machine.canDeal;
+    // v2: the poker table deals house-banked Ultimate Texas Hold'em, so no
+    // table waits for a second player any more. Kept for the guest AI's call.
+    void machineId;
+    return false;
   }
 
   /** Per-game happiness penalty added to GUEST_BALANCE.happinessOnLoss on a loss. */
@@ -1255,7 +1275,7 @@ export class CasinoWorld {
   playMachine(machineId: string, guestId: string): PlayResult | null {
     const machine = this.machines.get(machineId);
     if (!machine || machine.broken) return null;
-    const result = machine.play(this.rng);
+    const result = machine.play(this.rng, this.playContextFor(machineId, guestId));
     // A zero wager means the table couldn't deal (poker below minPlayers). No
     // money moved and there is nothing to record, but the caller still gets a
     // result: `null` is reserved for "there is no machine to play", which is
@@ -1269,6 +1289,8 @@ export class CasinoWorld {
       wagered: result.wager,
       won: result.payout,
       revenue: delta,
+      theo: result.theo ?? 0,
+      rounds: result.rounds ?? 0,
     });
     if (result.payout >= result.wager * JACKPOT_PAYOUT_MULT) {
       this.ledger.recordJackpot();
@@ -1284,6 +1306,87 @@ export class CasinoWorld {
     });
     return result;
   }
+
+  // ---------- v2 casino-math hooks (Session 4) ----------
+
+  /** Hook: what a machine needs to know to play a guest's turn — their stake,
+   *  their wallet, their skill, and how fast the table is being dealt. */
+  playContextFor(machineId: string, guestId: string): PlayContext {
+    const machine = this.machines.get(machineId);
+    const guest = this.guests.get(guestId);
+    return {
+      unit: machine?.costToPlay ?? 0,
+      wallet: guest?.wallet ?? Infinity,
+      skillError: ENGINE_BALANCE.skillErrorByArchetype[guest?.archetype ?? 'regular'] ?? 0.02,
+      oddsAppetite: ENGINE_BALANCE.oddsAppetiteByArchetype[guest?.archetype ?? 'regular'] ?? 0.3,
+      dealerSpeed: this.dealerSpeedFor(machineId),
+    };
+  }
+
+  /** Hook: rounds-per-hour multiplier from the table's dealer. A dealt table
+   *  without one limps along at ENGINE_BALANCE.noDealerSpeed. */
+  dealerSpeedFor(machineId: string): number {
+    const machine = this.machines.get(machineId);
+    if (!machine?.needsDealer) return 1;
+    return this.dealerAssignments.has(machineId) ? 1 : ENGINE_BALANCE.noDealerSpeed;
+  }
+
+  /** Hook: seat occupancy for the books — occupied and available seat-ticks. */
+  private sampleOccupancy(): void {
+    for (const machine of this.machines.values()) {
+      const seats = machine instanceof SeatedCasinoGame ? machine.seatCount : 1;
+      const occupied =
+        machine instanceof SeatedCasinoGame ? machine.seatedCount : machine.reservedBy ? 1 : 0;
+      this.ledger.accrue(machine.id, machine.defId, {
+        occupiedTicks: occupied,
+        capacityTicks: seats,
+      });
+    }
+  }
+
+  /** Hook: the `setRules` command. Validates, clamps and applies; replies with
+   *  what had to change. Null when the object has no game engine. */
+  setMachineRules(objectId: string, raw: unknown): { rules: unknown; issues: RulesIssue[] } | null {
+    const machine = this.machines.get(objectId);
+    const issues = machine?.setRules(raw);
+    if (!machine || !issues) return null;
+    return { rules: machine.math!.rules, issues };
+  }
+
+  /** Hook: the `roundBegin` command — the avatar sits down and bets. */
+  beginPlayerRound(objectId: string, bets: Bet[]): PlayerRoundReply | string {
+    const machine = this.machines.get(objectId);
+    if (!machine?.math) return 'not a game the avatar can play';
+    if (machine.broken) return 'out of order';
+    return this.player.begin(objectId, machine.math, bets, this.rng, this.houseBook);
+  }
+
+  /** Hook: the `roundAct` command — the avatar's next decision. */
+  actPlayerRound(objectId: string, action: string): PlayerRoundReply | string {
+    return this.player.act(objectId, action, this.houseBook);
+  }
+
+  /** The house side of the avatar's round: the player's loss is our win. */
+  private readonly houseBook = {
+    settle: (machineId: string, result: RoundResult & { theo: number }): void => {
+      const machine = this.machines.get(machineId);
+      const defId = machine?.defId ?? 'other';
+      const delta = result.wagered - result.returned;
+      this.state.cash += delta;
+      this.ledger.addRevenue(delta);
+      this.ledger.recordPlay(result.wagered, result.returned);
+      this.ledger.recordPlayerRound(result.wagered, result.returned);
+      this.ledger.accrue(machineId, defId, {
+        wagered: result.wagered,
+        won: result.returned,
+        revenue: delta,
+        theo: result.theo,
+        rounds: 1,
+      });
+      if (machine) machine.lifetimeProfit += delta;
+      eventBus.emit('moneyChanged', { cash: this.state.cash, delta });
+    },
+  };
 
   payCasino(amount: number, sourceId?: string, defId = 'other'): void {
     this.state.cash += amount;
@@ -1462,6 +1565,7 @@ export class CasinoWorld {
         defId: m.defId,
         costToPlay: m.costToPlay,
         ...(m.tableMinimum !== null ? { tableMinimum: m.tableMinimum } : {}),
+        ...(m.math ? { rules: m.math.toJSON() } : {}),
         reliability: m.reliability,
         lifetimeProfit: m.lifetimeProfit,
         broken: m.broken,
@@ -1491,6 +1595,7 @@ export class CasinoWorld {
       mood: this.mood.toJSON(),
       traffic: this.traffic.toJSON(),
       floor: this.floor.toJSON(),
+      player: this.player.toJSON(),
     };
   }
 
@@ -1507,6 +1612,10 @@ export class CasinoWorld {
       // setTableMinimum and the table keeps its default rather than becoming
       // a denomination no UI can represent.
       if (m.tableMinimum !== undefined) machine.setTableMinimum(m.tableMinimum);
+      // Rules first, then the saved stake: syncing the stake to the rules
+      // would otherwise clamp a deliberately raised one back down.
+      if (m.rules !== undefined) machine.setRules(m.rules);
+      machine.costToPlay = m.costToPlay;
       machine.reliability = m.reliability;
       machine.lifetimeProfit = m.lifetimeProfit;
       machine.broken = m.broken;
@@ -1546,6 +1655,7 @@ export class CasinoWorld {
     this.patrons = PatronRegistry.fromJSON(data.patrons);
     this.mood = MoodField.fromJSON(data.mood);
     this.traffic = TrafficField.fromJSON(data.traffic);
+    this.player = PlayerPlay.fromJSON(data.player);
     this.refreshServiceAvailability();
     const scenarioId = this.scenario?.def.id ?? null;
     eventBus.emit('worldReset', { scenarioId });

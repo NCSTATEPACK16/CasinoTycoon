@@ -1,5 +1,9 @@
 // All gameplay balancing numbers. Tuning never requires logic edits.
 
+import type { GameKind } from '../shared/games';
+import { ENGINE_FOR_DEF, ENGINES } from '../sim/games';
+import type { CasinoEngine } from '../sim/games/types';
+
 export const GUEST_BALANCE = {
   walletMin: 40,
   walletMax: 220,
@@ -67,29 +71,13 @@ export const SLOT_BALANCE = {
   spinIntervalTicks: 8,
   spinsMin: 3,
   spinsMax: 8,
-  // P16 — reshaped at an identical 0.92 RTP to cut per-pull variance.
-  //
-  // A day's profit is a few hundred pulls summed, so the 8% edge only shows
-  // through once the pull count is large next to the payout spread. The old
-  // table (0.25@2x, 0.10@3x, 0.008@15x) had a per-pull sd 21x the edge, needing
-  // ~450 pulls before the edge dominated — several times what a small floor
-  // sees in a day. Daily profit was therefore a coin flip by construction, and
-  // no amount of retuning the modifiers could have fixed it.
-  //
-  // Most of that variance lived in the 15x tail, so it is rarer here, and the
-  // RTP it gives up comes back as a frequent 1x "money back" band — which is
-  // how real slot floors hold players at low volatility. Same edge, same
-  // jackpot, sd now 11.8x the edge: ~140 pulls, which a day does reach.
-  payoutTable: [
-    { p: 0.49, multiplier: 1 },
-    { p: 0.2, multiplier: 2 },
-    { p: 0.002, multiplier: 15 },
-  ] as readonly PayoutOutcome[],
+  // The reels themselves are a par sheet (ENGINE_RULES below): 25¢ × 40
+  // credits on Lucky Cherries, a 92.1% stepper with v1's flat swing.
 } as const;
 
-/** Expected return-to-player fraction implied by the payout table (0.92 → 8% house edge). */
+/** Expected return-to-player of the slot's default par sheet. */
 export function slotExpectedRtp(): number {
-  return SLOT_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+  return engineRtp('slot-machine');
 }
 
 // Blackjack: higher stakes, gentler house edge, slower rounds, communal table.
@@ -100,16 +88,11 @@ export const BLACKJACK_BALANCE = {
   playsMin: 4,
   playsMax: 10,
   seats: 4,
-  payoutTable: [
-    { p: 0.4, multiplier: 2 }, // win — even money
-    { p: 0.09, multiplier: 1 }, // push — wager back
-    { p: 0.028, multiplier: 2.5 }, // blackjack — 3:2
-  ] as readonly PayoutOutcome[],
 } as const;
 
-/** Expected RTP implied by the blackjack payout table (0.96 → 4% house edge). */
+/** Expected RTP of default-rules blackjack for a basic-strategy player. */
 export function blackjackExpectedRtp(): number {
-  return BLACKJACK_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+  return engineRtp('blackjack-table');
 }
 
 // Craps: fast communal rounds, dice-flavored payout table, same 4-seat table shape as blackjack.
@@ -120,16 +103,11 @@ export const CRAPS_BALANCE = {
   playsMin: 5,
   playsMax: 12,
   seats: 4,
-  payoutTable: [
-    { p: 0.35, multiplier: 2 }, // pass-line win
-    { p: 0.05, multiplier: 3 }, // hot roll
-    { p: 0.01, multiplier: 6 }, // rare proposition hit
-  ] as readonly PayoutOutcome[],
 } as const;
 
-/** Expected RTP implied by the craps payout table. */
+/** Expected RTP of the pass line. */
 export function crapsExpectedRtp(): number {
-  return CRAPS_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+  return engineRtp('craps-table');
 }
 
 // Roulette: a wide crowd table whose point is variance. The 1.5% branch pays
@@ -142,16 +120,11 @@ export const ROULETTE_BALANCE = {
   playsMin: 4,
   playsMax: 10,
   seats: 6,
-  payoutTable: [
-    { p: 0.015, multiplier: 20 }, // straight-up number — the variance tail
-    { p: 0.08, multiplier: 3 }, // column/dozen
-    { p: 0.19, multiplier: 2 }, // even-money outside bet
-  ] as readonly PayoutOutcome[],
 } as const;
 
-/** Expected RTP implied by the roulette payout table (0.92 → 8% house edge). */
+/** Expected RTP of the default (double-zero) wheel. */
 export function rouletteExpectedRtp(): number {
-  return ROULETTE_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+  return engineRtp('roulette-table');
 }
 
 // Big Six: cheap, fast, standing, and by far the worst odds in the house.
@@ -177,29 +150,25 @@ export function bigSixExpectedRtp(): number {
   return BIG_SIX_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
 }
 
-// Poker: guests play each other and the house takes a rake, so revenue is a
-// steady percentage of volume rather than a house edge on a payout table.
-// This is the only game that pays for guest COUNT rather than guest SPEND —
-// and the only one that earns nothing at all when under-populated.
+// The poker table deals Ultimate Texas Hold'em: house-banked, so it deals to
+// a lone guest. costToPlay is the Ante; with the Blind and a Play bet of up to
+// 4x, a hand puts about four Antes at risk.
 export const POKER_BALANCE = {
-  costToPlay: 30,
+  costToPlay: 10,
   wearPerPlay: 0.15,
   playIntervalTicks: 15,
   playsMin: 6,
   playsMax: 15,
   seats: 6,
-  minPlayers: 2,
-  rake: 0.05,
-  // How long a guest keeps a seat at a table that can't deal yet. Without a
-  // bounded wait a lone guest vacates on its first zero-wager play attempt, so
-  // the table only ever deals when two guests happen to sit within one play
-  // interval of each other — 12 seconds of patience is what makes a poker room
-  // fill up at all.
+  // How long a guest keeps a seat at a table that can't deal yet. UTH always
+  // deals, so this only bounds the wait at a table that has lost its dealer.
   maxWaitTicks: 120,
 } as const;
 
-// No expectedRtp helper — poker's return is computed from live table
-// population, not a static payout table.
+/** Expected RTP of the Ante under the UTH decision table. */
+export function pokerExpectedRtp(): number {
+  return engineRtp('poker-table');
+}
 
 // High-limit: gated on wallet rather than archetype. highRollerChance is only
 // 0.015, so an archetype gate would leave the table idle almost always; a
@@ -214,16 +183,11 @@ export const HIGH_LIMIT_BALANCE = {
   playsMax: 8,
   seats: 3,
   minWallet: 400,
-  payoutTable: [
-    { p: 0.02, multiplier: 10 },
-    { p: 0.12, multiplier: 3 },
-    { p: 0.19, multiplier: 2 },
-  ] as readonly PayoutOutcome[],
 } as const;
 
-/** Expected RTP implied by the high-limit payout table (0.94 → 6% house edge). */
+/** Expected RTP of the high-limit table's blackjack (two decks, the good rules). */
 export function highLimitExpectedRtp(): number {
-  return HIGH_LIMIT_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+  return engineRtp('high-limit-table');
 }
 
 // ---------------------------------------------------------------------------
@@ -254,21 +218,12 @@ export const PENNY_SLOT_BALANCE = {
   spinIntervalTicks: 5,
   spinsMin: 5,
   spinsMax: 14,
-  // RTP 0.90. Deliberately the flattest table in the house: a big 1x "money
-  // back" band, a modest 2x, and a 5x tail small enough that it never drives a
-  // day. sd/edge = 6.9, well under the 12 bar — this game's identity is that it
-  // pays out predictably and slowly, so a floor of them is a floor you can plan
-  // around rather than gamble on.
-  payoutTable: [
-    { p: 0.55, multiplier: 1 },
-    { p: 0.17, multiplier: 2 },
-    { p: 0.002, multiplier: 5 },
-  ] as readonly PayoutOutcome[],
+  // The reels are Penny Fortune: 1¢ × 200 credits on an 88% sheet.
 } as const;
 
-/** Expected RTP implied by the penny-slot payout table (0.90 → 10% house edge). */
+/** Expected RTP of the penny cabinet's default par sheet. */
 export function pennySlotExpectedRtp(): number {
-  return PENNY_SLOT_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+  return engineRtp('penny-slots');
 }
 
 // Pachinko: noise as an amenity. Differs from penny-slots on costToPlay (5 vs
@@ -950,4 +905,106 @@ export function patronTierFor(lifetimeTheo: number): PatronTier {
     if (lifetimeTheo >= tier.theo) best = tier;
   }
   return best;
+}
+
+// ---------------------------------------------------------------------------
+// Real casino math (v2). The machines below resolve rounds with the engines
+// in sim/games; these are their opening rules and the knobs that map the
+// engines' real pace onto this sim's play cadence.
+// ---------------------------------------------------------------------------
+
+/** Opening rules per machine. Every value here is player-tunable through
+ *  `setRules`; validation clamps anything out of range. */
+//
+// Limits are low because a guest "play" is a batch of small real rounds (see
+// ENGINE_BALANCE.playShape); the per-play stake is still costToPlay.
+export const ENGINE_RULES: Readonly<Record<string, Record<string, unknown>>> = {
+  'slot-machine': { sheet: 'lucky-cherries', denomination: 0.25, credits: 40 },
+  'penny-slots': { sheet: 'penny-fortune', denomination: 0.01, credits: 200 },
+  'roulette-table': { wheel: 'double', laPartage: false, minBet: 5, maxBet: 1000 },
+  'blackjack-table': { minBet: 5, maxBet: 1000 },
+  // The VIP table earns its name in the rules: late surrender on the floor's
+  // six-deck S17 game, 0.32% against the floor's 0.40%. Two decks and RSA
+  // would take it to 0.02% — a table that deals all night for nothing.
+  'high-limit-table': {
+    minBet: 25,
+    maxBet: 10_000,
+    surrender: 'late',
+  },
+  'craps-table': { minBet: 2, maxBet: 1000, odds: '3-4-5x', field12Pays: 2 },
+  'poker-table': { minBet: 2, maxBet: 500, trips: '50-40-30-8-7-4-3' },
+};
+
+export const ENGINE_BALANCE = {
+  /**
+   * The shape of one guest "play" at each engine game, at two seated players
+   * with a dealer: how many real rounds it deals, and how much it wagers in
+   * total as a multiple of the machine's stake (costToPlay). Each round's
+   * opening bet is stake × handle / rounds.
+   *
+   * Why a play is a batch. The forked guest AI makes one decision per play
+   * interval, carries 40–220 dollar wallets, and the economy around it —
+   * wages, upkeep, campaign goals — was tuned to the take per play v1's
+   * abstract payout tables produced (blackjack ~$1.00, craps ~$1.35, poker
+   * ~$1.50, roulette ~$1.60, high-limit ~$9). Real edges are a tenth of those
+   * tables', and a real table earns by volume: many rounds at a modest stake.
+   * For a fixed take, n rounds at stake/n carry 1/√n the swing of one big
+   * round, so each shape is chosen to hold both v1's take per play and v1's
+   * per-play swing (P16's day-is-not-a-coin-flip bar):
+   *
+   *   blackjack  16 × $7.8 at ~1.4% (book 0.40% + a regular's errors);
+   *              the table also has to carry its dealer's $96 a day
+   *   craps      10 × $5   at ~2.7% of the opening bets (line plus props)
+   *   UTH        12 × $2.3 Ante at ~5.3% of the Ante (with the errors)
+   *   roulette    2 × $15  at 5.26% — roulette's swing IS the game
+   *   high-limit 12 × $65  at ~1.0% (late surrender, high-roller errors)
+   *   slots       1 spin at the machine's own bet
+   *
+   * Occupancy and dealer speed then scale the round count the way they scale
+   * a real table's hands per hour. When Session 3's bankroll guests call
+   * GameMath.playRound once per round at the table's real pace, this goes.
+   * [design guess, calibrated by the campaign tournament]
+   */
+  playShape: {
+    'slot-machine': { rounds: 1, handle: 1 },
+    'penny-slots': { rounds: 1, handle: 1 },
+    'roulette-table': { rounds: 2, handle: 1.5 },
+    'blackjack-table': { rounds: 16, handle: 5 },
+    'high-limit-table': { rounds: 12, handle: 5.2 },
+    'craps-table': { rounds: 10, handle: 3.3 },
+    'poker-table': { rounds: 12, handle: 2.8 },
+  } as Readonly<Record<string, { rounds: number; handle: number }>>,
+  /** Seated players the shapes above are quoted at. */
+  referenceSeated: 2,
+  /** A table with no dealer assigned limps along with a floor supervisor
+   *  dealing between other jobs. [design guess] */
+  noDealerSpeed: 0.5,
+  /** Probability per decision that a guest strays from basic strategy (or the
+   *  UTH table). Uniform random strays are expensive — 5% roughly quadruples
+   *  blackjack hold — so these are small. [design guess] */
+  skillErrorByArchetype: {
+    highRoller: 0.01,
+    regular: 0.02,
+    biker: 0.03,
+    tourist: 0.05,
+  } as Readonly<Record<string, number>>,
+  /** Chance a guest backs a craps point with the free odds when offered.
+   *  Odds carry no edge, only swing, so this is a variance dial, not an
+   *  income one: the sharp money takes them, tourists rarely know they
+   *  exist. Kept low because 3-4-5x odds roughly quadruple a play's swing
+   *  and a day of this sim is a few hundred plays. [design guess] */
+  oddsAppetiteByArchetype: {
+    highRoller: 0.25,
+    regular: 0,
+    biker: 0.05,
+    tourist: 0,
+  } as Readonly<Record<string, number>>,
+} as const;
+
+/** 1 − theoretical edge for a machine's opening rules. */
+export function engineRtp(defId: string): number {
+  const kind = ENGINE_FOR_DEF[defId];
+  if (!kind) return 1;
+  const engine = ENGINES[kind] as unknown as CasinoEngine;
+  return 1 - engine.theoreticalEdge(engine.validateRules(ENGINE_RULES[defId] ?? {}).rules);
 }

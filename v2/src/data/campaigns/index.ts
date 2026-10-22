@@ -24,6 +24,11 @@ export interface CampaignDef {
   goalWindowDays: number;
   /** P16: how far below zero this campaign may run before forced sales. */
   creditLimit: number;
+  /** v2: free play — no goal, no clock, money is no object. */
+  sandbox?: boolean;
+  /** v2: the lot the floor plan is built on, in cells (Session 3's FloorPlan
+   *  reads it). Omitted = the default 40×30 lot. */
+  lot?: { cols: number; rows: number };
 }
 
 export const CAMPAIGNS: readonly CampaignDef[] = [
@@ -43,8 +48,14 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     // of the seven seeds and a straightforward build-out wins six. The 4-day
     // window is the anti-luck half: this is the hall where you prove the place
     // runs, not that it had one good night.
+    //
+    // v2: the goal rose to $1000 when the tables started dealing real
+    // blackjack. A single table now earns enough that build-and-abandon's best
+    // four-day average reached $864 at a $700 goal; greedy's winners average
+    // $1400+ and its losers are early spirals well short of either figure, so
+    // $1000 sits in the gap (measured over the seven tournament seeds).
     startingCash: 3000,
-    goalDailyProfit: 700,
+    goalDailyProfit: 1000,
     dayLimit: 12,
     goalWindowDays: 4,
     creditLimit: 1000,
@@ -63,8 +74,11 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     id: 'high-roller',
     name: 'The High Roller Club',
     tagline: 'Members only, tables only. Slots would cheapen the carpet.',
+    // v2: $700 → $1000 for the same reason as the Dusty Dime: real blackjack
+    // let a single never-touched table average up to $871; greedy's floor of
+    // staffed tables never averaged under $1025 on any seed.
     startingCash: 5000,
-    goalDailyProfit: 700,
+    goalDailyProfit: 1000,
     dayLimit: 10,
     goalWindowDays: 3,
     creditLimit: 800,
@@ -72,7 +86,28 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
   },
 ];
 
-const BY_ID = new Map(CAMPAIGNS.map((c) => [c.id, c]));
+/**
+ * v2 Sandbox: effectively unlimited cash and credit, every object allowed, and
+ * no goal or day limit — the run starts 'endless'. Kept out of CAMPAIGNS
+ * because every campaign there is a goal the tournament must be able to win.
+ */
+export const SANDBOX: CampaignDef = {
+  id: 'sandbox',
+  name: 'Sandbox',
+  tagline: 'Unlimited bankroll. Build the casino you want to walk around in.',
+  startingCash: 100_000_000,
+  goalDailyProfit: 0,
+  dayLimit: 1_000_000,
+  goalWindowDays: 1,
+  creditLimit: 100_000_000,
+  sandbox: true,
+  lot: { cols: 64, rows: 48 },
+};
+
+/** Everything the scenario picker offers: the campaigns, then Sandbox. */
+export const SCENARIOS: readonly CampaignDef[] = [...CAMPAIGNS, SANDBOX];
+
+const BY_ID = new Map(SCENARIOS.map((c) => [c.id, c]));
 
 export function getCampaign(id: string): CampaignDef | undefined {
   return BY_ID.get(id);

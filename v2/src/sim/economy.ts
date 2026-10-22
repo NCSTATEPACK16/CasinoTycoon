@@ -20,6 +20,14 @@ export interface SourceTotals {
   won: number;
   revenue: number;
   upkeep: number;
+  /** Theoretical win: Σ opening bets × edge. revenue/wagered is hold; this
+   *  over wagered is the edge the house should expect. */
+  theo: number;
+  /** Real rounds dealt. */
+  rounds: number;
+  /** Seat-ticks occupied and seat-ticks available: occupancy = their ratio. */
+  occupiedTicks: number;
+  capacityTicks: number;
 }
 
 export interface SourceRecord extends SourceTotals {
@@ -38,7 +46,21 @@ export const HOUSE_SOURCES = {
   interest: { id: 'house:interest', defId: 'interest' },
 } as const;
 
-const emptyTotals = (): SourceTotals => ({ wagered: 0, won: 0, revenue: 0, upkeep: 0 });
+const emptyTotals = (): SourceTotals => ({
+  wagered: 0,
+  won: 0,
+  revenue: 0,
+  upkeep: 0,
+  theo: 0,
+  rounds: 0,
+  occupiedTicks: 0,
+  capacityTicks: 0,
+});
+
+/** Rows saved before v2 lack the casino-math fields; they read as zero. */
+function normalizeRow(r: SourceRecord): SourceRecord {
+  return { ...emptyTotals(), ...r };
+}
 
 export interface DailyRecord {
   day: number;
@@ -66,6 +88,8 @@ export interface DailyRecord {
   modifierIds: string[];
   /** P1: the day's takings broken out by where they came from. */
   sources: SourceRecord[];
+  /** The avatar's own rounds that day (absent before v2). */
+  player?: PlayerBook;
 }
 
 export interface HourlySample {
@@ -74,6 +98,24 @@ export interface HourlySample {
   revenue: number;
   expenses: number;
   guests: number;
+  /** Casino-wide handle, theo and rounds for the hour (absent in old saves). */
+  wagered?: number;
+  theo?: number;
+  rounds?: number;
+}
+
+/** One closed hour's per-object rows, for hour-by-hour drill-down. */
+export interface HourSources {
+  day: number;
+  hour: number;
+  sources: SourceRecord[];
+}
+
+/** The avatar's own play: the player's side of the house-vs-player book. */
+export interface PlayerBook {
+  wagered: number;
+  returned: number;
+  rounds: number;
 }
 
 interface GuestSession {
@@ -97,6 +139,9 @@ export interface LedgerJSON {
   dayCompSpend?: number;
   daySessions?: GuestSession[];
   daySources?: SourceRecord[];
+  hourSources?: SourceRecord[];
+  hourlySources?: HourSources[];
+  dayPlayer?: PlayerBook;
 }
 
 /** Day-close facts the ledger records but does not own. Passed in rather than
@@ -109,6 +154,9 @@ export interface DayCloseContext {
 
 const MAX_DAILY_RECORDS = 60;
 const MAX_HOURLY_SAMPLES = 7 * 24;
+/** Per-object hourly rows are kept for one day: hour-level drill-down is a
+ *  "what happened tonight" question, and a week of it is objects × 168 rows. */
+const MAX_HOURLY_SOURCE_SAMPLES = 24;
 const TOP_N = 5;
 
 export class Ledger {
@@ -130,21 +178,42 @@ export class Ledger {
    *  moment as addRevenue/addExpense rather than through a parallel path —
    *  two ways to book the same dollar is how books stop reconciling. */
   private daySources = new Map<string, SourceRecord>();
+  /** The same attribution for the hour in progress. */
+  private hourSources = new Map<string, SourceRecord>();
+  hourlySources: HourSources[] = [];
+  private dayPlayer: PlayerBook = { wagered: 0, returned: 0, rounds: 0 };
 
   /**
    * Attribute money to a source. Every caller that moves cash names where it
    * came from, so the day's total is the sum of its parts by construction.
    */
   accrue(id: string, defId: string, delta: Partial<SourceTotals>): void {
-    let row = this.daySources.get(id);
-    if (!row) {
-      row = { id, defId, ...emptyTotals() };
-      this.daySources.set(id, row);
+    for (const book of [this.daySources, this.hourSources]) {
+      let row = book.get(id);
+      if (!row) {
+        row = { id, defId, ...emptyTotals() };
+        book.set(id, row);
+      }
+      row.wagered += delta.wagered ?? 0;
+      row.won += delta.won ?? 0;
+      row.revenue += delta.revenue ?? 0;
+      row.upkeep += delta.upkeep ?? 0;
+      row.theo += delta.theo ?? 0;
+      row.rounds += delta.rounds ?? 0;
+      row.occupiedTicks += delta.occupiedTicks ?? 0;
+      row.capacityTicks += delta.capacityTicks ?? 0;
     }
-    row.wagered += delta.wagered ?? 0;
-    row.won += delta.won ?? 0;
-    row.revenue += delta.revenue ?? 0;
-    row.upkeep += delta.upkeep ?? 0;
+  }
+
+  /** The avatar's settled round, on top of the machine's own row. */
+  recordPlayerRound(wagered: number, returned: number): void {
+    this.dayPlayer.wagered += wagered;
+    this.dayPlayer.returned += returned;
+    this.dayPlayer.rounds++;
+  }
+
+  get todayPlayer(): Readonly<PlayerBook> {
+    return this.dayPlayer;
   }
 
   /** Live day-to-date attribution, for the profit overlay and for a drill-down
@@ -214,14 +283,28 @@ export class Ledger {
 
   /** Close the hour that just completed (labeled with its own day/hour). */
   closeHour(day: number, hour: number, guests: number): void {
+    let wagered = 0;
+    let theo = 0;
+    let rounds = 0;
+    for (const r of this.hourSources.values()) {
+      wagered += r.wagered;
+      theo += r.theo;
+      rounds += r.rounds;
+    }
     this.hourly.push({
       day,
       hour,
       revenue: this.hourRevenue,
       expenses: this.hourExpenses,
       guests,
+      wagered,
+      theo,
+      rounds,
     });
     if (this.hourly.length > MAX_HOURLY_SAMPLES) this.hourly.shift();
+    this.hourlySources.push({ day, hour, sources: [...this.hourSources.values()] });
+    if (this.hourlySources.length > MAX_HOURLY_SOURCE_SAMPLES) this.hourlySources.shift();
+    this.hourSources = new Map();
     this.hourRevenue = 0;
     this.hourExpenses = 0;
   }
@@ -258,6 +341,7 @@ export class Ledger {
       reputationDelta: ctx.reputationDelta ?? 0,
       modifierIds: ctx.modifierIds ?? [],
       sources: [...this.daySources.values()].map((r) => ({ ...r })),
+      player: { ...this.dayPlayer },
     };
     this.history.push(record);
     if (this.history.length > MAX_DAILY_RECORDS) this.history.shift();
@@ -272,6 +356,7 @@ export class Ledger {
     this.dayInterestPaid = 0;
     this.daySessions = [];
     this.daySources.clear();
+    this.dayPlayer = { wagered: 0, returned: 0, rounds: 0 };
     return record;
   }
 
@@ -296,6 +381,12 @@ export class Ledger {
       dayCompSpend: this.dayCompSpend,
       daySessions: [...this.daySessions],
       daySources: [...this.daySources.values()].map((r) => ({ ...r })),
+      hourSources: [...this.hourSources.values()].map((r) => ({ ...r })),
+      hourlySources: this.hourlySources.map((h) => ({
+        ...h,
+        sources: h.sources.map((r) => ({ ...r })),
+      })),
+      dayPlayer: { ...this.dayPlayer },
     };
   }
 
@@ -318,7 +409,7 @@ export class Ledger {
       reputation: r.reputation ?? 0,
       reputationDelta: r.reputationDelta ?? 0,
       modifierIds: r.modifierIds ?? [],
-      sources: r.sources ?? [],
+      sources: (r.sources ?? []).map(normalizeRow),
     }));
     ledger.hourly = data.hourly.map((s) => ({ ...s }));
     ledger.dayPaidOut = data.dayPaidOut ?? 0;
@@ -328,7 +419,15 @@ export class Ledger {
     ledger.dayRageQuitCount = data.dayRageQuitCount ?? 0;
     ledger.dayCompSpend = data.dayCompSpend ?? 0;
     ledger.daySessions = data.daySessions ? data.daySessions.map((s) => ({ ...s })) : [];
-    for (const row of data.daySources ?? []) ledger.daySources.set(row.id, { ...row });
+    for (const row of data.daySources ?? []) ledger.daySources.set(row.id, normalizeRow(row));
+    for (const row of data.hourSources ?? []) ledger.hourSources.set(row.id, normalizeRow(row));
+    ledger.hourlySources = (data.hourlySources ?? []).map((h) => ({
+      ...h,
+      sources: h.sources.map(normalizeRow),
+    }));
+    ledger.dayPlayer = data.dayPlayer
+      ? { ...data.dayPlayer }
+      : { wagered: 0, returned: 0, rounds: 0 };
     return ledger;
   }
 }

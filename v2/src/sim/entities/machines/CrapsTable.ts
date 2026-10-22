@@ -1,13 +1,13 @@
 import { CRAPS_BALANCE } from '../../../data/balance';
-import type { Rng } from '../../rng';
-import type { PlayCadence, PlayResult } from './CasinoGame';
-import { SeatedCasinoGame } from './SeatedCasinoGame';
+import type { PlayCadence } from './CasinoGame';
+import { EngineTable } from './EngineGame';
 
-// Communal table: up to 4 guests hold seats and auto-play simplified rounds.
-// The round is a house-edge payout roll, not a real dice simulation.
-export class CrapsTable extends SeatedCasinoGame {
+// Communal craps: real dice through the come-out/point cycle. Guests mostly
+// play the line, take odds when they can cover them, and add a prop or place
+// bet now and then.
+export class CrapsTable extends EngineTable {
   constructor(id: string, costToPlay: number = CRAPS_BALANCE.costToPlay) {
-    super(id, 'craps-table', costToPlay, CRAPS_BALANCE.seats);
+    super(id, 'craps-table', 'craps', costToPlay, CRAPS_BALANCE.seats);
   }
 
   get cadence(): PlayCadence {
@@ -18,15 +18,7 @@ export class CrapsTable extends SeatedCasinoGame {
     };
   }
 
-  protected spin(rng: Rng): PlayResult {
-    return { wager: this.costToPlay, payout: this.rollPayout(rng, CRAPS_BALANCE.payoutTable) };
-  }
-
   protected wearPerPlay(): number {
     return CRAPS_BALANCE.wearPerPlay;
-  }
-
-  testSpin(rng: Rng): number {
-    return this.rollPayout(rng, CRAPS_BALANCE.payoutTable);
   }
 }

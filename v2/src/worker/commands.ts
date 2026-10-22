@@ -1,7 +1,7 @@
 // Command dispatch for the sim worker. Kept apart from the Worker global so
 // tests can drive a world exactly the way the UI does.
 
-import { CAMPAIGNS } from '../data/campaigns';
+import { getCampaign } from '../data/campaigns';
 import type { Command, SimStats } from '../shared/contracts';
 import {
   buildWallLine,
@@ -95,7 +95,7 @@ export function runCommand(world: CasinoWorld, snap: SnapshotBuilder, cmd: Comma
       snap.speed = cmd.speed;
       return { ok: true };
     case 'startScenario': {
-      const def = cmd.scenarioId ? CAMPAIGNS.find((c) => c.id === cmd.scenarioId) : null;
+      const def = cmd.scenarioId ? getCampaign(cmd.scenarioId) : null;
       if (cmd.scenarioId && !def) return { ok: false, error: `unknown scenario ${cmd.scenarioId}` };
       // The world bumps floorRevision itself; the snapshot sends the new plan.
       world.startScenario(def ?? null);
@@ -150,8 +150,26 @@ export function runCommand(world: CasinoWorld, snap: SnapshotBuilder, cmd: Comma
     case 'load':
       world.loadJSON(cmd.json as CasinoWorldJSON);
       return { ok: true };
+    // Session 4 (casino math). setRules replies { rules, issues }: the rules as
+    // applied, and every field that had to be clamped or rejected.
+    case 'setRules': {
+      const applied = world.setMachineRules(cmd.objectId, cmd.rules);
+      return applied
+        ? { ok: true, data: applied }
+        : { ok: false, error: 'no game rules on that object' };
+    }
+    // Avatar play. Both reply { options, view, wallet }, plus `result` (the
+    // RoundResult with its theo) once the round has settled.
+    case 'roundBegin': {
+      const reply = world.beginPlayerRound(cmd.objectId, cmd.bets);
+      return typeof reply === 'string' ? { ok: false, error: reply } : { ok: true, data: reply };
+    }
+    case 'roundAct': {
+      const reply = world.actPlayerRound(cmd.objectId, cmd.action);
+      return typeof reply === 'string' ? { ok: false, error: reply } : { ok: true, data: reply };
+    }
     default:
-      // setRules/round* → session 4 (sim/games).
+      // inspect → integration (src/ui inspector).
       return { ok: false, error: `${cmd.type} not implemented yet` };
   }
 }

@@ -1,23 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { eventBus } from '../../../EventBus';
-import { BLACKJACK_BALANCE, blackjackExpectedRtp } from '../../../data/balance';
+import { BLACKJACK_BALANCE } from '../../../data/balance';
 import { Rng } from '../../rng';
 import { BlackjackTable } from './BlackjackTable';
 
 afterEach(() => eventBus.clear());
 
 describe('BlackjackTable', () => {
-  it('pays out close to the configured RTP over 10k test rounds', () => {
-    const table = new BlackjackTable('obj-1');
-    const rng = new Rng(1234);
-    let paid = 0;
-    const rounds = 10_000;
-    for (let i = 0; i < rounds; i++) paid += table.testSpin(rng);
-    const rtp = paid / (rounds * table.costToPlay);
-    expect(rtp).toBeGreaterThan(blackjackExpectedRtp() - 0.05);
-    expect(rtp).toBeLessThan(blackjackExpectedRtp() + 0.05);
-  });
-
   it('testSpin causes no wear, profit, or breakage', () => {
     const table = new BlackjackTable('obj-1');
     const rng = new Rng(7);
