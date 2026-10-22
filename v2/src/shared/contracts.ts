@@ -148,7 +148,29 @@ export type Command =
   | { type: 'load'; json: unknown }
   // Avatar play: begin a round as the player, then act until the round settles.
   | { type: 'roundBegin'; objectId: string; bets: { spot: string; amount: number }[] }
-  | { type: 'roundAct'; objectId: string; action: string };
+  | { type: 'roundAct'; objectId: string; action: string }
+  // Dev/perf: spawn guests past the arrival cap, and read worker timings.
+  | {
+      type: 'debugSpawn';
+      count: number;
+      archetype?: 'regular' | 'highRoller' | 'biker' | 'tourist';
+    }
+  | { type: 'stats' }
+  // Run N ticks synchronously in the worker and reply with their timings —
+  // unaffected by background-tab timer throttling, unlike the pump.
+  | { type: 'debugTicks'; count: number };
+
+/** Reply to { type: 'stats' }. */
+export interface SimStats {
+  guests: number;
+  staff: number;
+  /** Agents walking on the crowd (seated/stationed walkers are parked off it). */
+  crowdAgents: number;
+  /** Mean and worst world.tick() wall time over the last 100 ticks, ms. */
+  tickMeanMs: number;
+  tickMaxMs: number;
+  nav: { repaths: number; teleports: number; rescues: number; lastRebakeMs: number } | null;
+}
 
 export type WorkerIn =
   { type: 'init'; seed: number } | { type: 'cmd'; reqId: number; cmd: Command };

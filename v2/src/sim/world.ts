@@ -25,7 +25,11 @@ import {
 } from '../data/balance';
 import type { CampaignDef } from '../data/campaigns';
 import { getObjectDef } from '../data/objects';
-import { canPlaceObject, placeObject, sellObject, type PlaceCheck } from './build';
+import { canPlaceObject, footprintOf, placeObject, sellObject, type PlaceCheck } from './build';
+import { FloorPlan, type FloorPlanJSON } from './floor/FloorPlan';
+import { starterFloorPlan } from './floor/starter';
+import type { WorldNav } from './nav/WorldNav';
+import type { CellRect, Rotation } from '../shared/contracts';
 import { createMachine, createMachineOrThrow } from './entities/machines/factory';
 import { PokerTable } from './entities/machines/PokerTable';
 import { SeatedCasinoGame } from './entities/machines/SeatedCasinoGame';
@@ -64,6 +68,11 @@ const SERVICE_DEFIDS = new Set(['toilet', 'food-stall']);
 export interface WorldOptions {
   seed?: number;
   autoSpawn?: boolean;
+  /** v2: scenarios start on a walled, zoned starter floor instead of v1's
+   *  open lot. Off by default so the ported suite keeps its open 40×30 lot. */
+  starterFloor?: boolean;
+  /** v2: a dealt table is closed until a dealer is stationed at it. */
+  requireDealers?: boolean;
 }
 
 // Sim can't import src/ui/dom.ts's formatCash — that's presentation-layer.
@@ -171,6 +180,8 @@ export interface CasinoWorldJSON {
   /** Optional for the same reason as `mood` — absent from any save written
    *  before P2, and an empty field is the right answer there. */
   traffic?: TrafficFieldJSON;
+  /** v2 floor plan. Absent from v1-shaped saves, which load onto an open lot. */
+  floor?: FloorPlanJSON;
 }
 
 export class CasinoWorld {
@@ -215,6 +226,16 @@ export class CasinoWorld {
   tickCount = 0;
   entranceTile: Cell = { ...ENTRANCE_TILE };
   autoSpawn: boolean;
+  /** v2 — the lot. The grid aliases it for walkability (see IsoGrid.floor). */
+  floor: FloorPlan;
+  /** Bumped whenever the floor plan is replaced or edited — the snapshot
+   *  sends a fresh FloorPlanView when it changes. */
+  floorRevision = 0;
+  /** v2 — the Recast navmesh and crowd. Null in grid mode (every bare world,
+   *  including the ported suite); the worker attaches one after WASM init. */
+  nav: WorldNav | null = null;
+  readonly requireDealers: boolean;
+  private readonly starterFloor: boolean;
   private nextGuestNum = 1;
   private nextMessNum = 1;
   private nextStaffNum = 1;
@@ -249,6 +270,45 @@ export class CasinoWorld {
     this.modifierRng = new Rng((seed ^ 0x85ebca6b) >>> 0);
     this.patronRng = new Rng((seed ^ 0xc2b2ae35) >>> 0);
     this.autoSpawn = opts.autoSpawn ?? true;
+    this.starterFloor = opts.starterFloor ?? false;
+    this.requireDealers = opts.requireDealers ?? false;
+    this.floor = FloorPlan.open(GRID_COLS, GRID_ROWS, ENTRANCE_TILE);
+    this.grid.floor = this.floor;
+  }
+
+  // ---------- floor plan & navigation hooks (v2, session 3) ----------
+
+  /** Hook: replace the floor plan (scenario start, load). */
+  installFloor(plan: FloorPlan): void {
+    this.floor = plan;
+    this.grid.floor = plan;
+    this.entranceTile = { ...plan.entrance };
+    this.floorRevision++;
+    this.nav?.rebuild(this);
+  }
+
+  /** Hook: something changed the walkable layout inside `rect` (paint, wall,
+   *  door, an object placed or sold). Queues a navmesh rebake of those tiles. */
+  onFloorEdited(rect: CellRect): void {
+    this.floorRevision++;
+    this.nav?.markDirty(rect);
+  }
+
+  /** Hook: attach a baked navmesh; from here on walkers move on the crowd. */
+  attachNav(nav: WorldNav): void {
+    this.nav = nav;
+    nav.rebuild(this);
+  }
+
+  /** Hook: whether a game is staffed to play. With requireDealers, a dealt
+   *  table needs its dealer actually stationed, not merely en route. Broken is
+   *  a separate fact (ObjectView.broken) and deliberately not folded in here. */
+  isTableOpen(machineId: string): boolean {
+    const machine = this.machines.get(machineId);
+    if (!machine) return false;
+    if (!this.requireDealers || !machine.needsDealer) return true;
+    const staffId = this.dealerAssignments.get(machineId);
+    return !!staffId && this.staff.get(staffId)?.state === 'stationed';
   }
 
   // ---------- scenarios ----------
@@ -256,6 +316,11 @@ export class CasinoWorld {
   /** Start a campaign (or `null` for sandbox): full floor wipe + fresh clock/books. */
   startScenario(def: CampaignDef | null): void {
     this.reset(def?.startingCash ?? STARTING_CASH);
+    this.installFloor(
+      this.starterFloor
+        ? starterFloorPlan(def?.id ?? null, GRID_COLS, GRID_ROWS)
+        : FloorPlan.open(GRID_COLS, GRID_ROWS, ENTRANCE_TILE),
+    );
     this.scenario = def ? new ScenarioManager(def) : null;
     // Day 1 gets conditions too. Without this the first day is always the
     // quiet baseline, which teaches the player that modifiers are rare.
@@ -300,17 +365,18 @@ export class CasinoWorld {
 
   // ---------- building ----------
 
-  canPlace(defId: string, col: number, row: number): PlaceCheck {
+  canPlace(defId: string, col: number, row: number, rot: Rotation = 0): PlaceCheck {
     if (!this.isObjectAllowed(defId)) return { ok: false, reason: 'not-allowed' };
     // P16: the house may expand on credit, down to the same line the bank
     // liquidates against. Buying is the only way a player can reach that line
     // deliberately — upkeep drift alone never got near it.
-    return canPlaceObject(this.state, this.grid, defId, col, row, this.creditLimit);
+    return canPlaceObject(this.state, this.grid, defId, col, row, this.creditLimit, rot);
   }
 
-  place(defId: string, col: number, row: number): PlacedObject | null {
+  place(defId: string, col: number, row: number, rot: Rotation = 0): PlacedObject | null {
     if (!this.isObjectAllowed(defId)) return null;
-    const po = placeObject(this.state, this.grid, defId, col, row, this.creditLimit);
+    const po = placeObject(this.state, this.grid, defId, col, row, this.creditLimit, rot);
+    if (po) this.onFloorEdited(this.footprintRect(po));
     if (po) {
       const machine = createMachine(defId, po.id);
       if (machine) this.machines.set(po.id, machine);
@@ -321,7 +387,15 @@ export class CasinoWorld {
     return po;
   }
 
+  /** Cells an object covers, with rotation. */
+  private footprintRect(po: PlacedObject): CellRect {
+    const fp = footprintOf(po.defId, po.rot);
+    return { col0: po.col, row0: po.row, col1: po.col + fp.w - 1, row1: po.row + fp.h - 1 };
+  }
+
   sell(objectId: string): number | null {
+    const sold = this.state.getObject(objectId);
+    if (sold) this.onFloorEdited(this.footprintRect(sold));
     const machine = this.machines.get(objectId);
     if (machine) {
       // Guests holding a reference re-evaluate on their next tick.
@@ -383,6 +457,7 @@ export class CasinoWorld {
       }
     }
     for (const member of this.staff.values()) member.tick(this);
+    this.nav?.step(this);
     if (this.tickCount % OVERLAY_SAMPLE_TICKS === 0) {
       this.sampleMood();
       // Traffic is written on tile-enter, so only its ageing rides this pass.
@@ -1105,8 +1180,15 @@ export class CasinoWorld {
     return null;
   }
 
-  reserveMachine(guestId: string, wallet: number): { machineId: string; stand: Cell } | null {
+  /** `onlyMachineId` (v2 hook): the guest brain has already chosen which game;
+   *  reserve a seat there or nowhere. */
+  reserveMachine(
+    guestId: string,
+    wallet: number,
+    onlyMachineId?: string,
+  ): { machineId: string; stand: Cell } | null {
     for (const machine of this.machines.values()) {
+      if (onlyMachineId !== undefined && machine.id !== onlyMachineId) continue;
       if (!machine.isAvailable || wallet < machine.costToPlay) continue;
       // Per-game wallet floor on top of the affordability test above. Defaults
       // to 0 on CasinoGame, so this can never exclude an ungated game.
@@ -1322,8 +1404,7 @@ export class CasinoWorld {
    * more than four seats (Roulette, Poker) have reachable cells for them.
    */
   private seatCellsFor(po: PlacedObject): Cell[] {
-    const def = getObjectDef(po.defId);
-    const { w, h } = def?.footprint ?? { w: 1, h: 1 };
+    const { w, h } = footprintOf(po.defId, po.rot);
 
     const cells: Cell[] = [
       { col: po.col - 1, row: po.row }, // west
@@ -1358,9 +1439,8 @@ export class CasinoWorld {
 
   /** First walkable cell on the perimeter of an object's footprint. */
   private standTileFor(po: PlacedObject): Cell | null {
-    const def = getObjectDef(po.defId);
-    if (!def) return null;
-    const { w, h } = def.footprint;
+    if (!getObjectDef(po.defId)) return null;
+    const { w, h } = footprintOf(po.defId, po.rot);
     for (let col = po.col - 1; col <= po.col + w; col++) {
       for (let row = po.row - 1; row <= po.row + h; row++) {
         const inside = col >= po.col && col < po.col + w && row >= po.row && row < po.row + h;
@@ -1410,6 +1490,7 @@ export class CasinoWorld {
       patrons: this.patrons.toJSON(),
       mood: this.mood.toJSON(),
       traffic: this.traffic.toJSON(),
+      floor: this.floor.toJSON(),
     };
   }
 
@@ -1442,6 +1523,11 @@ export class CasinoWorld {
     this.staff.clear();
     this.state.load(data.state);
     this.grid.load(data.grid);
+    this.installFloor(
+      data.floor
+        ? FloorPlan.fromJSON(data.floor)
+        : FloorPlan.open(this.grid.cols, this.grid.rows, ENTRANCE_TILE),
+    );
     this.tickCount = data.tickCount;
     for (const machine of loadedMachines) this.machines.set(machine.id, machine);
     for (const f of data.foodStalls) this.foodStalls.set(f.id, FoodStall.fromJSON(f));

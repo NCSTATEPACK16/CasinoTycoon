@@ -5,6 +5,7 @@
 import { SIM_TICK_MS } from '../config';
 import { eventBus } from '../EventBus';
 import type { WorkerIn, WorkerOut } from '../shared/contracts';
+import { WorldNav } from '../sim/nav/WorldNav';
 import { CasinoWorld } from '../sim/world';
 import { runCommand } from './commands';
 import { SnapshotBuilder } from './snapshot';
@@ -58,17 +59,26 @@ function pump(): void {
   let n = Math.min(MAX_TICKS_PER_PUMP, Math.floor(carry));
   carry = n === MAX_TICKS_PER_PUMP ? 0 : carry - n;
   if (n === 0 && snap.speed !== 0) return;
-  while (n-- > 0) world.tick();
+  while (n-- > 0) {
+    const t0 = performance.now();
+    world.tick();
+    snap.recordTick(performance.now() - t0);
+  }
   const s = snap.build(world, now);
   post({ type: 'snapshot', snap: s }, [s.agents.buffer]);
 }
 
-self.onmessage = (ev: MessageEvent<WorkerIn>) => {
+self.onmessage = async (ev: MessageEvent<WorkerIn>) => {
   const msg = ev.data;
   if (msg.type === 'init') {
-    world = new CasinoWorld({ seed: msg.seed });
-    wireEvents(world);
-    world.startScenario(null);
+    // v2: the walled, zoned starter floor, dealers required to open tables,
+    // and guests on the Recast crowd. The WASM loads before the first tick,
+    // so no tick ever runs in grid mode.
+    const w = new CasinoWorld({ seed: msg.seed, starterFloor: true, requireDealers: true });
+    wireEvents(w);
+    w.startScenario(null);
+    w.attachNav(await WorldNav.create(w));
+    world = w;
     last = performance.now();
     setInterval(pump, SIM_TICK_MS / 2);
     post({ type: 'ready' });
