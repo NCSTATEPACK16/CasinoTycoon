@@ -93,10 +93,7 @@ describe('Reputation', () => {
       5,
     );
     // Bikers are the one archetype a good reputation drives away.
-    expect(rep.archetypeMultiplier('biker')).toBeCloseTo(
-      REPUTATION.archetypeBiasAtMax.biker,
-      5,
-    );
+    expect(rep.archetypeMultiplier('biker')).toBeCloseTo(REPUTATION.archetypeBiasAtMax.biker, 5);
   });
 
   it('inverts the mix at rock bottom rather than merely flattening it', () => {

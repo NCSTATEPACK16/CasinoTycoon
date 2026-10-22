@@ -115,7 +115,9 @@ describe('Tier 2 factory wiring', () => {
     // keno — a coin size, not a minimum — so the dial would mean nothing on it.
     for (const id of ['sic-bo', 'three-card-poker', 'pai-gow'] as const) {
       expect(createMachine(id, 'x')!.supportsMinimum, `${id} should take a minimum`).toBe(true);
-      expect(TABLE_MINIMUMS.defaultByType[id], `${id} missing a default minimum`).toBeGreaterThan(0);
+      expect(TABLE_MINIMUMS.defaultByType[id], `${id} missing a default minimum`).toBeGreaterThan(
+        0,
+      );
     }
     expect(createMachine('bingo-hall', 'x')!.supportsMinimum).toBe(false);
     expect(TABLE_MINIMUMS.defaultByType['bingo-hall']).toBeUndefined();
@@ -176,10 +178,9 @@ describe('Tier 2 on a live floor', () => {
 
       // Positive house edge on all four, so a long run must end up ahead. Zero
       // means it was never played; negative means the payout table is inverted.
-      expect(
-        machine!.lifetimeProfit,
-        `${id} never earned over ${TICKS[id]} ticks`,
-      ).toBeGreaterThan(0);
+      expect(machine!.lifetimeProfit, `${id} never earned over ${TICKS[id]} ticks`).toBeGreaterThan(
+        0,
+      );
       // Wear accrues only on a real play — the independent check that guests
       // actually sat rather than the profit arriving from elsewhere.
       expect(machine!.reliability, `${id} was never played`).toBeLessThan(100);

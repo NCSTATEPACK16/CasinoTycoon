@@ -18,7 +18,10 @@ export class ThreeCardPokerTable extends SeatedCasinoGame {
   }
 
   protected spin(rng: Rng): PlayResult {
-    return { wager: this.costToPlay, payout: this.rollPayout(rng, THREE_CARD_POKER_BALANCE.payoutTable) };
+    return {
+      wager: this.costToPlay,
+      payout: this.rollPayout(rng, THREE_CARD_POKER_BALANCE.payoutTable),
+    };
   }
 
   protected wearPerPlay(): number {

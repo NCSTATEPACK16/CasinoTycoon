@@ -12,9 +12,9 @@ import {
   ROULETTE_BALANCE,
   SIC_BO_BALANCE,
   SLOT_BALANCE,
+  engineRtp,
   THREE_CARD_POKER_BALANCE,
   VIDEO_POKER_BALANCE,
-  slotExpectedRtp,
   type PayoutOutcome,
 } from './balance';
 import { getObjectDef } from './objects';
@@ -40,31 +40,10 @@ function moments(table: readonly PayoutOutcome[]) {
   return { rtp, sd: Math.sqrt(variance), edge: 1 - rtp, pLoss };
 }
 
-describe('slot payout table', () => {
-  it('holds the shipped 8% house edge exactly', () => {
-    expect(slotExpectedRtp()).toBeCloseTo(0.92, 10);
-  });
-
-  it('is a well-formed distribution', () => {
-    const { pLoss } = moments(SLOT_BALANCE.payoutTable);
-    expect(pLoss).toBeGreaterThan(0);
-    expect(pLoss).toBeLessThan(1);
-  });
-
-  it('keeps per-pull variance low enough for a day to mean something', () => {
-    // The shipped table sat at 21.1. Anything above ~12 needs more pulls than a
-    // day provides, and the difficulty curve dissolves into noise.
-    const { sd, edge } = moments(SLOT_BALANCE.payoutTable);
-    expect(sd / edge).toBeLessThan(12);
-  });
-
-  it('still pays a jackpot worth strutting about', () => {
-    // P11's strut and the reputation bump both key off a big multiplier, so
-    // flattening the tail entirely would quietly delete a feature.
-    const best = Math.max(...SLOT_BALANCE.payoutTable.map((o) => o.multiplier));
-    expect(best).toBeGreaterThanOrEqual(15);
-  });
-});
+// The slot, penny slot and the dealt tables (blackjack, craps, roulette,
+// high-limit, poker) left this file in v2: their returns come from real
+// engines (sim/games), whose exact edges and par-sheet volatility are tested
+// there. What remains here are the v1 games still on payout tables.
 
 /**
  * P17 acceptance criterion 5 — "variance is deliberate".
@@ -102,61 +81,8 @@ interface TableSpec {
 }
 
 const ALL_TABLES: readonly TableSpec[] = [
-  { name: 'slot-machine', table: SLOT_BALANCE.payoutTable, rtp: 0.92 },
-  {
-    name: 'blackjack-table',
-    table: BLACKJACK_BALANCE.payoutTable,
-    rtp: 0.96,
-    allowance: {
-      max: 25,
-      because:
-        'A 4% edge is the thinnest in the house bar video poker. sd/edge scales as 1/edge, ' +
-        'so even this near-flat table (2x win, 1x push, 2.5x blackjack — no tail at all) ' +
-        'measures 24.3. Shipped and P16-tuned; the edge is the cause, not the spread.',
-    },
-  },
-  {
-    name: 'craps-table',
-    table: CRAPS_BALANCE.payoutTable,
-    rtp: 0.91,
-    allowance: {
-      max: 14,
-      because:
-        'Sits at 13.1 on a 9% edge with a 6x proposition tail. Squared, that is ~1.2x the ' +
-        "plays the bar implies — a real but small cost, and craps without a rare big hit is " +
-        'not craps.',
-    },
-  },
-  {
-    name: 'roulette-table',
-    table: ROULETTE_BALANCE.payoutTable,
-    rtp: 0.92,
-    allowance: {
-      max: 33,
-      because:
-        'The highest in the game at 32.2 — and note plays-to-signal scales as (sd/edge)^2, ' +
-        'so this needs ~7x the plays of the bar, which means a roulette day genuinely IS a ' +
-        'coin flip. That is an inherited P13/P16 property, not something Tier 1 introduced. ' +
-        'Deliberate, though: P13 built roulette as the ' +
-        'table whose point IS variance, and its 20x straight-up branch is what drives the ' +
-        "P11 strut and jackpot beats. Flattening it would delete the game's identity.",
-    },
-  },
   { name: 'big-six-wheel', table: BIG_SIX_BALANCE.payoutTable, rtp: 0.8 },
-  {
-    name: 'high-limit-table',
-    table: HIGH_LIMIT_BALANCE.payoutTable,
-    rtp: 0.94,
-    allowance: {
-      max: 29,
-      because:
-        'Best odds in the house (6% edge) plus a 10x branch, measuring 28.7. The whole ' +
-        'point of the object is that the VIP treatment is real, which means a thin edge; ' +
-        'the thin edge is what puts it here.',
-    },
-  },
   // P17 Tier 1 — all four are inside the default bar by construction.
-  { name: 'penny-slots', table: PENNY_SLOT_BALANCE.payoutTable, rtp: 0.9 },
   { name: 'pachinko', table: PACHINKO_BALANCE.payoutTable, rtp: 0.88 },
   { name: 'keno-lounge', table: KENO_BALANCE.payoutTable, rtp: 0.75 },
   { name: 'video-poker', table: VIDEO_POKER_BALANCE.payoutTable, rtp: 0.96 },
@@ -218,7 +144,18 @@ describe('catalogue differentiation', () => {
    * it is "every PAIR differs on two or more axes", so this asserts that
    * directly, over every pair in the catalogue, and reports the offender.
    */
-  const AXES = ['wager', 'rtp', 'cadence', 'sessionMin', 'sessionMax', 'seats', 'wear', 'footprint', 'upkeep', 'ratingBonus'] as const;
+  const AXES = [
+    'wager',
+    'rtp',
+    'cadence',
+    'sessionMin',
+    'sessionMax',
+    'seats',
+    'wear',
+    'footprint',
+    'upkeep',
+    'ratingBonus',
+  ] as const;
 
   interface Profile {
     id: string;
@@ -234,12 +171,18 @@ describe('catalogue differentiation', () => {
     ratingBonus: number;
   }
 
-  function profile(id: string, b: Record<string, unknown>, table?: readonly PayoutOutcome[]): Profile {
+  function profile(
+    id: string,
+    b: Record<string, unknown>,
+    table?: readonly PayoutOutcome[],
+  ): Profile {
     const def = getObjectDef(id)!;
+    // Engine games carry their RTP in their rules, not a table.
+    const rtp = table ? moments(table).rtp : engineRtp(id);
     return {
       id,
       wager: b.costToPlay as number,
-      rtp: table ? Number(moments(table).rtp.toFixed(4)) : -1,
+      rtp: Number(rtp.toFixed(4)),
       cadence: (b.playIntervalTicks ?? b.spinIntervalTicks) as number,
       sessionMin: (b.playsMin ?? b.spinsMin) as number,
       sessionMax: (b.playsMax ?? b.spinsMax) as number,
@@ -252,13 +195,13 @@ describe('catalogue differentiation', () => {
   }
 
   const PROFILES: readonly Profile[] = [
-    profile('slot-machine', SLOT_BALANCE, SLOT_BALANCE.payoutTable),
-    profile('blackjack-table', BLACKJACK_BALANCE, BLACKJACK_BALANCE.payoutTable),
-    profile('craps-table', CRAPS_BALANCE, CRAPS_BALANCE.payoutTable),
-    profile('roulette-table', ROULETTE_BALANCE, ROULETTE_BALANCE.payoutTable),
+    profile('slot-machine', SLOT_BALANCE),
+    profile('blackjack-table', BLACKJACK_BALANCE),
+    profile('craps-table', CRAPS_BALANCE),
+    profile('roulette-table', ROULETTE_BALANCE),
     profile('big-six-wheel', BIG_SIX_BALANCE, BIG_SIX_BALANCE.payoutTable),
-    profile('high-limit-table', HIGH_LIMIT_BALANCE, HIGH_LIMIT_BALANCE.payoutTable),
-    profile('penny-slots', PENNY_SLOT_BALANCE, PENNY_SLOT_BALANCE.payoutTable),
+    profile('high-limit-table', HIGH_LIMIT_BALANCE),
+    profile('penny-slots', PENNY_SLOT_BALANCE),
     profile('pachinko', PACHINKO_BALANCE, PACHINKO_BALANCE.payoutTable),
     profile('keno-lounge', KENO_BALANCE, KENO_BALANCE.payoutTable),
     profile('video-poker', VIDEO_POKER_BALANCE, VIDEO_POKER_BALANCE.payoutTable),
@@ -343,8 +286,8 @@ describe('catalogue differentiation', () => {
     // By sd/edge the ranking is different and misleading: three-card poker
     // (11.74) and the shipped slot (11.82) both exceed sic bo's 11.42, purely
     // because their edges are thinner.
+    // Penny slots left this list in v2: their spread is a par sheet's now.
     const p17 = [
-      PENNY_SLOT_BALANCE,
       PACHINKO_BALANCE,
       KENO_BALANCE,
       VIDEO_POKER_BALANCE,

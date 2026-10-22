@@ -253,9 +253,7 @@ export function runCampaign(
   const buyGame = (reserve: number): boolean => {
     const affordable = (defId: string): boolean => {
       const objDef = getObjectDef(defId);
-      return (
-        !!objDef && world.isObjectAllowed(defId) && world.state.cash >= objDef.cost + reserve
-      );
+      return !!objDef && world.isObjectAllowed(defId) && world.state.cash >= objDef.cost + reserve;
     };
     const take = (defId: string): boolean => {
       // Out of floor, not out of money — stop, rather than walking down to a

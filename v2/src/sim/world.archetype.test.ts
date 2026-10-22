@@ -33,7 +33,12 @@ describe('CasinoWorld — guest archetypes', () => {
 
   it('unweighted spawnGuest() distribution: regular dominates, but all 4 archetypes appear over many spawns', () => {
     const world = new CasinoWorld({ seed: 42, autoSpawn: false });
-    const counts: Record<GuestArchetype, number> = { regular: 0, highRoller: 0, biker: 0, tourist: 0 };
+    const counts: Record<GuestArchetype, number> = {
+      regular: 0,
+      highRoller: 0,
+      biker: 0,
+      tourist: 0,
+    };
     for (let i = 0; i < 4000; i++) {
       counts[world.spawnGuest().archetype]++;
     }

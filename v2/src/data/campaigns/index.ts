@@ -24,6 +24,11 @@ export interface CampaignDef {
   goalWindowDays: number;
   /** P16: how far below zero this campaign may run before forced sales. */
   creditLimit: number;
+  /** v2: free play — no goal, no clock, money is no object. */
+  sandbox?: boolean;
+  /** v2: the lot the floor plan is built on, in cells (Session 3's FloorPlan
+   *  reads it). Omitted = the default 40×30 lot. */
+  lot?: { cols: number; rows: number };
 }
 
 export const CAMPAIGNS: readonly CampaignDef[] = [
@@ -72,7 +77,28 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
   },
 ];
 
-const BY_ID = new Map(CAMPAIGNS.map((c) => [c.id, c]));
+/**
+ * v2 Sandbox: effectively unlimited cash and credit, every object allowed, and
+ * no goal or day limit — the run starts 'endless'. Kept out of CAMPAIGNS
+ * because every campaign there is a goal the tournament must be able to win.
+ */
+export const SANDBOX: CampaignDef = {
+  id: 'sandbox',
+  name: 'Sandbox',
+  tagline: 'Unlimited bankroll. Build the casino you want to walk around in.',
+  startingCash: 100_000_000,
+  goalDailyProfit: 0,
+  dayLimit: 1_000_000,
+  goalWindowDays: 1,
+  creditLimit: 100_000_000,
+  sandbox: true,
+  lot: { cols: 64, rows: 48 },
+};
+
+/** Everything the scenario picker offers: the campaigns, then Sandbox. */
+export const SCENARIOS: readonly CampaignDef[] = [...CAMPAIGNS, SANDBOX];
+
+const BY_ID = new Map(SCENARIOS.map((c) => [c.id, c]));
 
 export function getCampaign(id: string): CampaignDef | undefined {
   return BY_ID.get(id);

@@ -1,15 +1,14 @@
 import { HIGH_LIMIT_BALANCE } from '../../../data/balance';
-import type { Rng } from '../../rng';
-import type { PlayCadence, PlayResult } from './CasinoGame';
-import { SeatedCasinoGame } from './SeatedCasinoGame';
+import type { PlayCadence } from './CasinoGame';
+import { EngineTable } from './EngineGame';
 
 // The VIP table: three seats, the highest stake on the floor, and the best
-// odds in the house (94% RTP). Access is gated on wallet rather than
-// archetype — see HIGH_LIMIT_BALANCE — so a lucky ordinary guest can graduate
-// into it rather than the table sitting idle waiting for a rare high roller.
-export class HighLimitTable extends SeatedCasinoGame {
+// blackjack rules in the house (two decks, RSA, late surrender). Access is
+// gated on wallet rather than archetype — see HIGH_LIMIT_BALANCE — so a lucky
+// ordinary guest can graduate into it.
+export class HighLimitTable extends EngineTable {
   constructor(id: string, costToPlay: number = HIGH_LIMIT_BALANCE.costToPlay) {
-    super(id, 'high-limit-table', costToPlay, HIGH_LIMIT_BALANCE.seats);
+    super(id, 'high-limit-table', 'blackjack', costToPlay, HIGH_LIMIT_BALANCE.seats);
   }
 
   get cadence(): PlayCadence {
@@ -24,18 +23,7 @@ export class HighLimitTable extends SeatedCasinoGame {
     return HIGH_LIMIT_BALANCE.minWallet;
   }
 
-  protected spin(rng: Rng): PlayResult {
-    return {
-      wager: this.costToPlay,
-      payout: this.rollPayout(rng, HIGH_LIMIT_BALANCE.payoutTable),
-    };
-  }
-
   protected wearPerPlay(): number {
     return HIGH_LIMIT_BALANCE.wearPerPlay;
-  }
-
-  testSpin(rng: Rng): number {
-    return this.rollPayout(rng, HIGH_LIMIT_BALANCE.payoutTable);
   }
 }

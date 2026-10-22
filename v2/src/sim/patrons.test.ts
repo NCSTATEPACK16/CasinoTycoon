@@ -4,13 +4,15 @@ import { PatronRegistry } from './patrons';
 import { Rng } from './rng';
 
 /** A departing guest, as `recordDeparture` sees one. */
-function departing(overrides: Partial<{
-  id: string;
-  name: string;
-  patronId: string | null;
-  compsReceived: number;
-  theo: number;
-}> = {}) {
+function departing(
+  overrides: Partial<{
+    id: string;
+    name: string;
+    patronId: string | null;
+    compsReceived: number;
+    theo: number;
+  }> = {},
+) {
   const theo = overrides.theo ?? PATRONS.cardThresholdTheo;
   return {
     id: overrides.id ?? 'g-1',
@@ -213,7 +215,7 @@ describe('bounds', () => {
 });
 
 describe('serialization', () => {
-  it('round-trips the roster, the day\'s draw, and the id counter', () => {
+  it("round-trips the roster, the day's draw, and the id counter", () => {
     const reg = new PatronRegistry();
     const patron = reg.recordDeparture(departing({ theo: 500 }), 4).patron!;
     reg.recordDeparture({ ...departing({ theo: 10 }), patronId: patron.id }, 4);

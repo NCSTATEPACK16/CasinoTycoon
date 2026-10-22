@@ -2,10 +2,24 @@ import { eventBus } from '../../../EventBus';
 import { supportsTableMinimum, TABLE_MINIMUMS, wagerForMinimum } from '../../../data/balance';
 import type { PayoutOutcome } from '../../../data/balance';
 import type { Rng } from '../../rng';
+import type { RulesIssue } from '../../games/types';
+import type { GameMath, GuestPlayContext } from './GameMath';
 
 export interface PlayResult {
   wager: number;
   payout: number;
+  /** Theoretical win on the play's opening bets (engine games only). */
+  theo?: number;
+  /** Real rounds dealt during the play (engine games only). */
+  rounds?: number;
+  /** Summary of the last round, for the inspector. */
+  summary?: string;
+}
+
+/** Everything a machine needs to know about the guest and the table to play. */
+export interface PlayContext extends GuestPlayContext {
+  /** Dealer speed multiplier on the table's rounds per hour. */
+  dealerSpeed: number;
 }
 
 /** How often and how long a guest plays this game type. */
@@ -135,9 +149,23 @@ export abstract class CasinoGame {
     this.reservedBy = null;
   }
 
-  play(rng: Rng): PlayResult {
+  /** The real game engine behind this machine, or null for the v1 games that
+   *  still roll a payout table. */
+  get math(): GameMath | null {
+    return null;
+  }
+
+  /** Apply a rules object to the engine; null for games without one. */
+  setRules(raw: unknown): RulesIssue[] | null {
+    void raw;
+    return null;
+  }
+
+  /** `ctx` describes the guest; without one the machine plays a perfect
+   *  strategist with deep pockets at its own stake (tests, Free Play). */
+  play(rng: Rng, ctx?: PlayContext): PlayResult {
     if (this.broken) return { wager: 0, payout: 0 };
-    const result = this.spin(rng);
+    const result = this.spin(rng, ctx);
     this.lifetimeProfit += result.wager - result.payout;
     this.applyWear();
     return result;
@@ -146,8 +174,19 @@ export abstract class CasinoGame {
   abstract get cadence(): PlayCadence;
   /** Free Play (Machine Inspector): roll the RNG with no wear, profit, or cash movement. */
   abstract testSpin(rng: Rng): number;
-  protected abstract spin(rng: Rng): PlayResult;
+  protected abstract spin(rng: Rng, ctx?: PlayContext): PlayResult;
   protected abstract wearPerPlay(): number;
+
+  /** Default context for a play with no guest attached. */
+  protected defaultContext(): PlayContext {
+    return {
+      unit: this.costToPlay,
+      wallet: Infinity,
+      skillError: 0,
+      oddsAppetite: 1,
+      dealerSpeed: 1,
+    };
+  }
 
   protected rollPayout(rng: Rng, table: readonly PayoutOutcome[]): number {
     let r = rng.next();

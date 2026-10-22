@@ -111,7 +111,7 @@ export const BLANK_WEIGHTS: Record<string, number> = {
   'diamond-lines': 216,
   'dragon-hoard': 22,
   'garden-twenty': 25,
-  'penny-fortune': 23,
+  'penny-fortune': 17,
 };
 
 export const SHEET_SPECS: readonly SheetSpec[] = [
@@ -270,12 +270,13 @@ export const SHEET_SPECS: readonly SheetSpec[] = [
     spinsPerHour: 600,
   },
   {
-    // The penny cabinet: 20 lines, a scatter, and the 88% hold that pays
-    // the floor's rent one cent at a time.
+    // The penny cabinet: 20 lines, a flat paytable with no top award to
+    // speak of, and the 88% hold that pays the floor's rent one cent at a
+    // time. Flat on purpose — a bank of these is income you can plan on.
     id: 'penny-fortune',
     name: 'Penny Fortune',
-    rtp: 0.8801988909254721,
-    volatility: 'medium',
+    rtp: 0.8801514151505134,
+    volatility: 'low',
     rows: 3,
     reels: 5,
     strip: ['GO', 'CO', 'A', '-', 'K', 'Q', 'BE', 'J', '-', 'T', 'A', 'K', '-', 'Q', 'J', 'T'],
@@ -293,15 +294,15 @@ export const SHEET_SPECS: readonly SheetSpec[] = [
     scatter: 'BE',
     lines: LINES_5x3,
     pays: {
-      GO: [0, 0, 80, 400, 3000],
-      CO: [0, 0, 40, 160, 800],
-      A: [0, 0, 16, 50, 200],
-      K: [0, 0, 13, 40, 160],
-      Q: [0, 0, 10, 32, 130],
-      J: [0, 0, 8, 25, 100],
-      T: [0, 0, 8, 20, 80],
+      GO: [0, 0, 40, 135, 400],
+      CO: [0, 0, 35, 80, 200],
+      A: [0, 0, 20, 40, 80],
+      K: [0, 0, 20, 35, 70],
+      Q: [0, 0, 16, 27, 55],
+      J: [0, 0, 14, 24, 48],
+      T: [0, 0, 14, 20, 40],
     },
-    scatterPays: [0, 0, 5, 25, 80],
+    scatterPays: [0, 0, 5, 14, 27],
     spinsPerHour: 600,
   },
 ];

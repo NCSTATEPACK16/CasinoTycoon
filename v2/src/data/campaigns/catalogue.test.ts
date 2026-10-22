@@ -61,7 +61,9 @@ describe('Tier 1 is live stock, not shelf decoration', () => {
     // so a game with a 0.1% edge would pass. The ablation below is the half that
     // can actually fail.
     const winning = runs(DUSTY_DIME, 'throughput').filter((r) => r.outcome === 'won');
-    expect(winning.length, 'the throughput line never won, so it proves nothing').toBeGreaterThan(0);
+    expect(winning.length, 'the throughput line never won, so it proves nothing').toBeGreaterThan(
+      0,
+    );
 
     const built = new Set(winning.flatMap((r) => r.gamesBuilt));
     for (const id of TIER1) {
@@ -80,7 +82,10 @@ describe('Tier 1 is live stock, not shelf decoration', () => {
         runCampaign(CAMPAIGNS[DUSTY_DIME]!, seed, 'throughput', [id]),
       );
       // It got built at all — guards against the run failing for lack of floor.
-      expect(solo.every((r) => r.gamesBuilt.includes(id)), `${id} never placed`).toBe(true);
+      expect(
+        solo.every((r) => r.gamesBuilt.includes(id)),
+        `${id} never placed`,
+      ).toBe(true);
       // And it earned. A game that cannot produce a single profitable day as the
       // only earner on the floor is dead stock however eagerly a bot buys it.
       const best = Math.max(...solo.map((r) => r.best));
