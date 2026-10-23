@@ -142,6 +142,10 @@ export type Command =
   | { type: 'fire'; staffId: string }
   | { type: 'startScenario'; scenarioId: string | null }
   | { type: 'inspect'; target: { objectId: string } | { agentId: number } }
+  // Read-only panel data: P&L, staff roster, scenario list.
+  | { type: 'financials' }
+  | { type: 'staffList' }
+  | { type: 'scenarios' }
   // Workers have no localStorage: save replies with the world JSON and the
   // main thread persists it; load hands that JSON back.
   | { type: 'save' }

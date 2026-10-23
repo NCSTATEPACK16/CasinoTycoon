@@ -168,13 +168,18 @@ export class SnapshotBuilder {
         ? {
             id: sc.def.id,
             name: sc.def.name,
-            goal: `Average $${sc.def.goalDailyProfit.toLocaleString()}/day by day ${sc.def.dayLimit}`,
+            goal:
+              sc.def.id === 'sandbox'
+                ? 'Unlimited funds'
+                : `Average $${sc.def.goalDailyProfit.toLocaleString()}/day by day ${sc.def.dayLimit}`,
             status:
-              sc.status === 'won' || sc.status === 'endless'
-                ? 'won'
-                : sc.status === 'failed'
-                  ? 'lost'
-                  : 'active',
+              sc.def.id === 'sandbox'
+                ? 'active'
+                : sc.status === 'won' || sc.status === 'endless'
+                  ? 'won'
+                  : sc.status === 'failed'
+                    ? 'lost'
+                    : 'active',
           }
         : null,
     };
