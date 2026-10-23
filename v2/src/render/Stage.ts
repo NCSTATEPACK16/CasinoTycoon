@@ -9,6 +9,9 @@
 import * as THREE from 'three';
 import { ENTRANCE_TILE, GRID_COLS, GRID_ROWS } from '../config';
 import {
+  AGENT_STRIDE,
+  AgentKind,
+  Anim,
   FLOOR_TYPES,
   ZONES,
   type FloorPlanView,
@@ -98,7 +101,9 @@ export class Stage {
 
     // Exterior: a dark stone plaza the lot sits on, faded out by fog.
     this.ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI / 2).translate(GRID_COLS / 2, -0.02, GRID_ROWS / 2),
+      new THREE.PlaneGeometry(400, 400)
+        .rotateX(-Math.PI / 2)
+        .translate(GRID_COLS / 2, -0.02, GRID_ROWS / 2),
       new THREE.MeshStandardMaterial({ color: 0x1b1720, roughness: 0.85, metalness: 0 }),
     );
     this.ground.receiveShadow = true;
@@ -107,7 +112,12 @@ export class Stage {
 
     this.ghost = new THREE.Mesh(
       new THREE.BoxGeometry(1, 1, 1).translate(0.5, 0.5, 0.5),
-      new THREE.MeshBasicMaterial({ color: 0x2ecc71, transparent: true, opacity: 0.35, depthWrite: false }),
+      new THREE.MeshBasicMaterial({
+        color: 0x2ecc71,
+        transparent: true,
+        opacity: 0.35,
+        depthWrite: false,
+      }),
     );
     this.ghost.visible = false;
     this.scene.add(this.ghost);
@@ -131,11 +141,28 @@ export class Stage {
     this.hasFloor = true;
   }
 
+  /** The player's avatar, drawn as one more crowd agent (the Avatar outfit)
+   *  so it is the same rigged, animated human as everyone else. Null hides it. */
+  avatar: { x: number; z: number; heading: number; moving: boolean } | null = null;
+  private avatarPrevSrc: Snapshot | null = null;
+  private avatarPrev: Snapshot | null = null;
+
   /** Interpolate agents between two snapshots matched by numeric id. */
   updateAgents(prev: Snapshot | null, curr: Snapshot, alpha: number): void {
     const now = performance.now();
     const dt = Math.min(0.1, (now - this.lastAgentsAt) / 1000);
     this.lastAgentsAt = now;
+    if (this.avatar) {
+      // Same pose in prev and curr, so interpolation leaves it where the
+      // controller put it. prev is rebuilt only when the sim's prev changes:
+      // the crowd caches its id index by snapshot identity.
+      if (prev !== this.avatarPrevSrc) {
+        this.avatarPrevSrc = prev;
+        this.avatarPrev = prev ? withAgent(prev, this.avatar) : null;
+      } else if (this.avatarPrev) writeAgent(this.avatarPrev, this.avatar);
+      prev = this.avatarPrev;
+      curr = withAgent(curr, this.avatar);
+    }
     if (this.lastCamera) this.crowd.update(prev, curr, alpha, this.lastCamera, dt);
   }
 
@@ -220,7 +247,8 @@ export class Stage {
     if (this.frameEma > 18.2 && this.renderScale > 0.7) {
       next = Math.max(0.7, this.renderScale - 0.1);
       // Just came down from a failed step up: stay put for a while.
-      if (next < this.renderScale) this.upscaleBlockedUntil = Math.max(this.upscaleBlockedUntil, now + 8000);
+      if (next < this.renderScale)
+        this.upscaleBlockedUntil = Math.max(this.upscaleBlockedUntil, now + 8000);
     } else if (this.frameEma < 17.2 && this.renderScale < 1 && now > this.upscaleBlockedUntil) {
       next = Math.min(1, this.renderScale + 0.1);
       this.upscaleBlockedUntil = now + 4000;
@@ -289,4 +317,34 @@ export function defaultPlan(): FloorPlanView {
   for (let c = 0; c < cols; c++) walls.push({ col: c, row: 0, edge: 'n', door: false });
   for (let r = 0; r < rows; r++) walls.push({ col: 0, row: r, edge: 'w', door: false });
   return { cols, rows, floor, zone, walls, entrance: { ...ENTRANCE_TILE } };
+}
+
+/** The avatar's slot: id 0 with AgentKind.Avatar never collides with a sim agent. */
+function writeAgent(
+  s: Snapshot,
+  p: { x: number; z: number; heading: number; moving: boolean },
+): void {
+  const o = (s.agentCount - 1) * AGENT_STRIDE;
+  const a = s.agents;
+  a[o] = p.x;
+  a[o + 1] = p.z;
+  a[o + 2] = p.heading;
+  a[o + 3] = p.moving ? Anim.Walk : Anim.Idle;
+}
+
+function withAgent(
+  s: Snapshot,
+  p: { x: number; z: number; heading: number; moving: boolean },
+): Snapshot {
+  const n = s.agentCount;
+  const agents = new Float32Array((n + 1) * AGENT_STRIDE);
+  agents.set(s.agents.subarray(0, n * AGENT_STRIDE));
+  const o = n * AGENT_STRIDE;
+  agents[o + 4] = AgentKind.Avatar;
+  agents[o + 5] = 0;
+  agents[o + 6] = 1;
+  agents[o + 7] = 0;
+  const out = { ...s, agents, agentCount: n + 1 };
+  writeAgent(out, p);
+  return out;
 }

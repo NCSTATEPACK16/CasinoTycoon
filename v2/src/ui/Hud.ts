@@ -28,16 +28,17 @@ export class Hud {
       b.dataset.def = def.id;
       const zones = get3D(def.id).zones;
       b.title = zones.length ? `Needs a ${zones.join(' or ')} zone` : 'Fits anywhere with a floor';
-      b.onclick = () => {
-        build.select(build.defId === def.id ? null : def.id);
-        palette
-          .querySelectorAll('.pal-item')
-          .forEach((n) =>
-            n.classList.toggle('active', (n as HTMLElement).dataset.def === build.defId),
-          );
-      };
+      b.onclick = () => build.select(build.defId === def.id ? null : def.id);
       palette.append(b);
     }
+    // Esc, right-click and tool switches change the selection too: follow the tool, not the click.
+    const sync = () =>
+      palette
+        .querySelectorAll('.pal-item')
+        .forEach((n) =>
+          n.classList.toggle('active', (n as HTMLElement).dataset.def === build.defId),
+        );
+    build.addEventListener('change', sync);
     const bulldoze = el('button', 'pal-item bulldoze', 'Bulldoze <small>X</small>');
     bulldoze.onclick = () => {
       build.select(null);

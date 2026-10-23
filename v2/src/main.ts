@@ -26,6 +26,9 @@ controls.onMessage = (t) => hud.say(t);
 
 // ---------- sim → screen ----------
 
+/** Autosave only once a game is under way — never the idle world behind the title. */
+let playing = false;
+menus.onStarted = () => (playing = true);
 let lastHour = -1;
 sim.onSnapshot((s) => {
   if (s.objects) stage.setObjects(s.objects);
@@ -41,7 +44,7 @@ sim.onSnapshot((s) => {
   }
   // Autosave on the in-game hour while a game is running.
   if (s.hud.hour !== lastHour) {
-    if (lastHour !== -1 && !menus.isOpen) void menus.autosave().catch(() => {});
+    if (playing && lastHour !== -1 && !menus.isOpen) void menus.autosave().catch(() => {});
     lastHour = s.hud.hour;
   }
 });
@@ -115,6 +118,19 @@ stage.renderer.setAnimationLoop((now) => {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
   controls.update(dt);
+  // The capsule stays as the collision/visibility proxy; the crowd draws the person.
+  const av = controls.avatar;
+  for (const c of av.mesh.children) c.visible = false;
+  const mode = controls.director.mode;
+  stage.avatar =
+    av.mesh.visible && mode !== 'first' && mode !== 'seat'
+      ? {
+          x: av.pos.x,
+          z: av.pos.z,
+          heading: av.heading,
+          moving: Math.hypot(av.vel.x, av.vel.z) > 0.2,
+        }
+      : null;
   if (sim.curr) stage.updateAgents(sim.prev, sim.curr, sim.alpha(now));
   stage.render(controls.camera);
 });
