@@ -54,7 +54,15 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     // four-day average reached $864 at a $700 goal; greedy's winners average
     // $1400+ and its losers are early spirals well short of either figure, so
     // $1000 sits in the gap (measured over the seven tournament seeds).
-    startingCash: 3000,
+    //
+    // v2, after the guest brain landed: $3000 → $4000. Guests that score games
+    // and walk at stop-loss or win-goal make the opening blackjack table's
+    // first days swingier, and at $3000 two of greedy's seven seeds went
+    // insolvent before the slots were bought (3/7 wins). At $4000 greedy wins
+    // 7/7 (worst four-day average $1798), managed 7/7 against reckless 6/7,
+    // and build-and-abandon still tops out at $749 — it banks the extra cash
+    // rather than spending it, so the lever moves only the players who play.
+    startingCash: 4000,
     goalDailyProfit: 1000,
     dayLimit: 12,
     goalWindowDays: 4,

@@ -45,7 +45,8 @@ describe('engine-backed machines', () => {
       expect(Math.abs(net - theo)).toBeLessThan(4 * se);
       expect(wagered).toBeGreaterThan(0);
     },
-    60_000,
+    // 40k plays a machine: a few seconds idle, but heavy enough to need room under load.
+    180_000,
   );
 
   it.each(ENGINE_DEFS)('%s: rounds per play scale with dealer speed', (defId) => {
