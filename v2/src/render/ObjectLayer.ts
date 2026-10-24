@@ -16,18 +16,25 @@ import { createObjectMaterial } from './materials/ObjectMaterial';
 
 const CH_MATRIX = 0;
 const CH_STATE = 1;
-/** Chunk-centre distance bands for LOD0→1 and LOD1→2. */
-export const LOD_DIST = [24, 70] as const;
+/** Chunk-centre distance bands for LOD0→1 and LOD1→2. LOD0 stops at 16 m:
+ *  a chunk centre that far still puts every object within ~10 m of the eye at
+ *  full detail, and the 24 m band drew ~220 full slot cabinets (2.3k tris each)
+ *  at eye level in a dense Sandbox bank, over SPEC §5's 1.5M-triangle budget. */
+export const LOD_DIST = [16, 70] as const;
 /** A chunk outside the view frustum: its objects leave every pool. */
 const CULLED = -1;
 type Slot = Lod | typeof CULLED;
 const HYSTERESIS = 3;
 const THUNK_S = 0.42;
+/** Below this camera height (m) only LOD0 casts shadows; see shadowsNearOnly. */
+const LOW_CAMERA_Y = 6;
 
 /** One InstancedMesh fed by an InstancePool. */
 class PoolMesh {
   readonly pool = new InstancePool<string>([16, 4], 64);
   mesh: THREE.InstancedMesh;
+  /** Whether only full-detail instances cast (a low camera); see ObjectLayer.update. */
+  private nearOnly = false;
 
   constructor(
     geo: THREE.BufferGeometry,
@@ -54,12 +61,23 @@ class PoolMesh {
     state.setUsage(THREE.DynamicDrawUsage);
     geo.setAttribute('aState', state);
     m.count = 0;
-    // Far LOD boxes are below shadow-texel size anyway.
-    m.castShadow = this.lod < 2;
+    m.castShadow = this.castsShadow();
     m.receiveShadow = true;
     m.name = `${this.asset.key}#${this.lod}`;
     this.parent.add(m);
     return m;
+  }
+
+  /** Far LOD boxes are below shadow-texel size anyway. LOD1 casts too, except
+   *  from a low camera: there it is everything past 16 m, whose shadows are
+   *  too far off to see and cost most of the shadow pass's triangles. */
+  private castsShadow(): boolean {
+    return this.lod === 0 || (this.lod === 1 && !this.nearOnly);
+  }
+
+  setShadowsNearOnly(nearOnly: boolean): void {
+    this.nearOnly = nearOnly;
+    this.mesh.castShadow = this.castsShadow();
   }
 
   /** The asset's GLB landed: keep instances, swap geometry. */
@@ -125,6 +143,7 @@ export class ObjectLayer {
   readonly group = new THREE.Group();
   readonly material: THREE.MeshStandardMaterial;
   private pools = new Map<string, PoolMesh>();
+  private shadowsNearOnly = false;
   private placed = new Map<string, Placed>();
   private byChunk = new Map<number, Set<string>>();
   private chunkLod = new Map<number, Slot>();
@@ -151,6 +170,7 @@ export class ObjectLayer {
     let p = this.pools.get(key);
     if (!p) {
       p = new PoolMesh(asset.lods[lod], this.material, asset, lod, this.group);
+      p.setShadowsNearOnly(this.shadowsNearOnly);
       this.pools.set(key, p);
     }
     return p;
@@ -271,6 +291,11 @@ export class ObjectLayer {
   update(camera: THREE.Camera, now: number): void {
     this.now = now;
     const cam = camera.position;
+    const nearOnly = cam.y < LOW_CAMERA_Y;
+    if (nearOnly !== this.shadowsNearOnly) {
+      this.shadowsNearOnly = nearOnly;
+      for (const p of this.pools.values()) p.setShadowsNearOnly(nearOnly);
+    }
     camera.updateMatrixWorld();
     projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     frustum.setFromProjectionMatrix(projScreen);

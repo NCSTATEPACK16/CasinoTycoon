@@ -246,6 +246,9 @@ export class CasinoWorld {
   /** Bumped whenever the floor plan is replaced or edited — the snapshot
    *  sends a fresh FloorPlanView when it changes. */
   floorRevision = 0;
+  /** Bumped whenever a game joins or leaves `machines`, so indexes over the
+   *  games on the floor (the guest brain's, see utility.ts) know to rebuild. */
+  machinesRevision = 0;
   /** v2 — the Recast navmesh and crowd. Null in grid mode (every bare world,
    *  including the ported suite); the worker attaches one after WASM init. */
   nav: WorldNav | null = null;
@@ -353,6 +356,7 @@ export class CasinoWorld {
     this.staff.clear();
     this.messes.clear();
     this.machines.clear();
+    this.machinesRevision++;
     this.foodStalls.clear();
     this.bars.clear();
     this.repairClaims.clear();
@@ -397,6 +401,7 @@ export class CasinoWorld {
     if (po) {
       const machine = createMachine(defId, po.id);
       if (machine) this.machines.set(po.id, machine);
+      if (machine) this.machinesRevision++;
     }
     if (po && defId === 'food-stall') this.foodStalls.set(po.id, new FoodStall(po.id));
     if (po && defId === 'bar') this.bars.set(po.id, new Bar(po.id));
@@ -419,6 +424,7 @@ export class CasinoWorld {
       machine.broken = true;
       machine.releaseAll();
       this.machines.delete(objectId);
+      this.machinesRevision++;
       this.repairClaims.delete(objectId);
       this.dealerAssignments.delete(objectId);
     }
@@ -1646,6 +1652,7 @@ export class CasinoWorld {
     );
     this.tickCount = data.tickCount;
     for (const machine of loadedMachines) this.machines.set(machine.id, machine);
+    this.machinesRevision++;
     for (const f of data.foodStalls) this.foodStalls.set(f.id, FoodStall.fromJSON(f));
     for (const b of data.bars) this.bars.set(b.id, Bar.fromJSON(b));
     for (const m of data.messes) this.messes.set(m.id, { ...m, claimedBy: null });
