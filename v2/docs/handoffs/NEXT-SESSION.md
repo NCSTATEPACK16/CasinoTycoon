@@ -20,7 +20,7 @@ Written 2026-10-23 by the lead session that built the v2 foundation, merged the 
 | 1 | `npm test` green: exact edges, MC edges, nav, ported suite | ✅ 804/804 after the UI commits and lot-size work (84 files, 73 s under `caffeinate -i`) |
 | 2 | `npm run build` clean | ✅ |
 | 3 | Start scenario; paint floor, walls/doors, zones; place all 5 games with tuned rules; hire dealers/janitors/security | ✅ verified in browser. Floor/zone/wall painting was driven by sim commands; drive the drag tools by hand once |
-| 4 | Guests navigate, gamble, eat, restrooms, leave; a day at 4× shows hold ≈ theo | ✅ mostly. ⬜ guests bunch in the entrance lobby; check the bar, restroom and food visits in a full day |
+| 4 | Guests navigate, gamble, eat, restrooms, leave; a day at 4× shows hold ≈ theo | ✅ mostly. Entrance bunching fixed (Task 3). ⬜ check the bar, restroom and food visits in a full day |
 | 5 | God → 3rd → 1st, walk, inspect, play one round of each game | ✅ all five games played through the table screen |
 | 6 | Save → reload → resume | ✅ autosave plus Continue verified |
 | 7 | Stress: 2,000 objects + 500 guests at ~60fps | ✅ 2,036 objects, 500 guests and 90 staff on Sandbox: 58–60 fps, ≤ 284 draw calls, ≤ 1.28M triangles, 6.2–6.8 ms worker tick (Task 2) |
@@ -86,7 +86,11 @@ Fix whatever misses. The graphics budgets are in SPEC §5.
 
 ### Task 3: playtest loop and polish
 Play a full Dusty Dime run at 4× through the UI only, with no `__v2` commands. Known items:
-- **Entrance crowding:** guests bunch in the entrance lobby on arrival. Look at spawn pacing and lobby flow in `src/sim/agents`.
+- ✅ **Entrance crowding.** Guests who found every seat taken browsed within 6 cells of where they stood, and right after arriving that's the lobby. On a Dusty Dime opening (two slots and one dealt table), the 6×9 lobby held 8.8–10.5 guests on average and peaked at 17. `Guest.nearbyTile` now sends a browser who is off the gaming floor to a random game it may use, and it browses within 3 cells of it. On the floor, browsing stays nearby as before.
+  - I left spawn pacing alone. `spawnChance` is the economy's tuned v1 curve, and the campaign goals were measured against it.
+  - This only affects nav mode. Grid-mode worlds, including the ported balance suites, never browse.
+  - Evidence: the new `crowd.test.ts` "send arrivals … onto the floor" measures a lobby mean of 3.0 (the old code gives 10.5, so the test fails without the fix). In the browser, I built the same opening on Dusty Dime by hand at 4×. Before, about 15 guests stood in the lobby. After, about 5, all passing through, and the rest spread around the table on the floor.
+  - Also seen: while the game is paused, the Staff panel's hire count doesn't refresh (it showed Dealer × 0 after a hire). The HUD bar also overlaps the Floor button when the pane is about 800 px wide.
 - **Felt text:** the blackjack felt always reads "BLACKJACK PAYS 3 TO 2", even at 6:5. Use a dynamic felt texture or a decal swap from the table's rules.
 - **Table occupancy:** the avatar can sit at a full table (4/4). Either the avatar needs a free seat, or it should take one.
 - **Wallet display:** during a round, the table-play wallet shows the pre-bet amount. Show the stake as committed.

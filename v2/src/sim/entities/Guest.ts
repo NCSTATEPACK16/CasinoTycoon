@@ -489,15 +489,43 @@ export class Guest extends Walker {
     return Math.hypot(e.col + 0.5 - this.x, e.row + 0.5 - this.z) < AI.exitReach;
   }
 
-  /** A walkable cell within a few metres, from this guest's own stream. */
+  /**
+   * Somewhere to browse, from this guest's own stream: a walkable cell within
+   * a few metres. Off the gaming floor (just through the door, or back from a
+   * restroom) "nearby" is the lobby, so a guest who finds every seat taken
+   * would stand by the door with every other new arrival; they head onto the
+   * floor instead, to browse beside one of the games they may play.
+   */
   private nearbyTile(world: CasinoWorld): Cell | null {
-    const r = AI.browseRadius;
+    const zone = world.floor.zoneAt(this.pos.col, this.pos.row);
+    const onFloor = zone === 'gaming' || zone === 'highLimit';
+    const around = (onFloor ? null : this.gameToBrowse(world)) ?? this.pos;
+    const r = onFloor ? AI.browseRadius : AI.browseRadius >> 1;
     for (let i = 0; i < 12; i++) {
-      const col = this.pos.col + this.brainRng.int(-r, r);
-      const row = this.pos.row + this.brainRng.int(-r, r);
-      if (world.grid.isWalkable(col, row)) return { col, row };
+      const col = around.col + this.brainRng.int(-r, r);
+      const row = around.row + this.brainRng.int(-r, r);
+      if (!world.grid.isWalkable(col, row)) continue;
+      if (!this.mayEnter(world, col, row)) continue;
+      return { col, row };
     }
     return null;
+  }
+
+  /** A random game on the floor this guest is allowed to stand beside. */
+  private gameToBrowse(world: CasinoWorld): Cell | null {
+    const games: Cell[] = [];
+    for (const id of world.machines.keys()) {
+      const po = world.state.getObject(id);
+      if (po && this.mayEnter(world, po.col, po.row)) games.push({ col: po.col, row: po.row });
+    }
+    return games.length ? games[this.brainRng.int(0, games.length - 1)]! : null;
+  }
+
+  /** High-Limit is closed to guests below its bankroll; back-of-house to all. */
+  private mayEnter(world: CasinoWorld, col: number, row: number): boolean {
+    const zone = world.floor.zoneAt(col, row);
+    if (zone === 'backOfHouse') return false;
+    return zone !== 'highLimit' || this.wallet >= AI.highLimitBankroll;
   }
 
   /** Line up behind a full table, two cells out, and wait for a seat. */
