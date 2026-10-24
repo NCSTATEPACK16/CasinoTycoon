@@ -14,6 +14,7 @@ interface RoundReply {
   view: unknown;
   result?: RoundResult & { theo: number };
   wallet: number;
+  onTable: number;
 }
 
 const BET_SPOTS: Partial<Record<GameKind, { value: string; label: string }[]>> = {
@@ -46,6 +47,8 @@ export class TablePlay {
   private kind: GameKind | null = null;
   private info: MachineInspect | null = null;
   private wallet = 0;
+  /** Chips committed to the round in progress, out of the wallet until it settles. */
+  private onTable = 0;
   private inRound = false;
   onLeave: () => void = () => {};
 
@@ -67,8 +70,11 @@ export class TablePlay {
     this.root.hidden = false;
     try {
       this.info = await this.sim.command<MachineInspect>({ type: 'inspect', target: { objectId } });
-      const f = await this.sim.command<{ wallet: number }>({ type: 'financials' });
+      const f = await this.sim.command<{ wallet: number; onTable: number }>({
+        type: 'financials',
+      });
       this.wallet = f.wallet;
+      this.onTable = f.onTable;
     } catch (err) {
       this.root.innerHTML = `<p>${escapeHtml((err as Error).message)}</p>`;
       return;
@@ -86,7 +92,9 @@ export class TablePlay {
   private header(): HTMLElement {
     const h = el('div', 'tp-head');
     const edge = this.info?.game ? ` · house edge ${(this.info.game.edge * 100).toFixed(2)}%` : '';
-    h.innerHTML = `<b>${escapeHtml(this.info?.name ?? '')}</b><span class="dim">${edge}</span><span class="tp-wallet">Wallet ${money(this.wallet, true)}</span>`;
+    const inPlay =
+      this.onTable > 0 ? ` <span class="dim">· ${money(this.onTable, true)} in play</span>` : '';
+    h.innerHTML = `<b>${escapeHtml(this.info?.name ?? '')}</b><span class="dim">${edge}</span><span class="tp-wallet">Wallet ${money(this.wallet - this.onTable, true)}${inPlay}</span>`;
     if (!this.inRound) h.append(button('Stand up', () => this.leave(), 'small'));
     return h;
   }
@@ -107,7 +115,10 @@ export class TablePlay {
     amount.max = String(max);
     amount.step = String(Math.max(1, min));
     amount.value = String(
-      Math.min(max, Math.max(min, Math.round(this.wallet / 20 / min) * min || min)),
+      Math.min(
+        max,
+        Math.max(min, Math.round((this.wallet - this.onTable) / 20 / min) * min || min),
+      ),
     );
     const spots = BET_SPOTS[kind];
     if (spots) {
@@ -205,6 +216,7 @@ export class TablePlay {
 
   private show(r: RoundReply): void {
     this.wallet = r.wallet;
+    this.onTable = r.onTable;
     if (!r.options) {
       this.inRound = false;
       const res = r.result;

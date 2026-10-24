@@ -140,8 +140,14 @@ export function staffList(world: CasinoWorld): StaffInspect[] {
   return [...world.staff.values()].map(staffView);
 }
 
-export function financials(world: CasinoWorld): CasinoFinancials & { wallet: number } {
-  return { ...casinoFinancials(world.ledger), wallet: world.player.wallet };
+export function financials(
+  world: CasinoWorld,
+): CasinoFinancials & { wallet: number; onTable: number } {
+  return {
+    ...casinoFinancials(world.ledger),
+    wallet: world.player.wallet,
+    onTable: world.player.onTable,
+  };
 }
 
 export interface ScenarioInfo {

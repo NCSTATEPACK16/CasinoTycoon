@@ -159,7 +159,7 @@ export function runCommand(world: CasinoWorld, snap: SnapshotBuilder, cmd: Comma
         ? { ok: true, data: applied }
         : { ok: false, error: 'no game rules on that object' };
     }
-    // Avatar play. Both reply { options, view, wallet }, plus `result` (the
+    // Avatar play. Both reply { options, view, wallet, onTable }, plus `result` (the
     // RoundResult with its theo) once the round has settled.
     case 'sit': {
       const reply = world.seatPlayer(cmd.objectId);

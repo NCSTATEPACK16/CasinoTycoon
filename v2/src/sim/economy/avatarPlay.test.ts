@@ -107,6 +107,7 @@ describe('avatar play', () => {
     const reply = playThrough(world, snap, ids.roulette, [{ spot: 'black', amount: 50 }]);
     const net = reply.result!.wagered - reply.result!.returned;
     expect(reply.wallet).toBe(PLAYER_START_WALLET - net);
+    expect(reply.onTable).toBe(0);
     expect(world.player.wallet).toBe(reply.wallet);
     expect(world.state.cash).toBe(cash + net);
     const row = world.ledger.sources.get(ids.roulette)!;
@@ -132,6 +133,24 @@ describe('avatar play', () => {
     expect(
       bad({ type: 'roundBegin', objectId: 'nope', bets: [{ spot: 'red', amount: 10 }] }),
     ).toBeTruthy();
+  });
+
+  it('reports the stake in play until the round settles', () => {
+    const { world, snap, ids } = setup();
+    const res = runCommand(world, snap, {
+      type: 'roundBegin',
+      objectId: ids.blackjack,
+      bets: [{ spot: 'main', amount: 25 }],
+    });
+    const reply = (res as { data: PlayerRoundReply }).data;
+    expect(reply.options).not.toBeNull();
+    // The bankroll moves only on settlement; the stake is reported beside it.
+    expect(reply.wallet).toBe(PLAYER_START_WALLET);
+    expect(reply.onTable).toBe(25);
+    const fin = runCommand(world, snap, { type: 'financials' }) as { data: { onTable: number } };
+    expect(fin.data.onTable).toBe(25);
+    const done = playThrough(world, snap, ids.roulette, [{ spot: 'red', amount: 20 }]);
+    expect(done.onTable).toBe(25);
   });
 
   it('a double the wallet cannot cover is refused mid-round', () => {
