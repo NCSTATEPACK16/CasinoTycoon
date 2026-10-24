@@ -180,6 +180,18 @@ export class Guest extends Walker {
     this.z += (this.brainRng.next() - 0.5) * 0.8;
   }
 
+  /**
+   * v2's crowd only: arrive somewhere between just fed and ready for dinner
+   * (GUEST_BALANCE.arrivalNeedsMin). Drawn after the constructor's draws, so a
+   * guest's profile and spawn point are unchanged; grid-mode worlds (the
+   * ported balance suites the campaign goals were tuned on) never call it.
+   */
+  varyArrivalNeeds(): void {
+    const min = GUEST_BALANCE.arrivalNeedsMin;
+    for (const need of ['bladder', 'hunger', 'thirst'] as const)
+      this.needs[need] = min[need] + (100 - min[need]) * this.brainRng.next();
+  }
+
   get navSpeed(): number {
     let speed = GUEST_SPEED;
     if (this.raging) speed *= RAGE_BALANCE.speedMult;

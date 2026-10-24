@@ -846,6 +846,7 @@ export class CasinoWorld {
       archetype,
       patron ? { id: patron.id, name: patron.name, tier: patron.tier } : null,
     );
+    if (this.nav) guest.varyArrivalNeeds();
     this.guests.set(id, guest);
     eventBus.emit('guestSpawned', { id, archetype: guest.archetype });
     if (patron) this.announcePatronArrival(patron);

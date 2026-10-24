@@ -122,4 +122,40 @@ describe('guests on the navmesh', () => {
     // Arrivals and leavers pass through it; nobody settles there (was 8.8).
     expect(mean).toBeLessThan(4);
   }, 120_000);
+
+  it('eat, drink and use the restrooms over a full day', async () => {
+    // SPEC §9.4. With every guest arriving fully sated, a typical stay ended
+    // before hunger or thirst got low: two days on this floor sold no food or
+    // drinks and saw three restroom visits.
+    const world = await navWorld(5, { requireDealers: true });
+    world.autoSpawn = true;
+    furnish(world, { slots: 40 });
+    for (let i = 0; i < 6; i++) world.hireStaff('dealer');
+    world.hireStaff('bartender');
+    const served = { meals: 0, drinks: 0, restroom: 0 };
+    const buyFood = world.buyFoodItem.bind(world);
+    const buyDrink = world.buyDrink.bind(world);
+    world.buyFoodItem = (...a) => {
+      const r = buyFood(...a);
+      if (r) served.meals++;
+      return r;
+    };
+    world.buyDrink = (...a) => {
+      const r = buyDrink(...a);
+      if (r) served.drinks++;
+      return r;
+    };
+    const bladder = new Map<string, number>();
+    for (let t = 0; t < 2_400; t++) {
+      world.tick();
+      for (const g of world.guests.values()) {
+        if (g.needs.bladder === 100 && (bladder.get(g.id) ?? 100) < 90) served.restroom++;
+        bladder.set(g.id, g.needs.bladder);
+      }
+    }
+    console.info(`[services] two days: ${JSON.stringify(served)}`);
+    expect(served.restroom).toBeGreaterThanOrEqual(5);
+    expect(served.meals).toBeGreaterThanOrEqual(5);
+    expect(served.drinks).toBeGreaterThanOrEqual(3);
+  }, 120_000);
 });
