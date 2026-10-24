@@ -197,6 +197,9 @@ export interface CasinoWorldJSON {
   player?: PlayerPlayJSON;
 }
 
+/** The seat holder id the avatar uses at tables and machines. */
+export const PLAYER_SEAT = 'player';
+
 export class CasinoWorld {
   state: GameState;
   grid: IsoGrid;
@@ -1363,11 +1366,34 @@ export class CasinoWorld {
     return { rules: machine.math!.rules, issues };
   }
 
-  /** Hook: the `roundBegin` command — the avatar sits down and bets. */
+  /** Hook: the `sit` command — the avatar takes a seat the way a guest does,
+   *  so a full table turns it away and guests can't sit on top of it. */
+  seatPlayer(objectId: string): true | string {
+    const machine = this.machines.get(objectId);
+    if (!machine) return 'nothing there';
+    if (machine.isPlayableBy(PLAYER_SEAT)) return true;
+    if (machine.broken) return 'out of order';
+    this.unseatPlayer();
+    if (machine instanceof SeatedCasinoGame)
+      return machine.claimSeat(PLAYER_SEAT) === null ? 'every seat is taken' : true;
+    if (machine.reservedBy !== null) return 'someone is already playing';
+    machine.reservedBy = PLAYER_SEAT;
+    return true;
+  }
+
+  /** Hook: the `stand` command — give the avatar's seat back. */
+  unseatPlayer(): void {
+    this.releaseMachines(PLAYER_SEAT);
+  }
+
+  /** Hook: the `roundBegin` command — the avatar bets from its seat, taking one
+   *  first if it has none (a save reload, or a table that was cleared). */
   beginPlayerRound(objectId: string, bets: Bet[]): PlayerRoundReply | string {
     const machine = this.machines.get(objectId);
     if (!machine?.math) return 'not a game the avatar can play';
     if (machine.broken) return 'out of order';
+    const seated = this.seatPlayer(objectId);
+    if (seated !== true) return seated;
     return this.player.begin(objectId, machine.math, bets, this.rng, this.houseBook);
   }
 

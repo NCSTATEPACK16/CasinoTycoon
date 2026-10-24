@@ -153,7 +153,10 @@ export type Command =
   // main thread persists it; load hands that JSON back.
   | { type: 'save' }
   | { type: 'load'; json: unknown }
-  // Avatar play: begin a round as the player, then act until the round settles.
+  // Avatar play: take a seat (replies an error when every seat is taken), begin
+  // a round as the player, act until the round settles, and stand to free it.
+  | { type: 'sit'; objectId: string }
+  | { type: 'stand' }
   | { type: 'roundBegin'; objectId: string; bets: { spot: string; amount: number }[] }
   | { type: 'roundAct'; objectId: string; action: string }
   // Dev/perf: spawn guests past the arrival cap, and read worker timings.

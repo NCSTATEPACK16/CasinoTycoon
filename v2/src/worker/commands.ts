@@ -161,6 +161,13 @@ export function runCommand(world: CasinoWorld, snap: SnapshotBuilder, cmd: Comma
     }
     // Avatar play. Both reply { options, view, wallet }, plus `result` (the
     // RoundResult with its theo) once the round has settled.
+    case 'sit': {
+      const reply = world.seatPlayer(cmd.objectId);
+      return reply === true ? { ok: true } : { ok: false, error: reply };
+    }
+    case 'stand':
+      world.unseatPlayer();
+      return { ok: true };
     case 'roundBegin': {
       const reply = world.beginPlayerRound(cmd.objectId, cmd.bets);
       return typeof reply === 'string' ? { ok: false, error: reply } : { ok: true, data: reply };
