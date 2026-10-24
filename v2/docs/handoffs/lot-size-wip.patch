@@ -1,0 +1,510 @@
+diff --git a/v2/src/config.ts b/v2/src/config.ts
+index 4a00536..041b21b 100644
+--- a/v2/src/config.ts
++++ b/v2/src/config.ts
+@@ -4,7 +4,8 @@
+ export const TILE_W = 128;
+ export const TILE_H = 64;
+ 
+-// Casino floor dimensions (grid cells).
++// Casino floor dimensions (grid cells): the default lot. A scenario may bring
++// its own (CampaignDef.lot); sim code reads the live grid/floor size, never these.
+ export const GRID_COLS = 40;
+ export const GRID_ROWS = 30;
+ 
+@@ -30,3 +31,8 @@ export const JACKPOT_PAYOUT_MULT = 10;
+ 
+ // Where guests enter and exit: middle of the open east edge (walls line north/west only).
+ export const ENTRANCE_TILE = { col: GRID_COLS - 1, row: 15 } as const;
++
++/** The same spot on any lot: the east edge, halfway down. */
++export function entranceFor(cols: number, rows: number): { col: number; row: number } {
++  return { col: cols - 1, row: Math.floor(rows / 2) };
++}
+diff --git a/v2/src/data/campaigns/index.ts b/v2/src/data/campaigns/index.ts
+index c744bf2..63320c9 100644
+--- a/v2/src/data/campaigns/index.ts
++++ b/v2/src/data/campaigns/index.ts
+@@ -109,7 +109,8 @@ export const SANDBOX: CampaignDef = {
+   goalWindowDays: 1,
+   creditLimit: 100_000_000,
+   sandbox: true,
+-  lot: { cols: 64, rows: 48 },
++  // SPEC §9.7: room for 2,000 objects and 500 guests.
++  lot: { cols: 96, rows: 64 },
+ };
+ 
+ /** Everything the scenario picker offers: the campaigns, then Sandbox. */
+diff --git a/v2/src/sim/MoodField.ts b/v2/src/sim/MoodField.ts
+index b25aa2d..b55ebf7 100644
+--- a/v2/src/sim/MoodField.ts
++++ b/v2/src/sim/MoodField.ts
+@@ -26,8 +26,13 @@ const MIN_WEIGHT = 0.35;
+  * instead of going cold.
+  */
+ export class MoodField {
+-  private sum = new TileField();
+-  private weight = new TileField();
++  private sum: TileField;
++  private weight: TileField;
++
++  constructor(cols?: number, rows?: number) {
++    this.sum = new TileField(cols, rows);
++    this.weight = new TileField(cols, rows);
++  }
+ 
+   /** Record one guest standing on one tile. */
+   sample(col: number, row: number, happiness: number): void {
+diff --git a/v2/src/sim/TrafficField.ts b/v2/src/sim/TrafficField.ts
+index 3ea4cab..3886e3e 100644
+--- a/v2/src/sim/TrafficField.ts
++++ b/v2/src/sim/TrafficField.ts
+@@ -33,7 +33,11 @@ const NOISE_FLOOR = 0.4;
+  * hundred guests walked through.
+  */
+ export class TrafficField {
+-  private visits = new TileField();
++  private visits: TileField;
++
++  constructor(cols?: number, rows?: number) {
++    this.visits = new TileField(cols, rows);
++  }
+ 
+   /** One guest stepped onto this tile. */
+   enter(col: number, row: number): void {
+diff --git a/v2/src/sim/floor/starter.ts b/v2/src/sim/floor/starter.ts
+index ea5aee2..b810773 100644
+--- a/v2/src/sim/floor/starter.ts
++++ b/v2/src/sim/floor/starter.ts
+@@ -1,8 +1,8 @@
+ // Pre-built starting floors. A new game should open on a casino that already
+ // works — a lobby guests can enter, somewhere to gamble and somewhere to
+ // relieve themselves — so the first thing the player does is build on it,
+-// not lay carpet. Each scenario gets its own shell; the sandbox gets the
+-// most generous one.
++// not lay carpet. Each scenario gets its own shell, drawn for its lot; the
++// sandbox gets the most generous one, on the biggest lot.
+ 
+ import type { CellRect, FloorType, Zone } from '../../shared/contracts';
+ import { FloorPlan } from './FloorPlan';
+@@ -22,6 +22,8 @@ interface Doorway {
+ }
+ 
+ interface Layout {
++  /** The lot this layout was drawn for. */
++  lot: { cols: number; rows: number };
+   rooms: Room[];
+   /** Interior partitions as corner-to-corner wall drags (see FloorPlan.wallLine). */
+   partitions: { from: { col: number; row: number }; to: { col: number; row: number } }[];
+@@ -36,9 +38,11 @@ const rect = (col0: number, row0: number, col1: number, row1: number): CellRect
+   row1,
+ });
+ 
+-// The sandbox: a 6-wide lobby on the east edge, a big gaming floor, and a
++// The standard 40×30 shell (the default boot floor, and any campaign without
++// its own): a 6-wide lobby on the east edge, a big gaming floor, and a
+ // restroom block and food court in the two western corners.
+-const SANDBOX: Layout = {
++const STANDARD: Layout = {
++  lot: { cols: 40, rows: 30 },
+   rooms: [
+     { rect: rect(4, 4, 33, 25), floor: 'carpet-red', zone: 'gaming' },
+     { rect: rect(4, 4, 9, 9), floor: 'tile', zone: 'restrooms' },
+@@ -68,6 +72,7 @@ const SANDBOX: Layout = {
+ 
+ // The Dusty Dime: a small room off a lobby — the run is about growing it.
+ const DUSTY_DIME: Layout = {
++  lot: { cols: 40, rows: 30 },
+   rooms: [
+     { rect: rect(20, 8, 33, 22), floor: 'carpet-blue', zone: 'gaming' },
+     { rect: rect(20, 8, 24, 11), floor: 'tile', zone: 'restrooms' },
+@@ -88,23 +93,88 @@ const DUSTY_DIME: Layout = {
+ 
+ // The High Roller Club starts with a walled high-limit salon off the floor.
+ const HIGH_ROLLER: Layout = {
+-  ...SANDBOX,
+-  rooms: [...SANDBOX.rooms, { rect: rect(22, 4, 33, 10), floor: 'marble', zone: 'highLimit' }],
++  ...STANDARD,
++  rooms: [...STANDARD.rooms, { rect: rect(22, 4, 33, 10), floor: 'marble', zone: 'highLimit' }],
+   partitions: [
+-    ...SANDBOX.partitions,
++    ...STANDARD.partitions,
+     { from: { col: 22, row: 4 }, to: { col: 22, row: 11 } },
+     { from: { col: 22, row: 11 }, to: { col: 34, row: 11 } },
+   ],
+-  doors: [...SANDBOX.doors, { col: 27, row: 11, edge: 'n', len: 2 }],
++  doors: [...STANDARD.doors, { col: 27, row: 11, edge: 'n', len: 2 }],
++};
++
++// Sandbox, on a 96×64 lot (SPEC §9.7 wants room for 2,000 objects): an 80×56
++// gaming floor with a walled high-limit salon in its north-east corner, two
++// restroom blocks and a food court off it, a lobby on the street, and two
++// back-of-house rooms either side of the lobby.
++const SANDBOX: Layout = {
++  lot: { cols: 96, rows: 64 },
++  rooms: [
++    { rect: rect(4, 4, 83, 59), floor: 'carpet-red', zone: 'gaming' },
++    { rect: rect(58, 4, 83, 17), floor: 'marble', zone: 'highLimit' },
++    { rect: rect(4, 4, 13, 13), floor: 'tile', zone: 'restrooms' },
++    { rect: rect(44, 50, 53, 59), floor: 'tile', zone: 'restrooms' },
++    { rect: rect(4, 44, 23, 59), floor: 'wood', zone: 'foodCourt' },
++    { rect: rect(84, 24, 95, 40), floor: 'marble', zone: 'none' },
++    { rect: rect(84, 4, 95, 19), floor: 'tile', zone: 'backOfHouse' },
++    { rect: rect(84, 45, 95, 59), floor: 'tile', zone: 'backOfHouse' },
++  ],
++  partitions: [
++    // The gaming floor's east wall: lobby and both back-of-house rooms.
++    { from: { col: 84, row: 4 }, to: { col: 84, row: 60 } },
++    // High-limit salon: west and south walls.
++    { from: { col: 58, row: 4 }, to: { col: 58, row: 18 } },
++    { from: { col: 58, row: 18 }, to: { col: 84, row: 18 } },
++    // North-west restrooms: east and south walls.
++    { from: { col: 14, row: 4 }, to: { col: 14, row: 14 } },
++    { from: { col: 4, row: 14 }, to: { col: 14, row: 14 } },
++    // South restrooms: three walls, open to the lot edge behind.
++    { from: { col: 44, row: 50 }, to: { col: 44, row: 60 } },
++    { from: { col: 54, row: 50 }, to: { col: 54, row: 60 } },
++    { from: { col: 44, row: 50 }, to: { col: 54, row: 50 } },
++    // Food court: east and north walls.
++    { from: { col: 24, row: 44 }, to: { col: 24, row: 60 } },
++    { from: { col: 4, row: 44 }, to: { col: 24, row: 44 } },
++  ],
++  doors: [
++    // An 11-wide archway from the lobby so a 500-guest rush never queues.
++    { col: 84, row: 27, edge: 'w', len: 11 },
++    { col: 84, row: 10, edge: 'w', len: 2 },
++    { col: 84, row: 51, edge: 'w', len: 2 },
++    { col: 69, row: 18, edge: 'n', len: 4 },
++    { col: 14, row: 8, edge: 'w', len: 2 },
++    { col: 48, row: 50, edge: 'n', len: 2 },
++    { col: 24, row: 50, edge: 'w', len: 4 },
++    { col: 12, row: 44, edge: 'n', len: 4 },
++    // Street doors on the lot boundary behind the entrance cell.
++    { col: 96, row: 30, edge: 'w', len: 5 },
++  ],
++  entrance: { col: 95, row: 32 },
+ };
+ 
+ const LAYOUTS: Record<string, Layout> = {
+   'dusty-dime': DUSTY_DIME,
+   'high-roller': HIGH_ROLLER,
++  sandbox: SANDBOX,
+ };
+ 
++/** A lot no layout was drawn for: one walled gaming hall with a two-cell
++ *  margin, and street doors behind the usual east-edge entrance. */
++function plainHall(cols: number, rows: number): Layout {
++  const mid = Math.floor(rows / 2);
++  return {
++    lot: { cols, rows },
++    rooms: [{ rect: rect(2, 2, cols - 1, rows - 3), floor: 'carpet-red', zone: 'gaming' }],
++    partitions: [],
++    doors: [{ col: cols, row: mid - 1, edge: 'w', len: 3 }],
++    entrance: { col: cols - 1, row: mid },
++  };
++}
++
+ export function starterFloorPlan(scenarioId: string | null, cols: number, rows: number): FloorPlan {
+-  const layout = (scenarioId && LAYOUTS[scenarioId]) || SANDBOX;
++  const named = (scenarioId && LAYOUTS[scenarioId]) || STANDARD;
++  const fits = named.lot.cols === cols && named.lot.rows === rows;
++  const layout = fits ? named : plainHall(cols, rows);
+   const plan = new FloorPlan(cols, rows, layout.entrance);
+   for (const room of layout.rooms) {
+     plan.paintFloor(room.rect, room.floor);
+diff --git a/v2/src/sim/grid/IsoGrid.ts b/v2/src/sim/grid/IsoGrid.ts
+index 3337838..52de9d5 100644
+--- a/v2/src/sim/grid/IsoGrid.ts
++++ b/v2/src/sim/grid/IsoGrid.ts
+@@ -71,8 +71,15 @@ export class IsoGrid {
+     return true;
+   }
+ 
+-  /** Empty every cell (scenario reset) — the grid object itself stays aliased. */
+-  clear(): void {
++  /** Empty every cell (scenario reset), resizing to a new lot if one is given —
++   *  the grid object itself stays aliased. */
++  clear(cols = this.cols, rows = this.rows): void {
++    if (cols !== this.cols || rows !== this.rows) {
++      this.cols = cols;
++      this.rows = rows;
++      this.occupants = new Array<string | null>(cols * rows).fill(null);
++      return;
++    }
+     this.occupants.fill(null);
+   }
+ 
+diff --git a/v2/src/sim/nav/WorldNav.ts b/v2/src/sim/nav/WorldNav.ts
+index aece342..1a70b50 100644
+--- a/v2/src/sim/nav/WorldNav.ts
++++ b/v2/src/sim/nav/WorldNav.ts
+@@ -34,7 +34,11 @@ export interface NavStats {
+ }
+ 
+ export class WorldNav {
+-  readonly sys: NavSystem;
++  /** Replaced, never mutated from outside, when a new lot needs a new size. */
++  private _sys: NavSystem;
++  get sys(): NavSystem {
++    return this._sys;
++  }
+   private agents = new Map<Walker, CrowdAgent>();
+   private speeds = new Map<Walker, number>();
+   private filters = new Map<Walker, NavFilter>();
+@@ -44,7 +48,7 @@ export class WorldNav {
+   lastStepMs = 0;
+ 
+   constructor(cols: number, rows: number) {
+-    this.sys = new NavSystem(cols, rows);
++    this._sys = new NavSystem(cols, rows);
+   }
+ 
+   /** Load the WASM if needed and size a navmesh for this world's lot. The
+@@ -62,6 +66,11 @@ export class WorldNav {
+     this.speeds.clear();
+     this.filters.clear();
+     this.flags.clear();
++    // A scenario on a different lot needs a navmesh sized for it.
++    if (this.sys.cols !== world.floor.cols || this.sys.rows !== world.floor.rows) {
++      this.sys.destroy();
++      this._sys = new NavSystem(world.floor.cols, world.floor.rows);
++    }
+     this.sys.bakeAll(floorNavSource(world.floor, world.grid));
+   }
+ 
+diff --git a/v2/src/sim/world.lot.test.ts b/v2/src/sim/world.lot.test.ts
+new file mode 100644
+index 0000000..0f4e1d6
+--- /dev/null
++++ b/v2/src/sim/world.lot.test.ts
+@@ -0,0 +1,152 @@
++import { afterEach, describe, expect, it } from 'vitest';
++import { eventBus } from '../EventBus';
++import { CAMPAIGNS, SANDBOX } from '../data/campaigns';
++import type { Cell } from './grid/astar';
++import { CasinoWorld } from './world';
++
++afterEach(() => eventBus.clear());
++
++const DIRS = [
++  [1, 0],
++  [-1, 0],
++  [0, 1],
++  [0, -1],
++] as const;
++
++/** Every cell a guest can reach on foot from the entrance. */
++function reachable(world: CasinoWorld): Set<number> {
++  const { grid } = world;
++  const start = world.entranceTile;
++  const seen = new Set<number>([start.row * grid.cols + start.col]);
++  const queue: Cell[] = [start];
++  while (queue.length > 0) {
++    const c = queue.pop()!;
++    for (const [dc, dr] of DIRS) {
++      const col = c.col + dc;
++      const row = c.row + dr;
++      const k = row * grid.cols + col;
++      if (seen.has(k) || !grid.canStep(c.col, c.row, col, row)) continue;
++      seen.add(k);
++      queue.push({ col, row });
++    }
++  }
++  return seen;
++}
++
++function sandbox(): CasinoWorld {
++  const world = new CasinoWorld({ seed: 3, starterFloor: true, autoSpawn: false });
++  world.startScenario(SANDBOX);
++  return world;
++}
++
++describe('the lot follows the scenario', () => {
++  it('builds Sandbox on a 96×64 lot whose every floored cell is reachable', () => {
++    const world = sandbox();
++    expect([world.grid.cols, world.grid.rows]).toEqual([96, 64]);
++    expect([world.floor.cols, world.floor.rows]).toEqual([96, 64]);
++    expect(world.entranceTile).toEqual({ col: 95, row: 32 });
++    const zones = new Set<string>();
++    let floored = 0;
++    for (let row = 0; row < 64; row++) {
++      for (let col = 0; col < 96; col++) {
++        if (!world.floor.isFloored(col, row)) continue;
++        floored++;
++        zones.add(world.floor.zoneAt(col, row));
++      }
++    }
++    expect(zones).toEqual(
++      new Set(['gaming', 'highLimit', 'restrooms', 'foodCourt', 'backOfHouse', 'none']),
++    );
++    // Every room has a door: nothing floored is sealed off.
++    expect(reachable(world).size).toBe(floored);
++  });
++
++  it('keeps campaigns on the default 40×30 lot', () => {
++    for (const def of CAMPAIGNS) {
++      const world = new CasinoWorld({ seed: 1 });
++      world.startScenario(def);
++      expect([world.grid.cols, world.grid.rows, world.floor.cols, world.floor.rows]).toEqual([
++        40, 30, 40, 30,
++      ]);
++      expect(world.entranceTile).toEqual({ col: 39, row: 15 });
++    }
++  });
++
++  it('resizes back down when a campaign follows Sandbox', () => {
++    const world = sandbox();
++    world.place('slot-machine', 60, 30);
++    world.startScenario(CAMPAIGNS[0]!);
++    expect([world.grid.cols, world.grid.rows]).toEqual([40, 30]);
++    expect(world.state.allObjects()).toHaveLength(0);
++    world.traffic.enter(39, 29); // in bounds on the new lot, would throw on a stale field
++    expect(world.mood.toJSON().sum.cols).toBe(40);
++  });
++
++  it('round-trips the lot size through a save', () => {
++    const world = sandbox();
++    world.place('slot-machine', 70, 40);
++    for (let i = 0; i < 50; i++) world.tick();
++    const json = JSON.parse(JSON.stringify(world.toJSON()));
++    const loaded = CasinoWorld.fromJSON(json);
++    expect([loaded.grid.cols, loaded.grid.rows]).toEqual([96, 64]);
++    expect([loaded.floor.cols, loaded.floor.rows]).toEqual([96, 64]);
++    expect(loaded.entranceTile).toEqual({ col: 95, row: 32 });
++    expect(loaded.traffic.toJSON().cols).toBe(96);
++    expect(loaded.grid.occupantAt(70, 40)).not.toBeNull();
++    expect(loaded.toJSON().floor).toEqual(world.toJSON().floor);
++  });
++});
++
++describe('a full Sandbox floor', () => {
++  it('takes 2,000 slots and decor with every aisle still walkable', () => {
++    const world = sandbox();
++    const { floor } = world;
++    // A clear apron two cells deep either side of every doorway, so a bank
++    // can never seal a room by standing across its door.
++    const nearDoor = new Set<number>();
++    for (const w of floor.allWalls()) {
++      if (!w.door) continue;
++      const other = w.edge === 'w' ? { col: w.col - 1, row: w.row } : { col: w.col, row: w.row - 1 };
++      for (const c of [w, other]) {
++        for (let dr = -2; dr <= 2; dr++) {
++          for (let dc = -2; dc <= 2; dc++) {
++            if (Math.abs(dc) + Math.abs(dr) <= 2) nearDoor.add((c.row + dr) * floor.cols + c.col + dc);
++          }
++        }
++      }
++    }
++    // Back-to-back banks two rows deep with an aisle row between pairs, and a
++    // cross aisle every eleventh column; slots where the zone takes them,
++    // plants or neon elsewhere.
++    for (let row = 0; row < floor.rows; row++) {
++      if (row % 3 === 1) continue; // aisle rows: 4, 7, … meet the north wall and every partition
++      for (let col = 0; col < floor.cols; col++) {
++        if (col % 11 === 0 || nearDoor.has(row * floor.cols + col)) continue;
++        if (col === world.entranceTile.col) continue; // the street-door column
++        for (const defId of ['slot-machine', 'plant', 'neon-sign']) {
++          if (world.place(defId, col, row)) break;
++        }
++      }
++    }
++    const objects = world.state.allObjects();
++    const slots = objects.filter((o) => o.defId === 'slot-machine').length;
++    console.info(`[lot] ${objects.length} objects (${slots} slots) on 96×64`);
++    expect(objects.length).toBeGreaterThanOrEqual(2000);
++
++    // Every open cell is still connected to the door, and every slot has an
++    // open, reachable neighbour to be played from (decor needs no stand).
++    const open = reachable(world);
++    let walkable = 0;
++    for (let row = 0; row < floor.rows; row++) {
++      for (let col = 0; col < floor.cols; col++) if (world.grid.isWalkable(col, row)) walkable++;
++    }
++    expect(open.size).toBe(walkable);
++    for (const o of objects) {
++      if (o.defId !== 'slot-machine') continue;
++      const touches = DIRS.some(([dc, dr]) =>
++        open.has((o.row + dr) * floor.cols + (o.col + dc)),
++      );
++      expect(touches, `${o.defId} at ${o.col},${o.row}`).toBe(true);
++    }
++  });
++});
+diff --git a/v2/src/sim/world.ts b/v2/src/sim/world.ts
+index f0dad16..7a2e68b 100644
+--- a/v2/src/sim/world.ts
++++ b/v2/src/sim/world.ts
+@@ -1,6 +1,7 @@
+ import { eventBus } from '../EventBus';
+ import {
+   ENTRANCE_TILE,
++  entranceFor,
+   GRID_COLS,
+   GRID_ROWS,
+   HOURS_PER_DAY,
+@@ -329,11 +330,12 @@ export class CasinoWorld {
+ 
+   /** Start a campaign (or `null` for sandbox): full floor wipe + fresh clock/books. */
+   startScenario(def: CampaignDef | null): void {
+-    this.reset(def?.startingCash ?? STARTING_CASH);
++    const { cols, rows } = def?.lot ?? { cols: GRID_COLS, rows: GRID_ROWS };
++    this.reset(def?.startingCash ?? STARTING_CASH, cols, rows);
+     this.installFloor(
+       this.starterFloor
+-        ? starterFloorPlan(def?.id ?? null, GRID_COLS, GRID_ROWS)
+-        : FloorPlan.open(GRID_COLS, GRID_ROWS, ENTRANCE_TILE),
++        ? starterFloorPlan(def?.id ?? null, cols, rows)
++        : FloorPlan.open(cols, rows, entranceFor(cols, rows)),
+     );
+     this.scenario = def ? new ScenarioManager(def) : null;
+     // Day 1 gets conditions too. Without this the first day is always the
+@@ -345,7 +347,8 @@ export class CasinoWorld {
+   }
+ 
+   /** In-place wipe — `state` and `grid` stay the same objects (gameContext aliases them). */
+-  private reset(startingCash: number): void {
++  /** Wipe everything and size the grid and per-tile fields to the lot. */
++  private reset(startingCash: number, cols: number, rows: number): void {
+     this.guests.clear();
+     this.staff.clear();
+     this.messes.clear();
+@@ -356,7 +359,7 @@ export class CasinoWorld {
+     this.drinkClaims.clear();
+     this.dealerAssignments.clear();
+     this.cashierAssignments.clear();
+-    this.grid.clear();
++    this.grid.clear(cols, rows);
+     this.state.reset(startingCash);
+     this.refreshServiceAvailability();
+     this.time = new TimeSystem();
+@@ -364,8 +367,8 @@ export class CasinoWorld {
+     this.cleanlinessSamples = [];
+     this.modifiers = new ModifierSystem();
+     this.reputation = new Reputation();
+-    this.mood = new MoodField();
+-    this.traffic = new TrafficField();
++    this.mood = new MoodField(cols, rows);
++    this.traffic = new TrafficField(cols, rows);
+     this.patrons = new PatronRegistry();
+     this.tickCount = 0;
+     this.nextGuestNum = 1;
+@@ -1191,8 +1194,8 @@ export class CasinoWorld {
+ 
+   randomWalkableTile(): Cell | null {
+     for (let i = 0; i < 25; i++) {
+-      const col = this.rng.int(1, GRID_COLS - 2);
+-      const row = this.rng.int(1, GRID_ROWS - 2);
++      const col = this.rng.int(1, this.grid.cols - 2);
++      const row = this.rng.int(1, this.grid.rows - 2);
+       if (this.grid.isWalkable(col, row)) return { col, row };
+     }
+     return null;
+@@ -1635,7 +1638,7 @@ export class CasinoWorld {
+     this.installFloor(
+       data.floor
+         ? FloorPlan.fromJSON(data.floor)
+-        : FloorPlan.open(this.grid.cols, this.grid.rows, ENTRANCE_TILE),
++        : FloorPlan.open(this.grid.cols, this.grid.rows, entranceFor(this.grid.cols, this.grid.rows)),
+     );
+     this.tickCount = data.tickCount;
+     for (const machine of loadedMachines) this.machines.set(machine.id, machine);
