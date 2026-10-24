@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AGENT_STRIDE, AgentKind } from '../shared/contracts';
+import { getCampaign } from '../data/campaigns';
 import { CasinoWorld } from '../sim/world';
 import { runCommand } from './commands';
 import { SnapshotBuilder } from './snapshot';
@@ -58,6 +59,18 @@ describe('worker bridge', () => {
     const next = snap.build(world, 1);
     expect(next.objectsVersion).toBeGreaterThan(first.objectsVersion);
     expect(rowOf(next)?.[0]).toEqual(['blackjack-table', 3]);
+  });
+
+  it('keeps a won campaign going with its limits lifted', () => {
+    const world = new CasinoWorld({ seed: 4, autoSpawn: false });
+    world.startScenario(getCampaign('high-roller')!);
+    const snap = new SnapshotBuilder();
+    world.scenario!.status = 'won';
+    expect(world.scenario!.isAllowed('bingo-hall')).toBe(false);
+    expect(runCommand(world, snap, { type: 'continueScenario' }).ok).toBe(true);
+    expect(world.scenario!.status).toBe('endless');
+    expect(world.scenario!.isAllowed('bingo-hall')).toBe(true);
+    expect(snap.build(world, 0).hud.scenario?.status).toBe('won');
   });
 
   it('round-trips a save through the load command', () => {

@@ -149,6 +149,8 @@ export type Command =
   | { type: 'financials' }
   | { type: 'staffList' }
   | { type: 'scenarios' }
+  // After a win: keep the casino open with the campaign's limits lifted.
+  | { type: 'continueScenario' }
   // Workers have no localStorage: save replies with the world JSON and the
   // main thread persists it; load hands that JSON back.
   | { type: 'save' }

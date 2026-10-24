@@ -188,6 +188,9 @@ export function runCommand(world: CasinoWorld, snap: SnapshotBuilder, cmd: Comma
       return { ok: true, data: staffList(world) };
     case 'scenarios':
       return { ok: true, data: scenarioList() };
+    case 'continueScenario':
+      world.scenario?.continue();
+      return { ok: true };
     default:
       return { ok: false, error: `${(cmd as Command).type} not implemented` };
   }

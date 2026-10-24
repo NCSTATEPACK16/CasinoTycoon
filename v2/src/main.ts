@@ -39,7 +39,10 @@ sim.onSnapshot((s) => {
   for (const e of s.events) {
     if (e.type === 'gameOver') {
       void sim.command({ type: 'setSpeed', speed: 0 });
-      menus.gameOver(e.won, e.reason, () => void sim.command({ type: 'setSpeed', speed: 1 }));
+      menus.gameOver(e.won, e.reason, () => {
+        void sim.command({ type: 'continueScenario' });
+        void sim.command({ type: 'setSpeed', speed: 1 });
+      });
     }
   }
   // Autosave on the in-game hour while a game is running.
