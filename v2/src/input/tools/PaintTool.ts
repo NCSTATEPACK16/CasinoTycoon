@@ -1,23 +1,14 @@
 // Drag-rectangle painting for floors and zones. Hover previews the cell under
 // the cursor; a drag previews the whole rectangle with its cell count and
-// cost; release sends one paintFloor/paintZone command.
+// cost; release sends one paintFloor/paintZone command. The cost counts only
+// cells that would change, at the sim's own prices, so the tag matches the bill.
 
-import type { FloorType, Zone } from '../../shared/contracts';
+import { FLOOR_PRICE_PER_CELL, ZONE_PRICE_PER_CELL } from '../../data/floorPrices';
+import { FLOOR_TYPES, ZONES, type FloorType, type Zone } from '../../shared/contracts';
 import { money } from '../../ui/tools/CursorTag';
 import type { PickHit } from '../Picker';
-import { normaliseRect, rectArea, type Cell } from './gridMath';
+import { normaliseRect, type Cell } from './gridMath';
 import { isNotImplemented, type Tool, type ToolContext } from './Tool';
-
-/** Preview prices per cell. The sim is authoritative; these only drive the tag
- *  until Session 3's floor plan publishes its own price list. */
-export const FLOOR_PREVIEW_COST: Record<FloorType, number> = {
-  none: 0,
-  'carpet-red': 15,
-  'carpet-blue': 15,
-  marble: 40,
-  wood: 25,
-  tile: 20,
-};
 
 export const FLOOR_COLORS: Record<FloorType, number> = {
   none: 0x333333,
@@ -64,7 +55,18 @@ export class PaintTool implements Tool {
 
   private get unitCost(): number {
     const t = this.target;
-    return t.kind === 'floor' ? FLOOR_PREVIEW_COST[t.value] : 0;
+    return t.kind === 'floor' ? FLOOR_PRICE_PER_CELL[t.value] : ZONE_PRICE_PER_CELL;
+  }
+
+  /** Whether painting this cell would change it (and so be charged). */
+  private changes(col: number, row: number): boolean {
+    const plan = this.ctx.world.floor;
+    if (!plan) return true;
+    const t = this.target;
+    const i = row * plan.cols + col;
+    return t.kind === 'floor'
+      ? FLOOR_TYPES[plan.floor[i]!] !== t.value
+      : ZONES[plan.zone[i]!] !== t.value;
   }
 
   pointerDown(hit: PickHit): void {
@@ -121,13 +123,16 @@ export class PaintTool implements Tool {
     const rect = normaliseRect(this.anchor ?? cell, cell, this.ctx.world.cols, this.ctx.world.rows);
     if (!rect) return;
     const cells: Cell[] = [];
+    let changed = 0;
     for (let row = rect.row0; row <= rect.row1; row++)
-      for (let col = rect.col0; col <= rect.col1; col++) cells.push({ col, row });
+      for (let col = rect.col0; col <= rect.col1; col++) {
+        cells.push({ col, row });
+        if (this.changes(col, row)) changed++;
+      }
     this.ctx.overlay.setCells(cells, this.color);
-    const n = rectArea(rect);
     const w = rect.col1 - rect.col0 + 1;
     const h = rect.row1 - rect.row0 + 1;
-    const cost = n * this.unitCost;
+    const cost = changed * this.unitCost;
     this.ctx.tag.show(
       hit.clientX,
       hit.clientY,
