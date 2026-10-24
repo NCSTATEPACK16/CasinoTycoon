@@ -22,7 +22,7 @@ Rewritten 2026-10-24 by the session that ran the first four loop iterations: lot
 | 5 | God → 3rd → 1st, walk, inspect, play one round of each game | ✅ all five games played through the table screen |
 | 6 | Save → reload → resume | ✅ autosave plus Continue, verified again this session |
 | 7 | Stress: 2,000 objects + 500 guests at ~60fps | ✅ 2,036 objects, 500 guests and 90 staff: 58–60 fps, ≤ 284 calls, ≤ 1.28M tris, 6.2–6.8 ms tick |
-| 8 | Looks good in screenshots of each pillar | ✅ mostly. ⬜ the polish items in Task 3 |
+| 8 | Looks good in screenshots of each pillar | ✅ including the Task 3 polish (felt text, payout labels) |
 
 ## Done (one line each; commit messages have the evidence)
 
@@ -57,7 +57,7 @@ Notes for later, not blocking:
    - A 6 m wall previewed $150, charged $150 and stood.
    - Clicking it read "add door · $35" and charged $35.
    - `gridMath.test.ts` passes and the console showed no errors.
-6. **Payout text:** the floating payout labels are very large at eye level. Scale them by camera distance.
+6. ✅ **Payout text.** Labels keep their god-view size (1.5 m, or 2.2 m for big wins) from 18 m out. Closer in, they shrink in proportion to camera distance, down to 12%, so they hold roughly their screen size at eye level (`Overlays.update(now, camera)`). Evidence: Sandbox with 6 slots and 60 guests, measured in the browser. In third person, labels 6.1 m away were 0.51 m wide and read as small tags above the machines. In the god view zoomed out with the mouse wheel, labels 37 m away were the full 1.5 m. The console showed no errors.
 
 Then **Task 4, finish:** run the full suite under `caffeinate -i` and `npm run build` in `v2/`, push `v2-playable`, update the PR description with the §9 checklist and evidence, and report to the user.
 

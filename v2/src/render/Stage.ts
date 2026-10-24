@@ -277,7 +277,7 @@ export class Stage {
     objectUniforms.uTime.value = now;
     this.updateView(cam);
     this.objects.update(cam, now);
-    this.overlays.update(now);
+    this.overlays.update(now, cam);
     if (this.lighting.sun.castShadow) this.lighting.update(cam);
     this.renderer.info.reset();
     this.post.render(cam, dt);
