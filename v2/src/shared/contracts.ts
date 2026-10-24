@@ -75,6 +75,9 @@ export interface ObjectView {
   broken: boolean;
   open: boolean;
   occupants: number;
+  /** Decal row picked by the object's rules (the blackjack felt prints its
+   *  payout and soft-17 rule); absent when the renderer may pick any row. */
+  decalRow?: number;
 }
 
 // ---------- snapshot (worker → main, every sim tick) ----------

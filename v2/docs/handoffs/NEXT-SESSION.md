@@ -47,7 +47,7 @@ Notes for later, not blocking:
 
 ## What's left: Task 3, polish (one item per iteration, in this order)
 
-1. **Felt text:** the blackjack felt always reads "BLACKJACK PAYS 3 TO 2", even at 6:5. Use a dynamic felt texture or a decal swap from the table's rules.
+1. ✅ **Felt text.** The `bjFelt`/`bjFeltHL` decals now hold four rows (3:2 S17, 3:2 H17, 6:5 S17, 6:5 H17). `ObjectView.decalRow` carries the row from the table's rules, and a rules change resends the objects. Any GLB decal painted in rows is treated as a variant surface. Evidence: `snapshot.test.ts` (3/3; 6:5 + H17 gives row 3 and bumps `objectsVersion`). In the browser on Sandbox, I placed a table from the palette, read "BLACKJACK PAYS 3 TO 2" on the felt, then set 6:5 and H17 in the inspector and the felt read "BLACKJACK PAYS 6 TO 5". The atlas is 2048×2816 and the console showed no errors.
 2. **Table occupancy:** the avatar can sit at a full table (4/4). It should need a free seat, or take one.
 3. **Wallet display:** during a round, the table-play wallet shows the pre-bet amount. Show the stake as committed.
 4. **Win/lose card:** see it when a scenario actually ends (play or fast-forward a campaign to its verdict), not only by calling `menus.gameOver`.

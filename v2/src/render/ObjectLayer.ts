@@ -190,8 +190,13 @@ export class ObjectLayer {
       ) {
         this.remove(v.id);
         this.add(v);
-      } else if (have.view.broken !== v.broken || have.view.open !== v.open) {
+      } else if (
+        have.view.broken !== v.broken ||
+        have.view.open !== v.open ||
+        have.view.decalRow !== v.decalRow
+      ) {
         have.view = v;
+        have.variant = v.decalRow ?? hash(v.id);
         this.writeState(have);
       } else have.view = v;
     }
@@ -229,7 +234,7 @@ export class ObjectLayer {
         new THREE.Vector3(v.col, 0, v.row),
         new THREE.Vector3(v.col + fw, d3.height, v.row + fh),
       ),
-      variant: hash(v.id),
+      variant: v.decalRow ?? hash(v.id),
       flashAt: -100,
     };
     this.placed.set(v.id, p);
