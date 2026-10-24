@@ -75,6 +75,9 @@ export interface ObjectView {
   broken: boolean;
   open: boolean;
   occupants: number;
+  /** Decal row picked by the object's rules (the blackjack felt prints its
+   *  payout and soft-17 rule); absent when the renderer may pick any row. */
+  decalRow?: number;
 }
 
 // ---------- snapshot (worker → main, every sim tick) ----------
@@ -142,11 +145,20 @@ export type Command =
   | { type: 'fire'; staffId: string }
   | { type: 'startScenario'; scenarioId: string | null }
   | { type: 'inspect'; target: { objectId: string } | { agentId: number } }
+  // Read-only panel data: P&L, staff roster, scenario list.
+  | { type: 'financials' }
+  | { type: 'staffList' }
+  | { type: 'scenarios' }
+  // After a win: keep the casino open with the campaign's limits lifted.
+  | { type: 'continueScenario' }
   // Workers have no localStorage: save replies with the world JSON and the
   // main thread persists it; load hands that JSON back.
   | { type: 'save' }
   | { type: 'load'; json: unknown }
-  // Avatar play: begin a round as the player, then act until the round settles.
+  // Avatar play: take a seat (replies an error when every seat is taken), begin
+  // a round as the player, act until the round settles, and stand to free it.
+  | { type: 'sit'; objectId: string }
+  | { type: 'stand' }
   | { type: 'roundBegin'; objectId: string; bets: { spot: string; amount: number }[] }
   | { type: 'roundAct'; objectId: string; action: string }
   // Dev/perf: spawn guests past the arrival cap, and read worker timings.

@@ -145,6 +145,10 @@ export class AssetLibrary {
         const uv = part.attributes.uv as THREE.BufferAttribute | undefined;
         if (uv) for (let i = 0; i < uv.count; i++) uv.setY(i, 1 - uv.getY(i));
         const s = surfaceOf(mat);
+        // A decal painted in rows is a variant decal whether or not the
+        // Blender material says so (the blackjack felt's rows are its rules).
+        if (s.decal && this.atlas.rect(s.decal).rows > 1)
+          s.flags = (s.flags ?? 0) | SurfaceFlag.Variant;
         if (s.decal && s.flags && s.flags & SurfaceFlag.Variant) this.useVariant(a, s.decal);
         builders[lod]!.add(part, s, mesh.matrixWorld);
       }

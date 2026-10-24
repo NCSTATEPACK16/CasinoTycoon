@@ -32,8 +32,9 @@ interface DecalSpec {
 }
 
 const DECALS: Record<string, DecalSpec> = {
-  bjFelt: { w: 512, h: 288, paint: (g, w, h) => blackjackFelt(g, w, h, '#1b7a44', '#f4e7c1') },
-  bjFeltHL: { w: 512, h: 288, paint: (g, w, h) => blackjackFelt(g, w, h, '#20193d', '#e8c06a') },
+  // Rows follow the table's rules: 3:2 S17, 3:2 H17, 6:5 S17, 6:5 H17.
+  bjFelt: { w: 512, h: 288, rows: 4, paint: (g, w, h, r) => blackjackFelt(g, w, h, r, '#1b7a44', '#f4e7c1') },
+  bjFeltHL: { w: 512, h: 288, rows: 4, paint: (g, w, h, r) => blackjackFelt(g, w, h, r, '#20193d', '#e8c06a') },
   crapsFelt: { w: 640, h: 352, paint: crapsFelt },
   rouletteFelt: { w: 512, h: 224, paint: rouletteFelt },
   rouletteWheel: { w: 256, h: 256, paint: rouletteWheel },
@@ -252,15 +253,24 @@ function chipStack(g: CanvasRenderingContext2D, x: number, y: number, color: str
 
 // ---------- felt layouts ----------
 
-function blackjackFelt(g: CanvasRenderingContext2D, w: number, h: number, felt: string, ink: string) {
+function blackjackFelt(
+  g: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  row: number,
+  felt: string,
+  ink: string,
+) {
+  const pays = row & 2 ? '6 TO 5' : '3 TO 2';
+  const soft17 = row & 1 ? 'Dealer must hit soft 17' : 'Dealer must draw to 16 and stand on all 17s';
   feltBase(g, w, h, felt);
   // The table is a kidney: dealer at the top (v = 1, back), players around the arc.
   const cx = w / 2;
   const cy = -h * 0.55;
   g.strokeStyle = ink;
   g.fillStyle = ink;
-  arcText(g, 'BLACKJACK PAYS 3 TO 2', cx, cy, h * 1.02, Math.PI / 2, `bold 22px ${FELT_FONT}`);
-  arcText(g, 'Dealer must draw to 16 and stand on all 17s', cx, cy, h * 1.18, Math.PI / 2, `italic 14px ${FELT_FONT}`);
+  arcText(g, `BLACKJACK PAYS ${pays}`, cx, cy, h * 1.02, Math.PI / 2, `bold 22px ${FELT_FONT}`);
+  arcText(g, soft17, cx, cy, h * 1.18, Math.PI / 2, `italic 14px ${FELT_FONT}`);
   g.lineWidth = 2;
   g.beginPath();
   g.arc(cx, cy, h * 1.27, Math.PI * 0.2, Math.PI * 0.8);

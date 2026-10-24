@@ -9,6 +9,12 @@ import { ZONES, type Rotation } from '../shared/contracts';
 import type { AssetLibrary } from './assets/AssetLibrary';
 import type { ChunkGrid } from './core/ChunkGrid';
 
+/** Payout labels are sized for the god view; closer than this they shrink
+ *  with distance, so they keep roughly their screen size at eye level. */
+const LABEL_FULL_SIZE_M = 18;
+const LABEL_MIN_FACTOR = 0.12;
+const camPos = new THREE.Vector3();
+
 const ZONE_COLORS: Record<(typeof ZONES)[number], number> = {
   none: 0x000000,
   gaming: 0x2ecc71,
@@ -227,8 +233,9 @@ export class Overlays {
     l.sprite.visible = true;
   }
 
-  update(now: number): void {
+  update(now: number, camera: THREE.Camera): void {
     this.now = now;
+    camera.getWorldPosition(camPos);
     this.ghostMat.uniforms.uTime!.value = now;
     for (const l of this.labels) {
       if (!l.sprite.visible) continue;
@@ -239,9 +246,13 @@ export class Overlays {
       }
       // Pop in with an overshoot, drift up, fade out over the last third.
       const pop = t < 0.12 ? (t / 0.12) * 1.25 : 1 + 0.25 * Math.exp(-(t - 0.12) * 18);
-      const s = (l.big ? 2.2 : 1.5) * pop;
-      l.sprite.scale.set(s, s * (72 / 256), 1);
       l.sprite.position.y = 2.2 + t * 1.3;
+      const near = Math.max(
+        LABEL_MIN_FACTOR,
+        Math.min(1, l.sprite.position.distanceTo(camPos) / LABEL_FULL_SIZE_M),
+      );
+      const s = (l.big ? 2.2 : 1.5) * pop * near;
+      l.sprite.scale.set(s, s * (72 / 256), 1);
       (l.sprite.material as THREE.SpriteMaterial).opacity = t > 0.66 ? 1 - (t - 0.66) / 0.34 : 1;
     }
   }

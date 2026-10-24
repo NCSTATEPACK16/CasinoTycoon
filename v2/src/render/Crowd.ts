@@ -17,8 +17,11 @@ const MAX = 2048;
 /** Metres per walk cycle at the baked 1 s cycle (two steps). */
 const STRIDE = 1.3;
 const FADE_S = 0.25;
-/** Camera distance bands: full VAT mesh, reduced VAT mesh, billboard. */
-export const CROWD_LOD = [20, 48] as const;
+/** Camera distance bands: full VAT mesh, reduced VAT mesh, billboard. The
+ *  full mesh (1.6k tris, shadow-casting) stops at 14 m; beyond that a 500-guest
+ *  floor seen at eye level was spending ~400k triangles on faces too small to
+ *  tell apart. */
+export const CROWD_LOD = [14, 48] as const;
 const CLIP_DEAL = 7;
 
 interface VatMeta {

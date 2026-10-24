@@ -33,7 +33,11 @@ const NOISE_FLOOR = 0.4;
  * hundred guests walked through.
  */
 export class TrafficField {
-  private visits = new TileField();
+  private visits: TileField;
+
+  constructor(cols?: number, rows?: number) {
+    this.visits = new TileField(cols, rows);
+  }
 
   /** One guest stepped onto this tile. */
   enter(col: number, row: number): void {
