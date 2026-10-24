@@ -17,18 +17,24 @@ Written 2026-10-23 by the lead session that built the v2 foundation, merged the 
 
 | # | Criterion | Status |
 |---|---|---|
-| 1 | `npm test` green: exact edges, MC edges, nav, ported suite | ✅ at f04e94c (799/799). ⬜ re-run after the UI commits and lot-size work |
+| 1 | `npm test` green: exact edges, MC edges, nav, ported suite | ✅ 804/804 after the UI commits and lot-size work (84 files, 73 s under `caffeinate -i`) |
 | 2 | `npm run build` clean | ✅ |
 | 3 | Start scenario; paint floor, walls/doors, zones; place all 5 games with tuned rules; hire dealers/janitors/security | ✅ verified in browser. Floor/zone/wall painting was driven by sim commands; drive the drag tools by hand once |
 | 4 | Guests navigate, gamble, eat, restrooms, leave; a day at 4× shows hold ≈ theo | ✅ mostly. ⬜ guests bunch in the entrance lobby; check the bar, restroom and food visits in a full day |
 | 5 | God → 3rd → 1st, walk, inspect, play one round of each game | ✅ all five games played through the table screen |
 | 6 | Save → reload → resume | ✅ autosave plus Continue verified |
-| 7 | Stress: 2,000 objects + 500 guests at ~60fps | ⬜ **blocked on lot size**; see Task 1 |
+| 7 | Stress: 2,000 objects + 500 guests at ~60fps | ⬜ lot size unblocked (Task 1 ✅); measure in Task 2 |
 | 8 | Looks good in screenshots of each pillar | ✅ mostly; polish list below |
 
 ## Tasks, in order
 
-### Task 1: per-scenario lot sizes (blocks §9.7)
+### Task 1: per-scenario lot sizes (blocks §9.7) ✅
+
+**Done.** The WIP patch is applied and finished (the patch file is deleted). Main-thread follow-ups: the plaza ground recentres under the live lot, and a lot of a new size reframes the god cam at its centre (distance 32 × cols/40, so 76.8 on Sandbox). Evidence:
+- `src/sim/world.lot.test.ts`: 5/5. The full-floor test fits 2,824 objects (2,285 slots) on 96×64 with every walkable cell reachable from the door.
+- Full suite: 804/804. tsc clean.
+- Browser (1440×900, Sandbox started from the title card): the 96×64 floor renders with all rooms and the east lobby. Holding D+S pans the focus to x = 96 and clamps there. 194 draw calls on the empty lot. One slot placed by hand drew 18 guests through the lobby at 4×, with 0 repaths, teleports or rescues. Tick mean was 0.55 ms (max 2.3 ms), and the console had no errors.
+
 `CampaignDef.lot` exists, and Sandbox has `lot`, but the sim hard-codes 40×30 (`GRID_COLS`/`GRID_ROWS` in `world.ts`, `IsoGrid`, `TileField`, `starterFloorPlan`, `randomWalkableTile`, the nav bake). 40×30 is only 1,200 cells, so 2,000 objects can't fit.
 
 The guest-AI session had nearly finished this when it hit its usage limit. Its uncommitted work is saved as **`v2/docs/handoffs/lot-size-wip.patch`**. It covers 8 files plus a new `src/sim/world.lot.test.ts`, and applies cleanly on `v2-foundation`.

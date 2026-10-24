@@ -101,9 +101,7 @@ export class Stage {
 
     // Exterior: a dark stone plaza the lot sits on, faded out by fog.
     this.ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(400, 400)
-        .rotateX(-Math.PI / 2)
-        .translate(GRID_COLS / 2, -0.02, GRID_ROWS / 2),
+      new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI / 2),
       new THREE.MeshStandardMaterial({ color: 0x1b1720, roughness: 0.85, metalness: 0 }),
     );
     this.ground.receiveShadow = true;
@@ -138,6 +136,8 @@ export class Stage {
 
   setFloor(plan: FloorPlanView): void {
     this.floor.setFloor(plan);
+    // The plaza stays centred under whatever lot the scenario brought.
+    this.ground.position.set(plan.cols / 2, -0.02, plan.rows / 2);
     this.hasFloor = true;
   }
 

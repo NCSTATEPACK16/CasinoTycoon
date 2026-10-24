@@ -1,6 +1,7 @@
 import { eventBus } from '../EventBus';
 import {
   ENTRANCE_TILE,
+  entranceFor,
   GRID_COLS,
   GRID_ROWS,
   HOURS_PER_DAY,
@@ -329,11 +330,12 @@ export class CasinoWorld {
 
   /** Start a campaign (or `null` for sandbox): full floor wipe + fresh clock/books. */
   startScenario(def: CampaignDef | null): void {
-    this.reset(def?.startingCash ?? STARTING_CASH);
+    const { cols, rows } = def?.lot ?? { cols: GRID_COLS, rows: GRID_ROWS };
+    this.reset(def?.startingCash ?? STARTING_CASH, cols, rows);
     this.installFloor(
       this.starterFloor
-        ? starterFloorPlan(def?.id ?? null, GRID_COLS, GRID_ROWS)
-        : FloorPlan.open(GRID_COLS, GRID_ROWS, ENTRANCE_TILE),
+        ? starterFloorPlan(def?.id ?? null, cols, rows)
+        : FloorPlan.open(cols, rows, entranceFor(cols, rows)),
     );
     this.scenario = def ? new ScenarioManager(def) : null;
     // Day 1 gets conditions too. Without this the first day is always the
@@ -345,7 +347,8 @@ export class CasinoWorld {
   }
 
   /** In-place wipe — `state` and `grid` stay the same objects (gameContext aliases them). */
-  private reset(startingCash: number): void {
+  /** Wipe everything and size the grid and per-tile fields to the lot. */
+  private reset(startingCash: number, cols: number, rows: number): void {
     this.guests.clear();
     this.staff.clear();
     this.messes.clear();
@@ -356,7 +359,7 @@ export class CasinoWorld {
     this.drinkClaims.clear();
     this.dealerAssignments.clear();
     this.cashierAssignments.clear();
-    this.grid.clear();
+    this.grid.clear(cols, rows);
     this.state.reset(startingCash);
     this.refreshServiceAvailability();
     this.time = new TimeSystem();
@@ -364,8 +367,8 @@ export class CasinoWorld {
     this.cleanlinessSamples = [];
     this.modifiers = new ModifierSystem();
     this.reputation = new Reputation();
-    this.mood = new MoodField();
-    this.traffic = new TrafficField();
+    this.mood = new MoodField(cols, rows);
+    this.traffic = new TrafficField(cols, rows);
     this.patrons = new PatronRegistry();
     this.tickCount = 0;
     this.nextGuestNum = 1;
@@ -1191,8 +1194,8 @@ export class CasinoWorld {
 
   randomWalkableTile(): Cell | null {
     for (let i = 0; i < 25; i++) {
-      const col = this.rng.int(1, GRID_COLS - 2);
-      const row = this.rng.int(1, GRID_ROWS - 2);
+      const col = this.rng.int(1, this.grid.cols - 2);
+      const row = this.rng.int(1, this.grid.rows - 2);
       if (this.grid.isWalkable(col, row)) return { col, row };
     }
     return null;
@@ -1635,7 +1638,11 @@ export class CasinoWorld {
     this.installFloor(
       data.floor
         ? FloorPlan.fromJSON(data.floor)
-        : FloorPlan.open(this.grid.cols, this.grid.rows, ENTRANCE_TILE),
+        : FloorPlan.open(
+            this.grid.cols,
+            this.grid.rows,
+            entranceFor(this.grid.cols, this.grid.rows),
+          ),
     );
     this.tickCount = data.tickCount;
     for (const machine of loadedMachines) this.machines.set(machine.id, machine);

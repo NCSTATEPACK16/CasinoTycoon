@@ -109,7 +109,8 @@ export const SANDBOX: CampaignDef = {
   goalWindowDays: 1,
   creditLimit: 100_000_000,
   sandbox: true,
-  lot: { cols: 64, rows: 48 },
+  // SPEC §9.7: room for 2,000 objects and 500 guests.
+  lot: { cols: 96, rows: 64 },
 };
 
 /** Everything the scenario picker offers: the campaigns, then Sandbox. */
