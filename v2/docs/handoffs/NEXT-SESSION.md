@@ -5,11 +5,11 @@ Rewritten 2026-10-24 by the session that ran the first four loop iterations: lot
 ## Where things stand
 
 - **Branch:** `v2-playable`, cut from `v2-foundation`, in the main checkout at `~/Documents/ClaudeWork/CasinoTycoon`.
-- **PR:** `v2-playable` → `v2-foundation` (see the PR line at the bottom of this section). Every loop iteration commits to `v2-playable` and pushes it, so the PR grows as the loop runs.
+- **PR:** #19, `v2-playable` → `v2-foundation`. Every loop iteration commits to `v2-playable` and pushes it, so the PR grows as the loop runs.
 - **Older PR:** NCSTATEPACK16/CasinoTycoon#18 is `v2-foundation` → `main`. Leave it alone. Never merge either PR.
 - **Pushing:** push only `v2-playable`. Don't push `v2-foundation`; its remote is still at f04e94c.
 - **Done so far:** every commit since f04e94c is on `v2-playable`: the integration UI, the avatar, and this session's four fixes (below).
-- **PR:** filled in after creation.
+- **PR:** NCSTATEPACK16/CasinoTycoon#19 (`v2-playable` → `v2-foundation`). Update its description in Task 4.
 
 ### §9 exit criteria
 
@@ -94,7 +94,7 @@ Each iteration:
 2. Take the first unfinished item in "What's left". Do only that.
 3. Implement it properly, matching the surrounding code. Verify it with evidence, following the testing policy in NEXT-SESSION.md: `npx tsc --noEmit`, only the affected test files (`cd v2 && npx vitest run <paths>`), and the built-in browser (`preview_start` name "v2"; drive it through the UI, with `window.__v2` only for setup). Don't run the full suite each iteration.
 4. Tick the item in NEXT-SESSION.md and write down the evidence. Commit the work and the ticked file together, with a message that explains why, then push v2-playable so the PR grows.
-5. When every §9 row and every "What's left" item is ✅: run the full suite under `caffeinate -i` and `npm run build`. If both pass, push v2-playable, update the v2-playable PR's description with the §9 checklist and evidence, report to me, and stop the loop.
+5. When every §9 row and every "What's left" item is ✅: run the full suite under `caffeinate -i` and `npm run build`. If both pass, push v2-playable, update PR #19's description with the §9 checklist and evidence, report to me, and stop the loop.
 
 Rules:
 - Never merge any PR. Push only v2-playable.
