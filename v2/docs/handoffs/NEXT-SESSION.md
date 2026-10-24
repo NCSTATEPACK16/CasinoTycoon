@@ -15,8 +15,8 @@ Rewritten 2026-10-24 by the session that ran the first four loop iterations: lot
 
 | # | Criterion | Status |
 |---|---|---|
-| 1 | `npm test` green: exact edges, MC edges, nav, ported suite | ✅ 808/808 at 7baff56, plus the focused suites for the need-balance commit (42/42) |
-| 2 | `npm run build` clean | ✅ (re-run at the end) |
+| 1 | `npm test` green: exact edges, MC edges, nav, ported suite | ✅ 813/813 in 86 files at 0ceaa3b, under `caffeinate -i` (66 s) |
+| 2 | `npm run build` clean | ✅ at 0ceaa3b |
 | 3 | Start scenario; paint floor, walls/doors, zones; place all 5 games with tuned rules; hire dealers/janitors/security | ✅ in browser, including the Floor, Zone and Walls drag tools with the real mouse (Task 3, item 5) |
 | 4 | Guests navigate, gamble, eat, restrooms, leave; a day at 4× shows hold ≈ theo | ✅ lobby bunching fixed; food, bar and restrooms used (see Done) |
 | 5 | God → 3rd → 1st, walk, inspect, play one round of each game | ✅ all five games played through the table screen |
@@ -59,7 +59,9 @@ Notes for later, not blocking:
    - `gridMath.test.ts` passes and the console showed no errors.
 6. ✅ **Payout text.** Labels keep their god-view size (1.5 m, or 2.2 m for big wins) from 18 m out. Closer in, they shrink in proportion to camera distance, down to 12%, so they hold roughly their screen size at eye level (`Overlays.update(now, camera)`). Evidence: Sandbox with 6 slots and 60 guests, measured in the browser. In third person, labels 6.1 m away were 0.51 m wide and read as small tags above the machines. In the god view zoomed out with the mouse wheel, labels 37 m away were the full 1.5 m. The console showed no errors.
 
-Then **Task 4, finish:** run the full suite under `caffeinate -i` and `npm run build` in `v2/`, push `v2-playable`, update the PR description with the §9 checklist and evidence, and report to the user.
+✅ **Task 4, finish (done).** The full suite passed 813/813 under `caffeinate -i` and `npm run build` was clean, both at 0ceaa3b. `v2-playable` is pushed and PR #19's description carries the §9 checklist. Original instructions:
+
+**Task 4, finish:** run the full suite under `caffeinate -i` and `npm run build` in `v2/`, push `v2-playable`, update the PR description with the §9 checklist and evidence, and report to the user.
 
 ## Testing policy (the user asked for less)
 
