@@ -96,6 +96,8 @@ export interface HudView {
   modifiers?: { id: string; name: string; blurb: string }[];
   /** B2: the casino's standing, 0–100 (50 is unknown), and its word. */
   reputation?: { value: number; label: string };
+  /** B3: how many guests the floor holds right now (seats, services, rating). */
+  guestCap?: number;
 }
 
 export type SimEvent =
