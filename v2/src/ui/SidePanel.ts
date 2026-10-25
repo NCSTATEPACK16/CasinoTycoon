@@ -280,33 +280,61 @@ export class SidePanel {
 
   // ---------- staff ----------
 
+  /** Built once per open and patched after: a full rebuild every poll swaps
+   *  the Hire button out from under a press that straddles the poll, and the
+   *  click never lands — which reads as the count not updating. */
   private renderStaff(list: StaffInspect[]): void {
-    this.body.innerHTML = '';
-    const hire = el('div', 'hire-grid');
-    for (const h of HIRE) {
-      const count = list.filter((s) => s.role === h.kind).length;
-      const card = el(
-        'div',
-        'hire-card',
-        `<b>${h.label}</b> <span class="dim">× ${count}</span><small>${h.blurb}</small>`,
+    let hire = this.body.querySelector<HTMLElement>('.hire-grid');
+    if (!hire) {
+      hire = el('div', 'hire-grid');
+      for (const h of HIRE) {
+        const card = el(
+          'div',
+          'hire-card',
+          `<b>${h.label}</b> <span class="dim count"></span><small>${h.blurb}</small>`,
+        );
+        card.dataset.kind = h.kind;
+        card.append(
+          button(
+            'Hire',
+            () =>
+              void this.sim.command({ type: 'hire', kind: h.kind }).then(() => this.refresh(false)),
+          ),
+        );
+        hire.append(card);
+      }
+      this.body.replaceChildren(
+        el('h3', '', 'Hire'),
+        hire,
+        el('h3', 'roster-title'),
+        el('table', 'fin roster'),
       );
-      card.append(
-        button(
-          'Hire',
-          () =>
-            void this.sim.command({ type: 'hire', kind: h.kind }).then(() => this.refresh(false)),
-        ),
-      );
-      hire.append(card);
     }
-    const roster = el('table', 'fin');
+    for (const card of hire.querySelectorAll<HTMLElement>('.hire-card')) {
+      const count = list.filter((s) => s.role === card.dataset.kind).length;
+      card.querySelector('.count')!.textContent = `× ${count}`;
+    }
+    this.body.querySelector('.roster-title')!.textContent = `Roster (${list.length})`;
+    const roster = this.body.querySelector<HTMLElement>('.roster')!;
+    // Rows are rebuilt only when someone joins or leaves; a state change
+    // patches its cell, for the same reason as the hire cards above.
+    const key = list.map((s) => s.id).join('|');
+    if (roster.dataset.key === key) {
+      for (const s of list) {
+        const cell = roster.querySelector(`tr[data-id="${s.id}"] .state`);
+        if (cell) cell.textContent = s.state;
+      }
+      return;
+    }
+    roster.dataset.key = key;
     roster.innerHTML = '<tr><th>Who</th><th>Role</th><th>State</th><th>Wage</th><th></th></tr>';
     for (const s of list) {
       const tr = el(
         'tr',
         '',
-        `<td>${s.id}</td><td>${cap(s.role)}</td><td>${s.state}</td><td>${money(s.wagePerHour, true)}/h</td>`,
+        `<td>${s.id}</td><td>${cap(s.role)}</td><td class="state">${s.state}</td><td>${money(s.wagePerHour, true)}/h</td>`,
       );
+      tr.dataset.id = s.id;
       const td = el('td');
       td.append(
         button(
@@ -319,7 +347,6 @@ export class SidePanel {
       tr.append(td);
       roster.append(tr);
     }
-    this.body.append(el('h3', '', 'Hire'), hire, el('h3', '', `Roster (${list.length})`), roster);
   }
 }
 

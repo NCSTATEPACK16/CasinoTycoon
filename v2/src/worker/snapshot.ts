@@ -1,6 +1,8 @@
 // Turns a CasinoWorld into the wire Snapshot. Pure apart from the reusable
 // buffer it owns, so it is unit-testable without a Worker.
 
+import type { GameEvents } from '../EventBus';
+import { footprintOf } from '../sim/build';
 import type { CasinoWorld } from '../sim/world';
 import type { CasinoGame } from '../sim/entities/machines/CasinoGame';
 import { SeatedCasinoGame } from '../sim/entities/machines/SeatedCasinoGame';
@@ -193,6 +195,37 @@ export class SnapshotBuilder {
                     : 'active',
           }
         : null,
+      modifiers: world.modifiers.activeModifiers.map((m) => ({
+        id: m.id,
+        name: m.name,
+        blurb: m.blurb,
+      })),
     };
   }
+}
+
+/** A ticker line for the wire, placed where its subject is right now: the
+ *  centre of an object's footprint, or a guest's current pose. A subject that
+ *  is already gone leaves the line unplaced rather than pointing at nothing. */
+export function tickerEvent(world: CasinoWorld, e: GameEvents['tickerMessage']): SimEvent {
+  const ev: Extract<SimEvent, { type: 'ticker' }> = {
+    type: 'ticker',
+    text: e.text,
+    severity: e.severity ?? 'info',
+  };
+  const o = e.objectId ? world.state.getObject(e.objectId) : undefined;
+  if (o) {
+    const fp = footprintOf(o.defId, o.rot ?? 0);
+    ev.objectId = o.id;
+    ev.x = o.col + fp.w / 2;
+    ev.z = o.row + fp.h / 2;
+  }
+  const g = e.guestId ? world.guests.get(e.guestId) : undefined;
+  if (g && g.state !== 'gone') {
+    const p = g.renderPose();
+    ev.agentId = idNum(g.id);
+    ev.x = p.x;
+    ev.z = p.z;
+  }
+  return ev;
 }

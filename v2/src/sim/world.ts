@@ -852,7 +852,7 @@ export class CasinoWorld {
     if (this.nav) guest.varyArrivalNeeds();
     this.guests.set(id, guest);
     eventBus.emit('guestSpawned', { id, archetype: guest.archetype });
-    if (patron) this.announcePatronArrival(patron);
+    if (patron) this.announcePatronArrival(patron, id);
     return guest;
   }
 
@@ -864,17 +864,19 @@ export class CasinoWorld {
    * arrival is escalated to an alert, because that tier's benefit is only felt
    * if failing to look after them is something the player can notice and lose.
    */
-  private announcePatronArrival(patron: Patron): void {
+  private announcePatronArrival(patron: Patron, guestId: string): void {
     const visit = patron.visits + 1;
     if (patron.tier.wantsHost) {
       eventBus.emit('tickerMessage', {
         text: `${patron.name} (${patron.tier.name}) is on the floor — visit ${visit}. Look after them.`,
         severity: 'alert',
+        guestId,
       });
       return;
     }
     eventBus.emit('tickerMessage', {
       text: `${patron.name} (${patron.tier.name}) is back — visit ${visit}.`,
+      guestId,
     });
   }
 
@@ -897,12 +899,14 @@ export class CasinoWorld {
     if (out.carded) {
       eventBus.emit('tickerMessage', {
         text: `${out.patron.name} just earned a player's card — ${out.patron.tier.name}.`,
+        guestId: guest.id,
       });
       return;
     }
     if (out.promotedTo) {
       eventBus.emit('tickerMessage', {
         text: `${out.patron.name} is now a ${out.promotedTo.name} player.`,
+        guestId: guest.id,
       });
       return;
     }
@@ -910,6 +914,7 @@ export class CasinoWorld {
       eventBus.emit('tickerMessage', {
         text: `${out.patron.name} left without so much as a drink.`,
         severity: 'warn',
+        guestId: guest.id,
       });
     }
   }
@@ -1037,7 +1042,10 @@ export class CasinoWorld {
       machine.reliability = 100;
       machine.broken = false;
       eventBus.emit('machineFixed', { machineId: machine.id });
-      eventBus.emit('tickerMessage', { text: 'A machine has been repaired!' });
+      eventBus.emit('tickerMessage', {
+        text: 'A machine has been repaired!',
+        objectId: machine.id,
+      });
       return;
     }
     if (member.kind === 'waitress') {

@@ -773,6 +773,7 @@ export class Guest extends Walker {
       eventBus.emit('tickerMessage', {
         text: `${this.name} storms out in a rage!`,
         severity: 'warn',
+        guestId: this.id,
       });
     }
     this.state = 'leaving';

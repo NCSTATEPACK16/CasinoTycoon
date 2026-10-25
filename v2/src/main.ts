@@ -9,6 +9,8 @@ import { Hud } from './ui/Hud';
 import { Menus } from './ui/Menus';
 import { SidePanel } from './ui/SidePanel';
 import { TablePlay } from './ui/TablePlay';
+import { HelpOverlay } from './ui/panels/HelpOverlay';
+import { locate } from './ui/panels/locate';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#view')!;
 const ui = document.querySelector<HTMLElement>('#ui')!;
@@ -21,14 +23,19 @@ const hud = new Hud(ui, sim, build);
 const panel = new SidePanel(sim);
 const table = new TablePlay(sim);
 const menus = new Menus(sim);
-ui.append(panel.root, table.root, menus.root);
+const help = new HelpOverlay();
+ui.append(panel.root, table.root, help.root, menus.root);
 controls.onMessage = (t) => hud.say(t);
+hud.ticker.onLocate = (at) => {
+  if (!locate(at, { sim, controls, stage, panel })) hud.say('Stand up from the table first (F)');
+};
 
 // ---------- sim → screen ----------
 
 /** Autosave only once a game is under way — never the idle world behind the title. */
 let playing = false;
 menus.onStarted = () => (playing = true);
+menus.onStarting = () => hud.ticker.clear();
 let lastHour = -1;
 sim.onSnapshot((s) => {
   if (s.objects) stage.setObjects(s.objects);
@@ -57,9 +64,23 @@ sim.onSnapshot((s) => {
 hud.menu.finances.onclick = () => panel.toggle('finances');
 hud.menu.staff.onclick = () => panel.toggle('staff');
 hud.menu.save.onclick = () => void menus.saveMenu((t) => hud.say(t));
-hud.menu.load.onclick = () => void menus.title();
+hud.menu.load.onclick = () => {
+  hud.pause();
+  menus.pauseMenu(
+    () => hud.resume(),
+    (t) => hud.say(t),
+  );
+};
+hud.menu.help.onclick = () => help.toggle();
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+  if (e.key === '?') return help.toggle();
+  if (e.code === 'Escape' && help.isOpen) return help.close();
+  if (menus.isOpen) {
+    if ((e.code === 'Space' || e.code === 'Escape') && menus.dismissPause()) e.preventDefault();
+    return;
+  }
+  if (e.code === 'Space') hud.spaceKey(e);
   if (e.code === 'KeyP') panel.toggle('finances');
   if (e.code === 'KeyH') panel.toggle('staff');
   if (e.code === 'KeyZ') stage.showZoneOverlay((zonesOn = !zonesOn));
@@ -142,4 +163,4 @@ stage.renderer.setAnimationLoop((now) => {
 void sim.command({ type: 'setSpeed', speed: 0 }).then(() => menus.title());
 
 // Debug/test hook for browser playtests.
-Object.assign(window, { __v2: { sim, stage, god, build, controls, panel, table, menus } });
+Object.assign(window, { __v2: { sim, stage, god, build, controls, panel, table, menus, hud } });

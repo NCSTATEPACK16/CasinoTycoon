@@ -11,6 +11,10 @@ import { button, el, escapeHtml, money } from './dom';
 export class Menus {
   readonly root = el('div', 'menus');
   onStarted: () => void = () => {};
+  /** Before a new game or a load replaces the world. */
+  onStarting: () => void = () => {};
+  /** Set while the pause card is up: how to get back into the game. */
+  private resume: (() => void) | null = null;
 
   constructor(private sim: SimClient) {
     this.root.hidden = true;
@@ -23,6 +27,7 @@ export class Menus {
   close(): void {
     this.root.hidden = true;
     this.root.innerHTML = '';
+    this.resume = null;
   }
 
   private card(...children: (Node | string)[]): HTMLElement {
@@ -30,7 +35,32 @@ export class Menus {
     c.append(...children);
     this.root.replaceChildren(c);
     this.root.hidden = false;
+    this.resume = null;
     return c;
+  }
+
+  /** The in-game Menu. The caller has paused the sim; `resume` restarts it. */
+  pauseMenu(resume: () => void, say: (t: string) => void): void {
+    const back = () => this.pauseMenu(resume, say);
+    const actions = el('div', 'menu-actions');
+    actions.append(
+      button('Resume', () => this.dismissPause(), 'primary'),
+      button('Save game…', () => void this.saveMenu(say, back)),
+      button('Load game…', () => void this.loadMenu(back)),
+      // Autosave first, so the title's Continue picks up exactly here.
+      button('Main menu', () => void this.autosave().finally(() => void this.title())),
+    );
+    this.card(el('div', 'title', '<h1>Paused</h1><h2>Space or Esc to resume</h2>'), actions);
+    this.resume = resume;
+  }
+
+  /** Close the pause card and restart the sim. False when it isn't showing. */
+  dismissPause(): boolean {
+    const resume = this.resume;
+    if (!resume) return false;
+    this.close();
+    resume();
+    return true;
   }
 
   async title(): Promise<void> {
@@ -67,13 +97,15 @@ export class Menus {
   }
 
   private async start(id: string): Promise<void> {
+    this.onStarting();
     await this.sim.command({ type: 'startScenario', scenarioId: id });
     await this.sim.command({ type: 'setSpeed', speed: 1 });
     this.close();
     this.onStarted();
   }
 
-  async saveMenu(say: (t: string) => void): Promise<void> {
+  async saveMenu(say: (t: string) => void, back?: () => void): Promise<void> {
+    const done = back ?? (() => this.close());
     const slots = await saveService.list();
     const grid = el('div', 'slot-list');
     for (const slot of MANUAL_SLOTS) {
@@ -85,20 +117,16 @@ export class Menus {
             const json = await this.sim.command<CasinoWorldJSON>({ type: 'save' });
             await saveService.save(slot, json);
             say(`Saved to ${slot}`);
-            this.close();
+            done();
           },
           'slot',
         ),
       );
     }
-    this.card(
-      el('h3', '', 'Save game'),
-      grid,
-      button('Cancel', () => this.close()),
-    );
+    this.card(el('h3', '', 'Save game'), grid, button(back ? 'Back' : 'Cancel', done));
   }
 
-  async loadMenu(): Promise<void> {
+  async loadMenu(back: () => void = () => void this.title()): Promise<void> {
     const slots = (await saveService.list()).filter((s) => s.status !== 'newer');
     const grid = el('div', 'slot-list');
     for (const info of slots)
@@ -110,16 +138,13 @@ export class Menus {
         ),
       );
     if (!slots.length) grid.append(el('p', 'dim', 'No saves yet.'));
-    this.card(
-      el('h3', '', 'Load game'),
-      grid,
-      button('Back', () => void this.title()),
-    );
+    this.card(el('h3', '', 'Load game'), grid, button('Back', back));
   }
 
   async load(slot: string): Promise<void> {
     const json = await saveService.load(slot);
     if (!json) return;
+    this.onStarting();
     await this.sim.command({ type: 'load', json });
     await this.sim.command({ type: 'setSpeed', speed: 1 });
     this.close();

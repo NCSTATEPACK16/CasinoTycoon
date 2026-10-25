@@ -384,3 +384,322 @@ button.slot small {
     right: 180px;
   }
 }
+
+/* Track B */
+/* ---------- B1: HUD top row, conditions, news ticker, help ---------- */
+/* One wrapping row instead of three absolutely placed boxes, so nothing
+   overlaps at narrow widths. Hud.ts publishes the stack's bottom edge as
+   --hud-bottom; what sits under the HUD hangs off that. */
+#ui > .hud-top {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  pointer-events: none;
+}
+.hud-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  align-items: stretch;
+}
+.hud-row > *,
+.hud-top > .conditions {
+  pointer-events: auto;
+}
+.hud-row > .hud-bar,
+.hud-row > .hud-menu,
+.hud-row > .hud-speeds {
+  position: static;
+}
+.hud-row > .hud-bar {
+  flex: 1 1 420px;
+  min-width: 0;
+  flex-wrap: nowrap;
+  gap: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.hud-bar > * {
+  flex: none;
+}
+.hud-bar > .goal {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hud-row > .hud-menu {
+  margin-left: auto;
+}
+.hud-speeds button.active {
+  border-color: var(--gold);
+  color: var(--gold);
+  box-shadow: 0 0 0 1px var(--gold) inset;
+}
+.paused-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #1b1325;
+  background: var(--gold);
+}
+.hud-help {
+  min-width: 38px;
+  font-weight: 700;
+}
+#hud-slot-a:empty {
+  display: none;
+}
+#ui > .build-toolbar {
+  top: calc(var(--hud-bottom, 58px) + 10px);
+}
+#ui > .side-panel {
+  top: calc(var(--hud-bottom, 58px) + 8px);
+}
+#ui > .toast {
+  top: calc(var(--hud-bottom, 58px) + 10px);
+}
+.conditions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+.conditions[hidden] {
+  display: none;
+}
+.conditions-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+  padding: 0 4px;
+}
+.condition {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: rgba(40, 26, 8, 0.85);
+  border: 1px solid rgba(245, 176, 65, 0.55);
+}
+.condition b {
+  color: #f5b041;
+}
+
+/* The ticker sits above the palette, bottom left: RCT's corner for news. */
+#ui > .news-ticker {
+  position: absolute;
+  left: 12px;
+  bottom: 84px;
+  max-width: min(600px, calc(100vw - 24px));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+.news-ticker > * {
+  pointer-events: auto;
+}
+.news-btn {
+  flex: none;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.news-btn.active {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.news-btn .unread {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 700;
+  color: #1b1325;
+  background: var(--gold);
+}
+.news-line {
+  min-width: 0;
+  padding: 6px 12px;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--gold);
+  border-radius: 8px;
+  animation: news-in 0.25s ease;
+}
+.news-line[hidden] {
+  display: none;
+}
+.news-line.located,
+.news-history li.located {
+  cursor: pointer;
+}
+.news-line.located::after {
+  content: '⌖';
+  margin-left: 8px;
+  color: var(--gold);
+}
+.news-line.located:hover {
+  border-color: var(--gold);
+}
+.news-line small,
+.news-history small {
+  color: var(--gold);
+  font-weight: 700;
+}
+.news-more {
+  flex: none;
+  font-size: 12px;
+  color: var(--dim);
+}
+.news-line.sev-warn,
+.news-history .sev-warn {
+  border-left-color: #f5b041;
+}
+.news-line.sev-alert,
+.news-history .sev-alert {
+  border-left-color: #ff6b6b;
+}
+.news-line.sev-alert {
+  color: #ffd6d6;
+  background: rgba(60, 14, 22, 0.9);
+}
+@keyframes news-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+/* Beside the build toolbar (150 px wide at left 12), not over it. */
+#ui > .news-history {
+  position: absolute;
+  left: 174px;
+  bottom: 124px;
+  width: min(440px, calc(100vw - 186px));
+  max-height: min(50vh, 440px);
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+#ui > .news-history[hidden] {
+  display: none;
+}
+.news-history-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.news-history-head b {
+  color: var(--gold);
+}
+.news-history ol {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+}
+.news-history li {
+  display: grid;
+  gap: 2px;
+  padding: 6px 8px;
+  margin: 2px 0;
+  font-size: 13px;
+  border-left: 3px solid var(--gold);
+  border-radius: 6px;
+}
+.news-history li.dim {
+  border-left-color: transparent;
+}
+.news-history li.located:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.news-history time {
+  font-size: 11px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+/* The ticker and the tool hint share the bottom edge; the hint steps up. */
+#ui > .tool-hint {
+  bottom: 128px;
+}
+/* Seated at a game, its panel owns the bottom of the screen. */
+#ui:has(> .table-play:not([hidden])) > .news-ticker,
+#ui:has(> .table-play:not([hidden])) > .news-history {
+  display: none;
+}
+
+#ui > .help-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(8, 4, 14, 0.6);
+  z-index: 9;
+}
+#ui > .help-overlay[hidden] {
+  display: none;
+}
+.help-card {
+  width: min(760px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: 18px 22px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+}
+.help-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.help-head h3 {
+  margin: 0;
+  color: var(--gold);
+}
+.help-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 6px 24px;
+}
+.help-grid h4 {
+  margin: 12px 0 6px;
+  color: var(--gold);
+  font-size: 14px;
+}
+.help-grid dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 5px 12px;
+  margin: 0;
+  font-size: 13px;
+}
+.help-grid dt {
+  white-space: nowrap;
+  color: var(--text);
+}
+.help-grid dd {
+  margin: 0;
+  color: var(--dim);
+}
