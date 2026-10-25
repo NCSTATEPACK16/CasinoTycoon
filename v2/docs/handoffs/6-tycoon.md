@@ -87,11 +87,12 @@ The user wants a real tycoon: read the floor, react, and grow.
 
 Each task lists what to build, then how to prove it. Tick it (✅) in this file with the evidence.
 
-- [ ] **B0. Setup.**
+- [x] ✅ **B0. Setup.**
   - Get onto branch `v2-tycoon`, cut from `origin/v2-playable`, in your own worktree. If this session already runs in one on that branch, keep it; otherwise use the EnterWorktree tool or `git worktree add`.
   - Run `npm install` in `v2/` and create `.claude/launch.json` with `v2-tycoon` on port 5176.
   - Confirm the dev server renders.
   - Push the branch and open the draft PR into `v2-playable` with this checklist.
+  - **Done 2026-10-24:** the session's app worktree (`.claude/worktrees/v2-tycoon-99386f`) was cut at 7bf4122 = `origin/v2-playable`; its branch was renamed to `v2-tycoon`. `npm install` ran clean, `.claude/launch.json` has `v2-tycoon` on 5176 (strictPort), and `npx tsc --noEmit` is clean. In the built-in browser at 1280×800 the title menu lists the three campaigns plus Sandbox, and The Dusty Dime opens on its 3D lot (HUD $4,000 · Day 1 · ★48, 52 draw calls, no console errors). Draft PR opened into `v2-playable`.
 
 - [ ] **B1. Quality-of-life basics.**
   - Space pauses and resumes; the in-game Menu pauses.
