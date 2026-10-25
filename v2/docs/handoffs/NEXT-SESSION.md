@@ -1,110 +1,174 @@
-# v2 handoff: finish "playable" (SPEC §9)
+# v2 handoff: from "playable" to "alive" (two parallel tracks)
 
-Rewritten 2026-10-24 by the session that ran the first four loop iterations: lot sizes, the stress test, lobby crowding, and need balance. This file and `v2/docs/SPEC.md` are the whole briefing. You need nothing from earlier conversations.
+Rewritten 2026-10-24, after "playable" (SPEC §9) was finished. This file holds the rules both tracks share. Each track also has its own task list. Together with `v2/docs/SPEC.md`, these files are the whole briefing; you need nothing from earlier conversations.
+
+## The two tracks
+
+The next phase runs as two sessions at once. Each session has its own branch and worktree and runs its own `/loop`.
+
+| Track | Task list | Branch | Dev port | Launch config name |
+|---|---|---|---|---|
+| **A, Alive:** sound, moving reels/wheels/dice, cards and chips on the felt, dealers dealing, graphical table play, lighting, people, exterior | [5-alive.md](5-alive.md) | `v2-alive` | 5175 | `v2-alive` |
+| **B, Tycoon:** quality of life, the hidden sim systems, traffic, finance, decor with real effects, progression and campaigns, the remaining game engines, marketing, staff, tutorial | [6-tycoon.md](6-tycoon.md) | `v2-tycoon` | 5176 | `v2-tycoon` |
+
+Every iteration, reread all of this file plus your own track's task list. The loop prompts are in [LOOP-PROMPT.md](LOOP-PROMPT.md).
+
+## What the user decided (2026-10-24)
+
+- **Look: lively stylized.** Keep the current Planet Coaster style and make it alive: things move, light up and make sound, and the people look better. Don't go photoreal. Don't replace the art style, the material system (atlas decals + `ObjectMaterial`) or the VAT crowd.
+- **Order: both tracks at the same time,** in separate sessions on separate branches.
+- **3D art:** extend the headless Blender build scripts (`v2/assets/blender/*.py`) and use CC0 libraries (Poly Haven, and Poly Pizza items marked CC0). **No AI-generated models;** don't use the Blender MCP's `generate_3d`.
+- **Sound:** CC0 packs, Kenney first (as v1 did), mixed with WebAudio and positioned in 3D.
 
 ## Where things stand
 
-- **Branch:** `v2-playable`, cut from `v2-foundation`, in the main checkout at `~/Documents/ClaudeWork/CasinoTycoon`.
-- **PR:** #19, `v2-playable` → `v2-foundation`. Every loop iteration commits to `v2-playable` and pushes it, so the PR grows as the loop runs.
-- **Older PR:** NCSTATEPACK16/CasinoTycoon#18 is `v2-foundation` → `main`. Leave it alone. Never merge either PR.
-- **Pushing:** push only `v2-playable`. Don't push `v2-foundation`; its remote is still at f04e94c.
-- **Done so far:** every commit since f04e94c is on `v2-playable`: the integration UI, the avatar, and this session's four fixes (below).
-- **PR:** NCSTATEPACK16/CasinoTycoon#19 (`v2-playable` → `v2-foundation`). Update its description in Task 4.
+- "Playable" is done.
+  - PR NCSTATEPACK16/CasinoTycoon#19 (`v2-playable` → `v2-foundation`) is open at dfaef57.
+  - 813/813 tests pass, the build is clean, and every §9 row is ✅. The evidence is in the PR description and in git history (`git log v2-foundation..v2-playable`).
+- PR NCSTATEPACK16/CasinoTycoon#18 (`v2-foundation` → `main`) is also open.
+- **Never merge any PR.** The user merges.
+- **Already built:**
+  - Renderer: instanced pools, 8×8 floor chunks, LODs, a VAT crowd with 8 clips (idle, walk, sit, play, cheer, sad, eat, deal), 18 hero GLBs built by script, HDRI, a fitted sun, N8AO, SMAA, ACES, and global bloom.
+  - Sim: 7 games on the real engines, with needs, bankrolls, Recast nav and staff.
+  - Content: 3 campaigns plus Sandbox.
+  - Integration UI: HUD, inspector, rules editor, P&L, staff, a DOM table-play panel, menus and saves.
+- **Two audits on 2026-10-24 found:**
+  - v2 works but feels static: no sound; no slot reel, wheel or die ever moves; no cards or chips on the felt; dealers idle.
+  - The avatar's table play is a text form.
+  - The tycoon loop runs out after about an hour, and most of the sim's depth (comps, players club, rating breakdown, prices) can't be reached from the UI.
+  - Each track file opens with the findings that concern it, with file:line references, so you don't need to repeat the audit.
 
-### §9 exit criteria
+## Branches, PRs and merging
 
-| # | Criterion | Status |
-|---|---|---|
-| 1 | `npm test` green: exact edges, MC edges, nav, ported suite | ✅ 813/813 in 86 files at 0ceaa3b, under `caffeinate -i` (66 s) |
-| 2 | `npm run build` clean | ✅ at 0ceaa3b |
-| 3 | Start scenario; paint floor, walls/doors, zones; place all 5 games with tuned rules; hire dealers/janitors/security | ✅ in browser, including the Floor, Zone and Walls drag tools with the real mouse (Task 3, item 5) |
-| 4 | Guests navigate, gamble, eat, restrooms, leave; a day at 4× shows hold ≈ theo | ✅ lobby bunching fixed; food, bar and restrooms used (see Done) |
-| 5 | God → 3rd → 1st, walk, inspect, play one round of each game | ✅ all five games played through the table screen |
-| 6 | Save → reload → resume | ✅ autosave plus Continue, verified again this session |
-| 7 | Stress: 2,000 objects + 500 guests at ~60fps | ✅ 2,036 objects, 500 guests and 90 staff: 58–60 fps, ≤ 284 calls, ≤ 1.28M tris, 6.2–6.8 ms tick |
-| 8 | Looks good in screenshots of each pillar | ✅ including the Task 3 polish (felt text, payout labels) |
+- **Your branch:** cut it from `origin/v2-playable` (dfaef57 or later) in your own worktree. **Never work in the main checkout** at `~/Documents/ClaudeWork/CasinoTycoon`; the user and the other track use it.
+- **Your PR:**
+  - Push only your own branch.
+  - On your first push, open one **draft** PR into `v2-playable`:
+    ```
+    env -u GITHUB_TOKEN gh pr create --draft --base v2-playable --head <your-branch> --title "..." --body "..."
+    ```
+  - Keep its description current. It needs your track's checklist, the evidence, and every `contract:` commit and `world.ts` hook you added.
+- **Never** push `v2-playable`, `v2-foundation` or `main`. Never merge any PR.
+- **Neither track waits on the other.** The user may merge either PR whenever they like, mid-run or at the end. Work that only makes sense with the other track's code is written as an "after merge" line in the task, done if the code is already in your branch, and otherwise left for the finish task to note.
+- **At the start of every iteration:**
+  1. Run `git fetch origin && git log --oneline HEAD..origin/v2-playable`.
+  2. If the user has merged something there (for example the other track), `git merge origin/v2-playable` into your branch. Use merge, not rebase: your branch is already pushed.
+  3. Resolve conflicts with the ownership table below.
+  4. Re-run `npx tsc --noEmit` and the affected tests.
+  5. Push.
 
-## Done (one line each; commit messages have the evidence)
+## Who owns what (this keeps the two branches mergeable)
 
-- **cfeef4b: per-scenario lots.** Sandbox is 96×64 with its own starter layout. Campaigns stay 40×30. Save/load round-trips the lot. The camera reframes to a new lot. (`world.lot.test.ts`)
-- **17ab077: §9.7 stress budgets.**
-  - Crowd avoidance runs at the "medium" preset.
-  - `rankChoices` is a chunk-pruned lazy heap that keeps the exact old order (`utility.test.ts`).
-  - LOD0 bands are 16 m for objects and 14 m for the crowd.
-  - From a low camera the shadow reach is shorter and only LOD0 objects cast.
-  - Test: `sandbox.stress.test.ts`.
-  - `NavSystem.test` bake times are asserted only under NAV_PERF=1.
-- **7baff56: lobby crowding.** Guests who find every seat taken browse beside a game on the floor, not by the door. The lobby mean went from 10.5 to 3.0. (`crowd.test.ts`)
-- **Need balance (the user chose this option).** On the nav crowd, guests arrive with bladder in [45, 100] and hunger and thirst in [35, 100] (`GUEST_BALANCE.arrivalNeedsMin`, `Guest.varyArrivalNeeds`). Two days on the furnished floor went from 0 meals, 0 drinks and 3 restroom visits to 11 meals, 7 drinks and 12 visits (`crowd.test.ts`). In the browser, the Sandbox Finances panel showed $141 of F&B in 2 days. Grid-mode worlds, which the ported balance suites and campaign goals were tuned on, are untouched.
+| Path | Owner |
+|---|---|
+| `src/render/**`, `assets/**` (Blender scripts, `.blend`, GLBs, VAT, HDRI, textures, **audio files**) | A |
+| `src/audio/**` (new), `src/ui/TablePlay.ts`, `src/ui/play/**` (new), `src/ui/Settings.ts` (new), `src/input/**` | A |
+| `src/sim/agents/seats.ts`, `src/sim/fx/**` (new: round-effect records) | A, under the economics guard below |
+| Narrow slices inside B's sim files, each kept to the lines named here and listed in A's PR: dealer position and animation in `src/sim/entities/staff/Staff.ts` (`anim`, the dealer-spot choice); the animation/pose choice in `src/sim/entities/Guest.ts` (`:213-218`); one call per play in `src/sim/entities/machines/EngineGame.ts`/`enginePlay.ts` that records round data into `src/sim/fx/` | A |
+| `src/data/**` (balance, objects, campaigns, floorPrices, score, thoughts), `src/sim/games/**`, `src/sim/economy/**`, `src/sim/scenario/**`, `src/sim/modifiers.ts`, `src/services/**` | B |
+| `src/sim/entities/machines/**`, `src/sim/entities/Guest.ts`, `src/sim/agents/utility.ts`, `src/sim/entities/staff/**`, all apart from A's slices above | B |
+| Existing logic in `src/sim/world.ts` for arrivals and the guest cap (`:108-120`, `:819-827`), rating and signage (`:671-716`), comps, patrons and prices | B may rewrite it. A adds named hooks only. |
+| `src/ui/Hud.ts`, `src/ui/SidePanel.ts`, `src/ui/Menus.ts`, `src/ui/tools/BuildToolbar.ts`, `src/ui/panels/**` (new) | B |
+| New files B needs under `src/render/` for its own overlays (heat maps), e.g. `src/render/HeatOverlay.ts` | B. Don't edit existing render files; add the overlay to `stage.scene` from `main.ts`. |
 
-Notes for later, not blocking:
-- The one-cell-aisle stress layout jams at 500 guests: about 2,300 repaths and 60 teleports in 90 s.
-- The third-person camera can press against a partition wall in the lobby.
-- One frame hitch of 66–150 ms happens the first time eye-level LOD pools load.
-- While paused, the Staff panel's hire count doesn't refresh.
-- At a pane width of about 800 px, the HUD bar overlaps the Floor button.
-- Build placement is one object per tool pick unless Shift is held. That's by design, but worth a hint in the UI.
+Files both tracks may touch, under these rules:
+- **`src/shared/contracts.ts`:** append only. Add new members at the end of `Command` / `SimEvent` and new **optional** fields on view types. Each change goes in its own commit whose message starts with `contract:`. Never reorder, rename or reformat.
+- **`src/shared/catalog.ts`:**
+  - B adds entries for new defs, with a placeholder asset (`'proc:box'`) where no art exists yet.
+  - A changes only `asset`, `height`, `color`, `glow` and `seats` of existing entries, and adds the art for the pre-agreed decor below.
+- **`src/worker/commands.ts`, `src/worker/snapshot.ts`, `src/worker/sim.worker.ts`:** add new cases at the end of switches and new functions. No refactors.
+- **`src/sim/world.ts`:** B may change the existing logic it owns (row above). Anything else is narrow named hooks only (one method each), listed in your PR description.
+- **`src/shared/games.ts`:** append only, with optional fields and methods, in `contract:` commits. A may add optional bet-layout metadata for its play view; B's new engines fill it in where it exists.
+- **The HUD mount point:** B1 adds an empty `<div id="hud-slot-a">` at the right-hand end of the HUD bar and keeps it through every later HUD change. A mounts its Settings gear there when the element exists, and otherwise falls back to its own fixed-position button.
+- **`src/main.ts`:** wiring lines only. The logic lives in your new modules.
+- **`src/ui/ui.css`:** append new blocks under a `/* Track A */` or `/* Track B */` comment. Don't restyle existing rules.
 
-## What's left: Task 3, polish (one item per iteration, in this order)
+If you need something in a file the other track owns, don't change it. Write it under "Requests to the other track" at the bottom of your task list, commit that, and mention it in your iteration report so the user can pass it on.
 
-1. ✅ **Felt text.** The `bjFelt`/`bjFeltHL` decals now hold four rows (3:2 S17, 3:2 H17, 6:5 S17, 6:5 H17). `ObjectView.decalRow` carries the row from the table's rules, and a rules change resends the objects. Any GLB decal painted in rows is treated as a variant surface. Evidence: `snapshot.test.ts` (3/3; 6:5 + H17 gives row 3 and bumps `objectsVersion`). In the browser on Sandbox, I placed a table from the palette, read "BLACKJACK PAYS 3 TO 2" on the felt, then set 6:5 and H17 in the inspector and the felt read "BLACKJACK PAYS 6 TO 5". The atlas is 2048×2816 and the console showed no errors.
-2. ✅ **Table occupancy.** There are new `sit`/`stand` commands (`world.seatPlayer`/`unseatPlayer`). The avatar claims a seat as holder `PLAYER_SEAT` the way a guest does, so a full table or a busy machine turns it away, and guests can't take its seat. `roundBegin` also takes a seat first if the avatar has none. On the client, F asks for the seat before sitting, puts the avatar at the nearest seat no guest is within 0.45 m of, and gives the seat back on standing. Evidence: `avatarPlay.test.ts` and `snapshot.test.ts` (11/11). In the browser on Sandbox, with the table full at 4/4, F showed "Every seat is taken" and the avatar stayed standing. With 3/4, F seated the avatar: occupants went to 4, the nearest guest was 0.77 m from its seat, and the felt was in view. Standing put it back to 3. The console showed no errors.
-3. ✅ **Wallet display.** Round replies and `financials` now carry `onTable`, the chips in unsettled rounds across all tables. `wallet` stays the settled bankroll. The table header shows `Wallet (wallet − onTable) · $X in play` while a round is open, and the default bet sizes from what's left. Evidence: `avatarPlay.test.ts` (9/9). A new case shows `onTable` 25 mid-round, with the wallet unchanged and `financials` agreeing, and it stays 25 while a roulette round settles beside it. In the browser on Sandbox, I sat at blackjack and dealt $50: the header read "Wallet $950.00 · $50.00 in play". After a double it showed $100 on the hand, and once the hand settled it read "Wallet $900.00" with no in-play line. The console showed no errors.
-4. ✅ **Win/lose card.** I started The Dusty Dime from the title menu, built nothing and ran it at 4× through the HUD button to its day-12 limit. When day 12 closed, the sim's own `scenarioFailed` → `gameOver` event raised "Closed for business / Out of time." The game paused itself (speed 0), and the HUD status read `lost`. "Main menu" returned to the title, which offered Continue from the day-12 autosave. The console showed no errors. On the way I found that the win card's "Keep playing" only resumed time, which left the run in `won` with the campaign's object limits still on. It now sends a new `continueScenario` command (`ScenarioManager.continue()` → endless) before resuming. Evidence: `snapshot.test.ts` plus `ScenarioManager.test.ts` (19/19). The new case checks that a won High Roller Club allows a bingo hall only after `continueScenario`. The win card itself wasn't reached in the browser; it uses the same `gameOver` event path.
-5. ✅ **Drag tools.** Driving them showed that every cost tag was a stale copy of the prices: carpet $15 against the sim's $12, marble $40 against $30, walls $30 against $25, and zones "Free" against $1. The tags also priced every cell, not just the cells that change. The tags and the toolbar swatches now read `data/floorPrices.ts` and count only cells or segments the sim will charge for, and a door tag shows its $35. Evidence, from The Dusty Dime, paused, at $4,000, all with real `left_click_drag`s (mid-drag tags were read from pointer events at the same coordinates):
-   - Marble 6×2 previewed $360 and charged $360. Hovering a painted cell read Free, and an extended 9×2 previewed $180 (the 6 new cells).
-   - Gaming zone 6×2 previewed $12 and charged $12.
-   - A 6 m wall previewed $150, charged $150 and stood.
-   - Clicking it read "add door · $35" and charged $35.
-   - `gridMath.test.ts` passes and the console showed no errors.
-6. ✅ **Payout text.** Labels keep their god-view size (1.5 m, or 2.2 m for big wins) from 18 m out. Closer in, they shrink in proportion to camera distance, down to 12%, so they hold roughly their screen size at eye level (`Overlays.update(now, camera)`). Evidence: Sandbox with 6 slots and 60 guests, measured in the browser. In third person, labels 6.1 m away were 0.51 m wide and read as small tags above the machines. In the god view zoomed out with the mouse wheel, labels 37 m away were the full 1.5 m. The console showed no errors.
+## Pre-agreed new decor (so art and gameplay meet cleanly at merge)
 
-✅ **Task 4, finish (done).** The full suite passed 813/813 under `caffeinate -i` and `npm run build` was clean, both at 0ceaa3b. `v2-playable` is pushed and PR #19's description carries the §9 checklist. Original instructions:
+| defId | Footprint (w×h cells) | B builds the gameplay | A builds the art |
+|---|---|---|---|
+| `statue` | 1×1 | Prestige: an appeal radius | Bronze figure on a marble plinth |
+| `fountain` | 3×3 | Prestige plus a calm area: a larger appeal radius | Basin with animated water (UV scroll), soft splash sound |
+| `lamp-post` | 1×1 | Small appeal | Brass lamp; emissive; casts a light pool on the carpet |
+| `lounge-seating` | 2×1 | A rest service: restores energy | Velvet sofa with seat markers |
+| `atm` | 1×1 | Cash access: guests top up their bankroll and pay a fee | ATM kiosk with a lit screen |
+| `stage` | 4×3 | Shows and events (B10) | Raised stage, curtain and lighting truss |
 
-**Task 4, finish:** run the full suite under `caffeinate -i` and `npm run build` in `v2/`, push `v2-playable`, update the PR description with the §9 checklist and evidence, and report to the user.
+- Prices, upkeep, zones and effect sizes are B's call.
+- On merge, keep A's `asset`/`height`/`color`/`glow`/`seats` and B's `zones`.
 
-## Testing policy (the user asked for less)
+## Shared guardrails
 
-- **Per iteration:** `npx tsc --noEmit`, plus only the test files that touch the change (`npx vitest run <paths>`), plus a browser check of the change. Don't run the full suite each iteration.
-- **Full suite:** once, in Task 4, under `caffeinate -i`. This Mac sleeps and throttles on battery. "Test timed out", or a wall-clock assertion failing only under the parallel suite, is load until proven otherwise; re-run the file alone.
-- **Balance:** if a change could move guest behaviour in grid mode, also run `src/data/campaigns` and `src/sim/world.tier2.test.ts`. Those suites pin the economy the campaign goals were tuned on.
+- **Performance:** the stress scene is Sandbox with 2,000 objects, 500 guests and 90 staff on High (see `src/sim/sandbox.stress.test.ts` and the 17ab077 commit message for how it was built). Targets:
+  - ≥ 55 fps at 1280×800 in the built-in browser
+  - ≤ 300 draw calls (`renderer.info.render.calls`)
+  - ≤ 1.5M triangles
+  - ≤ 7 ms sim tick
+
+  Measure before and after any change that adds rendering, agents or per-tick work, and put the numbers in the commit message.
+- **Asset sizes:** GLBs ≤ 6 MB in total, human VAT ≤ 10 MB, audio ≤ 8 MB in total. Prefer OGG, and confirm it decodes in the built-in browser.
+- **Determinism:** the sim stays deterministic for a seed plus a command sequence. Render and audio randomness may use `Math.random`; the sim never does.
+- **What you see happened, but not everything that happened is shown.** The clock is compressed: an in-game hour is 5 s at 1× (`TICKS_PER_HOUR` 50 at 10 Hz), and one guest visit plays several rounds at once (`ENGINE_BALANCE.playShape` in `data/balance.ts`; blackjack plays 16 hands per visit). A table deals around a dozen hands every real second, so no animation can show every round.
+  - The rule: every reel stop, ball, die or card shown in detail is a **real round the sim played**, sampled from the latest batch.
+  - Labels, flashes and sounds tied to a shown round use that round's own result.
+  - Cosmetic motion is fine only where it can't contradict the sim. For example, an idle attract animation must never show a winning line or flash when nothing was paid.
+- **Economics guard:**
+  - A must not change game outcomes. After touching anything under `src/sim/`, run `src/data/campaigns`, `src/sim/world.tier2.test.ts` and `src/sim/agents/crowd.test.ts`.
+  - B changes economics on purpose. Run the same suites, re-tune, and record the before and after numbers in the commit.
+- **Licensing:** CC0 only. Record every external file in `v2/assets/CREDITS.md`: path, source URL, author and licence.
+- **Downloads need the user's OK.** Ask once per batch with names, source URLs, sizes and licences. Don't skip tasks while you wait. If a task needs a sound that isn't approved yet, synthesize a WebAudio stand-in under the same sound key, tick the task with a note, and swap in the real file when the user says yes.
+- **v1:** never import it (`../src`, `../public`) from v2. You may read it for ideas, and you may copy its CC0 Kenney audio files from `../public/audio/` into v2. They are already in the repo, so copying them needs no download.
+
+## Testing policy
+
+- **Each iteration:**
+  - `npx tsc --noEmit`
+  - only the test files that touch the change (`npx vitest run <paths>`)
+  - the economics guard when it applies
+  - a browser check of the change, with screenshots for anything visual
+
+  Don't run the full suite every iteration.
+- **Full suite:** once, at your track's finish task, under `caffeinate -i`. This Mac sleeps and throttles on battery. Treat "Test timed out", or a wall-clock assertion failing only under the parallel suite, as load until proven otherwise; re-run the file alone.
+- **New logic gets unit tests:** pure modules such as audio voice limiting, reel-stop timing, loan maths, traffic curves, appeal radius and progression storage. Rendering is verified in the browser.
 
 ## How to work here
 
-- **Run:** `cd v2 && npm install`. The dev server is `.claude/launch.json` config **`v2`** on port 5174; use `preview_start {name:"v2"}`.
+- **Setup (in your worktree):**
+  1. Run `cd v2 && npm install`.
+  2. `.claude/` is git-ignored, so create `.claude/launch.json` in your worktree root with one configuration named after your track: `{"name": "v2-alive", "runtimeExecutable": "npm", "runtimeArgs": ["--prefix", "v2", "run", "dev", "--", "--port", "5175", "--strictPort"], "port": 5175}` (Track B uses `v2-tycoon` and 5176).
+  3. Start it with `preview_start {name: "<that name>"}`.
 - **Browser viewport:** the built-in browser pane is often narrow. `resize_window` 1280×800 works. If screenshots come back quarter-size, use `find`/`read_page` refs instead of coordinates.
 - **Placing objects:** hover before clicking, so the build ghost follows the pointer.
 - **Title menu:** the buttons aren't in the accessibility tree. Click `button.scenario` or the Continue button through the DOM.
+- **Sandbox starts empty.** For a furnished floor, use these from `window.__v2.sim.command(...)`:
+  - place objects with `{type:'place', defId, col, row, rot}`
+  - hire with `{type:'hire', kind:'dealer'}`
+  - add guests with `{type:'debugSpawn', count}`
+
+  Frame the camera with `window.__v2.god.setState({...god.getState(), focus:{x,z}, distance})`. Starting a new Sandbox overwrites the autosave.
 - **Debug hook:** `window.__v2 = { sim, stage, god, build, controls, panel, table, menus }`. Use it for setup and reading state only. Drive what you verify through the UI. The worker command list is in `src/shared/contracts.ts`.
 - **Map:**
   - `src/worker/` is the sim thread.
   - `src/ui/` is the integration UI.
   - `src/main.ts` wires them.
   - `src/sim/agents/` is the guest brain: `utility.ts`, `stands.ts`, `testkit.ts`, with `furnish` and `furnishSandbox`.
-  - Module docs: `src/sim/games/ECONOMY.md` and the per-module handoffs in this folder.
+  - Module docs: `src/sim/games/ECONOMY.md` and the handoffs `1-graphics.md` through `4-economy.md` in this folder.
+- **Code search:** the jCodemunch index also covers old worktrees under `.claude/worktrees/`. Ignore hits there.
 - **Repo rules:**
   - `v2/docs` is committed and pushed (the user's explicit exception for v2).
   - `PLAN.md`, `.claude/` and `docs/superpowers/` stay local.
-  - Never import v1 (`../src`) from v2.
 - **Commits:** messages explain *why* and end with `Co-Authored-By: Claude <noreply@anthropic.com>`. Format only the files you touch with Prettier (`v2/.prettierrc`); several existing files are not Prettier-clean, so don't reformat them.
 - **`gh`:** `GITHUB_TOKEN` in the environment shadows the keyring login. Run `gh` with `env -u GITHUB_TOKEN`.
+- **Subagents** are welcome when they help: an Explore agent to map code before a big task, or a general-purpose agent for a self-contained test, a CC0 asset search or a review. Check their work yourself before you tick anything.
 
-## Loop prompt
+## Notes from "playable" (not blocking; take one if you are in the area)
 
-The user runs the loop with:
-
-```
-/loop Continue Casino Tycoon v2 until it is fully playable. The briefing is v2/docs/handoffs/NEXT-SESSION.md (read it in full every iteration) plus v2/docs/SPEC.md.
-
-Each iteration:
-1. Run `git log --oneline -5` on v2-playable and reread NEXT-SESSION.md to see what's done.
-2. Take the first unfinished item in "What's left". Do only that.
-3. Implement it properly, matching the surrounding code. Verify it with evidence, following the testing policy in NEXT-SESSION.md: `npx tsc --noEmit`, only the affected test files (`cd v2 && npx vitest run <paths>`), and the built-in browser (`preview_start` name "v2"; drive it through the UI, with `window.__v2` only for setup). Don't run the full suite each iteration.
-4. Tick the item in NEXT-SESSION.md and write down the evidence. Commit the work and the ticked file together, with a message that explains why, then push v2-playable so the PR grows.
-5. When every §9 row and every "What's left" item is ✅: run the full suite under `caffeinate -i` and `npm run build`. If both pass, push v2-playable, update PR #19's description with the §9 checklist and evidence, report to me, and stop the loop.
-
-Rules:
-- Never merge any PR. Push only v2-playable.
-- Treat "Test timed out" on a long suite as Mac sleep until proven otherwise; re-run under caffeinate.
-- If you hit a decision only I can make, stop and ask.
-```
+- The one-cell-aisle stress layout jams at 500 guests: about 2,300 repaths and 60 teleports in 90 s.
+- The third-person camera can press against a partition wall in the lobby. (A)
+- One frame hitch of 66–150 ms happens the first time eye-level LOD pools load. (A)
+- While paused, the Staff panel's hire count doesn't refresh. (B)
+- At a pane width of about 800 px, the HUD bar overlaps the Floor button. (B)
+- Build placement is one object per tool pick unless Shift is held. That's by design, but worth a hint in the UI. (B)
+- The campaign win card was verified only by tests, never reached in the browser. (B, in B8)
