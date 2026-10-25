@@ -92,11 +92,24 @@ export interface HudView {
   speed: number;
   todayProfit: number;
   scenario: { id: string; name: string; goal: string; status: 'active' | 'won' | 'lost' } | null;
+  /** B1: today's conditions, for the banner. Empty or absent on a quiet day. */
+  modifiers?: { id: string; name: string; blurb: string }[];
 }
 
 export type SimEvent =
   | { type: 'payout'; objectId: string; x: number; z: number; amount: number }
-  | { type: 'ticker'; text: string; severity: 'info' | 'warn' | 'alert' }
+  | {
+      type: 'ticker';
+      text: string;
+      severity: 'info' | 'warn' | 'alert';
+      /** B1: where the news happened, for click-to-locate. x/z is the spot at
+       *  the time; objectId or agentId (a guest's numeric id, as in
+       *  Snapshot.agents) names the subject, which may since have moved or gone. */
+      x?: number;
+      z?: number;
+      objectId?: string;
+      agentId?: number;
+    }
   | { type: 'gameOver'; won: boolean; reason: string };
 
 export interface Snapshot {
