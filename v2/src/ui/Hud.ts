@@ -4,7 +4,9 @@
 // --hud-bottom on the UI root, so the toolbar and drawer below it never
 // collide with it however it wraps.
 
+import { getCampaign } from '../data/campaigns';
 import { OBJECT_CATALOG } from '../data/objects';
+import { weekdayName } from '../data/traffic';
 import { get3D } from '../shared/catalog';
 import type { HudView, SimEvent } from '../shared/contracts';
 import type { SimClient } from '../client/SimClient';
@@ -161,14 +163,15 @@ export class Hud {
     const f = this.f;
     const sc = h.scenario ? `${h.scenario.name}: ${h.scenario.goal}` : 'Sandbox';
     setText(f.cash, money(h.cash));
-    setText(f.time, `Day ${h.day} · ${String(h.hour).padStart(2, '0')}:00`);
+    setText(f.time, `${weekdayName(h.day)} · Day ${h.day} · ${String(h.hour).padStart(2, '0')}:00`);
     f.paused.hidden = s !== 0;
     const rep = h.reputation;
     setText(
       this.ratingBtn,
       `★ ${Math.round(h.rating)}${rep ? ` · ${rep.label} ${Math.round(rep.value)}` : ''}`,
     );
-    setText(f.guests, `${h.guests} guests`);
+    setText(f.guests, h.guestCap ? `${h.guests} / ${h.guestCap} guests` : `${h.guests} guests`);
+    f.guests.title = h.guestCap ? guestsTitle(h.guestCap, hasRhythm(h.scenario?.id)) : '';
     setText(f.today, `Today ${money(h.todayProfit)}`);
     setText(f.goal, sc);
     f.goal.title = sc;
@@ -185,6 +188,21 @@ export class Hud {
     void this.toast.offsetWidth;
     this.toast.classList.add('show');
   }
+}
+
+/** Whether this scenario's guests follow the clock (B3's daily traffic). */
+function hasRhythm(scenarioId: string | undefined): boolean {
+  return !!scenarioId && getCampaign(scenarioId)?.traffic?.curve === 'daily';
+}
+
+/** What the guest count means, and what moves the cap. */
+function guestsTitle(cap: number, rhythm: boolean): string {
+  const room = rhythm
+    ? `The floor holds ${cap} right now. More seats and services, and a better rating, let it hold more (up to 500).`
+    : `This casino holds ${cap} guests at once.`;
+  return rhythm
+    ? `${room} Guests come by the clock: quiet mornings, a 4 a.m. lull, busy evenings, busier weekends.`
+    : room;
 }
 
 function setText(n: HTMLElement, text: string): void {

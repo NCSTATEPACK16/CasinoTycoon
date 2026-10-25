@@ -143,6 +143,10 @@ export class Guest extends Walker {
   drunk = false;
   /** Being walked out by security. */
   escorted = false;
+  /** B3: under daily traffic, the tick a visit is planned to end; the guest
+   *  finishes what they are doing and goes home. Null: stay as long as
+   *  money, mood and energy last (the campaigns' rule). */
+  leaveAtTick: number | null = null;
   /** Standing in High-Limit right now — keeps the zone on this guest's filter
    *  until they step out, so a bust-out never strands an agent off-mesh. */
   private inHighLimit = false;
@@ -347,6 +351,17 @@ export class Guest extends Walker {
   }
 
   private act(world: CasinoWorld): void {
+    // B3: when the planned visit is over, anyone not seated or being served
+    // heads home now rather than at their next re-think; a player finishes
+    // the run of plays they are in (tickPlay re-thinks at its end).
+    if (
+      this.leaveAtTick !== null &&
+      world.tickCount >= this.leaveAtTick &&
+      (this.state === 'wander' || this.state === 'seekGame' || this.state === 'queue')
+    ) {
+      this.evaluate(world);
+      return;
+    }
     switch (this.state) {
       case 'wander':
         // On the crowd a wanderer browses where it lands for a few seconds
@@ -380,9 +395,13 @@ export class Guest extends Walker {
   }
 
   /** v1's leave rules plus the bankroll model's stop-loss and win goal. */
-  private wantsToLeave(): boolean {
+  private wantsToLeave(tick: number): boolean {
     const b = GUEST_BALANCE;
     if (this.needs.energy <= b.leaveEnergy || this.wallet < b.brokeWallet) return true;
+    if (this.leaveAtTick !== null && tick >= this.leaveAtTick) {
+      this.recordThought(tick, 'homeTime', 'Good night. Time to head home.');
+      return true;
+    }
     if (this.needs.happiness <= AI.leaveUnhappy) return true;
     return stopReason(this.profile, this.sessionNet) !== null;
   }
@@ -408,7 +427,7 @@ export class Guest extends Walker {
   private evaluate(world: CasinoWorld): void {
     this.dropQueue(world);
     this.serviceStand = null;
-    if (this.wantsToLeave()) {
+    if (this.wantsToLeave(world.tickCount)) {
       this.leave(world);
       return;
     }

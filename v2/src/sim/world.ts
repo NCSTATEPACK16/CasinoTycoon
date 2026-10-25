@@ -8,6 +8,7 @@ import {
   JACKPOT_PAYOUT_MULT,
   SELL_REFUND_RATIO,
   STARTING_CASH,
+  TICKS_PER_HOUR,
 } from '../config';
 import {
   ARCHETYPE_BALANCE,
@@ -28,6 +29,14 @@ import {
   SECURITY_BALANCE,
 } from '../data/balance';
 import type { CampaignDef } from '../data/campaigns';
+import {
+  CAMPAIGN_TRAFFIC,
+  dayFactor,
+  guestCap as scaledGuestCap,
+  hourFactor,
+  TRAFFIC_BALANCE,
+  type TrafficProfile,
+} from '../data/traffic';
 import { getObjectDef } from '../data/objects';
 import { canPlaceObject, footprintOf, placeObject, sellObject, type PlaceCheck } from './build';
 import { FloorPlan, type FloorPlanJSON } from './floor/FloorPlan';
@@ -120,6 +129,11 @@ export function spawnChance(rating: number, machineCount: number, reputation: nu
     b.spawnBasePerTick + Math.max(0, wordOfMouth) * b.spawnRatingScalePerTick,
   );
 }
+
+/** B3: services that count toward the floor's room for guests. */
+const CAP_SERVICES = new Set(['toilet', 'food-stall', 'bar', 'cage']);
+/** B3: how often a scaled guest cap is recomputed. */
+const CAP_REFRESH_TICKS = 10;
 
 interface MachineJSON {
   /** P4: the player's per-instance table minimum. Absent for fixed-denomination
@@ -819,13 +833,60 @@ export class CasinoWorld {
   }
 
   private maybeSpawn(): void {
-    if (this.guests.size >= GUEST_BALANCE.maxGuests) return;
-    const chance =
-      spawnChance(this.rating, this.machines.size, this.reputation.value) *
-      this.modifiers.spawnMult();
-    if (!this.rng.chance(chance)) return;
+    if (this.guests.size >= this.guestCap()) return;
+    if (!this.rng.chance(this.arrivalChance())) return;
     if (!this.grid.isWalkable(this.entranceTile.col, this.entranceTile.row)) return;
     this.spawnGuest();
+  }
+
+  /** B3: how guests arrive here: the scenario's own profile, else the flat
+   *  rate and fixed cap the campaigns were tuned on. */
+  get trafficProfile(): TrafficProfile {
+    return this.scenario?.def.traffic ?? CAMPAIGN_TRAFFIC;
+  }
+
+  /** B3: the floor's room, in seats: every seat at a game, plus
+   *  TRAFFIC_BALANCE.serviceSeats per restroom, food stall, bar or cage. */
+  floorCapacity(): number {
+    let room = 0;
+    for (const m of this.machines.values()) room += m instanceof SeatedCasinoGame ? m.seatCount : 1;
+    for (const po of this.state.allObjects())
+      if (CAP_SERVICES.has(po.defId)) room += TRAFFIC_BALANCE.serviceSeats;
+    return room;
+  }
+
+  private capCache = { tick: -Infinity, value: 0 };
+
+  /** B3: how many guests may be on the floor at once. A scaled cap follows
+   *  the floor and the rating, refreshed every few ticks (it walks every
+   *  object, and neither moves faster than that matters). */
+  guestCap(): number {
+    const cap = this.trafficProfile.cap;
+    if (cap !== 'scaled') return cap;
+    if (this.tickCount - this.capCache.tick >= CAP_REFRESH_TICKS) {
+      this.capCache = {
+        tick: this.tickCount,
+        value: scaledGuestCap(this.floorCapacity(), this.rating),
+      };
+    }
+    return this.capCache.value;
+  }
+
+  /** B3: the chance a guest walks in this tick. Flat traffic is the campaign
+   *  formula unchanged; daily traffic shapes it by hour and weekday, and a
+   *  scaled cap multiplies it by cap / minCap, so a floor that holds ten
+   *  times the people draws ten times the arrivals. */
+  arrivalChance(): number {
+    const base =
+      spawnChance(this.rating, this.machines.size, this.reputation.value) *
+      this.modifiers.spawnMult();
+    const p = this.trafficProfile;
+    if (p.curve === 'flat') return base;
+    const t = TRAFFIC_BALANCE;
+    const scale = p.cap === 'scaled' ? (this.guestCap() / t.minCap) * t.fill : 1;
+    const clock =
+      hourFactor(this.time.hour, this.time.tickInHour / TICKS_PER_HOUR) * dayFactor(this.time.day);
+    return Math.min(1, base * scale * clock);
   }
 
   spawnGuest(archetypeOverride?: GuestArchetype): Guest {
@@ -852,6 +913,12 @@ export class CasinoWorld {
       patron ? { id: patron.id, name: patron.name, tier: patron.tier } : null,
     );
     if (this.nav) guest.varyArrivalNeeds();
+    // B3: open play's guests come for an evening, not for good.
+    if (this.trafficProfile.curve === 'daily') {
+      const h = TRAFFIC_BALANCE.stayHours;
+      guest.leaveAtTick =
+        this.tickCount + this.rng.int(h.min * TICKS_PER_HOUR, h.max * TICKS_PER_HOUR);
+    }
     this.guests.set(id, guest);
     eventBus.emit('guestSpawned', { id, archetype: guest.archetype });
     if (patron) this.announcePatronArrival(patron, id);

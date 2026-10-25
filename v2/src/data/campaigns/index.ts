@@ -7,6 +7,8 @@
 // docs/superpowers/specs/2026-08-19-difficulty-curve-solvency-design.md for
 // what each one is answering. Changing one in isolation will break a guard.
 
+import { OPEN_TRAFFIC, type TrafficProfile } from '../traffic';
+
 export interface CampaignDef {
   id: string;
   name: string;
@@ -29,6 +31,9 @@ export interface CampaignDef {
   /** v2: the lot the floor plan is built on, in cells (Session 3's FloorPlan
    *  reads it). Omitted = the default 40×30 lot. */
   lot?: { cols: number; rows: number };
+  /** B3: how guests arrive. Omitted = CAMPAIGN_TRAFFIC, the flat rate and
+   *  fixed cap the campaigns below were tuned on. */
+  traffic?: TrafficProfile;
 }
 
 export const CAMPAIGNS: readonly CampaignDef[] = [
@@ -111,6 +116,8 @@ export const SANDBOX: CampaignDef = {
   sandbox: true,
   // SPEC §9.7: room for 2,000 objects and 500 guests.
   lot: { cols: 96, rows: 64 },
+  // B3: the daily rhythm, and a cap that grows with the floor up to 500.
+  traffic: OPEN_TRAFFIC,
 };
 
 /** Everything the scenario picker offers: the campaigns, then Sandbox. */

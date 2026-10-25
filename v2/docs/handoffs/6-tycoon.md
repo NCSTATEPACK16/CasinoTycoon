@@ -140,7 +140,7 @@ Each task lists what to build, then how to prove it. Tick it (✅) in this file 
       - After the brew fix, a full, idle bar's stock cost stayed at $56 from 06:00 to 14:00 (the old code added about $13 an hour). No console errors.
       - A live A/B of drink sales per hour on this save was too sparse to read (about 0.1–0.4 drinks an hour among 70 guests, since thirst rarely crosses the threshold in one visit), so the demand effect is shown by the crowd probe above.
 
-- [ ] **B3. Traffic with a daily rhythm, and a cap that grows with the casino.**
+- [x] ✅ **B3. Traffic with a daily rhythm, and a cap that grows with the casino.**
   - Arrivals follow an hour-of-day curve: a quiet morning, an evening peak, a 4 a.m. lull, plus a weekend lift.
   - The guest cap scales with capacity (seats, services) and rating, up to 500.
   - Old campaigns keep their tuned behaviour, or are re-tuned on purpose.
@@ -149,6 +149,18 @@ Each task lists what to build, then how to prove it. Tick it (✅) in this file 
     - campaign suites green, with numbers recorded
     - in the browser, a Sandbox floor built for about 300 guests reaching about 300 at the evening peak
     - the stress scene tick still ≤ 7 ms
+  - **Done 2026-10-25** (contract 90bb497: optional `HudView.guestCap`):
+    - **Built:** `data/traffic.ts` holds the profiles and the pure maths. `CampaignDef.traffic` is optional: omitted means `CAMPAIGN_TRAFFIC` (flat rate, fixed cap 30), so the three campaigns and every test world are untouched; `SANDBOX` opts into `OPEN_TRAFFIC` (daily curve, scaled cap), as new B8 scenarios should.
+      - Curve: 24 hourly anchors eased linearly and normalised to a mean of exactly 1 (it moves arrivals around the clock without adding any). Lull 0.12× at 04:00, morning 0.45–0.75×, peak 2.05× at 21:00. Weekdays: day 1 is a Monday; Fri ×1.15, Sat ×1.3, Sun ×1.15.
+      - Cap: `clamp(room × 1.1 × (0.6 + 0.8 × rating/100), 30, 500)`, where room is every seat at a game plus 4 per restroom, food stall, bar or cage. Cached for 10 ticks.
+      - Arrivals: `world.arrivalChance()` = the campaign formula × spawn modifiers, then (daily only) × hour × weekday × cap/30 × `fill` 0.6, so a bigger floor draws proportionally more people.
+      - Planned stays (daily only): each guest arrives planning 4–8 in-game hours (`Guest.leaveAtTick`). When it's up, a walker, queuer or wanderer heads home at once; a player finishes the current run of plays. Leaving early for the old reasons still applies.
+      - HUD: the clock reads "Tue · Day 2 · 13:00" and the guest count "249 / 344 guests", with a tooltip on what raises the cap and when guests come.
+    - **What tuning found:** walking is real time on a compressed clock (about 10 cells an in-game hour), so crossing the 96-cell Sandbox lot takes hours, and the population lags the arrival curve by a few hours. Without planned stays nobody left overnight (340 on the floor at 04:00), because energy takes about four days to run down. At 1.6 guests per seat, 230 of 340 guests were stuck walking in gridlocked aisles, so 1.1 per seat it is. The probe floor first walled off the lobby's double door; a Sandbox player has to keep door aprons clear the same way.
+    - **Tests:** `data/traffic.test.ts` 8/8 (mean exactly 1, peak 19–22, lull at 04:00, continuity, weekdays, cap growth, 30/500 bounds, profiles). `world.traffic.test.ts` 8/8: every campaign gets flat arrivals at 04:00 and 21:00 equal to the old formula, cap 30, no planned stays; a world with no scenario is flat; in Sandbox the 21:00/04:00 ratio equals the curve and a Saturday is ×1.3; the cap and arrival chance grow when 120 slots and a restroom go down; stays fall in 4–8 h. On the crowd, a ~210-seat Sandbox floor (cap 299 at ★87) fills to ≥ 90% of its cap by 20–23:00 and is under 60% of that by 09–12:00 on day 2. Fill sweep on seeds 5/9/13 at fill 0.6: about 299 by 22:00 every day, 90–150 by late morning; 0.35–0.5 never filled, 0.7 sat at the cap 20:00–04:00.
+    - **Economics guard:** campaigns, `world.tier2`, `sim/agents` (including both stress tests), `world.*`, `entities`, `worker`: 48 files, 450/450. Greedy probe identical before → after: Dusty Dime 7/7, Neon Nights 5/7, High Roller Club 5/7, same per-seed best days.
+    - **Stress scene** (`sandbox.stress`, NAV_PERF=1, runs alternated on one machine): B2 tick mean 2.90/5.26/4.82 ms against B3 3.30/5.44/5.43 ms, within noise and under 7 ms. Repaths fell 5,922 → 3,841 and teleports 192 → 63, since guests now leave and are replaced instead of piling up.
+    - **Browser (1280×800, new Sandbox):** 7 blackjack tables, 162 slots, 4 restrooms, 4 stalls, 2 bars, staff; cap 344 at ★95. At 4× from 14:00 on Monday: 7, 41, 80, 112, 188, 211, 263, then 311 at 22:00 and the 344 cap from 23:00 to 02:00. Then 319 at 04:00, 266 at 06:00 and 227 at 09:00, back up through 255 at 14:00, 318 at 18:00 and the cap from 19:00 to 22:00 on Tuesday. The guests tooltip read "The floor holds 342 right now… Guests come by the clock…". No errors while running.
 
 - [ ] **B4. Finance depth.**
   - Charts from `ledger.history`: revenue, win, hold %, guests and cash by hour and by day.
