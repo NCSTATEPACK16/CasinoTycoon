@@ -55,7 +55,7 @@ export const AgentKind = {
 } as const;
 export type AgentKind = (typeof AgentKind)[keyof typeof AgentKind];
 
-export const Anim = { Idle: 0, Walk: 1, Sit: 2, Play: 3, Cheer: 4, Sad: 5, Eat: 6 } as const;
+export const Anim = { Idle: 0, Walk: 1, Sit: 2, Play: 3, Cheer: 4, Sad: 5, Eat: 6, StandPlay: 7 } as const;
 export type Anim = (typeof Anim)[keyof typeof Anim];
 
 /** Floats per agent in Snapshot.agents. Order is fixed:
