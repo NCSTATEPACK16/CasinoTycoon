@@ -94,6 +94,8 @@ export interface HudView {
   scenario: { id: string; name: string; goal: string; status: 'active' | 'won' | 'lost' } | null;
   /** B1: today's conditions, for the banner. Empty or absent on a quiet day. */
   modifiers?: { id: string; name: string; blurb: string }[];
+  /** B2: the casino's standing, 0–100 (50 is unknown), and its word. */
+  reputation?: { value: number; label: string };
 }
 
 export type SimEvent =
@@ -183,7 +185,15 @@ export type Command =
   | { type: 'stats' }
   // Run N ticks synchronously in the worker and reply with their timings —
   // unaffected by background-tab timer throttling, unlike the pump.
-  | { type: 'debugTicks'; count: number };
+  | { type: 'debugTicks'; count: number }
+  // B2: the hidden sim, surfaced. Read-only views for the Rating, Patrons and
+  // Prices panels (reply types live in worker/inspect.ts), and the two
+  // actions they offer: comp a guest, and price a menu item or a drink.
+  | { type: 'rating' }
+  | { type: 'patrons' }
+  | { type: 'prices' }
+  | { type: 'sendComp'; guestId: string; kind: 'drink' | 'meal' | 'matchPlay' }
+  | { type: 'setPrice'; objectId: string; itemId: string; price: number };
 
 /** Reply to { type: 'stats' }. */
 export interface SimStats {
