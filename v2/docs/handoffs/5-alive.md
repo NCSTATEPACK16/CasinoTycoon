@@ -108,12 +108,30 @@ The user wants the casino to feel real in the lively stylized sense: the busy, w
 
 Each task lists what to build, then how to prove it. Tick it (✅) in this file with the evidence: test counts, screenshots described, fps, draw calls and triangles before → after.
 
-- [ ] **A0. Setup.**
+- [x] ✅ **A0. Setup.**
   - Get onto branch `v2-alive`, cut from `origin/v2-playable`, in your own worktree. If this session already runs in one on that branch, keep it; otherwise use the EnterWorktree tool or `git worktree add`.
   - Run `npm install` in `v2/` and create `.claude/launch.json` with `v2-alive` on port 5175.
   - Confirm the dev server renders.
   - Push the branch and open the draft PR into `v2-playable` with this checklist.
   - In the same iteration, send the user one download request: the extra CC0 sounds A2 will need (room tone/crowd murmur, slot reel spin and stop, roulette ball roll and drop, coin hopper, soft lounge music bed). Give names, URLs, sizes and licences, Kenney packs first.
+  - **Done 2026-10-24.**
+    - The app's worktree branch was renamed to `v2-alive`. It sits at 7bf4122, which is `origin/v2-playable`.
+    - `npm install` is done, and `npx tsc --noEmit` is clean.
+    - `.claude/launch.json` has `v2-alive` on 5175. The dev server renders the title menu and, on Continue, the floor (195 draw calls, 99k triangles).
+    - **Stress baseline** (in-browser furnishSandbox pattern through `place` commands: 1,971 objects, 90 staff, 500 guests; High, auto-quality pinned):
+
+      | View | Draw calls | Triangles |
+      |---|---|---|
+      | Overview (76.8 m) | 287 | 304k |
+      | Mid (30 m) | 132 | 642k |
+      | Close (10 m) | 88 | 513k |
+
+      Worker tick is 7.5–9 ms. fps could not be measured: the pane was hidden, so rAF ran at about 1 Hz. Later fps numbers need the pane visible.
+    - **Download request sent to the user:** 13 freesound clips and Kenney Impact Sounds.
+      - Every freesound page states CC0 (publicdomain/zero/1.0).
+      - The freesound originals need a login, so the plan uses the public HQ OGG previews, trimmed and re-encoded with ffmpeg.
+      - That comes to about 6.7 MB downloaded and about 2 MB kept, against the 8 MB audio budget.
+      - The list is in the PR description. The approval is pending.
 
 - [ ] **A1. Audio engine plus v1 sounds.**
   - Build `src/audio/` with the engine as designed above.
