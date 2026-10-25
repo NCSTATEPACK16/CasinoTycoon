@@ -185,13 +185,29 @@ Each task lists what to build, then how to prove it. Tick it (✅) in this file 
       fps was 33.7 vs 35.6, 36.7 vs 35.7 and 35.7 vs 34.2. No difference within noise. The pane was hidden again, with ~1 s rAF stalls, so the absolute fps doesn't count. A1 changes no render code.
     - **Found:** floating "+$" payout labels cost a draw call each. At overview, paused gives 236 calls and running 331, which breaks the 300 budget with audio on or off. This predates A1; see the note under A3.
 
-- [ ] **A2. Dealers deal; guests sit and stand where the art says.**
+- [x] ✅ **A2. Dealers deal; guests sit and stand where the art says.**
   - Dealers stand at the table's dealer edge facing the players. They play `deal` while players are seated and `idle` when the table is empty.
   - Guests snap to the catalog seat markers (position and facing) instead of the cell centre plus 0.22 m.
   - Craps uses a standing pose at the rail: a standing `play` variant. Adding the clip to `human.py` and re-baking the VAT is allowed here.
   - **Evidence:**
     - economics guard green, with crowd metrics unchanged within noise
     - close-up screenshots of a full blackjack table and a full craps table showing the dealer at the dealer edge and players on their stools and at the rail
+  - **Done 2026-10-25.**
+    - **Built:**
+      - `src/sim/agents/seats.ts`: seat markers turned into world poses with the table's rotation. `fitSeats` hands each of a table's seat cells, in seat order, the nearest stool no earlier seat took, within 1.05 m (so nobody visibly jumps). `dealerPose`/`dealerSpot` put the dealer 0.3 m behind the edge opposite the stools, facing them, on the nearest walkable non-seat perimeter cell. `playsStanding` marks craps and the big six.
+      - `Staff.ts` (A's slice): a stationed dealer plays `deal` while its table's `seatedCount` > 0 and `idle` otherwise, and walks to `dealerSpot` (the old perimeter pick is the fallback when that cell is blocked).
+      - `Guest.ts` (A's slice): guests at a standing game play the new `standplay` clip and wait on their feet (`Idle`) instead of sitting on air. The flag is set where the pose is chosen.
+      - `contracts.ts` (`contract:` commit): `Anim.StandPlay = 7`, appended.
+      - `human.py`: a 2 s looping `standplay` clip (leaning on both forearms, the right hand reaching out to lay chips or toss dice, weight shifting). VAT re-baked: 9 clips, 7.1 MB (budget 10 MB).
+      - `Crowd.ts`: `StandPlay` maps to VAT clip 8, and the shader's clip table grows from 8 to 16 entries. A guest who stands up from a stool without walking off (done playing and looking around, or cheering) eases 0.4 m back, so it doesn't stand inside the stool. In the browser such a guest lingered up to 20 s; the arrival idle lasts a single 0.1 s snapshot.
+    - **Seat cells are unchanged, on purpose.** First version: reorder `seatCellsFor` (a `world.ts` hook) so every seat index walks to the stool side. That moved the campaign measurements. `difficulty.test.ts` "rewards holding a reserve" went from managed 18 / reckless 15 to 16 / 19 and failed. With the hook removed and everything else kept, the wins per campaign and strategy are identical to HEAD: managed 7/6/5, reckless 6/5/4, greedy 7/5/5, minimal 0/0/0. Grid-mode test worlds ignore park poses, and dealer position and animation don't touch outcomes. So guests still walk to the world's one-per-side seat cells and only the pose comes from the art. Result: on blackjack the west, east and south seats land on stools (both ends and the centre), and the north seat sits on the dealer side. Craps puts three players at the rail ends and front, and one on the boxman side. See "Requests to Track B".
+    - **Tests:** `src/sim/agents/seats.test.ts`, 8 new: marker rotation, stool fitting, reach, dealer pose per rotation, world seating, dealer idle→deal, craps standing. With `world.tables`/`world.staff`: 40/40. `tsc` is clean.
+    - **Economics guard:** `src/data/campaigns`, `world.tier2`, `src/sim/agents` (crowd included), `world.tables`/`staff`/`newgames` and `src/sim/entities`: 26 files, 240/240.
+    - **Browser** (a sandbox with 35 blackjack and craps tables, 40 dealers, 220 guests; each scene caught by polling the snapshot and pausing):
+      - Blackjack, 4 seated players: three sit on stools facing the felt, reaching for the cards; the fourth sits on the dealer side. The dealer stands behind the far edge facing them, dealing (snapshot: dealer at (x+1, z−0.3), heading 0, `deal`).
+      - Craps, 4 players: all standing at the rail, leaning in on the `standplay` clip, with the dealer behind the far edge. None sit.
+      - An empty table's dealer stands idle; the clip changes to `deal` as the first player sits.
+    - **Stress scene** after A2 (High, auto-quality pinned, pane visible): overview 222 calls (max 231), 300k triangles, 53.8 fps; mid 117 calls, 582k, 53.9 fps; close 80 calls, 408k, 54.4 fps. Worker tick 8.2–9.6 ms. A2 adds no draw calls. The in-browser tick is over 7 ms, as at the A0 baseline (7.5–9 ms) with this Mac loaded. Headless `sandbox.stress.test.ts` with `NAV_PERF=1` (2,036 objects, 500 guests, 90 staff; asserts a mean tick ≤ 8 ms), alternating HEAD and A2: all four runs pass, with wall time 9.9 and 9.7 s at HEAD against 13.6 and 8.1 s with A2. That's noise; A2's per-tick cost is one `seatedCount` read per stationed dealer.
 
 - [ ] **A3. Slot reels spin and stop on the real result.**
   - Blender: split the reel window into its own reel-band mesh or material with UVs laid out down the strip, in the slot and penny cabinets.
@@ -317,3 +333,5 @@ Each task lists what to build, then how to prove it. Tick it (✅) in this file 
 ## Requests to Track B
 
 (Write here anything you need from Track B's files. Commit it and mention it in your report.)
+
+- **Seat cells on the stool side (from A2, 2026-10-25).** `CasinoWorld.seatCellsFor` hands out seats one per side: west, north, east, south. So a blackjack player and a craps player always get the dealer's side. A2 had a one-line hook that reorders those cells by the art's stools (all players on the stool side, dealer cell last, same ring and capacity). It changes nothing but where guests walk, yet it moved `difficulty.test.ts` criterion 3 from managed 18 / reckless 15 to 16 / 19 over the tournament seeds, failing it. Per campaign, managed 7/6/5→6/6/4 and reckless 6/5/4→7/6/6; greedy kept 17 in total and minimal stayed 0. That reads as a thin margin meeting trajectory noise, not a bias, but the measurement and the economics are B's. Ask: when B next retunes, either widen that margin enough to survive a change in where guests stand, or say that the reorder may land with re-measured numbers. A will then add the hook (`artSeatOrder`-style, ordering seat cells by `fitSeats`) and re-run the guard.

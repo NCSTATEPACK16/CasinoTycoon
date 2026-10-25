@@ -1,6 +1,6 @@
 import { BAR_BALANCE, STAFF_BALANCE } from '../../../data/balance';
 import { Anim } from '../../../shared/contracts';
-import { approachPose } from '../../agents/seats';
+import { approachPose, dealerSpot } from '../../agents/seats';
 import type { Cell } from '../../grid/astar';
 import { NavFilter, STAFF_SPEED } from '../../nav/NavSystem';
 import type { CasinoWorld } from '../../world';
@@ -38,6 +38,8 @@ export class Staff extends Walker {
   assignedBarId: string | null = null;
   /** Dealer only: the table it's claimed/stationed at. */
   assignedTableId: string | null = null;
+  /** Dealer only, cosmetic: someone is seated at its table, so it deals. */
+  private dealing = false;
   /** Cashier only: the cage it's claimed/stationed at. */
   assignedCageId: string | null = null;
   private workTimer = 0;
@@ -71,6 +73,10 @@ export class Staff extends Walker {
 
   get anim(): Anim {
     if (this.walking) return Anim.Walk;
+    // A stationed dealer deals while anyone sits at the table (the renderer
+    // turns a dealer's Play into the deal clip) and stands idle at an empty one.
+    if (this.kind === 'dealer' && this.state === 'stationed')
+      return this.dealing ? Anim.Play : Anim.Idle;
     return this.state === 'working' || this.state === 'brewing' ? Anim.Play : Anim.Idle;
   }
 
@@ -192,15 +198,24 @@ export class Staff extends Walker {
       this.assignedTableId = null;
       this.state = 'idle';
     }
-    if (this.state === 'stationed') return;
+    if (this.state === 'stationed') {
+      const table = this.assignedTableId ? world.machines.get(this.assignedTableId) : undefined;
+      this.dealing = !!table && 'seatedCount' in table && (table.seatedCount as number) > 0;
+      return;
+    }
+    this.dealing = false;
     if (this.state === 'toJob') {
       if (this.arrived) this.state = 'stationed';
       return;
     }
     const claim = world.claimDealerTable(this.id);
     if (!claim) return;
-    const stand = this.dealerStation(world, claim.tableId) ?? claim.stand;
-    if (this.goTo(world, stand, approachPose(world, stand, claim.tableId) ?? undefined)) {
+    // The table's dealer edge, facing the players; the old perimeter pick when
+    // that cell is blocked (a table pushed against a wall).
+    const spot = dealerSpot(world, claim.tableId);
+    const stand = spot?.cell ?? this.dealerStation(world, claim.tableId) ?? claim.stand;
+    const pose = spot?.pose ?? approachPose(world, stand, claim.tableId) ?? undefined;
+    if (this.goTo(world, stand, pose)) {
       this.assignedTableId = claim.tableId;
       this.state = 'toJob';
       return;
