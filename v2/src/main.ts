@@ -1,5 +1,6 @@
 import './style.css';
 import './ui/ui.css';
+import { GameAudio, audio } from './audio';
 import { SimClient } from './client/SimClient';
 import { PlayerControls } from './input/PlayerControls';
 import type { PlayRequestedDetail } from './input/avatar/Interaction';
@@ -7,6 +8,7 @@ import type { PickHit } from './input/Picker';
 import { Stage } from './render/Stage';
 import { Hud } from './ui/Hud';
 import { Menus } from './ui/Menus';
+import { Settings } from './ui/Settings';
 import { SidePanel } from './ui/SidePanel';
 import { TablePlay } from './ui/TablePlay';
 
@@ -23,6 +25,12 @@ const table = new TablePlay(sim);
 const menus = new Menus(sim);
 ui.append(panel.root, table.root, menus.root);
 controls.onMessage = (t) => hud.say(t);
+const settings = new Settings(audio, stage);
+settings.mount(ui);
+audio.unlockOn(window);
+const gameAudio = new GameAudio(audio, sim);
+gameAudio.watchPanels([panel.root, table.root, menus.root, settings.root]);
+gameAudio.watchClicks(ui);
 
 // ---------- sim → screen ----------
 
@@ -136,10 +144,13 @@ stage.renderer.setAnimationLoop((now) => {
       : null;
   if (sim.curr) stage.updateAgents(sim.prev, sim.curr, sim.alpha(now));
   stage.render(controls.camera);
+  audio.update(controls.camera);
 });
 
 // Title screen once the worker is up; the sim idles at speed 0 behind it.
 void sim.command({ type: 'setSpeed', speed: 0 }).then(() => menus.title());
 
 // Debug/test hook for browser playtests.
-Object.assign(window, { __v2: { sim, stage, god, build, controls, panel, table, menus } });
+Object.assign(window, {
+  __v2: { sim, stage, god, build, controls, panel, table, menus, audio, settings },
+});

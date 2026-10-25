@@ -384,3 +384,65 @@ button.slot small {
     right: 180px;
   }
 }
+
+/* Track A */
+/* ---------- settings ---------- */
+.settings-gear {
+  font-size: 16px;
+  line-height: 1;
+  padding: 8px 10px;
+}
+/* Bottom-left, above the palette: the one corner no other panel uses. */
+.settings-gear.floating {
+  position: absolute;
+  left: 12px;
+  bottom: 96px;
+}
+.settings-panel {
+  position: absolute;
+  left: 12px;
+  bottom: 140px;
+  width: 300px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.45);
+}
+.settings-panel[hidden] {
+  display: none;
+}
+.st-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.st-group h4 {
+  margin: 0 0 6px;
+  color: var(--gold);
+  font-size: 13px;
+  font-weight: 600;
+}
+.st-row {
+  display: grid;
+  grid-template-columns: 76px 1fr 42px;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 3px 0;
+}
+.st-row input[type='range'] {
+  accent-color: var(--gold);
+}
+.st-row .st-val,
+.st-row .dim {
+  text-align: right;
+  color: var(--dim);
+  white-space: nowrap;
+}
+.st-row.st-mute {
+  grid-template-columns: auto 1fr;
+}

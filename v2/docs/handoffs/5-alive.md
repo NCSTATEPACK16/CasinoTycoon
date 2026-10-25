@@ -131,9 +131,9 @@ Each task lists what to build, then how to prove it. Tick it (✅) in this file 
       - Every freesound page states CC0 (publicdomain/zero/1.0).
       - The freesound originals need a login, so the plan uses the public HQ OGG previews, trimmed and re-encoded with ffmpeg.
       - That comes to about 6.7 MB downloaded and about 2 MB kept, against the 8 MB audio budget.
-      - The list is in the PR description. The approval is pending.
+      - The list is in the PR description. The user approved it on 2026-10-25, and the files were downloaded and credited in A1.
 
-- [ ] **A1. Audio engine plus v1 sounds.**
+- [x] ✅ **A1. Audio engine plus v1 sounds.**
   - Build `src/audio/` with the engine as designed above.
   - Copy the 32 v1 OGGs into v2 (served from `v2/public/audio/` or imported through Vite) and credit them in `v2/assets/CREDITS.md`.
   - Map existing events to sounds:
@@ -147,6 +147,43 @@ Each task lists what to build, then how to prove it. Tick it (✅) in this file 
   - **Evidence:**
     - unit tests for voice limiting, bus gain and settings persistence
     - in the browser: `AudioContext.state === 'running'` after a click, a per-sound play counter rising as payouts happen, volume sliders audibly changing gain (read the gain values), and quality switching the tier
+  - **Done 2026-10-25.**
+    - **Built:**
+      - `src/audio/`:
+        - `mix.ts`: bus gains, settings persistence, the distance model, and a listener that slides down the view ray in the god view.
+        - `voices.ts`: a 24-voice limiter with per-sound caps and priority stealing, plus a token bucket.
+        - `sounds.ts`: the catalog.
+        - `AudioEngine.ts`: WebAudio buses master→sfx/ambience/ui, unlocked on the first gesture, positional voices, and gains glided on change.
+        - `GameAudio.ts`: payout coin/jackpot sounds, positional and nearest first, at most 6 coins/s, with jackpots always ringing. Place/sell/hire/error come from command outcomes; open/close from the panels' `hidden` attribute; a click for each button.
+      - `src/ui/Settings.ts`: volume sliders, mute, and quality Auto/High/Medium/Low, saved. With no `#hud-slot-a`, the gear floats bottom-left above the palette; top-right would cover the side panel's ✕.
+      - `TablePlay.ts`: shuffle on sitting at a card game, chips on each bet, a card per newly visible card, dice per roll, the roulette ball, chips plus a win sting on a winning settle.
+    - **Assets:**
+      - The 32 v1 OGGs, plus the approved batch of 17 new files (Ogg Opus) in `v2/public/audio/`. That's 1.4 MB in all, against the 8 MB budget.
+      - All 49 decode in the built-in browser, and the loop beds decode at exact lengths (crowd 15.5 s, murmur 18.2 s, lounge 51.2 s).
+      - Credited in `v2/assets/CREDITS.md`.
+    - **Big win** is a payout of at least $1,000 for now. The `payout` event carries no wager; A3's `roundFx` will, and A12 moves to 50× the bet.
+    - **Tests:** `src/audio/{voices,mix}.test.ts` and `src/ui/Settings.test.ts` cover voice limiting, rate limiting, bus gain, mute, persistence (round trip, corrupt entries, throwing storage), attenuation and listener placement: 24 tests. With `avatarPlay.test.ts`: 33/33 across 4 files. `tsc` is clean.
+    - **Browser (driven through the UI):**
+      - After a real click on Continue, `AudioContext` is `running`.
+      - Settings sliders: master 80→50% took the gain from 0.64 to 0.25, and effects 80→25% took it from 0.64 to 0.0625. Mute took master to 0. The values survived a reload.
+      - Quality: Low gave 164 draw calls, Medium 213, and Auto came back as High (239) with stepping on.
+      - Play counters rose as these happened:
+        - hire 1 from the Staff panel; sell 1 from the Inspector; place 1 from the palette
+        - shuffle 1 on sitting at blackjack; deal: chips 1 and card 3 (three face-up cards); stand: card 1 for the hole card turning over
+        - a $2,000 bet: error 1
+        - craps pass line: chips 1; roll 7: dice 1, win 1, chips 1
+        - roulette red: ball 1, win 1
+      - Floor coins under 500 guests: 6.0, 6.0 and 5.8 a second at overview, mid and close, with 1–2 voices live. In the stress build, 2,701 voices were stolen and none went over the cap.
+    - **Stress scene,** audio running vs suspended in the same session (High, auto-quality pinned):
+
+      | View | Running: calls, triangles, tick | Suspended: calls, triangles, tick |
+      |---|---|---|
+      | Overview | 292, 335k, 6.8 ms | 319, 335k, 7.9 ms |
+      | Mid | 150, 873k, 8.3 ms | 150, 875k, 8.4 ms |
+      | Close | 99, 529k, 9.0 ms | 101, 531k, 13.0 ms |
+
+      fps was 33.7 vs 35.6, 36.7 vs 35.7 and 35.7 vs 34.2. No difference within noise. The pane was hidden again, with ~1 s rAF stalls, so the absolute fps doesn't count. A1 changes no render code.
+    - **Found:** floating "+$" payout labels cost a draw call each. At overview, paused gives 236 calls and running 331, which breaks the 300 budget with audio on or off. This predates A1; see the note under A3.
 
 - [ ] **A2. Dealers deal; guests sit and stand where the art says.**
   - Dealers stand at the table's dealer edge facing the players. They play `deal` while players are seated and `idle` when the table is empty.
@@ -167,6 +204,7 @@ Each task lists what to build, then how to prove it. Tick it (✅) in this file 
     - a sequence of browser screenshots showing a spin and a stop that matches the cabinet's `lastRound`
     - payout label held until the stop
     - stress scene before → after numbers, with draw calls up by no more than a couple per cabinet type
+  - **Note from A1:** the payout labels (`Overlays.spawnPayout`) draw one sprite per label. On the stress overview at 1×, that's about 95 extra draw calls: 236 paused vs 331 running, over the 300 budget. Since this task reworks when labels appear, batch them too, into one instanced or atlas-text pool.
 
 - [ ] **A4. Wheels and dice move.**
   - Roulette: the wheel head spins and decelerates. The ball orbits, drops, bounces and settles in the pocket of the real result, using the European or American pocket order from the layout.
