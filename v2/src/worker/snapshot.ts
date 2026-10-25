@@ -195,6 +195,7 @@ export class SnapshotBuilder {
                     : 'active',
           }
         : null,
+      reputation: { value: world.reputation.value, label: world.reputation.label },
       modifiers: world.modifiers.activeModifiers.map((m) => ({
         id: m.id,
         name: m.name,

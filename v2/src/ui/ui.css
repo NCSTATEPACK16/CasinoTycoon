@@ -703,3 +703,140 @@ button.slot small {
   margin: 0;
   color: var(--dim);
 }
+
+/* ---------- B2: rating, players club, prices, comps ---------- */
+.hud-bar > .hud-rating {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 14px;
+  background: rgba(246, 196, 83, 0.08);
+}
+.hud-bar > .hud-rating:hover {
+  color: var(--gold);
+}
+/* Six tabs share the drawer's width. */
+.sp-tabs button {
+  padding: 6px 4px;
+  font-size: 13px;
+}
+.rt-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.rt-total {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--gold);
+}
+.rt-rep {
+  display: grid;
+  gap: 2px;
+  margin: 8px 0 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.rt-rep small,
+.rt-row small {
+  color: var(--dim);
+  font-size: 12px;
+}
+.rt-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 14px;
+}
+.rt-row .rt-bar,
+.rt-row small {
+  grid-column: 1 / -1;
+}
+.rt-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--gold) var(--v), rgba(255, 255, 255, 0.1) var(--v));
+}
+.rt-row.neg .rt-bar {
+  background: linear-gradient(90deg, #ff6b6b var(--v), rgba(255, 255, 255, 0.1) var(--v));
+}
+.rt-row.hurting .rt-val {
+  color: #ff6b6b;
+}
+.patron {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid #b8c0cc;
+  border-radius: 8px;
+}
+.patron.tier-gold {
+  border-left-color: var(--gold);
+}
+.patron.tier-black {
+  border-left-color: #ff6b6b;
+  background: rgba(0, 0, 0, 0.25);
+}
+.patron-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.patron-head .where {
+  margin-left: auto;
+  font-size: 12px;
+}
+.patron .tier {
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #1b1325;
+  background: #b8c0cc;
+}
+.patron.tier-gold .tier {
+  background: var(--gold);
+}
+.patron.tier-black .tier {
+  color: var(--gold);
+  background: #000;
+  border: 1px solid var(--gold);
+}
+.patron-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--gold) var(--v), rgba(255, 255, 255, 0.1) var(--v));
+}
+.comp-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.comp-row button small {
+  color: var(--gold);
+  margin-left: 4px;
+}
+.comp-row button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.price-card {
+  margin: 10px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.price-card h4 {
+  margin: 0 0 4px;
+}
+table.prices input {
+  width: 72px;
+}
+table.prices td {
+  vertical-align: middle;
+}

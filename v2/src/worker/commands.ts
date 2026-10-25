@@ -1,6 +1,7 @@
 // Command dispatch for the sim worker. Kept apart from the Worker global so
 // tests can drive a world exactly the way the UI does.
 
+import { COMPS, type CompKind } from '../data/balance';
 import { getCampaign } from '../data/campaigns';
 import type { Command, SimStats } from '../shared/contracts';
 import {
@@ -12,7 +13,16 @@ import {
 } from '../sim/build';
 import type { StaffKind } from '../sim/entities/staff/Staff';
 import type { CasinoWorld, CasinoWorldJSON } from '../sim/world';
-import { financials, inspectAgent, inspectObject, scenarioList, staffList } from './inspect';
+import {
+  financials,
+  inspectAgent,
+  inspectObject,
+  patronList,
+  priceList,
+  ratingReport,
+  scenarioList,
+  staffList,
+} from './inspect';
 import type { SnapshotBuilder } from './snapshot';
 
 export type CommandResult = { ok: true; data?: unknown } | { ok: false; error: string };
@@ -191,7 +201,38 @@ export function runCommand(world: CasinoWorld, snap: SnapshotBuilder, cmd: Comma
     case 'continueScenario':
       world.scenario?.continue();
       return { ok: true };
+    case 'rating':
+      return { ok: true, data: ratingReport(world) };
+    case 'patrons':
+      return { ok: true, data: patronList(world) };
+    case 'prices':
+      return { ok: true, data: priceList(world) };
+    case 'sendComp':
+      return world.sendComp(cmd.guestId, cmd.kind)
+        ? { ok: true, data: inspectAgentById(world, cmd.guestId) }
+        : { ok: false, error: compRefusal(world, cmd.guestId, cmd.kind) };
+    case 'setPrice': {
+      const applied = world.setPrice(cmd.objectId, cmd.itemId, cmd.price);
+      return applied === null
+        ? { ok: false, error: 'nothing to price there' }
+        : { ok: true, data: applied };
+    }
     default:
       return { ok: false, error: `${(cmd as Command).type} not implemented` };
   }
+}
+
+/** The guest's inspector view after a comp, so the panel can redraw at once. */
+function inspectAgentById(world: CasinoWorld, guestId: string): unknown {
+  return inspectAgent(world, Number(guestId.replace(/\D+/g, '')) || 0);
+}
+
+/** Why a comp was refused, in the player's terms. */
+function compRefusal(world: CasinoWorld, guestId: string, kind: CompKind): string {
+  const g = world.guests.get(guestId);
+  if (!g || g.state === 'gone') return 'They have already left.';
+  if (!g.compEligible) return 'Not yet: they have to play a while before a comp means anything.';
+  if (COMPS.compUnit[kind] > g.compHeadroom())
+    return 'They have had all the comps this visit allows.';
+  return 'The comp could not be given.';
 }

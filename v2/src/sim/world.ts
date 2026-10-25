@@ -20,6 +20,8 @@ import {
   ENGINE_BALANCE,
   GUEST_BALANCE,
   MESS_BALANCE,
+  PRICE_BALANCE,
+  priceAppeal,
   RAGE_BALANCE,
   RATING_BALANCE,
   REPUTATION,
@@ -1058,7 +1060,7 @@ export class CasinoWorld {
       if (!purchase) return;
       guest.wallet -= purchase.price;
       guest.needs.thirst = BAR_BALANCE.thirstRestore;
-      guest.adjustHappiness(BAR_BALANCE.happinessOnDelivery);
+      guest.drinkMood(this, purchase.ripoff, BAR_BALANCE.happinessOnDelivery);
       guest.waitingForDrink = false;
       return;
     }
@@ -1462,17 +1464,55 @@ export class CasinoWorld {
     return true;
   }
 
-  /** An operational food stall: has at least one unlocked item the wallet can afford. */
+  /** An operational food stall: has at least one unlocked item the wallet can
+   *  afford. The cheapest such stall wins (B2); ties keep placement order, so a
+   *  casino whose stalls share a price list picks exactly as before. */
   findFoodStall(wallet: number): { standId: string; stand: Cell } | null {
+    let best: { standId: string; stand: Cell } | null = null;
+    let bestIndex = Infinity;
     for (const po of this.state.allObjects()) {
       if (po.defId !== 'food-stall') continue;
       const stall = this.foodStalls.get(po.id);
-      if (!stall || !stall.pickAffordableItem(wallet, this.rng)) continue;
+      if (!stall || stall.priceIndex >= bestIndex) continue;
+      if (!stall.pickAffordableItem(wallet, this.rng)) continue;
       const stand = this.standTileFor(po);
       if (!stand) continue;
-      return { standId: po.id, stand };
+      best = { standId: po.id, stand };
+      bestIndex = stall.priceIndex;
     }
-    return null;
+    return best;
+  }
+
+  /**
+   * B2 — how much the prices of a kind of service draw custom: priceAppeal of
+   * the cheapest one on the floor, since that is the one a guest would pick.
+   * Exactly 1 at default prices.
+   */
+  serviceAppeal(kind: 'food-stall' | 'bar'): number {
+    let index = Infinity;
+    const all = kind === 'bar' ? this.bars.values() : this.foodStalls.values();
+    for (const s of all) index = Math.min(index, s.priceIndex);
+    return index === Infinity ? 1 : priceAppeal(index);
+  }
+
+  /**
+   * B2 — the player prices a menu item ('burger', ...) at a food stall, or the
+   * drink ('drink') at a bar. Clamped to the object's band; returns the price
+   * as applied, or null when there is no such object or item.
+   */
+  setPrice(objectId: string, itemId: string, price: number): number | null {
+    if (!Number.isFinite(price)) return null;
+    const bar = this.bars.get(objectId);
+    if (bar) {
+      if (itemId !== 'drink') return null;
+      bar.setPrice(price);
+      return bar.price;
+    }
+    const stall = this.foodStalls.get(objectId);
+    const item = stall?.items.find((m) => m.id === itemId);
+    if (!stall || !item) return null;
+    stall.setPrice(itemId, price);
+    return item.currentPrice;
   }
 
   /** Buy a random unlocked, affordable item from the stall; null if nothing qualifies anymore. */
@@ -1493,38 +1533,45 @@ export class CasinoWorld {
     return purchase;
   }
 
-  /** An operational bar: has stock and a walkable stand tile. */
+  /** An operational bar: has stock and a walkable stand tile. The cheapest
+   *  wins (B2); ties keep placement order, as findFoodStall. */
   findBar(): { barId: string; stand: Cell } | null {
+    let best: { barId: string; stand: Cell } | null = null;
+    let bestIndex = Infinity;
     for (const po of this.state.allObjects()) {
       if (po.defId !== 'bar') continue;
       const bar = this.bars.get(po.id);
-      if (!bar || !bar.hasStock()) continue;
+      if (!bar || !bar.hasStock() || bar.priceIndex >= bestIndex) continue;
       const stand = this.standTileFor(po);
       if (!stand) continue;
-      return { barId: po.id, stand };
+      best = { barId: po.id, stand };
+      bestIndex = bar.priceIndex;
     }
-    return null;
+    return best;
   }
 
-  /** Bartender production: one drink into stock, charged as an expense. */
+  /** Bartender production: one drink into stock, charged as an expense. A
+   *  full bar pours nothing and costs nothing (B2: it used to book $4 every
+   *  brew regardless, ~$300 a day against a few drinks sold). */
   brewDrink(barId: string): void {
     const bar = this.bars.get(barId);
-    if (!bar) return;
-    bar.brew();
+    if (!bar || !bar.brew()) return;
     this.ledger.addExpense(BAR_BALANCE.drinkCost);
     this.ledger.accrue(barId, 'bar', { upkeep: BAR_BALANCE.drinkCost });
   }
 
-  /** Self-serve or delivered sale: null if unaffordable or out of stock. */
-  buyDrink(barId: string, wallet: number): { price: number } | null {
+  /** Self-serve or delivered sale at the bar's own price: null if
+   *  unaffordable or out of stock. `ripoff` past PRICE_BALANCE.ripoffIndex. */
+  buyDrink(barId: string, wallet: number): { price: number; ripoff: boolean } | null {
     const bar = this.bars.get(barId);
-    if (!bar || !bar.hasStock() || wallet < BAR_BALANCE.drinkPrice) return null;
+    if (!bar || !bar.hasStock() || wallet < bar.price) return null;
     if (!bar.takeDrink()) return null;
-    this.state.cash += BAR_BALANCE.drinkPrice;
-    this.ledger.addRevenue(BAR_BALANCE.drinkPrice);
-    this.ledger.accrue(barId, 'bar', { revenue: BAR_BALANCE.drinkPrice });
-    eventBus.emit('moneyChanged', { cash: this.state.cash, delta: BAR_BALANCE.drinkPrice });
-    return { price: BAR_BALANCE.drinkPrice };
+    const price = bar.price;
+    this.state.cash += price;
+    this.ledger.addRevenue(price);
+    this.ledger.accrue(barId, 'bar', { revenue: price });
+    eventBus.emit('moneyChanged', { cash: this.state.cash, delta: price });
+    return { price, ripoff: bar.priceIndex > PRICE_BALANCE.ripoffIndex };
   }
 
   /** Public wrapper so Staff.ts (bartender) can reach a bar's stand tile

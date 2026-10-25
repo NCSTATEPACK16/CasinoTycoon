@@ -19,7 +19,13 @@ const SPEEDS: Speed[] = [0, 1, 2, 4];
 
 export class Hud {
   private bar: HTMLElement;
+  /** The bar's fields, built once and patched: the bar updates many times a
+   *  second, and rebuilding it would swallow clicks on the rating button. */
+  private f: Record<'cash' | 'time' | 'paused' | 'guests' | 'today' | 'goal', HTMLElement>;
+  private ratingBtn: HTMLButtonElement;
   private toast: HTMLElement;
+  /** The rating button: main.ts opens the rating breakdown. */
+  onRating: () => void = () => {};
   private speedButtons = new Map<Speed, HTMLElement>();
   private conditions = new ConditionsBanner();
   readonly ticker = new Ticker();
@@ -39,6 +45,19 @@ export class Hud {
     const top = el('div', 'hud-top');
     const row = el('div', 'hud-row');
     this.bar = el('div', 'hud-bar');
+    this.f = {
+      cash: el('b', ''),
+      time: el('span', ''),
+      paused: el('span', 'paused-badge', 'Paused'),
+      guests: el('span', ''),
+      today: el('span', ''),
+      goal: el('span', 'dim goal'),
+    };
+    this.ratingBtn = el('button', 'hud-rating') as HTMLButtonElement;
+    this.ratingBtn.title = 'Rating and reputation: what makes them and what to do';
+    this.ratingBtn.onclick = () => this.onRating();
+    const f = this.f;
+    this.bar.append(f.cash, f.time, f.paused, this.ratingBtn, f.guests, f.today, f.goal);
     const speeds = el('div', 'hud-speeds');
     for (const s of SPEEDS) {
       const b = el('button', '', s === 0 ? '❚❚' : `${s}×`);
@@ -139,10 +158,20 @@ export class Hud {
     this.current = s;
     if (s > 0) this.resumeTo = s;
     for (const [k, b] of this.speedButtons) b.classList.toggle('active', k === s);
-    const t = `Day ${h.day} · ${String(h.hour).padStart(2, '0')}:00`;
+    const f = this.f;
     const sc = h.scenario ? `${h.scenario.name}: ${h.scenario.goal}` : 'Sandbox';
-    const paused = s === 0 ? '<span class="paused-badge">Paused</span>' : '';
-    this.bar.innerHTML = `<b>${money(h.cash)}</b><span>${t}</span>${paused}<span>★ ${Math.round(h.rating)}</span><span>${h.guests} guests</span><span>Today ${money(h.todayProfit)}</span><span class="dim goal" title="${sc.replace(/"/g, '&quot;')}">${sc}</span>`;
+    setText(f.cash, money(h.cash));
+    setText(f.time, `Day ${h.day} · ${String(h.hour).padStart(2, '0')}:00`);
+    f.paused.hidden = s !== 0;
+    const rep = h.reputation;
+    setText(
+      this.ratingBtn,
+      `★ ${Math.round(h.rating)}${rep ? ` · ${rep.label} ${Math.round(rep.value)}` : ''}`,
+    );
+    setText(f.guests, `${h.guests} guests`);
+    setText(f.today, `Today ${money(h.todayProfit)}`);
+    setText(f.goal, sc);
+    f.goal.title = sc;
     this.conditions.update(h.modifiers);
   }
 
@@ -156,6 +185,10 @@ export class Hud {
     void this.toast.offsetWidth;
     this.toast.classList.add('show');
   }
+}
+
+function setText(n: HTMLElement, text: string): void {
+  if (n.textContent !== text) n.textContent = text;
 }
 
 function el(tag: string, cls: string, html = ''): HTMLElement {

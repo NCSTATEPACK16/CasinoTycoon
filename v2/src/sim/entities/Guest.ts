@@ -645,7 +645,12 @@ export class Guest extends Walker {
       this.stopPlaying(world);
       return;
     }
-    if (!this.waitingForDrink && this.needs.thirst < b.needThreshold) {
+    // B2: at a dear bar a seated guest holds out longer before ordering.
+    if (
+      !this.waitingForDrink &&
+      this.needs.thirst < b.needThreshold &&
+      this.needs.thirst < b.needThreshold * Math.min(1, world.serviceAppeal('bar'))
+    ) {
       this.waitingForDrink = true;
     }
     this.spinTimer++;
@@ -741,7 +746,7 @@ export class Guest extends Walker {
       if (purchase) {
         this.wallet -= purchase.price;
         this.needs.thirst = BAR_BALANCE.thirstRestore;
-        this.adjustHappiness(BAR_BALANCE.happinessOnSelfServe);
+        this.drinkMood(world, purchase.ripoff, BAR_BALANCE.happinessOnSelfServe);
         if (++this.drinks >= AI.drunkAfterDrinks && !this.drunk) {
           this.drunk = true;
           this.recordThought(world.tickCount, 'drunk', 'One more and I’ll own this place!');
@@ -778,6 +783,14 @@ export class Guest extends Walker {
     }
     this.state = 'leaving';
     if (!this.goTo(world, world.entranceTile)) this.state = 'gone';
+  }
+
+  /** How a drink went down: the usual lift, or resentment at a price past
+   *  PRICE_BALANCE.ripoffIndex (the same hit as a food rip-off). */
+  drinkMood(world: CasinoWorld, ripoff: boolean, happiness: number): void {
+    if (!ripoff) return this.adjustHappiness(happiness);
+    this.adjustHappiness(FOOD_BALANCE.happinessOnRipoff);
+    this.recordThought(world.tickCount, 'ripoff', 'Who charges that for a drink?');
   }
 
   adjustHappiness(delta: number): void {

@@ -10,7 +10,7 @@ import { Menus } from './ui/Menus';
 import { SidePanel } from './ui/SidePanel';
 import { TablePlay } from './ui/TablePlay';
 import { HelpOverlay } from './ui/panels/HelpOverlay';
-import { locate } from './ui/panels/locate';
+import { guestPosition, locate } from './ui/panels/locate';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#view')!;
 const ui = document.querySelector<HTMLElement>('#ui')!;
@@ -72,6 +72,13 @@ hud.menu.load.onclick = () => {
   );
 };
 hud.menu.help.onclick = () => help.toggle();
+hud.onRating = () => panel.toggle('rating');
+panel.onMessage = (t) => hud.say(t);
+panel.onLocateGuest = (agentId) => {
+  const at = guestPosition(sim.curr, agentId);
+  if (at && !locate({ ...at, agentId }, { sim, controls, stage, panel }))
+    hud.say('Stand up from the table first (F)');
+};
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
   if (e.key === '?') return help.toggle();
@@ -83,6 +90,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'Space') hud.spaceKey(e);
   if (e.code === 'KeyP') panel.toggle('finances');
   if (e.code === 'KeyH') panel.toggle('staff');
+  if (e.code === 'KeyC') panel.toggle('patrons');
   if (e.code === 'KeyZ') stage.showZoneOverlay((zonesOn = !zonesOn));
 });
 let zonesOn = false;

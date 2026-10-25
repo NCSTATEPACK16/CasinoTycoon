@@ -1,16 +1,31 @@
 // The right-hand management drawer: Inspector (any object, guest or staff,
-// with the rules editor for real games), Finances (the CFO view) and Staff
-// (hire/fire). It polls the worker once a second while open — cheap, and the
-// numbers it shows only change on the sim's timescale anyway.
+// with the rules editor for real games, prices for food and drink, comps for
+// guests), Finances (the CFO view), Staff (hire/fire), and B2's Rating,
+// players Club and Prices. It polls the worker once a second while open —
+// cheap, and the numbers it shows only change on the sim's timescale anyway.
+// Anything with a button is built once and patched, never rebuilt by a poll:
+// a rebuild swaps the button out from under a press and the click is lost.
 
 import type { SimClient } from '../client/SimClient';
 import type { CasinoFinancials, PeriodPnl } from '../sim/economy/financials';
 import type { GameKind } from '../shared/games';
-import type { InspectResult, MachineInspect, StaffInspect } from '../worker/inspect';
+import type {
+  GuestInspect,
+  InspectResult,
+  MachineInspect,
+  PatronView,
+  PricedObject,
+  RatingReport,
+  StaffInspect,
+} from '../worker/inspect';
 import { button, el, escapeHtml, money, pct } from './dom';
+import { compButtons, compStatus, type CompKind } from './panels/comps';
+import { PatronsPanel } from './panels/PatronsPanel';
+import { PricesPanel } from './panels/PricesPanel';
+import { RatingPanel } from './panels/RatingPanel';
 import { RULE_FIELDS, type RuleField } from './rulesSchema';
 
-export type PanelTab = 'inspect' | 'finances' | 'staff';
+export type PanelTab = 'inspect' | 'finances' | 'staff' | 'rating' | 'patrons' | 'prices';
 type Target = { objectId: string } | { agentId: number };
 
 const HIRE: { kind: string; label: string; blurb: string }[] = [
@@ -20,6 +35,16 @@ const HIRE: { kind: string; label: string; blurb: string }[] = [
   { kind: 'mechanic', label: 'Mechanic', blurb: 'Repairs broken machines.' },
   { kind: 'bartender', label: 'Bartender', blurb: 'Staffs a bar.' },
   { kind: 'cashier', label: 'Cashier', blurb: 'Staffs the cage.' },
+  {
+    kind: 'waitress',
+    label: 'Waitress',
+    blurb: 'Carries drinks from the bar to seated players, so they keep playing.',
+  },
+  {
+    kind: 'pitBoss',
+    label: 'Pit boss',
+    blurb: 'Watches the floor. Counts toward the security rating.',
+  },
 ];
 
 export class SidePanel {
@@ -31,7 +56,16 @@ export class SidePanel {
   private timer = 0;
   onSell: (objectId: string) => void = () => {};
   onFollow: (agentId: number) => void = () => {};
+  /** Take the camera to a guest on the floor (by numeric agent id). */
+  onLocateGuest: (agentId: number) => void = () => {};
   onClose: () => void = () => {};
+  /** A comp or price action's outcome, for the toast. */
+  onMessage: (text: string) => void = () => {};
+  private rating = new RatingPanel();
+  private patrons = new PatronsPanel();
+  private prices = new PricesPanel();
+  /** The price editor inside a food stall's or bar's inspector. */
+  private inspectPrices: PricesPanel | null = null;
 
   constructor(private sim: SimClient) {
     const head = el('div', 'sp-tabs');
@@ -39,6 +73,9 @@ export class SidePanel {
       ['inspect', 'Inspector'],
       ['finances', 'Finances'],
       ['staff', 'Staff'],
+      ['rating', 'Rating'],
+      ['patrons', 'Club'],
+      ['prices', 'Prices'],
     ] as const) {
       const b = button(label, () => this.open(t));
       this.tabs.set(t, b);
@@ -47,6 +84,23 @@ export class SidePanel {
     head.append(button('✕', () => this.close(), 'sp-close'));
     this.root.append(head, this.body);
     this.root.hidden = true;
+    this.patrons.onComp = (guestId, kind) => void this.comp(guestId, kind);
+    this.patrons.onLocate = (agentId) => this.onLocateGuest(agentId);
+    this.prices.onSetPrice = (objectId, itemId, price) => this.setPrice(objectId, itemId, price);
+  }
+
+  private async comp(guestId: string, kind: CompKind): Promise<void> {
+    try {
+      await this.sim.command({ type: 'sendComp', guestId, kind });
+      this.onMessage(`Comp sent: ${kind === 'matchPlay' ? 'match play' : `a ${kind}`}.`);
+    } catch (err) {
+      this.onMessage((err as Error).message);
+    }
+    await this.refresh(false);
+  }
+
+  private setPrice(objectId: string, itemId: string, price: number): Promise<number> {
+    return this.sim.command<number>({ type: 'setPrice', objectId, itemId, price });
   }
 
   get isOpen(): boolean {
@@ -68,6 +122,10 @@ export class SidePanel {
     this.root.hidden = false;
     for (const [k, b] of this.tabs) b.classList.toggle('active', k === t);
     this.body.innerHTML = '';
+    this.inspectPrices = null;
+    if (t === 'rating') this.body.append(this.rating.root);
+    if (t === 'patrons') this.body.append(this.patrons.root);
+    if (t === 'prices') this.body.append(this.prices.root);
     window.clearInterval(this.timer);
     void this.refresh(true);
     this.timer = window.setInterval(() => void this.refresh(false), 1000);
@@ -90,6 +148,12 @@ export class SidePanel {
         );
       else if (t === 'staff')
         this.renderStaff(await this.sim.command<StaffInspect[]>({ type: 'staffList' }));
+      else if (t === 'rating')
+        this.rating.update(await this.sim.command<RatingReport>({ type: 'rating' }));
+      else if (t === 'patrons')
+        this.patrons.update(await this.sim.command<PatronView[]>({ type: 'patrons' }));
+      else if (t === 'prices')
+        this.prices.update(await this.sim.command<PricedObject[]>({ type: 'prices' }));
     } catch (err) {
       if (t === 'inspect')
         this.body.innerHTML = `<p class="dim">${escapeHtml((err as Error).message)}</p>`;
@@ -107,28 +171,37 @@ export class SidePanel {
     const v = await this.sim.command<InspectResult>({ type: 'inspect', target: this.target });
     // A machine's form is built once per target: a poll only patches numbers,
     // or a rebuild would close a dropdown the player has open.
-    if (!first && v.kind === 'object' && this.body.querySelector('.sp-stats'))
-      return this.patchStats(v);
+    if (!first && v.kind === 'object' && this.body.querySelector('.sp-stats')) {
+      this.patchStats(v);
+      return this.refreshInspectPrices();
+    }
+    if (!first && v.kind === 'guest' && this.body.dataset.guest === v.id) return this.patchGuest(v);
     this.body.innerHTML = '';
-    if (v.kind === 'object') this.renderMachine(v);
-    else if (v.kind === 'guest') {
-      const n = v.needs;
+    delete this.body.dataset.guest;
+    this.inspectPrices = null;
+    if (v.kind === 'object') {
+      this.renderMachine(v);
+      if (v.defId === 'food-stall' || v.defId === 'bar') {
+        const prices = new PricesPanel(v.id);
+        prices.onSetPrice = (objectId, itemId, price) => this.setPrice(objectId, itemId, price);
+        this.inspectPrices = prices;
+        this.body.insertBefore(prices.root, this.body.lastElementChild);
+        await this.refreshInspectPrices();
+      }
+    } else if (v.kind === 'guest') {
+      this.body.dataset.guest = v.id;
       this.body.append(
         el('h3', '', escapeHtml(v.name)),
-        el('p', 'dim', `${v.archetype} · ${v.state}`),
-        statGrid([
-          ['Wallet', money(v.wallet, true)],
-          ['Bankroll', v.bankroll ? money(v.bankroll.bankroll) : '—'],
-          ['Stop-loss', v.bankroll ? pct(v.bankroll.stopLoss, 0) : '—'],
-          ['Win goal', v.bankroll ? pct(v.bankroll.winGoal, 0) : '—'],
-          ['BJ error rate', v.bankroll ? pct(v.bankroll.bjError, 0) : '—'],
-        ]),
-        needsBars(n),
+        el('p', 'dim g-sub'),
+        el('div', 'g-stats'),
+        el('div', 'g-needs'),
+        el('div', 'g-thought'),
+        el('div', 'g-comp'),
       );
-      if (v.thought) this.body.append(el('blockquote', 'thought', `“${escapeHtml(v.thought)}”`));
       const target = this.target;
       if ('agentId' in target)
         this.body.append(button('Follow', () => this.onFollow(target.agentId)));
+      this.patchGuest(v);
     } else {
       this.body.append(
         el('h3', '', `${cap(v.role)} <span class="dim">${v.id}</span>`),
@@ -144,6 +217,40 @@ export class SidePanel {
         ),
       );
     }
+  }
+
+  private async refreshInspectPrices(): Promise<void> {
+    if (!this.inspectPrices) return;
+    this.inspectPrices.update(await this.sim.command<PricedObject[]>({ type: 'prices' }));
+  }
+
+  /** The guest view's moving parts; the comp buttons only when their state changes. */
+  private patchGuest(v: GuestInspect): void {
+    const q = (cls: string) => this.body.querySelector<HTMLElement>(cls)!;
+    const club = v.patron ? ` · <b class="warn">${v.patron.tier} card</b>` : '';
+    q('.g-sub').innerHTML = `${escapeHtml(v.archetype)} · ${escapeHtml(v.state)}${club}`;
+    q('.g-stats').replaceChildren(
+      statGrid([
+        ['Wallet', money(v.wallet, true)],
+        ['Bankroll', v.bankroll ? money(v.bankroll.bankroll) : '—'],
+        ['Stop-loss', v.bankroll ? pct(v.bankroll.stopLoss, 0) : '—'],
+        ['Win goal', v.bankroll ? pct(v.bankroll.winGoal, 0) : '—'],
+        ['BJ error rate', v.bankroll ? pct(v.bankroll.bjError, 0) : '—'],
+      ]),
+    );
+    q('.g-needs').replaceChildren(needsBars(v.needs));
+    q('.g-thought').replaceChildren(
+      ...(v.thought ? [el('blockquote', 'thought', `“${escapeHtml(v.thought)}”`)] : []),
+    );
+    const comp = q('.g-comp');
+    const key = JSON.stringify(v.comp);
+    if (comp.dataset.key === key) return;
+    comp.dataset.key = key;
+    comp.replaceChildren(
+      el('h4', '', 'Comps'),
+      el('p', 'small dim', compStatus(v.comp)),
+      compButtons(v.comp, (kind) => void this.comp(v.id, kind)),
+    );
   }
 
   private renderMachine(v: MachineInspect): void {
