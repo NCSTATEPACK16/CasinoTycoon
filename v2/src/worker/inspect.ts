@@ -6,6 +6,7 @@ import { SCENARIOS } from '../data/campaigns';
 import { getObjectDef } from '../data/objects';
 import { SeatedCasinoGame } from '../sim/entities/machines/SeatedCasinoGame';
 import { casinoFinancials, type CasinoFinancials } from '../sim/economy/financials';
+import type { RoundFx } from '../shared/contracts';
 import type { CasinoWorld } from '../sim/world';
 
 export interface MachineInspect {
@@ -29,6 +30,8 @@ export interface MachineInspect {
   } | null;
   /** Today's books for this object, from the ledger. */
   today: { handle: number; win: number; hold: number | null; theo: number; rounds: number } | null;
+  /** The last round a guest played here, as the floor shows it (Track A). */
+  lastRound?: RoundFx | null;
 }
 
 export interface GuestInspect {
