@@ -195,7 +195,15 @@ export type Command =
   | { type: 'patrons' }
   | { type: 'prices' }
   | { type: 'sendComp'; guestId: string; kind: 'drink' | 'meal' | 'matchPlay' }
-  | { type: 'setPrice'; objectId: string; itemId: string; price: number };
+  | { type: 'setPrice'; objectId: string; itemId: string; price: number }
+  // B4: finance depth. Chart series from the ledger's history, the report
+  // card for a closed day (the latest when no day is given), and loans
+  // (reply types live in worker/finance.ts).
+  | { type: 'financeHistory' }
+  | { type: 'dayReport'; day?: number }
+  | { type: 'loans' }
+  | { type: 'takeLoan'; amount: number; days: number }
+  | { type: 'repayLoan'; loanId: string; amount: number };
 
 /** Reply to { type: 'stats' }. */
 export interface SimStats {
