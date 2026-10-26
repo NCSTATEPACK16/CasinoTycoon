@@ -18,6 +18,7 @@ import {
   type CompKind,
   DEALER_BALANCE,
   DEBT,
+  LOANS,
   ENGINE_BALANCE,
   GUEST_BALANCE,
   MESS_BALANCE,
@@ -54,6 +55,7 @@ import { HOUSE_SOURCES, Ledger, type LedgerJSON } from './economy';
 import { MoodField, type MoodFieldJSON } from './MoodField';
 import { TrafficField, type TrafficFieldJSON } from './TrafficField';
 import { ModifierSystem, type ModifierSystemJSON } from './modifiers';
+import { LoanBook, type Loan, type LoanBookJSON } from './economy/loans';
 import { type Patron, PatronRegistry, type PatronRegistryJSON } from './patrons';
 import { Reputation, type ReputationJSON } from './reputation';
 import { ScenarioManager, type ScenarioJSON } from './scenario/ScenarioManager';
@@ -199,6 +201,8 @@ export interface CasinoWorldJSON {
   /** P3 — the carded roster. Required from SAVE_VERSION 4 up; older files get
    *  an empty registry from the migration ladder rather than a missing key. */
   patrons: PatronRegistryJSON;
+  /** B4: absent in older saves. */
+  loans?: LoanBookJSON;
   /** Optional: added after SAVE_VERSION 3, and absent from both a v3 save
    *  written before it and a v2 file migrated up. `MoodField.fromJSON` starts
    *  empty in either case, which is exactly right — a returning player's mood
@@ -256,6 +260,7 @@ export class CasinoWorld {
   /** P3/A1b — the bounded roster of carded patrons. Data records, not agents:
    *  nothing here ticks, and a record only becomes a live Guest on a visit. */
   patrons = new PatronRegistry();
+  loans = new LoanBook();
   scenario: ScenarioManager | null = null;
   tickCount = 0;
   entranceTile: Cell = { ...ENTRANCE_TILE };
@@ -393,6 +398,7 @@ export class CasinoWorld {
     this.mood = new MoodField(cols, rows);
     this.traffic = new TrafficField(cols, rows);
     this.patrons = new PatronRegistry();
+    this.loans = new LoanBook();
     this.tickCount = 0;
     this.nextGuestNum = 1;
     this.nextMessNum = 1;
@@ -531,7 +537,7 @@ export class CasinoWorld {
       this.chargeUpkeep();
       for (const guest of this.guests.values()) this.foldGuestSession(guest);
     }
-    this.ledger.closeHour(closedDay, closedHour, this.guests.size);
+    this.ledger.closeHour(closedDay, closedHour, this.guests.size, this.state.cash);
     eventBus.emit('hourPassed', { hour: this.time.hour, day: this.time.day });
     if (midnight) {
       // Settle the closing day's conditions before the books close, so a fine
@@ -544,13 +550,15 @@ export class CasinoWorld {
         this.ledger.addExpense(penalty);
         this.ledger.accrue(HOUSE_SOURCES.fines.id, HOUSE_SOURCES.fines.defId, { upkeep: penalty });
         eventBus.emit('moneyChanged', { cash: this.state.cash, delta: -penalty });
-        eventBus.emit('tickerMessage', {
-          text: `${reasons.join(' and ')} failed — ${formatDollarAmount(penalty)} in fines.`,
-          severity: 'alert',
-        });
+        const text = `${reasons.join(' and ')} failed — ${formatDollarAmount(penalty)} in fines.`;
+        this.ledger.note(text);
+        eventBus.emit('tickerMessage', { text, severity: 'alert' });
       }
       const repDelta = this.reputation.closeDay();
       eventBus.emit('reputationChanged', { value: this.reputation.value, delta: repDelta });
+      // B4: loan installments, before the overdraft interest, so a payment
+      // that tips the house into the red is charged for it like any other.
+      this.settleLoans();
       // P16: interest on the closing balance, charged before the books close
       // so the cost of the debt lands in the day that ran it — the same
       // reasoning as the modifier fine above.
@@ -562,15 +570,17 @@ export class CasinoWorld {
           upkeep: interest,
         });
         eventBus.emit('moneyChanged', { cash: this.state.cash, delta: -interest });
-        eventBus.emit('tickerMessage', {
-          text: `Interest on the overdraft — ${formatDollarAmount(interest)}.`,
-          severity: 'alert',
-        });
+        const text = `Interest on the overdraft — ${formatDollarAmount(interest)}.`;
+        this.ledger.note(text);
+        eventBus.emit('tickerMessage', { text, severity: 'alert' });
       }
       const record = this.ledger.closeDay(closedDay, {
         reputation: this.reputation.value,
         reputationDelta: repDelta,
         modifierIds,
+        rating: this.rating,
+        cash: this.state.cash,
+        debt: this.loans.outstanding,
       });
       this.scenario?.onDayEnded(record);
       // P16: the bank takes what it is owed. After onDayEnded, so a day that
@@ -578,7 +588,7 @@ export class CasinoWorld {
       // The tick-level check above will already have sold against any breach
       // during the day; this catches the one the close itself just opened,
       // since upkeep, wages, interest and fines all land immediately above.
-      this.liquidateToLimit();
+      this.liquidateToLimit(record.notes);
       if (
         (this.scenario?.status === 'active' || this.scenario?.status === 'endless') &&
         this.state.cash < -this.creditLimit
@@ -793,13 +803,71 @@ export class CasinoWorld {
     return net;
   }
 
+  // ---------- B4: loans ----------
+
+  /** The most the bank will have out on loan at once, for this scenario. */
+  get loanLimit(): number {
+    return this.scenario?.def.loanLimit ?? LOANS.defaultLimit;
+  }
+
+  /** Borrow `amount` (rounded to LOANS.step) over a term on offer. The cash
+   *  is financing, not revenue: it moves the balance, never the day's P&L. */
+  takeLoan(amount: number, days: number): Loan | null {
+    const step = LOANS.step;
+    const rounded = Math.floor(amount / step) * step;
+    const loan = this.loans.take(rounded, days, this.time.day, this.loanLimit);
+    if (!loan) return null;
+    this.state.cash += loan.principal;
+    eventBus.emit('moneyChanged', { cash: this.state.cash, delta: loan.principal });
+    const text = `Borrowed ${formatDollarAmount(loan.principal)} over ${days} days.`;
+    this.ledger.note(text);
+    eventBus.emit('tickerMessage', { text });
+    return loan;
+  }
+
+  /** Pay a loan down early from cash on hand. Returns what was paid. */
+  repayLoan(loanId: string, amount: number): number {
+    const paid = this.loans.repay(loanId, Math.min(amount, Math.max(0, this.state.cash)));
+    if (paid <= 0) return 0;
+    this.state.cash -= paid;
+    eventBus.emit('moneyChanged', { cash: this.state.cash, delta: -paid });
+    if (!this.loans.loans.some((l) => l.id === loanId)) {
+      const text = 'A loan was paid off early.';
+      this.ledger.note(text);
+      eventBus.emit('tickerMessage', { text });
+    }
+    return paid;
+  }
+
+  /** Midnight: every loan's installment comes out of cash, interest booked
+   *  as the cost of debt and principal as plain repayment. */
+  private settleLoans(): void {
+    const s = this.loans.settleDay();
+    const interest = Math.round(s.interest * 100) / 100;
+    const paid = s.interest + s.principal;
+    if (paid <= 0) return;
+    this.state.cash -= paid;
+    this.ledger.addLoanInterest(interest);
+    this.ledger.accrue(HOUSE_SOURCES.interest.id, HOUSE_SOURCES.interest.defId, {
+      upkeep: interest,
+    });
+    eventBus.emit('moneyChanged', { cash: this.state.cash, delta: -paid });
+    for (const _ of s.paidOff) {
+      const text = 'A loan is paid off.';
+      this.ledger.note(text);
+      eventBus.emit('tickerMessage', { text });
+    }
+  }
+
   /**
    * P16 — sell assets until the house is back above its credit limit.
    *
    * Returns the defIds sold, in order. An empty return while still below the
    * limit is the insolvency condition; Task 5's caller reads it that way.
    */
-  private liquidateToLimit(): string[] {
+  /** `notes`: a closed day's report notes, when the sale belongs to a day
+   *  whose books just closed (the midnight call), not to the one beginning. */
+  private liquidateToLimit(notes?: string[]): string[] {
     const sold: string[] = [];
     // Bounded by the floor: every pass removes one object, so this cannot spin.
     while (this.state.cash < -this.creditLimit) {
@@ -824,10 +892,10 @@ export class CasinoWorld {
       if (!pick) break;
       const refund = this.sell(pick.id);
       sold.push(pick.defId);
-      eventBus.emit('tickerMessage', {
-        text: `The bank forced a sale — ${pick.defId.replace(/-/g, ' ')} gone for ${formatDollarAmount(refund ?? 0)}.`,
-        severity: 'alert',
-      });
+      const text = `The bank forced a sale — ${pick.defId.replace(/-/g, ' ')} gone for ${formatDollarAmount(refund ?? 0)}.`;
+      if (notes) notes.push(text);
+      else this.ledger.note(text);
+      eventBus.emit('tickerMessage', { text, severity: 'alert' });
     }
     return sold;
   }
@@ -1750,6 +1818,7 @@ export class CasinoWorld {
       modifiers: this.modifiers.toJSON(),
       reputation: this.reputation.toJSON(),
       patrons: this.patrons.toJSON(),
+      loans: this.loans.toJSON(),
       mood: this.mood.toJSON(),
       traffic: this.traffic.toJSON(),
       floor: this.floor.toJSON(),
@@ -1816,6 +1885,7 @@ export class CasinoWorld {
     this.modifiers = ModifierSystem.fromJSON(data.modifiers);
     this.reputation = Reputation.fromJSON(data.reputation);
     this.patrons = PatronRegistry.fromJSON(data.patrons);
+    this.loans = LoanBook.fromJSON(data.loans);
     this.mood = MoodField.fromJSON(data.mood);
     this.traffic = TrafficField.fromJSON(data.traffic);
     this.player = PlayerPlay.fromJSON(data.player);

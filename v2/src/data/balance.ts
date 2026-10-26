@@ -593,6 +593,26 @@ export const DEBT = {
   defaultCreditLimit: 10_000, // [design guess]
 } as const;
 
+/**
+ * B4 — structured loans, alongside the overdraft. A loan is borrowed for a
+ * fixed term and repaid in equal daily installments at midnight (interest
+ * first), and may be repaid early at no penalty. It costs a fraction of the
+ * overdraft's DEBT.dailyInterestRate, so borrowing on purpose beats drifting
+ * into the red. The ceiling is the scenario's own `loanLimit`. [design guess]
+ */
+export const LOANS = {
+  /** Terms on offer: shorter is cheaper per day but heavier per installment. */
+  terms: [
+    { days: 7, rate: 0.015 },
+    { days: 14, rate: 0.02 },
+    { days: 28, rate: 0.025 },
+  ],
+  /** The most outstanding at once when a scenario names no limit. */
+  defaultLimit: 50_000,
+  /** Borrow in steps of this much. */
+  step: 250,
+} as const;
+
 // ---------------------------------------------------------------------------
 // Track 2 — the depth spine (A5 modifiers, A1a comps, A12 reputation).
 //

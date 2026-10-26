@@ -19,7 +19,10 @@ import type {
   StaffInspect,
 } from '../worker/inspect';
 import { button, el, escapeHtml, money, pct } from './dom';
+import type { FinanceHistory, LoansView } from '../worker/finance';
 import { compButtons, compStatus, type CompKind } from './panels/comps';
+import { FinanceChart } from './panels/FinanceChart';
+import { LoansPanel } from './panels/LoansPanel';
 import { PatronsPanel } from './panels/PatronsPanel';
 import { PricesPanel } from './panels/PricesPanel';
 import { RatingPanel } from './panels/RatingPanel';
@@ -64,6 +67,13 @@ export class SidePanel {
   private rating = new RatingPanel();
   private patrons = new PatronsPanel();
   private prices = new PricesPanel();
+  /** B4: the Finances tab's P&L (patched HTML, no buttons), chart and loans. */
+  private finPnl = el('div', 'fin-pnl');
+  private finActions = el('div', 'fin-actions');
+  private chart = new FinanceChart();
+  private loans = new LoansPanel();
+  /** Opens the last closed day's report card. */
+  onReport: () => void = () => {};
   /** The price editor inside a food stall's or bar's inspector. */
   private inspectPrices: PricesPanel | null = null;
 
@@ -87,6 +97,11 @@ export class SidePanel {
     this.patrons.onComp = (guestId, kind) => void this.comp(guestId, kind);
     this.patrons.onLocate = (agentId) => this.onLocateGuest(agentId);
     this.prices.onSetPrice = (objectId, itemId, price) => this.setPrice(objectId, itemId, price);
+    this.finActions.append(button('Last day’s report', () => this.onReport(), 'small'));
+    this.loans.onTake = (amount, days) =>
+      this.sim.command({ type: 'takeLoan', amount, days }).then(() => this.refresh(false));
+    this.loans.onRepay = (loanId, amount) =>
+      this.sim.command({ type: 'repayLoan', loanId, amount }).then(() => this.refresh(false));
   }
 
   private async comp(guestId: string, kind: CompKind): Promise<void> {
@@ -126,6 +141,8 @@ export class SidePanel {
     if (t === 'rating') this.body.append(this.rating.root);
     if (t === 'patrons') this.body.append(this.patrons.root);
     if (t === 'prices') this.body.append(this.prices.root);
+    if (t === 'finances')
+      this.body.append(this.finActions, this.finPnl, this.chart.root, this.loans.root);
     window.clearInterval(this.timer);
     void this.refresh(true);
     this.timer = window.setInterval(() => void this.refresh(false), 1000);
@@ -142,11 +159,16 @@ export class SidePanel {
     const t = this.tab;
     try {
       if (t === 'inspect') await this.renderInspect(first);
-      else if (t === 'finances')
-        this.renderFinances(
-          await this.sim.command<CasinoFinancials & { wallet: number }>({ type: 'financials' }),
-        );
-      else if (t === 'staff')
+      else if (t === 'finances') {
+        const [f, h, l] = await Promise.all([
+          this.sim.command<CasinoFinancials & { wallet: number }>({ type: 'financials' }),
+          this.sim.command<FinanceHistory>({ type: 'financeHistory' }),
+          this.sim.command<LoansView>({ type: 'loans' }),
+        ]);
+        this.renderFinances(f);
+        this.chart.update(h);
+        this.loans.update(l);
+      } else if (t === 'staff')
         this.renderStaff(await this.sim.command<StaffInspect[]>({ type: 'staffList' }));
       else if (t === 'rating')
         this.rating.update(await this.sim.command<RatingReport>({ type: 'rating' }));
@@ -367,7 +389,7 @@ export class SidePanel {
           `<tr><td>${escapeHtml(g.defId)}</td><td>${g.objects}</td><td>${money(g.handle)}</td><td>${money(g.win)}</td><td>${pct(g.hold)}</td><td>${money(g.theo)}</td><td>${pct(g.occupancy, 0)}</td><td class="${g.net >= 0 ? 'good' : 'bad'}">${money(g.net)}</td></tr>`,
       )
       .join('');
-    this.body.innerHTML = `
+    this.finPnl.innerHTML = `
       <h3>Profit &amp; loss</h3>
       <div class="scroll-x"><table class="fin">
         <tr><th></th><th>Handle</th><th>Win</th><th>Hold</th><th>Theo</th><th>F&amp;B</th><th>Wages</th><th>Upkeep</th><th>Profit</th></tr>

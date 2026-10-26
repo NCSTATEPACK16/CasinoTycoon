@@ -34,6 +34,9 @@ export interface CampaignDef {
   /** B3: how guests arrive. Omitted = CAMPAIGN_TRAFFIC, the flat rate and
    *  fixed cap the campaigns below were tuned on. */
   traffic?: TrafficProfile;
+  /** B4: the most the bank will have out on loan at once. Omitted =
+   *  LOANS.defaultLimit. */
+  loanLimit?: number;
 }
 
 export const CAMPAIGNS: readonly CampaignDef[] = [
@@ -72,6 +75,9 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     dayLimit: 12,
     goalWindowDays: 4,
     creditLimit: 1000,
+    // B4: a bank loan of up to half the starting stake; the greedy probe never
+    // borrows, and a loan costs 1.5–2.5% a day, so the goals stand.
+    loanLimit: 2000,
   },
   {
     id: 'neon-nights',
@@ -82,6 +88,9 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     dayLimit: 11,
     goalWindowDays: 3,
     creditLimit: 1000,
+    // B4: a bank loan of up to half the starting stake; the greedy probe never
+    // borrows, and a loan costs 1.5–2.5% a day, so the goals stand.
+    loanLimit: 1750,
   },
   {
     id: 'high-roller',
@@ -95,6 +104,9 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     dayLimit: 10,
     goalWindowDays: 3,
     creditLimit: 800,
+    // B4: a bank loan of up to half the starting stake; the greedy probe never
+    // borrows, and a loan costs 1.5–2.5% a day, so the goals stand.
+    loanLimit: 2500,
     allowedObjects: ['blackjack-table', 'toilet', 'food-stall', 'plant'],
   },
 ];

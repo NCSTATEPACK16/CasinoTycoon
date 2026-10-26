@@ -1,7 +1,7 @@
 // Command dispatch for the sim worker. Kept apart from the Worker global so
 // tests can drive a world exactly the way the UI does.
 
-import { COMPS, type CompKind } from '../data/balance';
+import { COMPS, DEBT, LOANS, type CompKind } from '../data/balance';
 import { getCampaign } from '../data/campaigns';
 import type { Command, SimStats } from '../shared/contracts';
 import {
@@ -23,6 +23,7 @@ import {
   scenarioList,
   staffList,
 } from './inspect';
+import { dayReport, financeHistory, loansView } from './finance';
 import type { SnapshotBuilder } from './snapshot';
 
 export type CommandResult = { ok: true; data?: unknown } | { ok: false; error: string };
@@ -216,6 +217,34 @@ export function runCommand(world: CasinoWorld, snap: SnapshotBuilder, cmd: Comma
       return applied === null
         ? { ok: false, error: 'nothing to price there' }
         : { ok: true, data: applied };
+    }
+    case 'financeHistory':
+      return { ok: true, data: financeHistory(world) };
+    case 'dayReport': {
+      const report = dayReport(world, cmd.day);
+      return report ? { ok: true, data: report } : { ok: false, error: 'No day has closed yet.' };
+    }
+    case 'loans':
+      return { ok: true, data: loansView(world, DEBT.dailyInterestRate) };
+    case 'takeLoan': {
+      const loan = world.takeLoan(cmd.amount, cmd.days);
+      return loan
+        ? { ok: true, data: loan }
+        : {
+            ok: false,
+            error: `The bank won't lend that: up to $${world.loanLimit.toLocaleString('en-US')} in all, and no less than $${LOANS.step}.`,
+          };
+    }
+    case 'repayLoan': {
+      const paid = world.repayLoan(cmd.loanId, cmd.amount);
+      return paid > 0
+        ? { ok: true, data: paid }
+        : {
+            ok: false,
+            error: !world.loans.loans.some((l) => l.id === cmd.loanId)
+              ? 'That loan is already paid off.'
+              : 'No cash on hand to repay with.',
+          };
     }
     default:
       return { ok: false, error: `${(cmd as Command).type} not implemented` };

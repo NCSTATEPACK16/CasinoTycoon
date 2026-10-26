@@ -162,11 +162,30 @@ Each task lists what to build, then how to prove it. Tick it (✅) in this file 
     - **Stress scene** (`sandbox.stress`, NAV_PERF=1, runs alternated on one machine): B2 tick mean 2.90/5.26/4.82 ms against B3 3.30/5.44/5.43 ms, within noise and under 7 ms. Repaths fell 5,922 → 3,841 and teleports 192 → 63, since guests now leave and are replaced instead of piling up.
     - **Browser (1280×800, new Sandbox):** 7 blackjack tables, 162 slots, 4 restrooms, 4 stalls, 2 bars, staff; cap 344 at ★95. At 4× from 14:00 on Monday: 7, 41, 80, 112, 188, 211, 263, then 311 at 22:00 and the 344 cap from 23:00 to 02:00. Then 319 at 04:00, 266 at 06:00 and 227 at 09:00, back up through 255 at 14:00, 318 at 18:00 and the cap from 19:00 to 22:00 on Tuesday. The guests tooltip read "The floor holds 342 right now… Guests come by the clock…". No errors while running.
 
-- [ ] **B4. Finance depth.**
+- [x] ✅ **B4. Finance depth.**
   - Charts from `ledger.history`: revenue, win, hold %, guests and cash by hour and by day.
   - An end-of-day report card: P&L, best and worst game, rating change, notable events.
   - Structured loans: take, repay and interest, alongside the overdraft.
   - **Evidence:** loan maths unit tests, and browser screenshots of the charts and the report after two days.
+  - **Done 2026-10-25** (contract 487e196: `financeHistory`, `dayReport`, `loans`, `takeLoan`, `repayLoan`):
+    - **Built:**
+      - Sim: `sim/economy/loans.ts` (`LoanBook`, `installmentFor`). `LOANS` offers 7/14/28 days at 1.5/2/2.5% a day, against the overdraft's 5%; borrowing is in $250 steps. Installments are level, come out of cash at midnight interest first, and are charged before the overdraft interest so a payment that tips the house into the red pays for it. Early repayment from cash has no penalty and re-spreads the rest over the days left. Loan cash moves the balance, never the P&L, and only interest is booked (as interest, broken out as `loanInterest`). `CampaignDef.loanLimit`: the three campaigns can borrow half their starting stake ($2,000/$1,750/$2,500); open play defaults to $50,000. Saved; older saves load with no loans.
+      - Books: `HourlySample` gains the games' win and closing cash. `DailyRecord` gains the rating, cash and debt at the close, `loanInterest` and `notes` (fines, overdraft interest, forced sales, loans taken and paid off; at most 12 a day). A forced sale at midnight goes in the report of the day that caused it.
+      - Worker: `worker/finance.ts` with `financeHistory` (a week of hours and 60 days plus today so far: revenue, expenses, profit, handle, win, hold, guests, cash), `dayReport` (P&L, the day before's profit, best and worst game by net with hold, rating and its change, reputation, visits, jackpots, rage-quits, comps, overdraft and loan interest, cash, debt, conditions, top winners and losers, notes) and `loansView` (limit, owed, available, offers with installment and total interest, due tonight).
+      - UI: the Finances tab is built once and patched. It holds the P&L, a Trends chart drawn on canvas with no library (Profit, Revenue and Win as green/red bars; Hold %, Guests and Cash as lines; by hour or by day; day labels; a hover readout), and Bank loans (terms, a live installment preview, Borrow, and each loan's owed, daily and days left, with Repay). The report card opens by itself at each midnight (it never pauses; "Show this at the end of every day" is a per-browser preference), and from "Last day's report" in Finances.
+    - **Tests:** `loans.test.ts` 7/7 (the amortising payment against the closed form, $10k/10 d/2% = $1,113.27; zero rate; limit and terms; paid off in exactly its term with Σ principal = borrowed and Σ payments = n × installment; first-day interest; early repayment with re-spread and overpayment capped; JSON round-trip). `world.finance.test.ts` 6/6 (a loan moves cash and not the P&L, and at midnight cash falls by exactly the installment while only the interest is booked; runs to zero in its term; repay is capped by cash on hand; each campaign's limit, and the book survives a save; a midnight forced sale lands in the closed day's notes; commands for offers, borrowing and repaying; two days of history where the hours' win sums to the day's, cash on every hour, and the report's profit, previous profit, rating change and best ≥ worst).
+    - **Economics guard:** 49 files, 474/474. Greedy probe identical: Dusty Dime 7/7, Neon Nights 5/7, High Roller Club 5/7 (the bot never borrows).
+    - **Browser (1280×800, The Dusty Dime, driven through the UI):**
+      - The Loans form offered $2,000; its preview read "$82.60 a day for 14 days: $156 in interest on $1,000", which is correct.
+      - Borrowed $1,500 over 7 days: cash $4,000 → $5,500, "$227.33 due at midnight", today's P&L still $0, and the ticker said "Borrowed $1,500 over 7 days."
+      - Day 1's card opened at midnight: win $170 − wages $72 − upkeep $180 − interest $23 (1.5% of $1,500) = −$105. It listed $1,295 owed, best game Slot Machine $190, worst Blackjack −$190, winners and losers, one jackpot, and the loan.
+      - Day 2's card: $451 (+$555 on the day before), ★92 ▲1, reputation +4.8, conditions, interest $19, $1,087 owed.
+      - Day 4's card: −$886, ★22 ▼16, a $400 health-inspection fine and $62 of interest, both listed in its notes.
+      - The hourly Profit chart showed red midnight bars for upkeep and interest. Guests by hour showed the 30 cap filling on Monday, with the hover readout "Tue 2 · 14:00 — Guests 30". Guests by day rose 13 → 20 → 30, and Cash by hour showed the slide into overdraft by Thursday.
+      - After an autosave reload the loan was still there.
+      - With cash at −$770, Repay was refused with a message.
+      - Found and fixed: the loans table was 458 px in a 438 px panel and scrolled the whole tab sideways. It now has its own scroller, a tighter row, and fits at 410 px.
+      - No console errors.
 
 - [ ] **B5. The feedback loop.**
   - A thoughts summary panel: the top thoughts across guests, with counts and a trend.

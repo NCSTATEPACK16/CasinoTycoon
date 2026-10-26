@@ -9,7 +9,9 @@ import { Hud } from './ui/Hud';
 import { Menus } from './ui/Menus';
 import { SidePanel } from './ui/SidePanel';
 import { TablePlay } from './ui/TablePlay';
+import { DayReportCard } from './ui/panels/DayReportCard';
 import { HelpOverlay } from './ui/panels/HelpOverlay';
+import type { DayReport } from './worker/finance';
 import { guestPosition, locate } from './ui/panels/locate';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#view')!;
@@ -24,7 +26,15 @@ const panel = new SidePanel(sim);
 const table = new TablePlay(sim);
 const menus = new Menus(sim);
 const help = new HelpOverlay();
-ui.append(panel.root, table.root, help.root, menus.root);
+const report = new DayReportCard();
+ui.append(panel.root, table.root, help.root, report.root, menus.root);
+const showReport = () =>
+  void sim
+    .command<DayReport>({ type: 'dayReport' })
+    .then((r) => report.show(r))
+    .catch((err: Error) => hud.say(err.message));
+report.onFinances = () => panel.open('finances');
+panel.onReport = showReport;
 controls.onMessage = (t) => hud.say(t);
 hud.ticker.onLocate = (at) => {
   if (!locate(at, { sim, controls, stage, panel })) hud.say('Stand up from the table first (F)');
@@ -35,13 +45,17 @@ hud.ticker.onLocate = (at) => {
 /** Autosave only once a game is under way — never the idle world behind the title. */
 let playing = false;
 menus.onStarted = () => (playing = true);
-menus.onStarting = () => hud.ticker.clear();
+menus.onStarting = () => {
+  hud.ticker.clear();
+  report.resetDay();
+};
 let lastHour = -1;
 sim.onSnapshot((s) => {
   if (s.objects) stage.setObjects(s.objects);
   if (s.floor) stage.setFloor(s.floor);
   stage.handleEvents(s.events);
   hud.update(s.hud);
+  if (report.dayRolled(s.hud.day) && playing && report.autoShow && !menus.isOpen) showReport();
   hud.events(s.events);
   for (const e of s.events) {
     if (e.type === 'gameOver') {
