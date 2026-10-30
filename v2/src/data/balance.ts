@@ -9,6 +9,12 @@ export const GUEST_BALANCE = {
   walletMax: 220,
   startHappiness: 70,
   decayPerTick: { energy: 0.02, bladder: 0.04, hunger: 0.03, thirst: 0.03 },
+  // v2: where a guest's needs stand on arrival, uniform in [min, 100]. With
+  // everyone arriving at 100, a typical ~15-hour stay ended before hunger or
+  // thirst reached the soft band, so the bar and food went all but unused (0
+  // meals, 0 drinks and 3 restroom visits in two days of a furnished floor;
+  // 24, 7 and 18 with these). Some come for dinner, some straight from it.
+  arrivalNeedsMin: { bladder: 45, hunger: 35, thirst: 35 },
   // Below this a need sends the guest hunting for the matching service object.
   needThreshold: 25,
   // Needs this starved actively drain happiness.

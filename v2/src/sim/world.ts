@@ -1,6 +1,7 @@
 import { eventBus } from '../EventBus';
 import {
   ENTRANCE_TILE,
+  entranceFor,
   GRID_COLS,
   GRID_ROWS,
   HOURS_PER_DAY,
@@ -196,6 +197,9 @@ export interface CasinoWorldJSON {
   player?: PlayerPlayJSON;
 }
 
+/** The seat holder id the avatar uses at tables and machines. */
+export const PLAYER_SEAT = 'player';
+
 export class CasinoWorld {
   state: GameState;
   grid: IsoGrid;
@@ -245,6 +249,9 @@ export class CasinoWorld {
   /** Bumped whenever the floor plan is replaced or edited — the snapshot
    *  sends a fresh FloorPlanView when it changes. */
   floorRevision = 0;
+  /** Bumped whenever a game joins or leaves `machines`, so indexes over the
+   *  games on the floor (the guest brain's, see utility.ts) know to rebuild. */
+  machinesRevision = 0;
   /** v2 — the Recast navmesh and crowd. Null in grid mode (every bare world,
    *  including the ported suite); the worker attaches one after WASM init. */
   nav: WorldNav | null = null;
@@ -329,11 +336,12 @@ export class CasinoWorld {
 
   /** Start a campaign (or `null` for sandbox): full floor wipe + fresh clock/books. */
   startScenario(def: CampaignDef | null): void {
-    this.reset(def?.startingCash ?? STARTING_CASH);
+    const { cols, rows } = def?.lot ?? { cols: GRID_COLS, rows: GRID_ROWS };
+    this.reset(def?.startingCash ?? STARTING_CASH, cols, rows);
     this.installFloor(
       this.starterFloor
-        ? starterFloorPlan(def?.id ?? null, GRID_COLS, GRID_ROWS)
-        : FloorPlan.open(GRID_COLS, GRID_ROWS, ENTRANCE_TILE),
+        ? starterFloorPlan(def?.id ?? null, cols, rows)
+        : FloorPlan.open(cols, rows, entranceFor(cols, rows)),
     );
     this.scenario = def ? new ScenarioManager(def) : null;
     // Day 1 gets conditions too. Without this the first day is always the
@@ -345,18 +353,20 @@ export class CasinoWorld {
   }
 
   /** In-place wipe — `state` and `grid` stay the same objects (gameContext aliases them). */
-  private reset(startingCash: number): void {
+  /** Wipe everything and size the grid and per-tile fields to the lot. */
+  private reset(startingCash: number, cols: number, rows: number): void {
     this.guests.clear();
     this.staff.clear();
     this.messes.clear();
     this.machines.clear();
+    this.machinesRevision++;
     this.foodStalls.clear();
     this.bars.clear();
     this.repairClaims.clear();
     this.drinkClaims.clear();
     this.dealerAssignments.clear();
     this.cashierAssignments.clear();
-    this.grid.clear();
+    this.grid.clear(cols, rows);
     this.state.reset(startingCash);
     this.refreshServiceAvailability();
     this.time = new TimeSystem();
@@ -364,8 +374,8 @@ export class CasinoWorld {
     this.cleanlinessSamples = [];
     this.modifiers = new ModifierSystem();
     this.reputation = new Reputation();
-    this.mood = new MoodField();
-    this.traffic = new TrafficField();
+    this.mood = new MoodField(cols, rows);
+    this.traffic = new TrafficField(cols, rows);
     this.patrons = new PatronRegistry();
     this.tickCount = 0;
     this.nextGuestNum = 1;
@@ -394,6 +404,7 @@ export class CasinoWorld {
     if (po) {
       const machine = createMachine(defId, po.id);
       if (machine) this.machines.set(po.id, machine);
+      if (machine) this.machinesRevision++;
     }
     if (po && defId === 'food-stall') this.foodStalls.set(po.id, new FoodStall(po.id));
     if (po && defId === 'bar') this.bars.set(po.id, new Bar(po.id));
@@ -416,6 +427,7 @@ export class CasinoWorld {
       machine.broken = true;
       machine.releaseAll();
       this.machines.delete(objectId);
+      this.machinesRevision++;
       this.repairClaims.delete(objectId);
       this.dealerAssignments.delete(objectId);
     }
@@ -837,6 +849,7 @@ export class CasinoWorld {
       archetype,
       patron ? { id: patron.id, name: patron.name, tier: patron.tier } : null,
     );
+    if (this.nav) guest.varyArrivalNeeds();
     this.guests.set(id, guest);
     eventBus.emit('guestSpawned', { id, archetype: guest.archetype });
     if (patron) this.announcePatronArrival(patron);
@@ -1191,8 +1204,8 @@ export class CasinoWorld {
 
   randomWalkableTile(): Cell | null {
     for (let i = 0; i < 25; i++) {
-      const col = this.rng.int(1, GRID_COLS - 2);
-      const row = this.rng.int(1, GRID_ROWS - 2);
+      const col = this.rng.int(1, this.grid.cols - 2);
+      const row = this.rng.int(1, this.grid.rows - 2);
       if (this.grid.isWalkable(col, row)) return { col, row };
     }
     return null;
@@ -1353,11 +1366,34 @@ export class CasinoWorld {
     return { rules: machine.math!.rules, issues };
   }
 
-  /** Hook: the `roundBegin` command — the avatar sits down and bets. */
+  /** Hook: the `sit` command — the avatar takes a seat the way a guest does,
+   *  so a full table turns it away and guests can't sit on top of it. */
+  seatPlayer(objectId: string): true | string {
+    const machine = this.machines.get(objectId);
+    if (!machine) return 'nothing there';
+    if (machine.isPlayableBy(PLAYER_SEAT)) return true;
+    if (machine.broken) return 'out of order';
+    this.unseatPlayer();
+    if (machine instanceof SeatedCasinoGame)
+      return machine.claimSeat(PLAYER_SEAT) === null ? 'every seat is taken' : true;
+    if (machine.reservedBy !== null) return 'someone is already playing';
+    machine.reservedBy = PLAYER_SEAT;
+    return true;
+  }
+
+  /** Hook: the `stand` command — give the avatar's seat back. */
+  unseatPlayer(): void {
+    this.releaseMachines(PLAYER_SEAT);
+  }
+
+  /** Hook: the `roundBegin` command — the avatar bets from its seat, taking one
+   *  first if it has none (a save reload, or a table that was cleared). */
   beginPlayerRound(objectId: string, bets: Bet[]): PlayerRoundReply | string {
     const machine = this.machines.get(objectId);
     if (!machine?.math) return 'not a game the avatar can play';
     if (machine.broken) return 'out of order';
+    const seated = this.seatPlayer(objectId);
+    if (seated !== true) return seated;
     return this.player.begin(objectId, machine.math, bets, this.rng, this.houseBook);
   }
 
@@ -1635,10 +1671,15 @@ export class CasinoWorld {
     this.installFloor(
       data.floor
         ? FloorPlan.fromJSON(data.floor)
-        : FloorPlan.open(this.grid.cols, this.grid.rows, ENTRANCE_TILE),
+        : FloorPlan.open(
+            this.grid.cols,
+            this.grid.rows,
+            entranceFor(this.grid.cols, this.grid.rows),
+          ),
     );
     this.tickCount = data.tickCount;
     for (const machine of loadedMachines) this.machines.set(machine.id, machine);
+    this.machinesRevision++;
     for (const f of data.foodStalls) this.foodStalls.set(f.id, FoodStall.fromJSON(f));
     for (const b of data.bars) this.bars.set(b.id, Bar.fromJSON(b));
     for (const m of data.messes) this.messes.set(m.id, { ...m, claimedBy: null });

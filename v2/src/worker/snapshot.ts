@@ -4,6 +4,7 @@
 import type { CasinoWorld } from '../sim/world';
 import type { CasinoGame } from '../sim/entities/machines/CasinoGame';
 import { SeatedCasinoGame } from '../sim/entities/machines/SeatedCasinoGame';
+import type { BlackjackRules } from '../sim/games/blackjack/rules';
 import {
   AGENT_STRIDE,
   AgentKind,
@@ -30,6 +31,13 @@ function occupants(m: CasinoGame | undefined): number {
   if (!m) return 0;
   if (m instanceof SeatedCasinoGame) return m.seatedCount;
   return m.reservedBy ? 1 : 0;
+}
+
+/** Blackjack felt rows: 3:2 S17, 3:2 H17, 6:5 S17, 6:5 H17 (see Atlas.ts). */
+function decalRow(m: CasinoGame | undefined): number | undefined {
+  const r = m?.math?.rules as Partial<BlackjackRules> | undefined;
+  if (r?.blackjackPays === undefined) return undefined;
+  return (r.blackjackPays === '6:5' ? 2 : 0) + (r.h17 ? 1 : 0);
 }
 
 function idNum(id: string): number {
@@ -142,10 +150,13 @@ export class SnapshotBuilder {
         broken: m?.broken ?? false,
         open: m ? world.isTableOpen(o.id) : true,
         occupants: occupants(m),
+        decalRow: decalRow(m),
       };
     });
     const key = views
-      .map((v) => `${v.id}:${v.broken ? 1 : 0}:${v.open ? 1 : 0}:${v.occupants}`)
+      .map(
+        (v) => `${v.id}:${v.broken ? 1 : 0}:${v.open ? 1 : 0}:${v.occupants}:${v.decalRow ?? ''}`,
+      )
       .join('|');
     if (key === this.lastObjectsKey) return undefined;
     this.lastObjectsKey = key;
@@ -168,13 +179,18 @@ export class SnapshotBuilder {
         ? {
             id: sc.def.id,
             name: sc.def.name,
-            goal: `Average $${sc.def.goalDailyProfit.toLocaleString()}/day by day ${sc.def.dayLimit}`,
+            goal:
+              sc.def.id === 'sandbox'
+                ? 'Unlimited funds'
+                : `Average $${sc.def.goalDailyProfit.toLocaleString()}/day by day ${sc.def.dayLimit}`,
             status:
-              sc.status === 'won' || sc.status === 'endless'
-                ? 'won'
-                : sc.status === 'failed'
-                  ? 'lost'
-                  : 'active',
+              sc.def.id === 'sandbox'
+                ? 'active'
+                : sc.status === 'won' || sc.status === 'endless'
+                  ? 'won'
+                  : sc.status === 'failed'
+                    ? 'lost'
+                    : 'active',
           }
         : null,
     };

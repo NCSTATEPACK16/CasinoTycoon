@@ -15,6 +15,10 @@ export class SimClient {
   /** main-thread performance.now() when curr arrived. */
   currAt = 0;
   private listeners = new Set<(s: Snapshot) => void>();
+  /** Init is async in the worker (Recast's WASM loads first), so commands
+   *  issued before `ready` wait here instead of bouncing off it. */
+  private queued: WorkerIn[] = [];
+  private isReady = false;
 
   constructor(seed = Date.now() >>> 0) {
     this.worker = new Worker(new URL('../worker/sim.worker.ts', import.meta.url), {
@@ -29,7 +33,11 @@ export class SimClient {
   }
 
   private receive(msg: WorkerOut): void {
-    if (msg.type === 'snapshot') {
+    if (msg.type === 'ready') {
+      this.isReady = true;
+      for (const q of this.queued) this.send(q);
+      this.queued = [];
+    } else if (msg.type === 'snapshot') {
       this.prev = this.curr;
       this.curr = msg.snap;
       this.currAt = performance.now();
@@ -47,7 +55,9 @@ export class SimClient {
     const reqId = this.nextReq++;
     return new Promise<T>((resolve, reject) => {
       this.pending.set(reqId, { resolve: resolve as (v: unknown) => void, reject });
-      this.send({ type: 'cmd', reqId, cmd });
+      const msg: WorkerIn = { type: 'cmd', reqId, cmd };
+      if (this.isReady) this.send(msg);
+      else this.queued.push(msg);
     });
   }
 

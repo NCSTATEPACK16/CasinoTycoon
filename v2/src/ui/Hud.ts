@@ -1,6 +1,7 @@
 // Skeleton HUD: cash/time/rating bar, speed buttons and a build palette.
 
 import { OBJECT_CATALOG } from '../data/objects';
+import { get3D } from '../shared/catalog';
 import type { HudView, SimEvent } from '../shared/contracts';
 import type { SimClient } from '../client/SimClient';
 import type { BuildTool } from '../input/BuildTool';
@@ -10,6 +11,8 @@ const money = (n: number) => `${n < 0 ? '-' : ''}$${Math.abs(Math.round(n)).toLo
 export class Hud {
   private bar: HTMLElement;
   private toast: HTMLElement;
+  /** Top-bar menu buttons; main.ts binds what each opens. */
+  readonly menu: Record<'finances' | 'staff' | 'save' | 'load', HTMLButtonElement>;
 
   constructor(root: HTMLElement, sim: SimClient, build: BuildTool) {
     this.bar = el('div', 'hud-bar');
@@ -23,16 +26,19 @@ export class Hud {
     for (const def of OBJECT_CATALOG) {
       const b = el('button', 'pal-item', `${def.name}<small>${money(def.cost)}</small>`);
       b.dataset.def = def.id;
-      b.onclick = () => {
-        build.select(build.defId === def.id ? null : def.id);
-        palette
-          .querySelectorAll('.pal-item')
-          .forEach((n) =>
-            n.classList.toggle('active', (n as HTMLElement).dataset.def === build.defId),
-          );
-      };
+      const zones = get3D(def.id).zones;
+      b.title = zones.length ? `Needs a ${zones.join(' or ')} zone` : 'Fits anywhere with a floor';
+      b.onclick = () => build.select(build.defId === def.id ? null : def.id);
       palette.append(b);
     }
+    // Esc, right-click and tool switches change the selection too: follow the tool, not the click.
+    const sync = () =>
+      palette
+        .querySelectorAll('.pal-item')
+        .forEach((n) =>
+          n.classList.toggle('active', (n as HTMLElement).dataset.def === build.defId),
+        );
+    build.addEventListener('change', sync);
     const bulldoze = el('button', 'pal-item bulldoze', 'Bulldoze <small>X</small>');
     bulldoze.onclick = () => {
       build.select(null);
@@ -40,7 +46,19 @@ export class Hud {
     };
     palette.append(bulldoze);
     this.toast = el('div', 'toast');
-    root.append(this.bar, speeds, palette, this.toast);
+    const menu = el('div', 'hud-menu');
+    const mk = (label: string, key: string) => {
+      const b = el('button', '', `${label} <small>${key}</small>`) as HTMLButtonElement;
+      menu.append(b);
+      return b;
+    };
+    this.menu = {
+      finances: mk('Finances', 'P'),
+      staff: mk('Staff', 'H'),
+      save: mk('Save', ''),
+      load: mk('Menu', ''),
+    };
+    root.append(this.bar, menu, speeds, palette, this.toast);
   }
 
   update(h: HudView): void {

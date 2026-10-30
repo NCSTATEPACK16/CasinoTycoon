@@ -12,6 +12,7 @@ import {
 } from '../sim/build';
 import type { StaffKind } from '../sim/entities/staff/Staff';
 import type { CasinoWorld, CasinoWorldJSON } from '../sim/world';
+import { financials, inspectAgent, inspectObject, scenarioList, staffList } from './inspect';
 import type { SnapshotBuilder } from './snapshot';
 
 export type CommandResult = { ok: true; data?: unknown } | { ok: false; error: string };
@@ -158,8 +159,15 @@ export function runCommand(world: CasinoWorld, snap: SnapshotBuilder, cmd: Comma
         ? { ok: true, data: applied }
         : { ok: false, error: 'no game rules on that object' };
     }
-    // Avatar play. Both reply { options, view, wallet }, plus `result` (the
+    // Avatar play. Both reply { options, view, wallet, onTable }, plus `result` (the
     // RoundResult with its theo) once the round has settled.
+    case 'sit': {
+      const reply = world.seatPlayer(cmd.objectId);
+      return reply === true ? { ok: true } : { ok: false, error: reply };
+    }
+    case 'stand':
+      world.unseatPlayer();
+      return { ok: true };
     case 'roundBegin': {
       const reply = world.beginPlayerRound(cmd.objectId, cmd.bets);
       return typeof reply === 'string' ? { ok: false, error: reply } : { ok: true, data: reply };
@@ -168,8 +176,22 @@ export function runCommand(world: CasinoWorld, snap: SnapshotBuilder, cmd: Comma
       const reply = world.actPlayerRound(cmd.objectId, cmd.action);
       return typeof reply === 'string' ? { ok: false, error: reply } : { ok: true, data: reply };
     }
+    case 'inspect': {
+      const t = cmd.target;
+      const view =
+        'objectId' in t ? inspectObject(world, t.objectId) : inspectAgent(world, t.agentId);
+      return view ? { ok: true, data: view } : { ok: false, error: 'nothing there' };
+    }
+    case 'financials':
+      return { ok: true, data: financials(world) };
+    case 'staffList':
+      return { ok: true, data: staffList(world) };
+    case 'scenarios':
+      return { ok: true, data: scenarioList() };
+    case 'continueScenario':
+      world.scenario?.continue();
+      return { ok: true };
     default:
-      // inspect → integration (src/ui inspector).
-      return { ok: false, error: `${cmd.type} not implemented yet` };
+      return { ok: false, error: `${(cmd as Command).type} not implemented` };
   }
 }

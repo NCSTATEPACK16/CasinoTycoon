@@ -4,7 +4,8 @@
 export const TILE_W = 128;
 export const TILE_H = 64;
 
-// Casino floor dimensions (grid cells).
+// Casino floor dimensions (grid cells): the default lot. A scenario may bring
+// its own (CampaignDef.lot); sim code reads the live grid/floor size, never these.
 export const GRID_COLS = 40;
 export const GRID_ROWS = 30;
 
@@ -30,3 +31,8 @@ export const JACKPOT_PAYOUT_MULT = 10;
 
 // Where guests enter and exit: middle of the open east edge (walls line north/west only).
 export const ENTRANCE_TILE = { col: GRID_COLS - 1, row: 15 } as const;
+
+/** The same spot on any lot: the east edge, halfway down. */
+export function entranceFor(cols: number, rows: number): { col: number; row: number } {
+  return { col: cols - 1, row: Math.floor(rows / 2) };
+}

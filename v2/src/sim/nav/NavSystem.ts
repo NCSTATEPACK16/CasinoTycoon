@@ -12,6 +12,7 @@ import {
   NavMeshParams,
   NavMeshQuery,
   type QueryFilter,
+  Raw,
   statusFailed,
 } from '@recast-navigation/core';
 import { ZONES, type Zone } from '../../shared/contracts';
@@ -89,10 +90,34 @@ export class NavSystem {
     if (!this.navMesh.initTiled(params)) throw new Error('navmesh initTiled failed');
     this.query = new NavMeshQuery(this.navMesh);
     this.crowd = new Crowd(this.navMesh, { maxAgents: MAX_AGENTS, maxAgentRadius: 0.5 });
+    this.tuneAvoidance();
     const bits = (zones: Zone[]) => zones.reduce((m, z) => m | zoneBit(z), 0);
     this.configure(NavFilter.Guest, ALL_ZONES & ~bits(['highLimit', 'backOfHouse']));
     this.configure(NavFilter.HighRoller, ALL_ZONES & ~bits(['backOfHouse']));
     this.configure(NavFilter.Staff, ALL_ZONES);
+  }
+
+  /**
+   * dtCrowd::init gives every avoidance preset Detour's most thorough sampling
+   * (7 divisions × 2 rings × depth 5, 71 velocity samples per agent per tick).
+   * Agents use preset 1, set here to the Recast demo's "medium" (5 × 2 × 2,
+   * 21 samples): at 500 guests that sampling was most of the crowd step, and
+   * in casino aisles the extra depth bought nothing visible.
+   */
+  private tuneAvoidance(): void {
+    const p = new Raw.Module.dtObstacleAvoidanceParams();
+    p.velBias = 0.5;
+    p.weightDesVel = 2;
+    p.weightCurVel = 0.75;
+    p.weightSide = 0.75;
+    p.weightToi = 2.5;
+    p.horizTime = 2.5;
+    p.gridSize = 33;
+    p.adaptiveDivs = 5;
+    p.adaptiveRings = 2;
+    p.adaptiveDepth = 2;
+    this.crowd.raw.setObstacleAvoidanceParams(1, p);
+    Raw.destroy(p);
   }
 
   private configure(slot: NavFilter, include: number): void {
