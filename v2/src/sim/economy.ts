@@ -90,6 +90,14 @@ export interface DailyRecord {
   sources: SourceRecord[];
   /** The avatar's own rounds that day (absent before v2). */
   player?: PlayerBook;
+  /** B4: the rating at the close, cash and loan debt after it settled, the
+   *  loan interest inside interestPaid, and the day's notable events. All
+   *  absent in older saves. */
+  rating?: number;
+  cash?: number;
+  debt?: number;
+  loanInterest?: number;
+  notes?: string[];
 }
 
 export interface HourlySample {
@@ -102,6 +110,9 @@ export interface HourlySample {
   wagered?: number;
   theo?: number;
   rounds?: number;
+  /** B4: the games' win (handle − paid out) and cash at the hour's close. */
+  gameWin?: number;
+  cash?: number;
 }
 
 /** One closed hour's per-object rows, for hour-by-hour drill-down. */
@@ -137,6 +148,8 @@ export interface LedgerJSON {
   dayJackpotCount?: number;
   dayRageQuitCount?: number;
   dayCompSpend?: number;
+  /** B4. */
+  dayNotes?: string[];
   daySessions?: GuestSession[];
   daySources?: SourceRecord[];
   hourSources?: SourceRecord[];
@@ -150,6 +163,9 @@ export interface DayCloseContext {
   reputation?: number;
   reputationDelta?: number;
   modifierIds?: string[];
+  rating?: number;
+  cash?: number;
+  debt?: number;
 }
 
 const MAX_DAILY_RECORDS = 60;
@@ -158,6 +174,8 @@ const MAX_HOURLY_SAMPLES = 7 * 24;
  *  "what happened tonight" question, and a week of it is objects × 168 rows. */
 const MAX_HOURLY_SOURCE_SAMPLES = 24;
 const TOP_N = 5;
+/** B4: notable events kept per day for the report card. */
+const MAX_DAY_NOTES = 12;
 
 export class Ledger {
   todayRevenue = 0;
@@ -173,6 +191,8 @@ export class Ledger {
   private dayRageQuitCount = 0;
   private dayCompSpend = 0;
   private dayInterestPaid = 0;
+  private dayLoanInterest = 0;
+  private dayNotes: string[] = [];
   private daySessions: GuestSession[] = [];
   /** Live per-source accrual for the day in progress. Written at the same
    *  moment as addRevenue/addExpense rather than through a parallel path —
@@ -275,6 +295,20 @@ export class Ledger {
     this.addExpense(amount);
   }
 
+  /** B4: a loan installment's interest — the cost of debt, like the
+   *  overdraft's, and broken out for the report. */
+  addLoanInterest(amount: number): void {
+    if (amount <= 0) return;
+    this.dayLoanInterest += amount;
+    this.addInterest(amount);
+  }
+
+  /** B4: something the end-of-day report should mention. */
+  note(text: string): void {
+    this.dayNotes.push(text);
+    if (this.dayNotes.length > MAX_DAY_NOTES) this.dayNotes.shift();
+  }
+
   /** A guest's session folds in here on leave or at midnight. */
   recordGuestSession(session: GuestSession): void {
     this.daySessions.push(session);
@@ -282,12 +316,14 @@ export class Ledger {
   }
 
   /** Close the hour that just completed (labeled with its own day/hour). */
-  closeHour(day: number, hour: number, guests: number): void {
+  closeHour(day: number, hour: number, guests: number, cash?: number): void {
     let wagered = 0;
+    let won = 0;
     let theo = 0;
     let rounds = 0;
     for (const r of this.hourSources.values()) {
       wagered += r.wagered;
+      won += r.won;
       theo += r.theo;
       rounds += r.rounds;
     }
@@ -300,6 +336,8 @@ export class Ledger {
       wagered,
       theo,
       rounds,
+      gameWin: wagered - won,
+      ...(cash === undefined ? {} : { cash }),
     });
     if (this.hourly.length > MAX_HOURLY_SAMPLES) this.hourly.shift();
     this.hourlySources.push({ day, hour, sources: [...this.hourSources.values()] });
@@ -342,6 +380,11 @@ export class Ledger {
       modifierIds: ctx.modifierIds ?? [],
       sources: [...this.daySources.values()].map((r) => ({ ...r })),
       player: { ...this.dayPlayer },
+      ...(ctx.rating === undefined ? {} : { rating: ctx.rating }),
+      ...(ctx.cash === undefined ? {} : { cash: ctx.cash }),
+      ...(ctx.debt === undefined ? {} : { debt: ctx.debt }),
+      loanInterest: this.dayLoanInterest,
+      notes: [...this.dayNotes],
     };
     this.history.push(record);
     if (this.history.length > MAX_DAILY_RECORDS) this.history.shift();
@@ -354,6 +397,8 @@ export class Ledger {
     this.dayRageQuitCount = 0;
     this.dayCompSpend = 0;
     this.dayInterestPaid = 0;
+    this.dayLoanInterest = 0;
+    this.dayNotes = [];
     this.daySessions = [];
     this.daySources.clear();
     this.dayPlayer = { wagered: 0, returned: 0, rounds: 0 };
@@ -379,6 +424,7 @@ export class Ledger {
       dayJackpotCount: this.dayJackpotCount,
       dayRageQuitCount: this.dayRageQuitCount,
       dayCompSpend: this.dayCompSpend,
+      dayNotes: [...this.dayNotes],
       daySessions: [...this.daySessions],
       daySources: [...this.daySources.values()].map((r) => ({ ...r })),
       hourSources: [...this.hourSources.values()].map((r) => ({ ...r })),
@@ -418,6 +464,7 @@ export class Ledger {
     ledger.dayJackpotCount = data.dayJackpotCount ?? 0;
     ledger.dayRageQuitCount = data.dayRageQuitCount ?? 0;
     ledger.dayCompSpend = data.dayCompSpend ?? 0;
+    ledger.dayNotes = [...(data.dayNotes ?? [])];
     ledger.daySessions = data.daySessions ? data.daySessions.map((s) => ({ ...s })) : [];
     for (const row of data.daySources ?? []) ledger.daySources.set(row.id, normalizeRow(row));
     for (const row of data.hourSources ?? []) ledger.hourSources.set(row.id, normalizeRow(row));

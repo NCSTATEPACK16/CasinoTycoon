@@ -92,11 +92,28 @@ export interface HudView {
   speed: number;
   todayProfit: number;
   scenario: { id: string; name: string; goal: string; status: 'active' | 'won' | 'lost' } | null;
+  /** B1: today's conditions, for the banner. Empty or absent on a quiet day. */
+  modifiers?: { id: string; name: string; blurb: string }[];
+  /** B2: the casino's standing, 0–100 (50 is unknown), and its word. */
+  reputation?: { value: number; label: string };
+  /** B3: how many guests the floor holds right now (seats, services, rating). */
+  guestCap?: number;
 }
 
 export type SimEvent =
   | { type: 'payout'; objectId: string; x: number; z: number; amount: number }
-  | { type: 'ticker'; text: string; severity: 'info' | 'warn' | 'alert' }
+  | {
+      type: 'ticker';
+      text: string;
+      severity: 'info' | 'warn' | 'alert';
+      /** B1: where the news happened, for click-to-locate. x/z is the spot at
+       *  the time; objectId or agentId (a guest's numeric id, as in
+       *  Snapshot.agents) names the subject, which may since have moved or gone. */
+      x?: number;
+      z?: number;
+      objectId?: string;
+      agentId?: number;
+    }
   | { type: 'gameOver'; won: boolean; reason: string };
 
 export interface Snapshot {
@@ -170,7 +187,29 @@ export type Command =
   | { type: 'stats' }
   // Run N ticks synchronously in the worker and reply with their timings —
   // unaffected by background-tab timer throttling, unlike the pump.
-  | { type: 'debugTicks'; count: number };
+  | { type: 'debugTicks'; count: number }
+  // B2: the hidden sim, surfaced. Read-only views for the Rating, Patrons and
+  // Prices panels (reply types live in worker/inspect.ts), and the two
+  // actions they offer: comp a guest, and price a menu item or a drink.
+  | { type: 'rating' }
+  | { type: 'patrons' }
+  | { type: 'prices' }
+  | { type: 'sendComp'; guestId: string; kind: 'drink' | 'meal' | 'matchPlay' }
+  | { type: 'setPrice'; objectId: string; itemId: string; price: number }
+  // B4: finance depth. Chart series from the ledger's history, the report
+  // card for a closed day (the latest when no day is given), and loans
+  // (reply types live in worker/finance.ts).
+  | { type: 'financeHistory' }
+  | { type: 'dayReport'; day?: number }
+  | { type: 'loans' }
+  | { type: 'takeLoan'; amount: number; days: number }
+  | { type: 'repayLoan'; loanId: string; amount: number }
+  // B5: the feedback loop. What guests are thinking (top thoughts with counts
+  // and a trend), every guest on the floor for the Guests list, and a mood or
+  // traffic heat map for the overlay (reply types live in worker/feedback.ts).
+  | { type: 'thoughts' }
+  | { type: 'guestList' }
+  | { type: 'heatMap'; kind: 'mood' | 'traffic' };
 
 /** Reply to { type: 'stats' }. */
 export interface SimStats {

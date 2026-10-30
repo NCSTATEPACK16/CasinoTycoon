@@ -530,6 +530,30 @@ export const BAR_BALANCE = {
   happinessOnDelivery: 5, // a little more — real table service feels better
 } as const;
 
+// B2: what guests think of the prices. A service's price index is its price
+// over the default (the bar's drinkPrice, a stall's DEFAULT_MENU prices), and
+// its appeal is exp(-elasticity × (index − 1)), clamped: 1 at the default, so
+// an untouched casino behaves exactly as before. Appeal scales how strongly a
+// need pulls a guest to the counter, and how thirsty a seated guest gets
+// before ordering from a waitress — fewer, later purchases, never a refusal at
+// the till. With elasticity 0.9 and the bar's $4 cost, margin × appeal peaks
+// near 1.45× ($17); past ripoffIndex guests also resent paying. [design guess]
+export const PRICE_BALANCE = {
+  elasticity: 0.9,
+  minAppeal: 0.05,
+  maxAppeal: 1.25,
+  /** Price index past which a purchase reads as a rip-off. */
+  ripoffIndex: 2,
+  barPriceFloor: 4, // never below what a drink costs to pour
+  barPriceCeil: 36,
+} as const;
+
+/** How strongly a price index pulls custom, relative to the default price. */
+export function priceAppeal(index: number): number {
+  const p = PRICE_BALANCE;
+  return Math.min(p.maxAppeal, Math.max(p.minAppeal, Math.exp(-p.elasticity * (index - 1))));
+}
+
 // Guest archetypes: a small independent weighted roll on spawn. biker/tourist
 // are cosmetic-only (same needs/decay/wallet as regular) — highRoller is the
 // one with real mechanical weight, via a much wider/higher wallet range so
@@ -567,6 +591,26 @@ export const DEBT = {
    *  its own. Deliberately loose — Task 9 tightens the per-campaign values
    *  under measurement. Sandbox uses this permanently. */
   defaultCreditLimit: 10_000, // [design guess]
+} as const;
+
+/**
+ * B4 — structured loans, alongside the overdraft. A loan is borrowed for a
+ * fixed term and repaid in equal daily installments at midnight (interest
+ * first), and may be repaid early at no penalty. It costs a fraction of the
+ * overdraft's DEBT.dailyInterestRate, so borrowing on purpose beats drifting
+ * into the red. The ceiling is the scenario's own `loanLimit`. [design guess]
+ */
+export const LOANS = {
+  /** Terms on offer: shorter is cheaper per day but heavier per installment. */
+  terms: [
+    { days: 7, rate: 0.015 },
+    { days: 14, rate: 0.02 },
+    { days: 28, rate: 0.025 },
+  ],
+  /** The most outstanding at once when a scenario names no limit. */
+  defaultLimit: 50_000,
+  /** Borrow in steps of this much. */
+  step: 250,
 } as const;
 
 // ---------------------------------------------------------------------------

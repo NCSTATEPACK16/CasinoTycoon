@@ -11,7 +11,22 @@ export interface PatronJSON {
   visits: number;
   lastSeenDay: number;
   neglected: boolean;
+  /** B2: the latest visits, newest last, flattened to whole-number
+   *  [day, theo, comps] triples to keep the roster's save small. Absent in
+   *  older saves. */
+  recent?: number[];
 }
+
+/** One visit as the roster remembers it: when, what it was worth, and what
+ *  the house spent looking after them. */
+export interface PatronVisit {
+  day: number;
+  theo: number;
+  comps: number;
+}
+
+/** Visits kept per patron: enough to read a trend, small enough for the save. */
+export const PATRON_RECENT_VISITS = 4;
 
 export interface PatronRegistryJSON {
   patrons: PatronJSON[];
@@ -37,6 +52,7 @@ export class Patron {
   /** Set when a host-wanting patron left without being looked after. Halves
    *  their next return draw, and is cleared the moment they are comped. */
   neglected = false;
+  recent: PatronVisit[] = [];
 
   constructor(
     readonly id: string,
@@ -63,7 +79,13 @@ export class Patron {
       visits: this.visits,
       lastSeenDay: this.lastSeenDay,
       neglected: this.neglected,
+      recent: this.recent.flatMap((v) => [v.day, Math.round(v.theo), Math.round(v.comps)]),
     };
+  }
+
+  remember(visit: PatronVisit): void {
+    this.recent.push(visit);
+    if (this.recent.length > PATRON_RECENT_VISITS) this.recent.shift();
   }
 }
 
@@ -108,6 +130,11 @@ export class PatronRegistry {
   /** Patrons who are due in today and have not yet walked through the door. */
   get pendingArrivals(): number {
     return this.dueToday.length;
+  }
+
+  /** Drawn to visit today and not yet through the door. */
+  isDue(id: string): boolean {
+    return this.dueToday.includes(id);
   }
 
   get(id: string): Patron | undefined {
@@ -159,6 +186,7 @@ export class PatronRegistry {
       existing.lifetimeTheo += theo;
       existing.visits++;
       existing.lastSeenDay = day;
+      existing.remember({ day, theo, comps: guest.compsReceived });
       const after = existing.tier;
       const neglected = after.wantsHost && guest.compsReceived === 0;
       existing.neglected = neglected;
@@ -182,6 +210,7 @@ export class PatronRegistry {
     patron.lifetimeTheo = theo;
     patron.visits = 1;
     patron.lastSeenDay = day;
+    patron.remember({ day, theo, comps: guest.compsReceived });
     this.records.set(id, patron);
     this.enforceCap(onFloor);
     return { patron, carded: true, promotedTo: null, neglected: false };
@@ -209,7 +238,8 @@ export class PatronRegistry {
    * visit and their theo when both copies leave.
    */
   drawForDay(day: number, rng: Rng, onFloor: ReadonlySet<string> = EMPTY_SET): Patron[] {
-    if (day === this.drawnForDay) return this.dueToday.map((id) => this.records.get(id)!).filter(Boolean);
+    if (day === this.drawnForDay)
+      return this.dueToday.map((id) => this.records.get(id)!).filter(Boolean);
     this.drawnForDay = day;
     this.prune(day, onFloor);
     const due: Patron[] = [];
@@ -293,6 +323,9 @@ export class PatronRegistry {
       patron.visits = raw.visits ?? 0;
       patron.lastSeenDay = raw.lastSeenDay ?? 0;
       patron.neglected = raw.neglected ?? false;
+      const r = Array.isArray(raw.recent) ? raw.recent : [];
+      for (let i = 0; i + 2 < r.length; i += 3)
+        patron.remember({ day: r[i]!, theo: r[i + 1]!, comps: r[i + 2]! });
       registry.records.set(patron.id, patron);
     }
     registry.dueToday = (data.dueToday ?? []).filter((id) => registry.records.has(id));

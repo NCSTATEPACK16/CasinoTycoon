@@ -9,6 +9,13 @@ import { Hud } from './ui/Hud';
 import { Menus } from './ui/Menus';
 import { SidePanel } from './ui/SidePanel';
 import { TablePlay } from './ui/TablePlay';
+import { HeatOverlay } from './render/HeatOverlay';
+import { DayReportCard } from './ui/panels/DayReportCard';
+import { GuestFollower } from './ui/panels/follow';
+import { HeatControl } from './ui/panels/HeatControl';
+import { HelpOverlay } from './ui/panels/HelpOverlay';
+import type { DayReport } from './worker/finance';
+import { guestPosition, locate } from './ui/panels/locate';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#view')!;
 const ui = document.querySelector<HTMLElement>('#ui')!;
@@ -21,20 +28,47 @@ const hud = new Hud(ui, sim, build);
 const panel = new SidePanel(sim);
 const table = new TablePlay(sim);
 const menus = new Menus(sim);
-ui.append(panel.root, table.root, menus.root);
+const help = new HelpOverlay();
+const report = new DayReportCard();
+ui.append(panel.root, table.root, help.root, report.root, menus.root);
+const showReport = () =>
+  void sim
+    .command<DayReport>({ type: 'dayReport' })
+    .then((r) => report.show(r))
+    .catch((err: Error) => hud.say(err.message));
+report.onFinances = () => panel.open('finances');
+// B5: the mood/traffic heat map over the floor, and following a guest.
+const heat = new HeatOverlay();
+stage.scene.add(heat.object);
+const heatControl = new HeatControl(sim, heat);
+ui.append(heatControl.root);
+const follower = new GuestFollower(sim, controls, canvas);
+follower.onMessage = (t) => hud.say(t);
+panel.onFollowGuest = (agentId, name) => {
+  if (!follower.start(agentId, name)) hud.say('Stand up from the table first (F)');
+};
+panel.onReport = showReport;
 controls.onMessage = (t) => hud.say(t);
+hud.ticker.onLocate = (at) => {
+  if (!locate(at, { sim, controls, stage, panel })) hud.say('Stand up from the table first (F)');
+};
 
 // ---------- sim → screen ----------
 
 /** Autosave only once a game is under way — never the idle world behind the title. */
 let playing = false;
 menus.onStarted = () => (playing = true);
+menus.onStarting = () => {
+  hud.ticker.clear();
+  report.resetDay();
+};
 let lastHour = -1;
 sim.onSnapshot((s) => {
   if (s.objects) stage.setObjects(s.objects);
   if (s.floor) stage.setFloor(s.floor);
   stage.handleEvents(s.events);
   hud.update(s.hud);
+  if (report.dayRolled(s.hud.day) && playing && report.autoShow && !menus.isOpen) showReport();
   hud.events(s.events);
   for (const e of s.events) {
     if (e.type === 'gameOver') {
@@ -57,11 +91,36 @@ sim.onSnapshot((s) => {
 hud.menu.finances.onclick = () => panel.toggle('finances');
 hud.menu.staff.onclick = () => panel.toggle('staff');
 hud.menu.save.onclick = () => void menus.saveMenu((t) => hud.say(t));
-hud.menu.load.onclick = () => void menus.title();
+hud.menu.load.onclick = () => {
+  hud.pause();
+  menus.pauseMenu(
+    () => hud.resume(),
+    (t) => hud.say(t),
+  );
+};
+hud.menu.help.onclick = () => help.toggle();
+hud.onRating = () => panel.toggle('rating');
+panel.onMessage = (t) => hud.say(t);
+panel.onLocateGuest = (agentId) => {
+  const at = guestPosition(sim.curr, agentId);
+  if (at && !locate({ ...at, agentId }, { sim, controls, stage, panel }))
+    hud.say('Stand up from the table first (F)');
+};
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+  if (e.key === '?') return help.toggle();
+  if (e.code === 'Escape' && help.isOpen) return help.close();
+  if (menus.isOpen) {
+    if ((e.code === 'Space' || e.code === 'Escape') && menus.dismissPause()) e.preventDefault();
+    return;
+  }
+  if (e.code === 'Space') hud.spaceKey(e);
   if (e.code === 'KeyP') panel.toggle('finances');
   if (e.code === 'KeyH') panel.toggle('staff');
+  if (e.code === 'KeyC') panel.toggle('patrons');
+  if (e.code === 'KeyG') panel.toggle('guests');
+  if (e.code === 'KeyM') heatControl.toggle('mood');
+  if (e.code === 'KeyT') heatControl.toggle('traffic');
   if (e.code === 'KeyZ') stage.showZoneOverlay((zonesOn = !zonesOn));
 });
 let zonesOn = false;
@@ -142,4 +201,4 @@ stage.renderer.setAnimationLoop((now) => {
 void sim.command({ type: 'setSpeed', speed: 0 }).then(() => menus.title());
 
 // Debug/test hook for browser playtests.
-Object.assign(window, { __v2: { sim, stage, god, build, controls, panel, table, menus } });
+Object.assign(window, { __v2: { sim, stage, god, build, controls, panel, table, menus, hud } });

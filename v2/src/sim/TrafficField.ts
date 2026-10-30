@@ -60,6 +60,12 @@ export class TrafficField {
     return v < this.noiseFloor ? null : v;
   }
 
+  /** B5: the decayed count on a tile with no noise floor, for an overlay
+   *  that sets its own scale. */
+  rawAt(col: number, row: number): number {
+    return this.visits.valueAt(col, row);
+  }
+
   /** Busiest tile on the floor — the top of the overlay's scale. */
   get busiest(): number {
     return this.visits.max;

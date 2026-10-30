@@ -58,11 +58,12 @@ export interface CasinoFinancials {
 }
 
 const FNB = new Set(['food-stall', 'bar']);
-const HOUSE_IDS = new Set<string>(Object.values(HOUSE_SOURCES).map((h) => h.id));
+export const HOUSE_IDS = new Set<string>(Object.values(HOUSE_SOURCES).map((h) => h.id));
 
-const isGaming = (r: SourceRecord): boolean => r.wagered > 0 || r.rounds > 0 || r.capacityTicks > 0;
+export const isGaming = (r: SourceRecord): boolean =>
+  r.wagered > 0 || r.rounds > 0 || r.capacityTicks > 0;
 
-function gamingLine(rows: readonly SourceRecord[]): GamingLine {
+export function gamingLine(rows: readonly SourceRecord[]): GamingLine {
   let handle = 0;
   let won = 0;
   let theo = 0;
@@ -123,7 +124,7 @@ function pnl(
   };
 }
 
-function fromRecords(label: string, records: readonly DailyRecord[]): PeriodPnl {
+export function fromRecords(label: string, records: readonly DailyRecord[]): PeriodPnl {
   return pnl(
     label,
     records.length,

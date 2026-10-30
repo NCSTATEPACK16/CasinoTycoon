@@ -143,6 +143,12 @@ export class Guest extends Walker {
   drunk = false;
   /** Being walked out by security. */
   escorted = false;
+  /** B3: under daily traffic, the tick a visit is planned to end; the guest
+   *  finishes what they are doing and goes home. Null: stay as long as
+   *  money, mood and energy last (the campaigns' rule). */
+  leaveAtTick: number | null = null;
+  /** B5: the tick this guest walked in, for the Guests list. */
+  arrivedTick = 0;
   /** Standing in High-Limit right now — keeps the zone on this guest's filter
    *  until they step out, so a bust-out never strands an agent off-mesh. */
   private inHighLimit = false;
@@ -347,6 +353,17 @@ export class Guest extends Walker {
   }
 
   private act(world: CasinoWorld): void {
+    // B3: when the planned visit is over, anyone not seated or being served
+    // heads home now rather than at their next re-think; a player finishes
+    // the run of plays they are in (tickPlay re-thinks at its end).
+    if (
+      this.leaveAtTick !== null &&
+      world.tickCount >= this.leaveAtTick &&
+      (this.state === 'wander' || this.state === 'seekGame' || this.state === 'queue')
+    ) {
+      this.evaluate(world);
+      return;
+    }
     switch (this.state) {
       case 'wander':
         // On the crowd a wanderer browses where it lands for a few seconds
@@ -380,9 +397,13 @@ export class Guest extends Walker {
   }
 
   /** v1's leave rules plus the bankroll model's stop-loss and win goal. */
-  private wantsToLeave(): boolean {
+  private wantsToLeave(tick: number): boolean {
     const b = GUEST_BALANCE;
     if (this.needs.energy <= b.leaveEnergy || this.wallet < b.brokeWallet) return true;
+    if (this.leaveAtTick !== null && tick >= this.leaveAtTick) {
+      this.recordThought(tick, 'homeTime', 'Good night. Time to head home.');
+      return true;
+    }
     if (this.needs.happiness <= AI.leaveUnhappy) return true;
     return stopReason(this.profile, this.sessionNet) !== null;
   }
@@ -408,7 +429,7 @@ export class Guest extends Walker {
   private evaluate(world: CasinoWorld): void {
     this.dropQueue(world);
     this.serviceStand = null;
-    if (this.wantsToLeave()) {
+    if (this.wantsToLeave(world.tickCount)) {
       this.leave(world);
       return;
     }
@@ -645,7 +666,12 @@ export class Guest extends Walker {
       this.stopPlaying(world);
       return;
     }
-    if (!this.waitingForDrink && this.needs.thirst < b.needThreshold) {
+    // B2: at a dear bar a seated guest holds out longer before ordering.
+    if (
+      !this.waitingForDrink &&
+      this.needs.thirst < b.needThreshold &&
+      this.needs.thirst < b.needThreshold * Math.min(1, world.serviceAppeal('bar'))
+    ) {
       this.waitingForDrink = true;
     }
     this.spinTimer++;
@@ -689,8 +715,38 @@ export class Guest extends Walker {
     this.spinsLeft--;
     // The bankroll model ends a session the moment a stop rule trips, not at
     // the end of the planned run of plays.
-    if (this.spinsLeft <= 0 || stopReason(this.profile, this.sessionNet) !== null)
-      this.stopPlaying(world);
+    if (stopReason(this.profile, this.sessionNet) !== null) return this.stopPlaying(world);
+    if (this.spinsLeft > 0) return;
+    if (this.staysForAnotherRun(world)) {
+      const cadence = world.machineCadence(this.machineId);
+      if (cadence) {
+        this.spinsLeft = world.rng.int(cadence.playsMin, cadence.playsMax);
+        return;
+      }
+    }
+    this.stopPlaying(world);
+  }
+
+  /**
+   * B7a: at the end of a run of plays, a guest with no reason to get up keeps
+   * the seat and plays another run. Walking is real time, so a guest who got
+   * up after every run spent most of a visit crossing the floor (0.5% of
+   * guests at a game on a big Sandbox floor before B7a).
+   * Each play is worth exactly what it was; only the walking between runs
+   * goes. A need, the stop rules, a dwindling wallet or the end of the
+   * planned visit still end the sitting.
+   */
+  private staysForAnotherRun(world: CasinoWorld): boolean {
+    // Only on the crowd, where walking costs real time. The grid walker
+    // crosses 25 cells an in-game hour, so there a guest loses nothing by
+    // getting up, and the tuned campaign tournament keeps its numbers.
+    if (!world.nav || !this.machineId) return false;
+    // The visit's end is checked here without wantsToLeave's goodbye thought,
+    // which the re-think after stopPlaying records once.
+    if (this.leaveAtTick !== null && world.tickCount >= this.leaveAtTick) return false;
+    if (this.wantsToLeave(world.tickCount)) return false;
+    if (this.wallet < world.machineCost(this.machineId)) return false;
+    return this.brainRng.chance(AI.stayAtGame);
   }
 
   private startCelebrating(world: CasinoWorld): void {
@@ -741,7 +797,7 @@ export class Guest extends Walker {
       if (purchase) {
         this.wallet -= purchase.price;
         this.needs.thirst = BAR_BALANCE.thirstRestore;
-        this.adjustHappiness(BAR_BALANCE.happinessOnSelfServe);
+        this.drinkMood(world, purchase.ripoff, BAR_BALANCE.happinessOnSelfServe);
         if (++this.drinks >= AI.drunkAfterDrinks && !this.drunk) {
           this.drunk = true;
           this.recordThought(world.tickCount, 'drunk', 'One more and I’ll own this place!');
@@ -773,10 +829,19 @@ export class Guest extends Walker {
       eventBus.emit('tickerMessage', {
         text: `${this.name} storms out in a rage!`,
         severity: 'warn',
+        guestId: this.id,
       });
     }
     this.state = 'leaving';
     if (!this.goTo(world, world.entranceTile)) this.state = 'gone';
+  }
+
+  /** How a drink went down: the usual lift, or resentment at a price past
+   *  PRICE_BALANCE.ripoffIndex (the same hit as a food rip-off). */
+  drinkMood(world: CasinoWorld, ripoff: boolean, happiness: number): void {
+    if (!ripoff) return this.adjustHappiness(happiness);
+    this.adjustHappiness(FOOD_BALANCE.happinessOnRipoff);
+    this.recordThought(world.tickCount, 'ripoff', 'Who charges that for a drink?');
   }
 
   adjustHappiness(delta: number): void {

@@ -116,3 +116,52 @@ export function furnishSandbox(world: CasinoWorld): number {
     for (let col = 86; col <= 94; col += 2) put('plant', col, row);
   return placed;
 }
+
+/**
+ * B7a: the ~210-seat Sandbox floor B3 and B5 were measured on. A pit of
+ * blackjack tables, restrooms, food and two bars, and slot banks two deep
+ * with two-cell aisles, kept clear of the lobby's double door, to `room`
+ * seats in all.
+ */
+export function furnishSandboxFloor(world: CasinoWorld, room = 210, aisle = 2): void {
+  const put = (d: string, c: number, r: number) => world.place(d, c, r) !== null;
+  for (let col = 30; col <= 54; col += 4) put('blackjack-table', col, 22);
+  for (let row = 5; row <= 12; row += 2) put('toilet', 5, row);
+  for (let col = 6; col <= 15; col += 3) put('food-stall', col, 58);
+  put('bar', 6, 46);
+  put('bar', 10, 46);
+  banks: for (let row = 28; row < 48; row++) {
+    if ((row - 28) % (2 + aisle) > 1) continue;
+    for (let col = 20; col < 78; col++) {
+      if (col % 7 <= 1) continue;
+      if (world.floorCapacity() >= room) break banks;
+      put('slot-machine', col, row);
+    }
+  }
+}
+
+/** B7a: the share of guests seated and playing, averaged over `ticks` ticks
+ *  after `warmup`, sampled every 10. */
+export function measurePlayShare(
+  world: CasinoWorld,
+  ticks: number,
+  warmup = 0,
+): { share: number; guests: number; playing: number } {
+  let guests = 0;
+  let playing = 0;
+  let samples = 0;
+  for (let t = 0; t < warmup + ticks; t++) {
+    world.tick();
+    if (t < warmup || t % 10 !== 0) continue;
+    samples++;
+    for (const g of world.guests.values()) {
+      guests++;
+      if (g.state === 'play') playing++;
+    }
+  }
+  return {
+    share: guests ? playing / guests : 0,
+    guests: guests / Math.max(1, samples),
+    playing: playing / Math.max(1, samples),
+  };
+}

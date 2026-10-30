@@ -7,6 +7,8 @@
 // docs/superpowers/specs/2026-08-19-difficulty-curve-solvency-design.md for
 // what each one is answering. Changing one in isolation will break a guard.
 
+import { OPEN_TRAFFIC, type TrafficProfile } from '../traffic';
+
 export interface CampaignDef {
   id: string;
   name: string;
@@ -17,6 +19,8 @@ export interface CampaignDef {
   dayLimit: number;
   /** Placeable object ids; omitted = everything is allowed. */
   allowedObjects?: readonly string[];
+  /** B7: why the rest is off-limits, in the player's words, for the palette. */
+  restriction?: string;
   /** P16: how many closed days the goal is averaged over. The run is won when
    *  the mean of the last N days reaches goalDailyProfit, so a steady casino
    *  beats a lucky one — "N days running" rewarded the coin, not the operator.
@@ -29,6 +33,12 @@ export interface CampaignDef {
   /** v2: the lot the floor plan is built on, in cells (Session 3's FloorPlan
    *  reads it). Omitted = the default 40×30 lot. */
   lot?: { cols: number; rows: number };
+  /** B3: how guests arrive. Omitted = CAMPAIGN_TRAFFIC, the flat rate and
+   *  fixed cap the campaigns below were tuned on. */
+  traffic?: TrafficProfile;
+  /** B4: the most the bank will have out on loan at once. Omitted =
+   *  LOANS.defaultLimit. */
+  loanLimit?: number;
 }
 
 export const CAMPAIGNS: readonly CampaignDef[] = [
@@ -67,6 +77,9 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     dayLimit: 12,
     goalWindowDays: 4,
     creditLimit: 1000,
+    // B4: a bank loan of up to half the starting stake; the greedy probe never
+    // borrows, and a loan costs 1.5–2.5% a day, so the goals stand.
+    loanLimit: 2000,
   },
   {
     id: 'neon-nights',
@@ -77,11 +90,15 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     dayLimit: 11,
     goalWindowDays: 3,
     creditLimit: 1000,
+    // B4: a bank loan of up to half the starting stake; the greedy probe never
+    // borrows, and a loan costs 1.5–2.5% a day, so the goals stand.
+    loanLimit: 1750,
   },
   {
     id: 'high-roller',
     name: 'The High Roller Club',
     tagline: 'Members only, tables only. Slots would cheapen the carpet.',
+    restriction: 'Members play blackjack here: no slots, wheels or dice on this carpet.',
     // v2: $700 → $1000 for the same reason as the Dusty Dime: real blackjack
     // let a single never-touched table average up to $871; greedy's floor of
     // staffed tables never averaged under $1025 on any seed.
@@ -90,6 +107,9 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     dayLimit: 10,
     goalWindowDays: 3,
     creditLimit: 800,
+    // B4: a bank loan of up to half the starting stake; the greedy probe never
+    // borrows, and a loan costs 1.5–2.5% a day, so the goals stand.
+    loanLimit: 2500,
     allowedObjects: ['blackjack-table', 'toilet', 'food-stall', 'plant'],
   },
 ];
@@ -111,6 +131,8 @@ export const SANDBOX: CampaignDef = {
   sandbox: true,
   // SPEC §9.7: room for 2,000 objects and 500 guests.
   lot: { cols: 96, rows: 64 },
+  // B3: the daily rhythm, and a cap that grows with the floor up to 500.
+  traffic: OPEN_TRAFFIC,
 };
 
 /** Everything the scenario picker offers: the campaigns, then Sandbox. */
