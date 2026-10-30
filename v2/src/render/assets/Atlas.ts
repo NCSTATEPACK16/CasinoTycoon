@@ -5,6 +5,8 @@
 // shader offsets v by the instance's variant (ObjectLayer sets it).
 
 import * as THREE from 'three';
+import { PAR_SHEETS } from '../../sim/games/slots/sheets';
+import { MAX_REELS, REEL_CELL, SHEET_ORDER, STRIP_MAX } from '../fx/reels';
 
 export interface UvRect {
   u0: number;
@@ -41,6 +43,9 @@ const DECALS: Record<string, DecalSpec> = {
   uthFelt: { w: 512, h: 288, paint: uthFelt },
   carnivalFelt: { w: 512, h: 288, paint: carnivalFelt },
   slotReels: { w: 192, h: 128, paint: slotReels },
+  // Every par sheet's real reel strips, one column per reel; the object
+  // shader scrolls the reel windows through them (render/fx/reels.ts).
+  reelStrips: { w: SHEET_ORDER.length * MAX_REELS * REEL_CELL, h: STRIP_MAX * REEL_CELL, paint: reelStrips },
   slotTopper: { w: 256, h: 96, rows: 4, paint: slotTopper },
   pennyScreen: { w: 192, h: 160, rows: 3, paint: pennyScreen },
   pennyTopper: { w: 256, h: 96, rows: 3, paint: pennyTopper },
@@ -558,27 +563,150 @@ function carnivalFelt(g: CanvasRenderingContext2D, w: number, h: number) {
 
 // ---------- machines ----------
 
-const SYMBOLS = ['7', 'BAR', '🍒', '◆', '🔔', '7', 'BAR'];
-
+/** The reel window behind the glass: the shader draws the reels in it; this
+ *  is the dark surround it shows outside them. */
 function slotReels(g: CanvasRenderingContext2D, w: number, h: number) {
-  const rw = w / 3;
-  for (let r = 0; r < 3; r++) {
-    const grad = g.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0, '#8a8a8a');
-    grad.addColorStop(0.5, '#ffffff');
-    grad.addColorStop(1, '#8a8a8a');
-    g.fillStyle = grad;
-    g.fillRect(r * rw + 2, 0, rw - 4, h);
-    for (let s = 0; s < 3; s++) {
-      const sym = SYMBOLS[(r * 2 + s) % SYMBOLS.length]!;
-      const y = h * (0.18 + s * 0.32);
-      const col = sym === '7' ? '#d01818' : sym === 'BAR' ? '#111' : '#1a4fd0';
-      text(g, sym, r * rw + rw / 2, y, sym === 'BAR' ? 20 : 34, col, SIGN_FONT, '900');
+  g.fillStyle = '#0b0b10';
+  g.fillRect(0, 0, w, h);
+}
+
+/** A strip of symbols per reel per sheet, top to bottom in strip order. */
+function reelStrips(g: CanvasRenderingContext2D) {
+  const C = REEL_CELL;
+  SHEET_ORDER.forEach((id, si) => {
+    const sheet = PAR_SHEETS[id]!;
+    const video = sheet.rows === 3;
+    sheet.reels.forEach((reel, r) => {
+      const x = (si * MAX_REELS + r) * C;
+      // Classic reels are printed on cream; video reels glow on a dark screen.
+      g.fillStyle = video ? '#0d1424' : '#f4ecd8';
+      g.fillRect(x, 0, C, STRIP_MAX * C);
+      reel.stops.forEach((sym, i) => reelSymbol(g, sym, x + C / 2, i * C + C / 2, C, video));
+    });
+  });
+}
+
+/** One reel symbol, centred on (x, y) in a cell of size c. */
+function reelSymbol(g: CanvasRenderingContext2D, sym: string, x: number, y: number, c: number, video: boolean) {
+  const big = c * 0.62;
+  const disc = (dx: number, dy: number, rad: number, fill: string) => {
+    g.fillStyle = fill;
+    g.beginPath();
+    g.arc(x + dx, y + dy, rad, 0, Math.PI * 2);
+    g.fill();
+  };
+  const bars = (n: number) => {
+    const bh = c * (n === 1 ? 0.3 : n === 2 ? 0.2 : 0.15);
+    for (let k = 0; k < n; k++) {
+      const by = y + (k - (n - 1) / 2) * (bh + 3) - bh / 2;
+      g.fillStyle = '#111';
+      g.fillRect(x - c * 0.38, by, c * 0.76, bh);
+      text(g, 'BAR', x, by + bh / 2 + 1, Math.max(8, bh * 0.8), '#f4ecd8', SIGN_FONT, '900');
     }
+  };
+  const label = (t: string, color: string, size = big) => {
+    g.save();
+    g.shadowColor = video ? color : 'transparent';
+    g.shadowBlur = video ? 6 : 0;
+    text(g, t, x, y + 1, size, color, SIGN_FONT, '900');
+    g.restore();
+  };
+  switch (sym) {
+    case '-':
+      return;
+    case 'CH':
+      g.strokeStyle = '#2e7d32';
+      g.lineWidth = 3;
+      g.beginPath();
+      g.moveTo(x - c * 0.14, y + c * 0.06);
+      g.quadraticCurveTo(x, y - c * 0.3, x + c * 0.16, y - c * 0.3);
+      g.moveTo(x + c * 0.14, y + c * 0.08);
+      g.quadraticCurveTo(x + c * 0.1, y - c * 0.2, x + c * 0.16, y - c * 0.3);
+      g.stroke();
+      disc(-c * 0.14, c * 0.14, c * 0.15, '#c8102e');
+      disc(c * 0.14, c * 0.16, c * 0.15, '#e01e3c');
+      return;
+    case 'B1':
+      return bars(1);
+    case 'B2':
+      return bars(2);
+    case 'B3':
+      return bars(3);
+    case '7':
+      g.save();
+      g.lineWidth = 4;
+      g.strokeStyle = '#3a0000';
+      g.font = `900 ${big * 1.1}px ${SIGN_FONT}`;
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.strokeText('7', x, y + 2);
+      g.restore();
+      return label('7', '#d01818', big * 1.1);
+    case 'DI':
+      g.fillStyle = '#29b6f6';
+      g.beginPath();
+      g.moveTo(x, y - c * 0.36);
+      g.lineTo(x + c * 0.3, y);
+      g.lineTo(x, y + c * 0.36);
+      g.lineTo(x - c * 0.3, y);
+      g.closePath();
+      g.fill();
+      g.strokeStyle = '#e1f5fe';
+      g.lineWidth = 2;
+      g.stroke();
+      return;
+    case 'PE':
+      disc(0, 0, c * 0.26, '#eef2f7');
+      disc(-c * 0.08, -c * 0.08, c * 0.08, '#ffffff');
+      return;
+    case 'CO':
+      disc(0, 0, c * 0.3, '#f2c14e');
+      disc(0, 0, c * 0.22, '#d9a441');
+      return label('$', '#7a4f00', big * 0.7);
+    case 'RO':
+      for (let k = 0; k < 5; k++) {
+        const a = (k / 5) * Math.PI * 2;
+        disc(Math.cos(a) * c * 0.13, Math.sin(a) * c * 0.13, c * 0.14, '#e8336d');
+      }
+      return disc(0, 0, c * 0.1, '#9c0b3a');
+    case 'TU':
+      g.fillStyle = '#2e7d32';
+      g.fillRect(x - 1.5, y, 3, c * 0.36);
+      disc(0, -c * 0.04, c * 0.2, '#ff9800');
+      disc(-c * 0.12, -c * 0.12, c * 0.1, '#ffb74d');
+      return disc(c * 0.12, -c * 0.12, c * 0.1, '#ffb74d');
+    case 'BE':
+      g.fillStyle = '#f2c14e';
+      g.beginPath();
+      g.moveTo(x - c * 0.3, y + c * 0.2);
+      g.quadraticCurveTo(x - c * 0.22, y - c * 0.34, x, y - c * 0.34);
+      g.quadraticCurveTo(x + c * 0.22, y - c * 0.34, x + c * 0.3, y + c * 0.2);
+      g.closePath();
+      g.fill();
+      return disc(0, c * 0.24, c * 0.07, '#b8860b');
+    case 'HO':
+      g.fillStyle = '#7a4a12';
+      g.fillRect(x - c * 0.32, y - c * 0.06, c * 0.64, c * 0.32);
+      for (let k = 0; k < 4; k++) disc((k - 1.5) * c * 0.15, -c * 0.1, c * 0.1, '#f2c14e');
+      return label('BONUS', '#fff3b0', c * 0.16);
+    case 'DR':
+      return label('WILD', '#7dff8a', c * 0.3);
+    case 'WI':
+      return label('WILD', '#ff6ad5', c * 0.3);
+    case 'GO':
+      return label('WILD', '#ffd34d', c * 0.3);
+    case 'T':
+      return label('10', '#5ad1ff', big * 0.8);
+    case 'A':
+    case 'K':
+    case 'Q':
+    case 'J': {
+      const col = { A: '#ff5252', K: '#5ad1ff', Q: '#b388ff', J: '#7dff8a' }[sym];
+      return label(sym, col);
+    }
+    default:
+      return label(sym, video ? '#fff' : '#111', big * 0.5);
   }
-  // Payline.
-  g.fillStyle = 'rgba(220,30,30,0.85)';
-  g.fillRect(0, h / 2 - 1.5, w, 3);
 }
 
 const TOPPERS = [
@@ -623,6 +751,8 @@ function slotTopper(g: CanvasRenderingContext2D, w: number, h: number, row: numb
   }
 }
 
+/** The penny cabinet's video screen: a themed surround and the credits bar.
+ *  The shader draws the five reels in the window below the bar. */
 function pennyScreen(g: CanvasRenderingContext2D, w: number, h: number, row: number) {
   const themes = [
     ['#062a4a', '#5ad1ff'],
@@ -632,18 +762,9 @@ function pennyScreen(g: CanvasRenderingContext2D, w: number, h: number, row: num
   const [bg, fg] = themes[row % 3]!;
   g.fillStyle = bg;
   g.fillRect(0, 0, w, h);
-  const cols = 5;
-  const rows = 3;
-  const cw = w / cols;
-  const ch = (h - 26) / rows;
-  const syms = ['A', 'K', 'Q', 'J', '10', '★', '♦', '♥'];
-  for (let c = 0; c < cols; c++)
-    for (let r = 0; r < rows; r++) {
-      g.fillStyle = 'rgba(255,255,255,0.06)';
-      g.fillRect(c * cw + 2, 24 + r * ch + 2, cw - 4, ch - 4);
-      const s = syms[(c * 3 + r * 5 + row) % syms.length]!;
-      text(g, s, c * cw + cw / 2, 24 + r * ch + ch / 2, 22, fg, SIGN_FONT, '900');
-    }
+  g.strokeStyle = fg;
+  g.lineWidth = 3;
+  g.strokeRect(3, 24, w - 6, h - 27);
   g.fillStyle = '#000';
   g.fillRect(0, 0, w, 22);
   text(g, 'CREDITS 1,250   BET 40', w / 2, 11, 11, '#ffd34d', 'monospace', '700');

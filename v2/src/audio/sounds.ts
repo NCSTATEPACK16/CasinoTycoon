@@ -59,6 +59,17 @@ export const SOUNDS = {
   shuffle: { files: ['sfx-shuffle'], bus: 'sfx', volume: 0.7, priority: 2, maxVoices: 1 },
   ball: { files: ['sfx-roulette-ball'], bus: 'sfx', volume: 0.8, priority: 2, maxVoices: 2 },
   win: { files: ['sfx-victory'], bus: 'sfx', volume: 0.5, priority: 4, maxVoices: 1 },
+  // Slot reels (A3): the spin, a clunk as each reel stops, a bell on a win.
+  reelSpin: { files: ['sfx-reel-spin'], bus: 'sfx', volume: 0.35, priority: 2, maxVoices: 3, jitter: 60 },
+  reelStop: {
+    files: range('sfx-reel-clunk', 3),
+    bus: 'sfx',
+    volume: 0.4,
+    priority: 2,
+    maxVoices: 4,
+    jitter: 120,
+  },
+  bell: { files: ['sfx-bell'], bus: 'sfx', volume: 0.45, priority: 3, maxVoices: 2, jitter: 40 },
   // Build and management
   place: { files: ['ui-place'], bus: 'ui', volume: 0.7, priority: 3, maxVoices: 3, jitter: 80 },
   sell: { files: ['ui-sell'], bus: 'ui', volume: 0.7, priority: 3, maxVoices: 2 },

@@ -16,7 +16,7 @@ import { getObjectDef } from '../../data/objects';
 import { OBJECT_3D } from '../../shared/catalog';
 import { DecalAtlas } from './Atlas';
 import { GeoBuilder } from './GeoBuilder';
-import { SurfaceFlag, type Surface } from './Palette';
+import { REEL_DECALS, SurfaceFlag, type Surface } from './Palette';
 import { buildProcedural, type Lod } from './procedural';
 
 const GLB_URLS = import.meta.glob('../../../assets/models/*.glb', {
@@ -150,6 +150,7 @@ export class AssetLibrary {
         if (s.decal && this.atlas.rect(s.decal).rows > 1)
           s.flags = (s.flags ?? 0) | SurfaceFlag.Variant;
         if (s.decal && s.flags && s.flags & SurfaceFlag.Variant) this.useVariant(a, s.decal);
+        if (s.decal && REEL_DECALS.has(s.decal)) s.flags = (s.flags ?? 0) | SurfaceFlag.Reel;
         builders[lod]!.add(part, s, mesh.matrixWorld);
       }
     });

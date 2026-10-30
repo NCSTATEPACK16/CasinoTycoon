@@ -213,7 +213,7 @@ Each task lists what to build, then how to prove it. Tick it (✅) in this file 
 
 v2 ships to Netlify after this cut. Do these next, in this order, then the finish task. Everything under "After ship" waits until the user says so.
 
-- [ ] **A3. Slot reels spin and stop on the real result.**
+- [x] ✅ **A3. Slot reels spin and stop on the real result.**
   - Blender: split the reel window into its own reel-band mesh or material with UVs laid out down the strip, in the slot and penny cabinets.
   - Atlas: paint vertical reel strips with the par sheets' real symbols (`src/sim/games/slots/sheets.ts`) instead of the static decal.
   - Shader or per-instance: a spin start time and target stop per reel, stopping left to right with a small overshoot and settle.
@@ -225,6 +225,35 @@ v2 ships to Netlify after this cut. Do these next, in this order, then the finis
     - payout label held until the stop
     - stress scene before → after numbers, with draw calls up by no more than a couple per cabinet type
   - **Note from A1:** the payout labels (`Overlays.spawnPayout`) draw one sprite per label. On the stress overview at 1×, that's about 95 extra draw calls: 236 paused vs 331 running, over the 300 budget. Since this task reworks when labels appear, batch them too, into one instanced or atlas-text pool.
+  - **Done 2026-10-30.**
+    - **Built:**
+      - `contract:` 6e08c94: the `setInterest` command, the `roundFx` event (replaces a watched play's `payout`) and the inspector's optional `lastRound`.
+      - `src/sim/fx/rounds.ts`: `recordRound`, one call at the end of `playEngineRounds`, keeps each machine's last round in a WeakMap keyed by its `GameMath`. It reads the settled round only. Slots carry the sheet, a stop per reel (`stopsFor` turns the engine's window back into strip stops) and the winning lines.
+      - Worker: `setInterest` stores the watched ids; a watched play sends `roundFx` once per new round (a per-object sequence), and unwatched plays keep their `payout` events.
+      - `src/render/fx/reels.ts`: the stop timing (first reel at 0.85 s, then every 0.32 s on 3 reels or 0.24 s on 5; shorter by 1/√speed at 2× and 4×), an eased spin that lands exactly on the target and rings down with a small overshoot, and a GLSL twin of it. `restingStops` gives each unplayed cabinet a scattered window that the engine itself scores as paying nothing.
+      - `Atlas.ts`: `reelStrips` paints every par sheet's real strips, one 48 px column per reel, symbol by symbol (cherries, bars, sevens, diamonds, the video sheets' A/K/Q/J/10, coins, bells, wilds). The old static `slotReels` and `pennyScreen` faces become the frame around the window.
+      - Reel surface: no Blender re-export was needed. The reel window is already its own material surface (`decal_slotReels`, and `decal_pennyScreen` on the penny cabinet), so `AssetLibrary` flags those decals `SurfaceFlag.Reel` and the object shader draws the reels into that window: per instance `aReelA`/`aReelB` (spin start, sheet, five packed stops, duration scale), a strip lookup with motion blur while spinning, drum shading on the classic reels, and the payline. Idle cabinets get an attract sweep of light across the glass; it never changes a symbol.
+      - `src/render/fx/FxDirector.ts`: one round per watched object at a time, the newest queued round next and the rest dropped. Spin and reel-stop sounds at the stop times; at the reveal, the label, flash and a coin, bell (a win above the stake) or jackpot plus hopper (≥ $1,000 or ≥ 50× the stake), from that round's own numbers.
+      - `src/render/PayoutLabels.ts`: every floating "+$" label in one instanced draw. The glyphs are packed into a per-instance attribute and spelled out from a small glyph atlas in the shader, so spawning a label uploads 32 bytes; with no live label it draws nothing.
+      - `Stage.interestIds` (engine games within 24 m and in view, nearest 48), sent from `main.ts` every 0.5 s when it changes.
+    - **Tests:** `src/render/fx/reels.test.ts` (stop timing left to right, speed scaling, exact landing from any previous stop, the overshoot settling, packing, resting windows never paying on any sheet), `src/sim/fx/rounds.test.ts` (recorded stops reproduce the engine's window; recording changes no outcome or RNG draw against an unrecorded twin), `src/render/PayoutLabels.test.ts` (label text, packing round trip). 35/35 with the audio tests; `tsc` clean.
+    - **Economics guard:** `src/data/campaigns`, `world.tier2`, `crowd`, `src/sim/entities`, `src/sim/fx`: 23 files, 223/223.
+    - **Browser** (stress floor with penny cabinets mixed in, 500 guests, 1×):
+      - A penny cabinet, `obj-1253`, caught as a new round arrived: 0.9 s in, reel 1 has landed (blank, Q, J) and reels 2–5 are blurred mid-spin. At rest every visible symbol matches the strips at stops [13, 9, 7, 2, 5] (blank/Q/J, K/10/WILD, $/10/Q, $/J/K, J/Q/J). That is the inspector's `lastRound` (`pays 0.80× (1 line)`), identical to the round the director showed and to the stops on the reels.
+      - A classic cabinet, `obj-1254`: cherry, BAR, cherry on the line for `lastRound` stops [0, 0, 13], `pays 1.00×` (the leading cherry).
+      - Timeline of that penny round from the spin's start: `reelSpin` at 0, `reelStop` at 0.85 s and then per reel, and the "+$2" label and coin both at 1.80 s, the moment the last reel stopped.
+      - 219–319 rounds shown over the measuring runs, with newer rounds dropped as designed while a spin is showing.
+    - **Stress scene, A/B in the same session** (HEAD 83d98d0 on a second dev server vs A3; identical layout; 1280×800, High, auto-quality pinned, camera set with `god.setState`):
+
+      | View | HEAD calls, triangles | A3 calls, triangles |
+      |---|---|---|
+      | Overview, running | 304, 311k | 223, 311k |
+      | Overview, paused | 222, 311k | 222, 311k |
+      | Mid (30 m) | 142, 575k | 112, 557k |
+      | Close (10 m) | 127, 460k | 80, 415k |
+      | Slot bank close (8 m) | 114, 916k | 70, 965k |
+
+      The reels add no draw calls; the labels went from about one call each to one in all (running = paused + 1). Tick, headless `sandbox.stress.test.ts` alternating: HEAD 3.23 and 2.95 ms mean, A3 3.06 and 2.86 ms. fps not measured: the session window was closed, so the page ran as a background tab; for the same reason the in-browser tick read 20–77 ms on both builds.
 
 - [ ] **A4. Wheels and dice move.**
   - Roulette: the wheel head spins and decelerates. The ball orbits, drops, bounces and settles in the pocket of the real result, using the European or American pocket order from the layout.

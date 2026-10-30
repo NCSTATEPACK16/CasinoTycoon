@@ -6,6 +6,7 @@ import { SCENARIOS } from '../data/campaigns';
 import { getObjectDef } from '../data/objects';
 import { SeatedCasinoGame } from '../sim/entities/machines/SeatedCasinoGame';
 import { casinoFinancials, type CasinoFinancials } from '../sim/economy/financials';
+import { lastRound } from '../sim/fx/rounds';
 import type { RoundFx } from '../shared/contracts';
 import type { CasinoWorld } from '../sim/world';
 
@@ -96,6 +97,7 @@ export function inspectObject(world: CasinoWorld, objectId: string): MachineInsp
           rounds: src.rounds,
         }
       : null,
+    lastRound: lastRound(math)?.fx ?? null,
   };
 }
 

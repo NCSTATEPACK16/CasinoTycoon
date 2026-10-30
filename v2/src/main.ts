@@ -5,6 +5,7 @@ import { SimClient } from './client/SimClient';
 import { PlayerControls } from './input/PlayerControls';
 import type { PlayRequestedDetail } from './input/avatar/Interaction';
 import type { PickHit } from './input/Picker';
+import type { SoundName } from './audio/sounds';
 import { Stage } from './render/Stage';
 import { Hud } from './ui/Hud';
 import { Menus } from './ui/Menus';
@@ -31,6 +32,7 @@ audio.unlockOn(window);
 const gameAudio = new GameAudio(audio, sim);
 gameAudio.watchPanels([panel.root, table.root, menus.root, settings.root]);
 gameAudio.watchClicks(ui);
+stage.fx.sound = (name, at, delay) => audio.play(name as SoundName, { at, delay });
 
 // ---------- sim → screen ----------
 
@@ -41,6 +43,7 @@ let lastHour = -1;
 sim.onSnapshot((s) => {
   if (s.objects) stage.setObjects(s.objects);
   if (s.floor) stage.setFloor(s.floor);
+  stage.fx.speed = s.hud.speed;
   stage.handleEvents(s.events);
   hud.update(s.hud);
   hud.events(s.events);
@@ -59,6 +62,16 @@ sim.onSnapshot((s) => {
     lastHour = s.hud.hour;
   }
 });
+
+// Tell the worker which games are near the camera, so their rounds play out.
+let interestKey = '';
+setInterval(() => {
+  const ids = stage.interestIds();
+  const key = ids.join(',');
+  if (key === interestKey) return;
+  interestKey = key;
+  void sim.command({ type: 'setInterest', objectIds: ids }).catch(() => (interestKey = ''));
+}, 500);
 
 // ---------- management UI ----------
 
