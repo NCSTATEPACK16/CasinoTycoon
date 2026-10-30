@@ -20,6 +20,18 @@ Every iteration, reread all of this file plus your own track's task list. The lo
 - **3D art:** extend the headless Blender build scripts (`v2/assets/blender/*.py`) and use CC0 libraries (Poly Haven, and Poly Pizza items marked CC0). **No AI-generated models;** don't use the Blender MCP's `generate_3d`.
 - **Sound:** CC0 packs, Kenney first (as v1 did), mixed with WebAudio and positioned in 3D.
 
+## Ship cut (the user, 2026-10-30)
+
+v2 ships to Netlify after a trimmed cut, not the whole plan. Each task list now opens with a "Ship cut" section, followed by an "After ship" backlog:
+- **Track A:** A3 reels, A4 wheels and dice, A7 ambience, A5 cards and chips, A6 table play, then A13 finish.
+- **Track B:** B5 feedback, B7 palette, B8 campaign and medals, B12 tutorial, then B13 finish.
+- **After ship:**
+  - Track A: A8 lighting (first in line), A9 people, A10 decor art, A11 exterior, A12 celebrations.
+  - Track B: B6 decor (it ships together with A10's art), B9 engines, B10 marketing, B11 staff.
+
+  Don't start any of these until the user says so.
+- **Ship session:** once both tracks finish, a separate session merges the chain into `main`, points Netlify at `v2/`, deploys a preview, checks Chrome, Safari and Firefox, and asks the user before the production deploy. The user also decides then whether v2 replaces v1 at casinotycoon.netlify.app.
+
 ## Where things stand
 
 - "Playable" is done.

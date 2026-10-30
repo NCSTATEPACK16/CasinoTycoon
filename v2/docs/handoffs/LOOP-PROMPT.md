@@ -19,7 +19,7 @@ Each iteration:
    - screenshots for anything visual
    - for anything that renders or ticks: fps, draw calls, triangles and tick ms on the stress scene, before and after
 5. Tick the task in 5-alive.md with that evidence. Commit the work and the ticked file together, with a message that explains why and ends with the Co-Authored-By line. Push v2-alive only, and update the draft PR's checklist.
-6. When A0 to A12 are all ticked, do A13 (full suite under caffeinate -i, npm run build, screenshot set, PR out of draft), report to me, and stop the loop.
+6. Work through the "Ship cut" section of 5-alive.md in its order (A3, A4, A7, A5, A6). When those are all ticked, do A13 (full suite under caffeinate -i, npm run build, screenshot set, PR out of draft), report to me, and stop the loop. Don't start anything under "After ship".
 
 Rules:
 - Never merge any PR. Push only v2-alive. Never edit Track B's files; write what you need under "Requests to Track B" and mention it in your report.
@@ -45,7 +45,7 @@ Each iteration:
    - the built-in browser (preview_start name "v2-tycoon"), driving the change through the UI, with window.__v2 only for setup
    - screenshots of new panels
 5. Tick the task in 6-tycoon.md with that evidence. Commit the work and the ticked file together, with a message that explains why and ends with the Co-Authored-By line. Push v2-tycoon only, and update the draft PR's checklist.
-6. When B0 to B12 are all ticked, do B13 (full suite under caffeinate -i, npm run build, screenshot set, PR out of draft), report to me, and stop the loop.
+6. Work through the "Ship cut" section of 6-tycoon.md in its order (B5, B7, B8, B12). When those are all ticked, do B13 (full suite under caffeinate -i, npm run build, screenshot set, PR out of draft), report to me, and stop the loop. Don't start anything under "After ship".
 
 Rules:
 - Never merge any PR. Push only v2-tycoon. Never edit Track A's files; write what you need under "Requests to Track A" and mention it in your report.
