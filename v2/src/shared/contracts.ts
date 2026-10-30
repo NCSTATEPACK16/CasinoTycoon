@@ -203,7 +203,13 @@ export type Command =
   | { type: 'dayReport'; day?: number }
   | { type: 'loans' }
   | { type: 'takeLoan'; amount: number; days: number }
-  | { type: 'repayLoan'; loanId: string; amount: number };
+  | { type: 'repayLoan'; loanId: string; amount: number }
+  // B5: the feedback loop. What guests are thinking (top thoughts with counts
+  // and a trend), every guest on the floor for the Guests list, and a mood or
+  // traffic heat map for the overlay (reply types live in worker/feedback.ts).
+  | { type: 'thoughts' }
+  | { type: 'guestList' }
+  | { type: 'heatMap'; kind: 'mood' | 'traffic' };
 
 /** Reply to { type: 'stats' }. */
 export interface SimStats {
