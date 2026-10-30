@@ -1125,3 +1125,90 @@ input.guest-search {
   border-radius: 4px;
   color: var(--gold);
 }
+
+/* Track B — B7: the tabbed palette */
+.palette.palette-v2 {
+  align-items: stretch;
+  overflow: visible;
+}
+.pal-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  flex: 0 0 auto;
+}
+.pal-tab {
+  padding: 2px 8px;
+  font-size: 12px;
+  text-align: left;
+}
+.pal-tab small {
+  color: var(--dim);
+}
+.pal-tab.active {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.pal-tab.empty:not(.active) {
+  opacity: 0.55;
+}
+.pal-items {
+  display: flex;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+}
+.palette-v2 .pal-item {
+  position: relative;
+}
+.palette-v2 .pal-item.blocked {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-style: dashed;
+}
+.pal-lock {
+  display: inline;
+  margin-left: 6px;
+  font-style: normal;
+  font-size: 10px;
+  color: #ffb3b3;
+}
+.pal-lock[hidden] {
+  display: none;
+}
+.pal-hint {
+  flex: 0 0 auto;
+  align-self: center;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--dim);
+}
+.pal-card {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  width: 250px;
+  padding: 8px 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  z-index: 4;
+}
+.pal-card[hidden] {
+  display: none;
+}
+.pal-card-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  margin: 4px 0;
+  font-size: 13px;
+}
+.pal-card-grid b {
+  text-align: right;
+}
+.pal-card .small {
+  margin-top: 3px;
+}

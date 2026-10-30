@@ -19,6 +19,8 @@ export interface CampaignDef {
   dayLimit: number;
   /** Placeable object ids; omitted = everything is allowed. */
   allowedObjects?: readonly string[];
+  /** B7: why the rest is off-limits, in the player's words, for the palette. */
+  restriction?: string;
   /** P16: how many closed days the goal is averaged over. The run is won when
    *  the mean of the last N days reaches goalDailyProfit, so a steady casino
    *  beats a lucky one — "N days running" rewarded the coin, not the operator.
@@ -96,6 +98,7 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     id: 'high-roller',
     name: 'The High Roller Club',
     tagline: 'Members only, tables only. Slots would cheapen the carpet.',
+    restriction: 'Members play blackjack here: no slots, wheels or dice on this carpet.',
     // v2: $700 → $1000 for the same reason as the Dusty Dime: real blackjack
     // let a single never-touched table average up to $871; greedy's floor of
     // staffed tables never averaged under $1025 on any seed.

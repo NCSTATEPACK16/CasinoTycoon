@@ -5,13 +5,12 @@
 // collide with it however it wraps.
 
 import { getCampaign } from '../data/campaigns';
-import { OBJECT_CATALOG } from '../data/objects';
 import { weekdayName } from '../data/traffic';
-import { get3D } from '../shared/catalog';
 import type { HudView, SimEvent } from '../shared/contracts';
 import type { SimClient } from '../client/SimClient';
 import type { BuildTool } from '../input/BuildTool';
 import { ConditionsBanner } from './panels/ConditionsBanner';
+import { Palette } from './panels/Palette';
 import { Ticker } from './panels/Ticker';
 
 const money = (n: number) => `${n < 0 ? '-' : ''}$${Math.abs(Math.round(n)).toLocaleString()}`;
@@ -31,6 +30,8 @@ export class Hud {
   private speedButtons = new Map<Speed, HTMLElement>();
   private conditions = new ConditionsBanner();
   readonly ticker = new Ticker();
+  /** The build palette; B8 locks and unlocks items through it. */
+  readonly palette: Palette;
   /** Top-bar menu buttons; main.ts binds what each opens. */
   readonly menu: Record<'finances' | 'staff' | 'save' | 'load' | 'help', HTMLButtonElement>;
   /** The speed the sim reported last, and the one Space resumes to. */
@@ -68,29 +69,10 @@ export class Hud {
       this.speedButtons.set(s, b);
       speeds.append(b);
     }
-    const palette = el('div', 'palette');
-    for (const def of OBJECT_CATALOG) {
-      const b = el('button', 'pal-item', `${def.name}<small>${money(def.cost)}</small>`);
-      b.dataset.def = def.id;
-      const zones = get3D(def.id).zones;
-      b.title = zones.length ? `Needs a ${zones.join(' or ')} zone` : 'Fits anywhere with a floor';
-      b.onclick = () => build.select(build.defId === def.id ? null : def.id);
-      palette.append(b);
-    }
-    // Esc, right-click and tool switches change the selection too: follow the tool, not the click.
-    const sync = () =>
-      palette
-        .querySelectorAll('.pal-item')
-        .forEach((n) =>
-          n.classList.toggle('active', (n as HTMLElement).dataset.def === build.defId),
-        );
-    build.addEventListener('change', sync);
-    const bulldoze = el('button', 'pal-item bulldoze', 'Bulldoze <small>X</small>');
-    bulldoze.onclick = () => {
-      build.select(null);
-      build.bulldoze = true;
-    };
-    palette.append(bulldoze);
+    // B7: the tabbed palette, with forbidden and locked items explained.
+    this.palette = new Palette(build);
+    this.palette.onMessage = (t) => this.say(t);
+    const palette = this.palette.root;
     this.toast = el('div', 'toast');
     const menu = el('div', 'hud-menu');
     const mk = (label: string, key: string) => {
@@ -176,6 +158,7 @@ export class Hud {
     setText(f.goal, sc);
     f.goal.title = sc;
     this.conditions.update(h.modifiers);
+    this.palette.setScenario(h.scenario?.id ?? null);
   }
 
   events(evs: SimEvent[]): void {

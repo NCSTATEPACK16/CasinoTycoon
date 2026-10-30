@@ -217,7 +217,7 @@ v2 ships to Netlify after this cut. Do these next, in this order, then the finis
       - Fixed during the check: the guest list was 467 px in a 410 px area (Find and Follow off-screen), so the activity column was folded into the name line and it now fits exactly. No console errors.
     - **Found, not fixed (needs the user's call): on a big Sandbox floor almost nobody is at a game.** Walking is real time (about 1 m/s) on a 5-second hour, and a guest plays a short run at a machine before walking to the next. On a ~210-seat Sandbox floor with B3's rule, about 0.5% of guests are at a game at any moment (1 of ~200; the rest are walking or leaving). Starting the stay at the first seat lifts it to 8.8% but loses the nightly rhythm. On the 40×30 campaign lot it is about 36% (46–49% walking to a game). B3's evidence measured how full the floor was, not this. Fixing it means longer play runs per machine, faster walking, or a slower clock, and each moves the campaign economy, so it is left as found and reported.
 
-- [ ] **B7. A palette you can browse.**
+- [x] ✅ **B7. A palette you can browse.**
   - Category tabs: Slots, Tables, Services, Decor.
   - Items the scenario forbids are hidden or greyed, with the reason.
   - Leave room for a lock badge and its unlock hint; B8, next, fills them in.
@@ -225,6 +225,26 @@ v2 ships to Netlify after this cut. Do these next, in this order, then the finis
   - A hint about Shift for placing several.
   - Thumbnails are optional; if you want them, request `Stage.renderThumbnail(defId)` from Track A.
   - **Evidence:** browser screenshots, and a forbidden item that can't be picked.
+  - **Done 2026-10-30:**
+    - **Built:** `ui/panels/Palette.ts`, mounted by the HUD in place of the flat 22-button row.
+      - Tabs: Slots (slot machines, penny slots, video poker, pachinko, keno, bingo), Tables (the nine table and wheel games), Services (restroom, food stall, bar, cage) and Decor. Each tab shows "usable/total"; a tab with nothing usable is dimmed, and a new game opens on the first tab with something to place.
+      - Forbidden items stay visible but go last, dashed and dimmed, with "Not here" by the price. Clicking one selects nothing and the toast gives the reason.
+      - The reason comes from a new optional `CampaignDef.restriction` (The High Roller Club: "Members play blackjack here: no slots, wheels or dice on this carpet."), falling back to "Not part of {scenario}".
+      - B8's hook: `palette.setLock(defId, hint)` shows 🔒, blocks the pick and puts the hint in the card. `hud.palette` is exposed for it.
+      - Hover card: price, upkeep per day, size, the zone it needs, seats and "needs a dealer" (or what a service does, or a decor item's rating bonus), and either the reason it's blocked or "Shift+click places a row · R rotates". The Shift hint also sits at the palette's right end.
+      - It stays one row (tabs at the left), so the news line, tool hint and map control above it don't move.
+    - **Tests:** `ui/panels/palette.test.ts` 2/2 (every catalogue item in exactly one tab, with the expected members, and every restricted campaign has a reason). UI and catalogue suites green; `tsc` clean. No sim or economics change (one data field), so the campaign suites aren't affected.
+    - **Browser (1280×800):**
+      - The High Roller Club: "Slots 0/6 · Tables 1/9 · Services 2/4 · Decor 1/3", opening on Tables with Blackjack first and the other eight greyed. Hovering Craps showed $900, $35/day, 2×2 m, a Gaming or High-limit zone, 6 seats and a dealer, and the club's reason. Clicking it left nothing selected and toasted the reason. Blackjack selected normally.
+      - Sandbox: "Slots 6 · Tables 9 · Services 4 · Decor 3". Hovering Video Poker Bank showed $560, $18/day, 1×2 m, 2 seats, and the Shift/R hint.
+      - Found and fixed: the badge on its own line pushed the palette 3 px into the news line; it now sits inline after the price (palette top 724 px against the news line's bottom at 716). No console errors.
+
+- [ ] **B7a. Guests stay at a game.** (Added 2026-10-30 by the user's decision on B5's finding.) Guests play much longer runs at one machine, so a big floor isn't all walking.
+  - Measure the share of guests actually playing, before and after, on the ~210-seat Sandbox floor (B3/B5's probe layout) and on the 40×30 campaign lot. Record both here and in the commit.
+  - Keep B3's nightly traffic rhythm (`world.traffic.test.ts` stays green).
+  - Re-tune the campaigns on purpose: campaign suites green, with before and after numbers.
+  - A unit or sim test pins the new playing share so it can't silently regress.
+  - Choose the target share and say why.
 
 - [ ] **B8. Progression and a real campaign.**
   - 8–12 scenarios with rising, varied goals, for example:
