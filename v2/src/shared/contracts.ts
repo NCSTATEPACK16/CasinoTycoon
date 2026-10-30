@@ -209,4 +209,10 @@ export interface RoundFx {
   /** Slots: the par sheet, the stop each reel landed on (the middle row is
    *  strip[stop]) and the winning payline indices. */
   slots?: { sheet: string; stops: number[]; lines: number[] };
+  /** Roulette: the pocket the ball landed in (37 is 00) and the wheel. */
+  roulette?: { pocket: number; wheel: 'single' | 'double' };
+  /** Craps: the round's last roll, the one that settled it. */
+  craps?: { dice: [number, number] };
+  /** Big six: the segment index (atlas order) that agrees with what was paid. */
+  bigSix?: { segment: number };
 }
