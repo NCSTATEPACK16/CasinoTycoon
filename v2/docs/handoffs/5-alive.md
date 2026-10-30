@@ -209,6 +209,10 @@ Each task lists what to build, then how to prove it. Tick it (✅) in this file 
       - An empty table's dealer stands idle; the clip changes to `deal` as the first player sits.
     - **Stress scene** after A2 (High, auto-quality pinned, pane visible): overview 222 calls (max 231), 300k triangles, 53.8 fps; mid 117 calls, 582k, 53.9 fps; close 80 calls, 408k, 54.4 fps. Worker tick 8.2–9.6 ms. A2 adds no draw calls. The in-browser tick is over 7 ms, as at the A0 baseline (7.5–9 ms) with this Mac loaded. Headless `sandbox.stress.test.ts` with `NAV_PERF=1` (2,036 objects, 500 guests, 90 staff; asserts a mean tick ≤ 8 ms), alternating HEAD and A2: all four runs pass, with wall time 9.9 and 9.7 s at HEAD against 13.6 and 8.1 s with A2. That's noise; A2's per-tick cost is one `seatedCount` read per stationed dealer.
 
+### Ship cut (decided by the user, 2026-10-30)
+
+v2 ships to Netlify after this cut. Do these next, in this order, then the finish task. Everything under "After ship" waits until the user says so.
+
 - [ ] **A3. Slot reels spin and stop on the real result.**
   - Blender: split the reel window into its own reel-band mesh or material with UVs laid out down the strip, in the slot and penny cabinets.
   - Atlas: paint vertical reel strips with the par sheets' real symbols (`src/sim/games/slots/sheets.ts`) instead of the static decal.
@@ -230,6 +234,15 @@ Each task lists what to build, then how to prove it. Tick it (✅) in this file 
     - unit tests for pocket angle and face orientation
     - screenshots of each at rest matching the inspector's result
     - stress scene numbers
+
+- [ ] **A7. Ambience.** Use the A0 download if approved, or synthesize what was declined.
+  - Room tone plus distant slot chatter plus crowd murmur, scaled by guest count and camera height (quieter and wider in the god view, close and detailed at eye level).
+  - An optional low music bed on the ambience bus.
+  - Zone-aware: the bar and food court sound different from the slot floor.
+  - Paused (speed 0) ducks the ambience.
+  - **Evidence:**
+    - a unit test for the mix curve
+    - in the browser: gain readings at god view versus eye level and at 0 versus 200 guests, plus a short listening note: no audible loop seam over 60 s
 
 - [ ] **A5. Live cards and chips on the felt.**
   - Use instanced card and chip pools; card faces come from the existing `cardFace` atlas.
@@ -262,14 +275,16 @@ Each task lists what to build, then how to prove it. Tick it (✅) in this file 
     - existing `avatarPlay.test.ts` green, plus tests for bet-layout hit mapping
     - in the browser, one full round of each of the 5 core games through the new view, screenshots of each
 
-- [ ] **A7. Ambience.** Use the A0 download if approved, or synthesize what was declined.
-  - Room tone plus distant slot chatter plus crowd murmur, scaled by guest count and camera height (quieter and wider in the god view, close and detailed at eye level).
-  - An optional low music bed on the ambience bus.
-  - Zone-aware: the bar and food court sound different from the slot floor.
-  - Paused (speed 0) ducks the ambience.
-  - **Evidence:**
-    - a unit test for the mix curve
-    - in the browser: gain readings at god view versus eye level and at 0 versus 200 guests, plus a short listening note: no audible loop seam over 60 s
+- [ ] **A13. Finish.**
+  1. Merge `origin/v2-playable` if it moved.
+  2. Run the full suite under `caffeinate -i` and `npm run build`.
+  3. Measure the stress scene.
+  4. Take a screenshot set: god-view overview, eye-level slot bank mid-spin, roulette at rest, blackjack mid-hand, craps roll, your own round in the play view.
+  5. Push and update the PR description with the checklist and evidence; take the PR out of draft.
+     List the "After ship" tasks in the PR description as post-ship work, not as missing.
+  6. Report to the user and stop the loop.
+
+### After ship (backlog: don't start these until the user says so)
 
 - [ ] **A8. Light you can see from the god view.**
   - Warm light pools under chandeliers and lamp posts, and over tables.
@@ -321,14 +336,6 @@ Each task lists what to build, then how to prove it. Tick it (✅) in this file 
   - Thought bubbles: sampled `thought` events for interest agents become icon sprites above heads. The icons come from the categories in `src/data/thoughts.ts`, read-only.
   - Fix the first-load LOD hitch and the third-person camera pressing into lobby walls (notes from playable).
   - **Evidence:** screenshots, stress scene numbers, and the hitch measured before → after.
-
-- [ ] **A13. Finish.**
-  1. Merge `origin/v2-playable` if it moved.
-  2. Run the full suite under `caffeinate -i` and `npm run build`.
-  3. Measure the stress scene.
-  4. Take a screenshot set: god-view overview, eye-level slot bank mid-spin, roulette at rest, blackjack mid-hand, craps roll, entrance at night.
-  5. Push and update the PR description with the checklist and evidence; take the PR out of draft.
-  6. Report to the user and stop the loop.
 
 ## Requests to Track B
 
