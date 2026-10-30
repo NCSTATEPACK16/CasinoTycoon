@@ -38,6 +38,8 @@ const SECTIONS: [string, [string, string][]][] = [
       ['<kbd>P</kbd>', 'Finances'],
       ['<kbd>H</kbd>', 'Staff'],
       ['<kbd>C</kbd>', 'Players club: patrons, tiers and comps'],
+      ['<kbd>G</kbd>', 'Guests: what they think, and everyone on the floor'],
+      ['<kbd>M</kbd> / <kbd>T</kbd>', 'Mood or traffic map over the floor'],
       ['★ in the top bar', 'Rating and reputation, and what moves them'],
       ['News', 'Click a line to see where it happened'],
       ['<kbd>?</kbd>', 'This help'],

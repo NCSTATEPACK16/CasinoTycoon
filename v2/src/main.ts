@@ -9,7 +9,10 @@ import { Hud } from './ui/Hud';
 import { Menus } from './ui/Menus';
 import { SidePanel } from './ui/SidePanel';
 import { TablePlay } from './ui/TablePlay';
+import { HeatOverlay } from './render/HeatOverlay';
 import { DayReportCard } from './ui/panels/DayReportCard';
+import { GuestFollower } from './ui/panels/follow';
+import { HeatControl } from './ui/panels/HeatControl';
 import { HelpOverlay } from './ui/panels/HelpOverlay';
 import type { DayReport } from './worker/finance';
 import { guestPosition, locate } from './ui/panels/locate';
@@ -34,6 +37,16 @@ const showReport = () =>
     .then((r) => report.show(r))
     .catch((err: Error) => hud.say(err.message));
 report.onFinances = () => panel.open('finances');
+// B5: the mood/traffic heat map over the floor, and following a guest.
+const heat = new HeatOverlay();
+stage.scene.add(heat.object);
+const heatControl = new HeatControl(sim, heat);
+ui.append(heatControl.root);
+const follower = new GuestFollower(sim, controls, canvas);
+follower.onMessage = (t) => hud.say(t);
+panel.onFollowGuest = (agentId, name) => {
+  if (!follower.start(agentId, name)) hud.say('Stand up from the table first (F)');
+};
 panel.onReport = showReport;
 controls.onMessage = (t) => hud.say(t);
 hud.ticker.onLocate = (at) => {
@@ -105,6 +118,9 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyP') panel.toggle('finances');
   if (e.code === 'KeyH') panel.toggle('staff');
   if (e.code === 'KeyC') panel.toggle('patrons');
+  if (e.code === 'KeyG') panel.toggle('guests');
+  if (e.code === 'KeyM') heatControl.toggle('mood');
+  if (e.code === 'KeyT') heatControl.toggle('traffic');
   if (e.code === 'KeyZ') stage.showZoneOverlay((zonesOn = !zonesOn));
 });
 let zonesOn = false;

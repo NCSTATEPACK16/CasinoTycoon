@@ -147,6 +147,8 @@ export class Guest extends Walker {
    *  finishes what they are doing and goes home. Null: stay as long as
    *  money, mood and energy last (the campaigns' rule). */
   leaveAtTick: number | null = null;
+  /** B5: the tick this guest walked in, for the Guests list. */
+  arrivedTick = 0;
   /** Standing in High-Limit right now — keeps the zone on this guest's filter
    *  until they step out, so a bust-out never strands an agent off-mesh. */
   private inHighLimit = false;

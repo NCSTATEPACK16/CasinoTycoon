@@ -191,11 +191,31 @@ Each task lists what to build, then how to prove it. Tick it (✅) in this file 
 
 v2 ships to Netlify after this cut. Do these next, in this order, then the finish task. Everything under "After ship" waits until the user says so.
 
-- [ ] **B5. The feedback loop.**
+- [x] ✅ **B5. The feedback loop.**
   - A thoughts summary panel: the top thoughts across guests, with counts and a trend.
   - Mood and traffic heat-map overlays built from `MoodField`/`TrafficField`, drawn by a new `src/render/HeatOverlay.ts` you own, added to `stage.scene` from `main.ts`.
   - A guests list panel with sorting and follow/locate.
   - **Evidence:** browser screenshots of each, with a heat map that visibly changes after you move a game.
+  - **Done 2026-10-30** (contract 6cab386: `thoughts`, `guestList`, `heatMap`):
+    - **Built:**
+      - Worker (`worker/feedback.ts`): `thoughtSummary` covers thoughts held in the last 4 in-game hours, with guests per thought (distinct), a trend (newer half of the window minus the older half), sentiment, what to do (null where nothing can be done) and who. `guestList` gives every guest's mood, wallet, net, tier, the most pressing need under 40, latest thought, recent thought ids and hours on the floor (new `Guest.arrivedTick`). `heatMap` gives mood 0–100 per cell, or traffic scaled to the 90th percentile of visited tiles with a 10% cut-off (scaled to the busiest tile, the entrance outshone the floor and only the door corridor showed: 34 cells against 228 now), −1 where there is nothing to say.
+      - Render (`render/HeatOverlay.ts`, Track B's own): one plane the size of the lot with a cols×rows DataTexture, linear-filtered, depth-tested without depth writes, just above the zone tint; one draw call at any lot size. Mood runs red → amber → green; traffic runs blue → yellow → red, and its alpha rises with the value. Added to `stage.scene` from `main.ts`.
+      - UI:
+        - The Guests tab (`G`): "What guests are thinking", thought rows with glyph, latest wording, count, a trend arrow (green when it's good news, grey for neutral thoughts) and advice. Clicking one filters the list to the guests who had it.
+        - "On the floor": a sortable list (name, mood, wallet, won, hours here; sub-lines for archetype, activity, need and latest thought), a name search, up to 120 rows, rows keyed by id and patched in place, with Find ⌖ and Follow 👁.
+        - The map control (Off · Mood M · Traffic T) sits above the news line with a legend and a live summary (average mood, busiest tile). It hides while the News drawer or table play is open.
+        - Follow (`ui/panels/follow.ts`) keeps the god camera on a guest every frame and lets go on WASD, arrows, Esc, a click on the floor, or when the guest leaves. The inspector's Follow button, which was wired to nothing since playable, now uses it.
+      - `THOUGHT_EMOJI` gains `drunk` 🥴 and `homeTime` 👋.
+    - **Tests:** `world.feedback.test.ts` 3/3 (distinct-guest counts, trend from window halves, an old thought dropped, advice and agent ids; list rows with need, thought and hours, and gone guests omitted; on the crowd, heat maps blank before play, then mood ≤ 100 and traffic scaled with more than the entrance showing). `HeatOverlay.test.ts` 2/2 (ramps; the plane spans the lot and cell (c, r) lands in texture row rows − 1 − r, the rest transparent). Thought-glyph coverage, traffic, worker and UI suites green; `tsc` clean.
+    - **Economics guard:** nothing that moves guests or money changed (an arrival tick and two glyphs). Still run: 18 files, 188/188; greedy probe identical (Dusty Dime 7/7, Neon Nights 5/7, High Roller Club 5/7).
+    - **Browser (1280×800, a Sandbox with 7 blackjack tables, ~100 slots, staff, 70–120 guests):**
+      - Traffic map (`T`): a hot lane from the lobby door into the nearest slot banks, cooling to blue toward the far ones.
+      - Mood map (`M`): a yellow-green wash where guests have been, legend "average 71".
+      - Guests tab (`G`): 9 thoughts ranked; "Good night. Time to head home." ▲36 in grey; "Not a bad little place." ▼9 in red; "I could really use a drink." 3 ▲3 with "Add a bar with a bartender, or hire waitresses…". Clicking it filtered the list to those 3 guests ("thirst 25").
+      - Follow 👁 on Duke Delgado: "Following Duke Delgado…", and the camera focus stayed within 0.1 m of him over 6 s at 1×; `W` released it (the camera stayed at 77.6, 27.2 while he walked on to 81.0, 27.7).
+      - Moving a game: I moved 14 slots from rows 33–34 by the door corridor to rows 24–25 in the north-west and ran the clock to 19:00. The old spot became an aisle and the hot corridor ran straight through it: 20 → 36 cells (summed intensity 8.4 → 12.9). The new spot stayed empty (0 → 0), since guests from the door play nearer games.
+      - Fixed during the check: the guest list was 467 px in a 410 px area (Find and Follow off-screen), so the activity column was folded into the name line and it now fits exactly. No console errors.
+    - **Found, not fixed (needs the user's call): on a big Sandbox floor almost nobody is at a game.** Walking is real time (about 1 m/s) on a 5-second hour, and a guest plays a short run at a machine before walking to the next. On a ~210-seat Sandbox floor with B3's rule, about 0.5% of guests are at a game at any moment (1 of ~200; the rest are walking or leaving). Starting the stay at the first seat lifts it to 8.8% but loses the nightly rhythm. On the 40×30 campaign lot it is about 36% (46–49% walking to a game). B3's evidence measured how full the floor was, not this. Fixing it means longer play runs per machine, faster walking, or a slower clock, and each moves the campaign economy, so it is left as found and reported.
 
 - [ ] **B7. A palette you can browse.**
   - Category tabs: Slots, Tables, Services, Decor.

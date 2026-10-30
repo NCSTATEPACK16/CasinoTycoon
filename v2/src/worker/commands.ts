@@ -23,6 +23,7 @@ import {
   scenarioList,
   staffList,
 } from './inspect';
+import { guestList, heatMap, thoughtSummary } from './feedback';
 import { dayReport, financeHistory, loansView } from './finance';
 import type { SnapshotBuilder } from './snapshot';
 
@@ -246,6 +247,12 @@ export function runCommand(world: CasinoWorld, snap: SnapshotBuilder, cmd: Comma
               : 'No cash on hand to repay with.',
           };
     }
+    case 'thoughts':
+      return { ok: true, data: thoughtSummary(world) };
+    case 'guestList':
+      return { ok: true, data: guestList(world) };
+    case 'heatMap':
+      return { ok: true, data: heatMap(world, cmd.kind) };
     default:
       return { ok: false, error: `${(cmd as Command).type} not implemented` };
   }

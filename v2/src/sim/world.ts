@@ -981,6 +981,7 @@ export class CasinoWorld {
       patron ? { id: patron.id, name: patron.name, tier: patron.tier } : null,
     );
     if (this.nav) guest.varyArrivalNeeds();
+    guest.arrivedTick = this.tickCount;
     // B3: open play's guests come for an evening, not for good.
     if (this.trafficProfile.curve === 'daily') {
       const h = TRAFFIC_BALANCE.stayHours;

@@ -19,16 +19,19 @@ import type {
   StaffInspect,
 } from '../worker/inspect';
 import { button, el, escapeHtml, money, pct } from './dom';
+import type { GuestRow, ThoughtSummary } from '../worker/feedback';
 import type { FinanceHistory, LoansView } from '../worker/finance';
 import { compButtons, compStatus, type CompKind } from './panels/comps';
 import { FinanceChart } from './panels/FinanceChart';
+import { GuestsPanel } from './panels/GuestsPanel';
 import { LoansPanel } from './panels/LoansPanel';
 import { PatronsPanel } from './panels/PatronsPanel';
 import { PricesPanel } from './panels/PricesPanel';
 import { RatingPanel } from './panels/RatingPanel';
 import { RULE_FIELDS, type RuleField } from './rulesSchema';
 
-export type PanelTab = 'inspect' | 'finances' | 'staff' | 'rating' | 'patrons' | 'prices';
+export type PanelTab =
+  'inspect' | 'finances' | 'staff' | 'rating' | 'patrons' | 'prices' | 'guests';
 type Target = { objectId: string } | { agentId: number };
 
 const HIRE: { kind: string; label: string; blurb: string }[] = [
@@ -58,15 +61,18 @@ export class SidePanel {
   private target: Target | null = null;
   private timer = 0;
   onSell: (objectId: string) => void = () => {};
-  onFollow: (agentId: number) => void = () => {};
   /** Take the camera to a guest on the floor (by numeric agent id). */
   onLocateGuest: (agentId: number) => void = () => {};
+  /** Keep the camera on a guest as they move (B5). */
+  onFollowGuest: (agentId: number, name: string) => void = () => {};
   onClose: () => void = () => {};
   /** A comp or price action's outcome, for the toast. */
   onMessage: (text: string) => void = () => {};
   private rating = new RatingPanel();
   private patrons = new PatronsPanel();
   private prices = new PricesPanel();
+  /** B5: what guests think, and everyone on the floor. */
+  private guests = new GuestsPanel();
   /** B4: the Finances tab's P&L (patched HTML, no buttons), chart and loans. */
   private finPnl = el('div', 'fin-pnl');
   private finActions = el('div', 'fin-actions');
@@ -84,6 +90,7 @@ export class SidePanel {
       ['finances', 'Finances'],
       ['staff', 'Staff'],
       ['rating', 'Rating'],
+      ['guests', 'Guests'],
       ['patrons', 'Club'],
       ['prices', 'Prices'],
     ] as const) {
@@ -97,6 +104,8 @@ export class SidePanel {
     this.patrons.onComp = (guestId, kind) => void this.comp(guestId, kind);
     this.patrons.onLocate = (agentId) => this.onLocateGuest(agentId);
     this.prices.onSetPrice = (objectId, itemId, price) => this.setPrice(objectId, itemId, price);
+    this.guests.onLocate = (agentId) => this.onLocateGuest(agentId);
+    this.guests.onFollow = (agentId, name) => this.onFollowGuest(agentId, name);
     this.finActions.append(button('Last day’s report', () => this.onReport(), 'small'));
     this.loans.onTake = (amount, days) =>
       this.sim.command({ type: 'takeLoan', amount, days }).then(() => this.refresh(false));
@@ -141,6 +150,7 @@ export class SidePanel {
     if (t === 'rating') this.body.append(this.rating.root);
     if (t === 'patrons') this.body.append(this.patrons.root);
     if (t === 'prices') this.body.append(this.prices.root);
+    if (t === 'guests') this.body.append(this.guests.root);
     if (t === 'finances')
       this.body.append(this.finActions, this.finPnl, this.chart.root, this.loans.root);
     window.clearInterval(this.timer);
@@ -176,6 +186,13 @@ export class SidePanel {
         this.patrons.update(await this.sim.command<PatronView[]>({ type: 'patrons' }));
       else if (t === 'prices')
         this.prices.update(await this.sim.command<PricedObject[]>({ type: 'prices' }));
+      else if (t === 'guests') {
+        const [summary, list] = await Promise.all([
+          this.sim.command<ThoughtSummary>({ type: 'thoughts' }),
+          this.sim.command<GuestRow[]>({ type: 'guestList' }),
+        ]);
+        this.guests.update(summary, list);
+      }
     } catch (err) {
       if (t === 'inspect')
         this.body.innerHTML = `<p class="dim">${escapeHtml((err as Error).message)}</p>`;
@@ -222,7 +239,7 @@ export class SidePanel {
       );
       const target = this.target;
       if ('agentId' in target)
-        this.body.append(button('Follow', () => this.onFollow(target.agentId)));
+        this.body.append(button('Follow', () => this.onFollowGuest(target.agentId, v.name)));
       this.patchGuest(v);
     } else {
       this.body.append(
