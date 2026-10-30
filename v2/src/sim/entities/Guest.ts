@@ -715,8 +715,38 @@ export class Guest extends Walker {
     this.spinsLeft--;
     // The bankroll model ends a session the moment a stop rule trips, not at
     // the end of the planned run of plays.
-    if (this.spinsLeft <= 0 || stopReason(this.profile, this.sessionNet) !== null)
-      this.stopPlaying(world);
+    if (stopReason(this.profile, this.sessionNet) !== null) return this.stopPlaying(world);
+    if (this.spinsLeft > 0) return;
+    if (this.staysForAnotherRun(world)) {
+      const cadence = world.machineCadence(this.machineId);
+      if (cadence) {
+        this.spinsLeft = world.rng.int(cadence.playsMin, cadence.playsMax);
+        return;
+      }
+    }
+    this.stopPlaying(world);
+  }
+
+  /**
+   * B7a: at the end of a run of plays, a guest with no reason to get up keeps
+   * the seat and plays another run. Walking is real time, so a guest who got
+   * up after every run spent most of a visit crossing the floor (0.5% of
+   * guests at a game on a big Sandbox floor before B7a).
+   * Each play is worth exactly what it was; only the walking between runs
+   * goes. A need, the stop rules, a dwindling wallet or the end of the
+   * planned visit still end the sitting.
+   */
+  private staysForAnotherRun(world: CasinoWorld): boolean {
+    // Only on the crowd, where walking costs real time. The grid walker
+    // crosses 25 cells an in-game hour, so there a guest loses nothing by
+    // getting up, and the tuned campaign tournament keeps its numbers.
+    if (!world.nav || !this.machineId) return false;
+    // The visit's end is checked here without wantsToLeave's goodbye thought,
+    // which the re-think after stopPlaying records once.
+    if (this.leaveAtTick !== null && world.tickCount >= this.leaveAtTick) return false;
+    if (this.wantsToLeave(world.tickCount)) return false;
+    if (this.wallet < world.machineCost(this.machineId)) return false;
+    return this.brainRng.chance(AI.stayAtGame);
   }
 
   private startCelebrating(world: CasinoWorld): void {

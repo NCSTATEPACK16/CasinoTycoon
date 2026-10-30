@@ -15,6 +15,7 @@ import {
   Raw,
   statusFailed,
 } from '@recast-navigation/core';
+import { SIM_TICK_MS } from '../../config';
 import { ZONES, type Zone } from '../../shared/contracts';
 import { AGENT_HEIGHT, AGENT_RADIUS, NavBaker, TILE_METRES, type NavSource } from './NavBaker';
 
@@ -33,9 +34,13 @@ export type NavFilter = (typeof NavFilter)[keyof typeof NavFilter];
 
 export const GUEST_SPEED = 1.3;
 export const STAFF_SPEED = 1.6;
-/** One crowd step per sim tick, always: the sim is deterministic per tick,
- *  and game speed is more ticks, never a longer dt. */
-export const NAV_DT = 0.1;
+/** Real seconds of motion per sim tick: the crowd covers exactly the time a
+ *  tick stands for (B7a: 0.3 s). The sim is deterministic per tick, and game
+ *  speed is more ticks, never a longer dt. */
+export const NAV_DT = SIM_TICK_MS / 1000;
+/** Crowd sub-steps per tick, so avoidance runs at the 0.1 s it was tuned at
+ *  (and per real second the crowd costs what it did at 10 ticks a second). */
+export const NAV_SUBSTEPS = Math.max(1, Math.round(NAV_DT / 0.1));
 export const MAX_AGENTS = 640;
 
 const zoneBit = (z: Zone) => 1 << ZONES.indexOf(z);
@@ -246,7 +251,7 @@ export class NavSystem {
   }
 
   update(): void {
-    this.crowd.update(NAV_DT);
+    for (let i = 0; i < NAV_SUBSTEPS; i++) this.crowd.update(NAV_DT / NAV_SUBSTEPS);
   }
 
   destroy(): void {

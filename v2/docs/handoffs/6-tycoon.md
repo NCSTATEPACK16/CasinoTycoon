@@ -239,12 +239,37 @@ v2 ships to Netlify after this cut. Do these next, in this order, then the finis
       - Sandbox: "Slots 6 · Tables 9 · Services 4 · Decor 3". Hovering Video Poker Bank showed $560, $18/day, 1×2 m, 2 seats, and the Shift/R hint.
       - Found and fixed: the badge on its own line pushed the palette 3 px into the news line; it now sits inline after the price (palette top 724 px against the news line's bottom at 716). No console errors.
 
-- [ ] **B7a. Guests stay at a game.** (Added 2026-10-30 by the user's decision on B5's finding.) Guests play much longer runs at one machine, so a big floor isn't all walking.
+- [x] ✅ **B7a. Guests stay at a game.** (Added 2026-10-30 by the user's decision on B5's finding.) Guests play much longer runs at one machine, so a big floor isn't all walking.
   - Measure the share of guests actually playing, before and after, on the ~210-seat Sandbox floor (B3/B5's probe layout) and on the 40×30 campaign lot. Record both here and in the commit.
   - Keep B3's nightly traffic rhythm (`world.traffic.test.ts` stays green).
   - Re-tune the campaigns on purpose: campaign suites green, with before and after numbers.
   - A unit or sim test pins the new playing share so it can't silently regress.
   - Choose the target share and say why.
+  - **Done 2026-10-30** (SPEC §4 in ee42001). The user chose to slow the clock and to have guests play longer runs.
+    - **Built:**
+      - `SIM_TICKS_PER_SECOND` 10 → 10/3: a tick is 300 ms of real time, and an in-game hour lasts 15 s at 1× (a day is 6 minutes). Game time stays 50 ticks an hour, so every tuned quantity (needs, arrivals, cadence, stays, wages) keeps its in-game length, and nothing that counts ticks moved. The crowd steps `NAV_DT` = 0.3 s per tick as three 0.1 s sub-steps (`NAV_SUBSTEPS`), so avoidance behaves as it did; guests still walk 1.3 m/s on screen but cover 3× the ground per in-game hour.
+      - Longer runs: at the end of a run of plays, a guest on the crowd with no reason to get up (a need, the stop rules, the wallet, or the planned visit's end) stays for another run with probability `AI.stayAtGame` 0.9, about 10 runs a sitting. Each play is worth what it was. It is crowd-only: the grid walker crosses 25 cells an in-game hour, so there a guest loses nothing by getting up, and the tuned grid tournament keeps its numbers exactly.
+      - Test kit: `furnishSandboxFloor` (B3/B5's ~210-seat floor), `measurePlayShare`, and `runCampaign(…, prepared)` to run the tournament on a world with the crowd attached.
+    - **The two options, each with longer runs** (share of guests at a game, sampled every 10 ticks):
+
+      | | 40×30 lot | ~210-seat Sandbox | B3 rhythm | full suite |
+      |---|---|---|---|---|
+      | before | 35–36% | 0.5–0.7% | yes | green |
+      | longer runs alone | 41–44% | 2–3% | yes | — |
+      | (2) 2× walking speed | 54–58% | 7–8% | **broken** (traffic test fails) | 5 of 873 fail (incl. crowd walk-in, B3 rhythm) |
+      | (3) 300 ms tick (chosen) | 58–66% | 17–19% | yes (≈300 at night, 80–90 mid-morning) | 3 of 873 fail, all from longer runs on the grid, gone once those were made crowd-only |
+
+      Neither option reached the user's 25% Sandbox bar while keeping B3's rhythm. (3) with the visit clock starting at the first seat reached 26–28%, but the floor stayed near its cap all day and the rating sagged, so it wasn't kept. (3) beat (2) everywhere and is what the user picked.
+    - **Target share, and why:** at least 50% on a campaign-size floor (measured 58–66%; guests also eat, drink, queue and walk in and out) and at least 12% on the big Sandbox floor (measured 17–19%). The Sandbox share is limited by how far the door is from the slots and by B3's 4–8 hour visits counted from the door. Both are pinned by `sim/agents/playshare.test.ts`.
+    - **Why the big floor was empty:** traced guest by guest at 100 ms ticks, the walk from the door to a first seat took 200–350 ticks (4–7 in-game hours), and 383 of 472 guests' visits ran out before they ever sat down. Aisle width (2 vs 3 cells) and density changed nothing; the walk did.
+    - **Campaigns, re-tuned on purpose (the goals stay):** on the real crowd, greedy used to win 0/7, 1/7 and 1/7 (Dusty Dime, Neon Nights, High Roller Club), far below the 7/7, 5/7 and 5/7 the goals were tuned on with the grid walker. After B7a, on the crowd, greedy wins 7/7, 6/7 and 5/7; do-nothing (`minimal`) wins 0/7 everywhere; holding a reserve beats spending everything 18 to 14. The real game now lands where the goals were tuned, so the goals are unchanged. New `data/campaigns/crowd.campaigns.test.ts` guards that on the crowd (greedy ≥ 4/7, minimal 0/7, every campaign). Grid suites are identical to before (7/7, 5/7, 5/7 with the same per-seed days).
+    - **Tests:**
+      - `playshare.test.ts` 2/2.
+      - `crowd.campaigns.test.ts` 6/6.
+      - Full suite under caffeinate: 876/881. The 5 failures (the UTH 133M-hand evaluator, craps hold convergence, crowd stress, and two tournament files) each ran 480–750 s at load average 76–138, and all five pass when re-run alone (50/50).
+      - `world.traffic.test.ts` (B3 rhythm) green.
+    - **Stress scene** (`sandbox.stress`, NAV_PERF=1, alternated with the B7 commit on the same loaded machine): before 5.6–5.8 ms per 100 ms tick (crowd 2.8 ms); after 12.0–17.0 ms per 300 ms tick (crowd 7.0–9.8 ms). That is the same or lower CPU per real second (56–58 ms before, 40–57 ms after, at 1×). The test's 8 ms budget is now scaled to the tick's length (24 ms per 300 ms tick). NEXT-SESSION's "≤ 7 ms sim tick" guardrail reads as ≤ 21 ms at the new tick length.
+    - **Browser:** a fresh Sandbox (7 tables, 162 slots, services, staff) ran at 3.33 ticks/s, 15 s per in-game hour at 1×. At 4× overnight, 11–12% of guests were at games while the night crowd left (180 of 308 heading out at 03:00), rising to 19% by mid-morning; the floor went 354 at midnight to 95 at 10:00. No console errors.
 
 - [ ] **B8. Progression and a real campaign.**
   - 8–12 scenarios with rising, varied goals, for example:
@@ -322,5 +347,7 @@ v2 ships to Netlify after this cut. Do these next, in this order, then the finis
   - **Evidence:** unit tests, a sim test where an unstaffed pit loses hold to counters and a staffed pit doesn't, and campaign suites green.
 
 ## Requests to Track A
+
+- **B7a changed the clock (2026-10-30, the user's decision):** `SIM_TICK_MS` is now 300 ms (was 100), so an in-game hour is 15 s at 1× and snapshots arrive every 150 ms. Game time is still 50 ticks an hour. Anything Track A paces off sim time or tick counts (round sampling, reel/wheel/dice timing, dealer animation, ambience by hour) runs a third as fast in real time; anything paced off real seconds is unchanged. Guests and staff still walk at 1.3 and 1.6 m/s on screen. Please re-check the round-effect cadence after merging.
 
 (Write here anything you need from Track A's files. Commit it and mention it in your report.)
