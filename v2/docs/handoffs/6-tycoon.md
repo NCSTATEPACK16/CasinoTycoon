@@ -187,33 +187,20 @@ Each task lists what to build, then how to prove it. Tick it (✅) in this file 
       - Found and fixed: the loans table was 458 px in a 438 px panel and scrolled the whole tab sideways. It now has its own scroller, a tighter row, and fits at 410 px.
       - No console errors.
 
+### Ship cut (decided by the user, 2026-10-30)
+
+v2 ships to Netlify after this cut. Do these next, in this order, then the finish task. Everything under "After ship" waits until the user says so.
+
 - [ ] **B5. The feedback loop.**
   - A thoughts summary panel: the top thoughts across guests, with counts and a trend.
   - Mood and traffic heat-map overlays built from `MoodField`/`TrafficField`, drawn by a new `src/render/HeatOverlay.ts` you own, added to `stage.scene` from `main.ts`.
   - A guests list panel with sorting and follow/locate.
   - **Evidence:** browser screenshots of each, with a heat map that visibly changes after you move a game.
 
-- [ ] **B6. Decor and amenities with real effects.**
-  - An appeal-radius system: decor raises nearby guests' happiness and nearby games' appeal, with diminishing returns.
-  - Floor types gain prestige.
-  - The six pre-agreed items, using `'proc:box'` placeholders until Track A's art merges:
-    - `statue` and `fountain`: appeal
-    - `lamp-post`: small appeal
-    - `lounge-seating`: a rest service that restores energy
-    - `atm`: cash access with fee revenue
-    - `stage`: hosts events in B10
-  - Replace or extend the signage cap so beautifying is a real layout puzzle.
-  - **Evidence:**
-    - unit tests for the radius and falloff
-    - a sim test showing a decorated floor beats a bare one on happiness and dwell time
-    - campaign suites green and re-tuned if needed
-
-  - **Found in B2, fix here with the re-tune:** a food item is a rip-off above 3× its *cost* (`FOOD_BALANCE.ripoffMultiplier`), which the default soda ($2.50 on $0.50) and fries ($3.50 on $1) already exceed, so every untouched stall costs those buyers 6 happiness. The bar uses 2× its default price (`PRICE_BALANCE.ripoffIndex`). Switching food to the bar's rule moved the greedy campaign probe a lot (Neon Nights 5/7 → 2/7 wins, below MIN_WINS 4), so it was left as is in B2; the Prices panel shows the current line truthfully.
-
 - [ ] **B7. A palette you can browse.**
   - Category tabs: Slots, Tables, Services, Decor.
   - Items the scenario forbids are hidden or greyed, with the reason.
-  - Locked items show how to unlock them (after B8).
+  - Leave room for a lock badge and its unlock hint; B8, next, fills them in.
   - Price and upkeep appear on hover.
   - A hint about Shift for placing several.
   - Thumbnails are optional; if you want them, request `Stage.renderThumbnail(defId)` from Track A.
@@ -238,6 +225,40 @@ Each task lists what to build, then how to prove it. Tick it (✅) in this file 
     - progress storage tests
     - browser screenshots of the title with medals, and of a win card and a lose card reached by playing
 
+- [ ] **B12. Onboarding.**
+  - A tutorial scenario ("Opening Night") with step objectives and UI pointers: paint a zone, place a slot, hire a dealer, open a table, set a price, read the rating.
+  - First-time tooltips.
+  - A clean first-run title screen.
+  - **Evidence:** a browser playthrough of the whole tutorial, with screenshots of each step.
+
+- [ ] **B13. Finish.**
+  1. Merge `origin/v2-playable` if it moved.
+  2. Run the full suite under `caffeinate -i` and `npm run build`.
+  3. Measure the stress scene.
+  4. Take browser screenshots of the title and medals, a scenario's goal panel, the charts, the rating breakdown, the heat map and the tutorial.
+  5. Push and update the PR description with the checklist and evidence; take the PR out of draft.
+     List the "After ship" tasks in the PR description as post-ship work, not as missing.
+  6. Report to the user and stop the loop.
+
+### After ship (backlog: don't start these until the user says so)
+
+- [ ] **B6. Decor and amenities with real effects.**
+  - An appeal-radius system: decor raises nearby guests' happiness and nearby games' appeal, with diminishing returns.
+  - Floor types gain prestige.
+  - The six pre-agreed items, using `'proc:box'` placeholders until Track A's art merges:
+    - `statue` and `fountain`: appeal
+    - `lamp-post`: small appeal
+    - `lounge-seating`: a rest service that restores energy
+    - `atm`: cash access with fee revenue
+    - `stage`: hosts events in B10
+  - Replace or extend the signage cap so beautifying is a real layout puzzle.
+  - **Evidence:**
+    - unit tests for the radius and falloff
+    - a sim test showing a decorated floor beats a bare one on happiness and dwell time
+    - campaign suites green and re-tuned if needed
+
+  - **Found in B2, fix here with the re-tune:** a food item is a rip-off above 3× its *cost* (`FOOD_BALANCE.ripoffMultiplier`), which the default soda ($2.50 on $0.50) and fries ($3.50 on $1) already exceed, so every untouched stall costs those buyers 6 happiness. The bar uses 2× its default price (`PRICE_BALANCE.ripoffIndex`). Switching food to the bar's rule moved the greedy campaign probe a lot (Neon Nights 5/7 → 2/7 wins, below MIN_WINS 4), so it was left as is in B2; the Prices panel shows the current line truthfully.
+
 - [ ] **B9. Real engines for the remaining eight games:** sic bo, three-card poker, pai gow, keno, video poker, pachinko, bingo, big six.
   - Each implements `GameEngine` (`shared/games.ts`) with no `{p, multiplier}` tables.
   - `theoreticalEdge` comes from exact enumeration where possible, or Monte Carlo with at least 2M rounds within ±0.15%. Cite the published edge in a test comment.
@@ -259,20 +280,6 @@ Each task lists what to build, then how to prove it. Tick it (✅) in this file 
   - Advantage players and cheaters, such as blackjack counters and past-posting: pit bosses and security detect and remove them, and leaving them alone costs hold.
   - Pick-up and drop for staff, if cheap.
   - **Evidence:** unit tests, a sim test where an unstaffed pit loses hold to counters and a staffed pit doesn't, and campaign suites green.
-
-- [ ] **B12. Onboarding.**
-  - A tutorial scenario ("Opening Night") with step objectives and UI pointers: paint a zone, place a slot, hire a dealer, open a table, set a price, read the rating.
-  - First-time tooltips.
-  - A clean first-run title screen.
-  - **Evidence:** a browser playthrough of the whole tutorial, with screenshots of each step.
-
-- [ ] **B13. Finish.**
-  1. Merge `origin/v2-playable` if it moved.
-  2. Run the full suite under `caffeinate -i` and `npm run build`.
-  3. Measure the stress scene.
-  4. Take browser screenshots of the title and medals, a scenario's goal panel, the charts, the rating breakdown, the heat map and the tutorial.
-  5. Push and update the PR description with the checklist and evidence; take the PR out of draft.
-  6. Report to the user and stop the loop.
 
 ## Requests to Track A
 
