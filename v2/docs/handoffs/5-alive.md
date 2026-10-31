@@ -323,7 +323,7 @@ v2 ships to Netlify after this cut. Do these next, in this order, then the finis
     - **Loop seams** (instead of a listening note, which this session can't give): each bed decoded in the browser at its exact length (36, 15.5, 18.2, 51.2 s), and the jump from last sample to first is below the file's own 99th-percentile sample step: slots 0.021 vs 0.066, crowd 0.001 vs 0.011, murmur 0.0007 vs 0.0014, music 0.003 vs 0.017. The user should still give it a listen.
     - **Performance:** no rendering. The feed's update costs 0.03–0.06 ms on the stress floor (1,680 sound-relevant objects), 4 times a second. Four looping sources and one filter in WebAudio.
 
-- [ ] **A5. Live cards and chips on the felt.**
+- [x] ✅ **A5. Live cards and chips on the felt.**
   - Use instanced card and chip pools; card faces come from the existing `cardFace` atlas.
   - For interest tables running card engines today (blackjack, high-limit blackjack, UTH), following the card-table rule above. After merge: three-card poker and pai gow once B9 gives them real engines.
     - chips appear on each occupied seat's betting circle, coloured by denomination and stacked by amount
@@ -336,6 +336,16 @@ v2 ships to Netlify after this cut. Do these next, in this order, then the finis
     - a unit test turning a `roundFx` into a deal sequence
     - close-up screenshots mid-hand and at settle that match the round's data
     - stress scene numbers
+  - **Done 2026-10-31.**
+    - **Built:**
+      - `contract:` 8fadb92: optional `RoundFx.cards {dealer, hands, board?, folded?}` and `RoundFx.player {seat, x, z}`. `src/sim/fx/rounds.ts` records blackjack (dealer and every hand, splits included) and UTH (player, dealer, board, folded); the worker adds the seat that played and where its guest sits.
+      - `src/render/fx/felt.ts` (pure): a round becomes a timed deal plan in the real order (bet, player card, dealer up, player card, dealer hole face down, hits, hole flip, dealer draws; UTH flop/turn/river and folds), seat spots on the felt from the player's angle, chip stacks by denomination.
+      - `FeltParts.ts` (instanced card and chip pools on the object material, faces from a new atlas `cardFaces` sheet, 52 faces plus a back) and `FeltShow.ts` (cards slide from the shoe, the hole card turns over, chips go to the seat, are paid or collected to the rack at settle, then everything clears).
+      - `FxDirector`: card tables keep one pending round per seat and cycle round the occupied seats; every seat's bet shows even while another seat's cards are dealt. Sounds: `chips` on the bet and settle, `card` on each landing and flip, `shuffle` every seventh hand.
+      - `heroes.py`: the baked cards and bet chips are gone from the card-table hero; `table-blackjack`, `-hl`, `-uth` and `-carnival` re-exported.
+    - **Tests:** `src/render/fx/felt.test.ts` (roundFx → deal order, hole flip, UTH board and fold, positions, chip stacks): 8/8; with the fx suites 33/33. `tsc` clean.
+    - **Browser** (Sandbox: 4 blackjack and 2 poker tables, 9 dealers, 160 guests): after about a minute, 33 blackjack and 10 UTH hands shown in 35 s. Caught `obj-3` and froze render time: at 2.6 s the dealer's 3♦ up and the hole card face down, the player's Q♣ 4♣ A♠ at the seat with the $8 bet; at 4.4 s the dealer's 3♦ 5♦ 8♦ A♠ (17) face up, identical to the inspector's round (player 15, lose). Overview of the poker tables: 40 calls, 73k triangles.
+    - **Note:** the "nothing shown" in the first attempt was the title menu still open over a scripted Sandbox (sim at tick 0). Click `button.scenario` first.
 
 - [ ] **A6. Graphical table play for the avatar.**
   - Replace the DOM debug form with a proper play view:

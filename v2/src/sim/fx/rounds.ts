@@ -51,6 +51,17 @@ function toFx(math: GameMath, r: RoundResult): RoundFx {
     // A round is a whole shooter sequence; the floor throws the roll that settled it.
     const last = (r.detail as { rolls: [number, number][] }).rolls.at(-1);
     if (last) fx.craps = { dice: [last[0], last[1]] };
+  } else if (math.kind === 'blackjack') {
+    const d = r.detail as { dealer: string[]; hands: string[][] };
+    fx.cards = { dealer: [...d.dealer], hands: d.hands.map((h) => [...h]) };
+  } else if (math.kind === 'uth') {
+    const d = r.detail as { player: string[]; dealer: string[]; board: string[]; folded: boolean };
+    fx.cards = {
+      dealer: [...d.dealer],
+      hands: [[...d.player]],
+      board: [...d.board],
+      folded: d.folded,
+    };
   }
   return fx;
 }

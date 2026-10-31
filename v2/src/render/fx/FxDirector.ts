@@ -7,14 +7,21 @@
 //
 // Slot reels run in the object shader (ObjectLayer.setReels). Roulette heads
 // and balls, craps dice and big six faces are separate instanced parts drawn
-// over the table's own art (TableParts): drawParts places them every frame
-// for the tables that have shown a round and are still watched.
+// over the table's own art (TableParts), and dealt cards and chips have pools
+// of their own (FeltParts): drawParts places them every frame for the tables
+// that have shown a round and are still watched.
+//
+// A card table deals each seat its own round, so its pending rounds are kept
+// per seat and the felt cycles round the occupied seats.
 
 import * as THREE from 'three';
 import type { RoundFx } from '../../shared/contracts';
 import type { ObjectLayer } from '../ObjectLayer';
 import type { Overlays } from '../Overlays';
 import { dieAt, diceReveal, FLIGHT_S, type Throw } from './dice';
+import { CX, dealPlan, seatAngle } from './felt';
+import type { FeltParts } from './FeltParts';
+import { drawFelt, type FeltState } from './FeltShow';
 import { durationScale, revealTime, reelStopTime } from './reels';
 import { BIG_SIX_HUB, ROULETTE_HUB, type TableParts } from './TableParts';
 import {
@@ -47,20 +54,23 @@ interface TableShow {
   roulette?: Spin;
   dice?: Throw;
   six?: SixSpin;
+  felt?: FeltState;
 }
+
+/** A card table's shuffle sound plays on every this-many-th hand it shows. */
+const SHUFFLE_EVERY = 7;
+/** A dealt card is heard as it lands, this long after it leaves the shoe (s at 1×). */
+const CARD_LAND_S = 0.22;
 
 const BALL_R = 0.011;
 const tmpM = new THREE.Matrix4();
 const tmpL = new THREE.Matrix4();
 const tmpQ = new THREE.Quaternion();
 const tmpV = new THREE.Vector3();
+const tmpInv = new THREE.Matrix4();
 const ONE = new THREE.Vector3(1, 1, 1);
 const Y = new THREE.Vector3(0, 1, 0);
 const Z = new THREE.Vector3(0, 0, 1);
-
-interface Pending {
-  fx: RoundFx;
-}
 
 interface Cue {
   at: number;
@@ -76,7 +86,10 @@ export class FxDirector {
   /** The round each object is showing (or last showed); read by playtests. */
   readonly showing = new Map<string, RoundFx>();
   private busyUntil = new Map<string, number>();
-  private pending = new Map<string, Pending>();
+  /** Per object, the newest waiting round per seat (−1 where there are no seats). */
+  private pending = new Map<string, Map<number, RoundFx>>();
+  private lastSeat = new Map<string, number>();
+  private hands = new Map<string, number>();
   private cues: Cue[] = [];
   private tables = new Map<string, TableShow>();
   private now = 0;
@@ -88,9 +101,14 @@ export class FxDirector {
 
   /** A round arrived for an object: show it now, or queue it as the newest. */
   round(objectId: string, fx: RoundFx): void {
+    // Every seat's bet shows on the felt, even when its cards don't.
+    if (fx.cards) this.noteBet(objectId, fx);
     if ((this.busyUntil.get(objectId) ?? -Infinity) > this.now) {
-      if (this.pending.has(objectId)) this.stats.dropped++;
-      this.pending.set(objectId, { fx });
+      const seat = fx.player?.seat ?? -1;
+      let q = this.pending.get(objectId);
+      if (!q) this.pending.set(objectId, (q = new Map()));
+      if (q.has(seat)) this.stats.dropped++;
+      q.set(seat, fx);
       return;
     }
     this.start(objectId, fx);
@@ -108,10 +126,15 @@ export class FxDirector {
     for (const [id, until] of this.busyUntil) {
       if (until > now) continue;
       this.busyUntil.delete(id);
-      const next = this.pending.get(id);
-      if (next) {
-        this.pending.delete(id);
-        this.start(id, next.fx);
+      const q = this.pending.get(id);
+      if (q?.size) {
+        // The next seat round the table after the one just shown.
+        const last = this.lastSeat.get(id) ?? -Infinity;
+        const seats = [...q.keys()].sort((a, b) => a - b);
+        const seat = seats.find((s) => s > last) ?? seats[0]!;
+        const fx = q.get(seat)!;
+        q.delete(seat);
+        this.start(id, fx);
       }
     }
   }
@@ -126,6 +149,7 @@ export class FxDirector {
     if (fx.roulette) return this.spinRoulette(id, fx, pos);
     if (fx.craps) return this.throwDice(id, fx, pos);
     if (fx.bigSix) return this.spinSix(id, fx, { ...pos, y: 1.9 });
+    if (fx.cards) return this.dealCards(id, fx, { ...pos, y: 0.9 });
     // A game with no motion yet: reveal at once.
     this.reveal(id, fx, pos, this.now);
   }
@@ -133,6 +157,52 @@ export class FxDirector {
   /** Forget tables no longer watched; their own static art shows again. */
   retain(ids: ReadonlySet<string>): void {
     for (const id of this.tables.keys()) if (!ids.has(id)) this.tables.delete(id);
+    for (const id of this.pending.keys()) if (!ids.has(id)) this.pending.delete(id);
+  }
+
+  /** Where a round's player sits in the table's own frame, and its seat's angle. */
+  private seatOf(id: string, fx: RoundFx): { a: number; x: number; z: number } | null {
+    const o = this.objects.get(id);
+    if (!o) return null;
+    // Without a seat (a test world), the middle of the arc.
+    const p = fx.player
+      ? tmpV.set(fx.player.x, 0, fx.player.z).applyMatrix4(tmpInv.copy(o.matrix).invert())
+      : tmpV.set(CX, 0, 1.8);
+    return { a: seatAngle(p.x, p.z), x: p.x, z: p.z };
+  }
+
+  private noteBet(id: string, fx: RoundFx): void {
+    const s = this.seatOf(id, fx);
+    if (!s) return;
+    const t = this.table(id);
+    t.felt ??= { bets: new Map() };
+    t.felt.bets.set(fx.player?.seat ?? -1, { a: s.a, amount: fx.wagered, at: this.now });
+  }
+
+  private dealCards(id: string, fx: RoundFx, at: { x: number; y: number; z: number }): void {
+    const plan = dealPlan(fx);
+    const s = this.seatOf(id, fx);
+    if (!plan || !s) return this.reveal(id, fx, at, this.now);
+    const t = this.table(id);
+    t.felt ??= { bets: new Map() };
+    const seat = fx.player?.seat ?? -1;
+    const dur = durationScale(this.speed);
+    const t0 = this.now;
+    t.felt.hand = { plan, t0, dur, seat, a: s.a, player: { x: s.x, z: s.z } };
+    t.felt.bets.set(seat, { a: s.a, amount: plan.wagered, at: t0 });
+    this.lastSeat.set(id, seat);
+    const n = (this.hands.get(id) ?? 0) + 1;
+    this.hands.set(id, n);
+    if (n % SHUFFLE_EVERY === 1) this.sound('shuffle', at);
+    this.cue(t0 + plan.betAt * dur, () => this.sound('chips', at));
+    for (const c of plan.cards) {
+      this.cue(t0 + (c.dealAt + CARD_LAND_S) * dur, () => this.sound('card', at));
+      if (c.flipAt !== null) this.cue(t0 + c.flipAt * dur, () => this.sound('card', at));
+    }
+    if (plan.result !== 'push') this.cue(t0 + plan.settleAt * dur, () => this.sound('chips', at));
+    this.reveal(id, fx, at, t0 + plan.settleAt * dur);
+    // The table stays busy until its felt is cleared.
+    this.busyUntil.set(id, t0 + (plan.clearAt + 0.5) * dur);
   }
 
   private table(id: string): TableShow {
@@ -173,8 +243,9 @@ export class FxDirector {
   }
 
   /** Place every watched table's moving parts for this frame. */
-  drawParts(parts: TableParts): void {
+  drawParts(parts: TableParts, felt: FeltParts): void {
     parts.begin();
+    felt.begin();
     for (const [id, t] of this.tables) {
       const o = this.objects.get(id);
       if (!o) {
@@ -203,6 +274,7 @@ export class FxDirector {
           tmpL.compose(d.pos, d.quat, ONE);
           parts.push('die', tmpM.multiplyMatrices(base, tmpL));
         }
+      if (t.felt) drawFelt(felt, base, t.felt, this.now);
       if (t.six) {
         tmpQ.setFromAxisAngle(Z, sixAngle(t.six, this.now));
         tmpL.compose(BIG_SIX_HUB, tmpQ, ONE);
@@ -210,6 +282,7 @@ export class FxDirector {
       }
     }
     parts.end();
+    felt.end();
   }
 
   private spinSlot(id: string, fx: RoundFx, at: { x: number; y: number; z: number }): void {

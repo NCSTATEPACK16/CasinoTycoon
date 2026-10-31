@@ -5,6 +5,7 @@
 import { SIM_TICK_MS } from '../config';
 import { eventBus } from '../EventBus';
 import type { WorkerIn, WorkerOut } from '../shared/contracts';
+import { SeatedCasinoGame } from '../sim/entities/machines/SeatedCasinoGame';
 import { recordBigSix } from '../sim/fx/bigSix';
 import { lastRound } from '../sim/fx/rounds';
 import { WorldNav } from '../sim/nav/WorldNav';
@@ -42,12 +43,16 @@ function wireEvents(w: CasinoWorld): void {
     const rec = snap.interest.has(e.machineId) ? (six ?? lastRound(m?.math)) : null;
     if (rec && sentSeq.get(e.machineId) !== rec.seq) {
       sentSeq.set(e.machineId, rec.seq);
+      // At a seated table, which seat played and where its player sits.
+      const seat = m instanceof SeatedCasinoGame ? m.seatOf(e.guestId) : null;
+      const g = seat !== null ? w.guests.get(e.guestId) : undefined;
+      const fx = g && seat !== null ? { ...rec.fx, player: { seat, x: g.x, z: g.z } } : rec.fx;
       snap.pendingEvents.push({
         type: 'roundFx',
         objectId: e.machineId,
         x: o.col + 0.5,
         z: o.row + 0.5,
-        fx: rec.fx,
+        fx,
       });
       return;
     }

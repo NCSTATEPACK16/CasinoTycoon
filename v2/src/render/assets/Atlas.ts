@@ -34,6 +34,10 @@ interface DecalSpec {
   paint: Painter;
 }
 
+/** One card in the cardFaces sheet, in pixels. */
+const CARD_CELL_W = 48;
+const CARD_CELL_H = 64;
+
 const DECALS: Record<string, DecalSpec> = {
   // Rows follow the table's rules: 3:2 S17, 3:2 H17, 6:5 S17, 6:5 H17.
   bjFelt: { w: 512, h: 288, rows: 4, paint: (g, w, h, r) => blackjackFelt(g, w, h, r, '#1b7a44', '#f4e7c1') },
@@ -71,7 +75,9 @@ const DECALS: Record<string, DecalSpec> = {
   marble: { w: 256, h: 256, paint: marble },
   wood: { w: 256, h: 256, paint: woodFloor },
   tile: { w: 256, h: 256, paint: tileFloor },
-  cardFace: { w: 64, h: 96, paint: cardFace },
+  // All 52 faces, rank across (2…A) and suit down (♣ ♦ ♥ ♠), then the back
+  // at the start of a fifth row: the dealt cards on the felt (render/fx/felt.ts).
+  cardFaces: { w: 13 * CARD_CELL_W, h: 5 * CARD_CELL_H, paint: cardFaces },
 };
 
 export class DecalAtlas {
@@ -1201,8 +1207,46 @@ function wallpaper(g: CanvasRenderingContext2D, w: number, h: number) {
   for (let x = 0; x < w; x += 32) g.fillRect(x, 0, 2, h);
 }
 
-function cardFace(g: CanvasRenderingContext2D, w: number, h: number) {
-  g.fillStyle = '#fff';
-  g.fillRect(0, 0, w, h);
-  text(g, 'A♠', w / 2, h / 2, 26, '#111', SIGN_FONT, '900');
+function cardFaces(g: CanvasRenderingContext2D) {
+  const W = CARD_CELL_W;
+  const H = CARD_CELL_H;
+  const ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+  const suits = ['♣', '♦', '♥', '♠'];
+  const card = (x: number, y: number, fill: string, edge: string) => {
+    g.fillStyle = fill;
+    g.beginPath();
+    g.roundRect(x + 1, y + 1, W - 2, H - 2, 5);
+    g.fill();
+    g.strokeStyle = edge;
+    g.lineWidth = 1.5;
+    g.stroke();
+  };
+  for (let r = 0; r < 13; r++)
+    for (let s = 0; s < 4; s++) {
+      const x = r * W;
+      const y = s * H;
+      const ink = s === 1 || s === 2 ? '#c8102e' : '#141414';
+      card(x, y, '#fbf8f0', '#b9b2a2');
+      text(g, ranks[r]!, x + 11, y + 11, ranks[r] === '10' ? 11 : 13, ink, SIGN_FONT, '900');
+      text(g, suits[s]!, x + 11, y + 24, 11, ink, 'sans-serif', '700');
+      text(g, suits[s]!, x + W / 2 + 3, y + H / 2 + 6, 26, ink, 'sans-serif', '700');
+      if (r >= 9 && r <= 11) text(g, ranks[r]!, x + W / 2 + 3, y + H / 2 + 6, 13, '#fbf8f0', SIGN_FONT, '900');
+    }
+  // The back: house red with a white border and a lattice.
+  card(0, 4 * H, '#a3122a', '#f6efe0');
+  g.save();
+  g.beginPath();
+  g.rect(5, 4 * H + 5, W - 10, H - 10);
+  g.clip();
+  g.strokeStyle = 'rgba(255,235,210,0.45)';
+  g.lineWidth = 1;
+  for (let k = -H; k < W + H; k += 6) {
+    g.beginPath();
+    g.moveTo(k, 4 * H);
+    g.lineTo(k + H, 5 * H);
+    g.moveTo(k + H, 4 * H);
+    g.lineTo(k, 5 * H);
+    g.stroke();
+  }
+  g.restore();
 }

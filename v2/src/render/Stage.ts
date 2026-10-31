@@ -26,6 +26,7 @@ import { AssetLibrary } from './assets/AssetLibrary';
 import { Crowd } from './Crowd';
 import { FloorLayer } from './FloorLayer';
 import { FxDirector } from './fx/FxDirector';
+import { FeltParts } from './fx/FeltParts';
 import { TableParts } from './fx/TableParts';
 import { Lighting } from './Lighting';
 import { objectUniforms } from './materials/ObjectMaterial';
@@ -62,6 +63,8 @@ export class Stage {
   readonly fx: FxDirector;
   /** Roulette heads and balls, dice, big six faces on watched tables. */
   readonly parts: TableParts;
+  /** Dealt cards and chips on watched card tables. */
+  readonly felt: FeltParts;
   readonly lighting: Lighting;
   private post: Post;
   private quality: Quality = 'high';
@@ -106,11 +109,13 @@ export class Stage {
     this.overlays = new Overlays(this.assets);
     this.fx = new FxDirector(this.objects, this.overlays);
     this.parts = new TableParts(this.assets);
+    this.felt = new FeltParts(this.assets);
     this.floor.onZones = (g) => this.overlays.rebuildZones(g);
     this.scene.add(
       this.floor.group,
       this.objects.group,
       this.parts.group,
+      this.felt.group,
       this.crowd.group,
       this.overlays.group,
     );
@@ -304,7 +309,7 @@ export class Stage {
     this.lastCamera = cam;
     objectUniforms.uTime.value = now;
     this.fx.update(now);
-    this.fx.drawParts(this.parts);
+    this.fx.drawParts(this.parts, this.felt);
     this.updateView(cam);
     this.objects.update(cam, now);
     this.overlays.update(now, cam);
