@@ -377,9 +377,9 @@ def craps_table(g, d):
     else:
         g.slab(outer, 0.95, 1.02, 'leatherBlack')
     if d == 0:
-        # Dice, the stick and a boxman's chip stacks.
-        g.box(0.03, 0.03, 0.03, 1.3, 0.955, 0.9, 'white', ry=0.4)
-        g.box(0.03, 0.03, 0.03, 1.35, 0.955, 0.95, 'white', ry=1.1)
+        # The stick and a boxman's chip stacks. No dice: a watched table throws
+        # the real roll as live parts (src/render/fx/dice.ts), and a pair baked
+        # in here would lie beside them showing a number nobody rolled.
         g.cyl(0.006, 0.006, 1.0, 0.6, 1.08, 1.6, 'oak', seg=6, axis='x')
         chips(g, 0.8, 0.955, 0.48, d, n=8)
     # Players stand around the rail.

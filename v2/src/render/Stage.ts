@@ -4,6 +4,7 @@
 //   FloorLayer   floor / walls / decor / ceiling merged per 8×8 chunk
 //   Crowd        every agent through vertex-animation textures
 //   Overlays     ghost, zone tint, selection, payout labels
+//   FxDirector   sampled real rounds on the objects near the camera
 //   Lighting + Post   HDRI, fitted shadows, N8AO, bloom, ACES, SMAA
 
 import * as THREE from 'three';
@@ -24,6 +25,8 @@ import {
 import { AssetLibrary } from './assets/AssetLibrary';
 import { Crowd } from './Crowd';
 import { FloorLayer } from './FloorLayer';
+import { FxDirector } from './fx/FxDirector';
+import { TableParts } from './fx/TableParts';
 import { Lighting } from './Lighting';
 import { objectUniforms } from './materials/ObjectMaterial';
 import { ObjectLayer } from './ObjectLayer';
@@ -38,6 +41,8 @@ const QUALITY: Record<Quality, { pixelRatio: number; shadow: number; shadows: bo
   low: { pixelRatio: 1, shadow: 1024, shadows: false },
 };
 
+/** Rounds play out on games within this distance of the camera. */
+const INTEREST_RADIUS_M = 24;
 const focus = new THREE.Vector3();
 const fwd = new THREE.Vector3();
 const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -54,6 +59,9 @@ export class Stage {
   readonly floor: FloorLayer;
   readonly crowd = new Crowd();
   readonly overlays: Overlays;
+  readonly fx: FxDirector;
+  /** Roulette heads and balls, dice, big six faces on watched tables. */
+  readonly parts: TableParts;
   readonly lighting: Lighting;
   private post: Post;
   private quality: Quality = 'high';
@@ -96,8 +104,16 @@ export class Stage {
     this.objects = new ObjectLayer(this.assets);
     this.floor = new FloorLayer(this.assets);
     this.overlays = new Overlays(this.assets);
+    this.fx = new FxDirector(this.objects, this.overlays);
+    this.parts = new TableParts(this.assets);
     this.floor.onZones = (g) => this.overlays.rebuildZones(g);
-    this.scene.add(this.floor.group, this.objects.group, this.crowd.group, this.overlays.group);
+    this.scene.add(
+      this.floor.group,
+      this.objects.group,
+      this.parts.group,
+      this.crowd.group,
+      this.overlays.group,
+    );
 
     // Exterior: a dark stone plaza the lot sits on, faded out by fog.
     this.ground = new THREE.Mesh(
@@ -166,9 +182,20 @@ export class Stage {
     if (this.lastCamera) this.crowd.update(prev, curr, alpha, this.lastCamera, dt);
   }
 
-  /** Convenience for main.ts: payout labels + win flashes from sim events. */
+  /** Convenience for main.ts: payout labels + win flashes from sim events,
+   *  and the rounds sampled at watched objects. */
   handleEvents(events: SimEvent[]): void {
-    for (const e of events) if (e.type === 'payout') this.spawnPayout(e.x, e.z, e.amount);
+    for (const e of events) {
+      if (e.type === 'payout') this.spawnPayout(e.x, e.z, e.amount);
+      else if (e.type === 'roundFx') this.fx.round(e.objectId, e.fx);
+    }
+  }
+
+  /** Engine games close enough to watch a round on (setInterest), nearest first. */
+  interestIds(): string[] {
+    const ids = this.lastCamera ? this.objects.nearGames(this.lastCamera, INTEREST_RADIUS_M, 48) : [];
+    this.fx.retain(new Set(ids));
+    return ids;
   }
 
   // ---------- interaction ----------
@@ -187,7 +214,8 @@ export class Stage {
 
   /** Floating "+$1,250" and a topper flash on whatever stands at (x, z). */
   spawnPayout(x: number, z: number, amount: number): void {
-    const t = this.clock.getElapsedTime();
+    // elapsedTime, not getElapsedTime(): that would eat the next frame's delta.
+    const t = this.clock.elapsedTime;
     this.overlays.spawnPayout(x, z, amount);
     if (amount > 0) this.objects.flashAt(x, z, t);
   }
@@ -275,6 +303,8 @@ export class Stage {
     const cam = camera as THREE.PerspectiveCamera;
     this.lastCamera = cam;
     objectUniforms.uTime.value = now;
+    this.fx.update(now);
+    this.fx.drawParts(this.parts);
     this.updateView(cam);
     this.objects.update(cam, now);
     this.overlays.update(now, cam);

@@ -55,7 +55,7 @@ export const AgentKind = {
 } as const;
 export type AgentKind = (typeof AgentKind)[keyof typeof AgentKind];
 
-export const Anim = { Idle: 0, Walk: 1, Sit: 2, Play: 3, Cheer: 4, Sad: 5, Eat: 6 } as const;
+export const Anim = { Idle: 0, Walk: 1, Sit: 2, Play: 3, Cheer: 4, Sad: 5, Eat: 6, StandPlay: 7 } as const;
 export type Anim = (typeof Anim)[keyof typeof Anim];
 
 /** Floats per agent in Snapshot.agents. Order is fixed:
@@ -97,7 +97,10 @@ export interface HudView {
 export type SimEvent =
   | { type: 'payout'; objectId: string; x: number; z: number; amount: number }
   | { type: 'ticker'; text: string; severity: 'info' | 'warn' | 'alert' }
-  | { type: 'gameOver'; won: boolean; reason: string };
+  | { type: 'gameOver'; won: boolean; reason: string }
+  // One real round, sampled from a play at an object the client said it is
+  // watching (setInterest). Replaces that play's `payout` event.
+  | { type: 'roundFx'; objectId: string; x: number; z: number; fx: RoundFx };
 
 export interface Snapshot {
   tick: number;
@@ -170,7 +173,9 @@ export type Command =
   | { type: 'stats' }
   // Run N ticks synchronously in the worker and reply with their timings —
   // unaffected by background-tab timer throttling, unlike the pump.
-  | { type: 'debugTicks'; count: number };
+  | { type: 'debugTicks'; count: number }
+  // Objects near the camera: only these get per-round `roundFx` events.
+  | { type: 'setInterest'; objectIds: string[] };
 
 /** Reply to { type: 'stats' }. */
 export interface SimStats {
@@ -191,3 +196,23 @@ export type WorkerOut =
   | { type: 'ready' }
   | { type: 'snapshot'; snap: Snapshot }
   | { type: 'reply'; reqId: number; ok: boolean; data?: unknown; error?: string };
+
+// ---------- round effects (Track A) ----------
+
+/** The last round of a play, with what the renderer needs to show it truly. */
+export interface RoundFx {
+  kind: string;
+  /** This round alone, not the whole play. */
+  wagered: number;
+  returned: number;
+  summary: string;
+  /** Slots: the par sheet, the stop each reel landed on (the middle row is
+   *  strip[stop]) and the winning payline indices. */
+  slots?: { sheet: string; stops: number[]; lines: number[] };
+  /** Roulette: the pocket the ball landed in (37 is 00) and the wheel. */
+  roulette?: { pocket: number; wheel: 'single' | 'double' };
+  /** Craps: the round's last roll, the one that settled it. */
+  craps?: { dice: [number, number] };
+  /** Big six: the segment index (atlas order) that agrees with what was paid. */
+  bigSix?: { segment: number };
+}

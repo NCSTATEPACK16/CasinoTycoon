@@ -5,6 +5,8 @@
 import { SIM_TICK_MS } from '../config';
 import { eventBus } from '../EventBus';
 import type { WorkerIn, WorkerOut } from '../shared/contracts';
+import { recordBigSix } from '../sim/fx/bigSix';
+import { lastRound } from '../sim/fx/rounds';
 import { WorldNav } from '../sim/nav/WorldNav';
 import { CasinoWorld } from '../sim/world';
 import { runCommand } from './commands';
@@ -23,11 +25,33 @@ function post(msg: WorkerOut, transfer: Transferable[] = []): void {
   self.postMessage(msg, transfer);
 }
 
+/** The last round already sent per object, so one round is never shown twice. */
+const sentSeq = new Map<string, number>();
+
 function wireEvents(w: CasinoWorld): void {
   eventBus.clear();
+  sentSeq.clear();
   eventBus.on('machinePlayed', (e) => {
     const o = w.state.getObject(e.machineId);
-    if (!o || e.payout <= 0) return;
+    if (!o) return;
+    // Watched objects get the play's last round instead of its payout: the
+    // client shows that round and its own win when the round is revealed.
+    const m = w.machines.get(e.machineId);
+    // The big six pays from a table, not an engine: its round is the spin itself.
+    const six = m?.defId === 'big-six-wheel' ? recordBigSix(m, e.wager, e.payout) : null;
+    const rec = snap.interest.has(e.machineId) ? (six ?? lastRound(m?.math)) : null;
+    if (rec && sentSeq.get(e.machineId) !== rec.seq) {
+      sentSeq.set(e.machineId, rec.seq);
+      snap.pendingEvents.push({
+        type: 'roundFx',
+        objectId: e.machineId,
+        x: o.col + 0.5,
+        z: o.row + 0.5,
+        fx: rec.fx,
+      });
+      return;
+    }
+    if (e.payout <= 0) return;
     snap.pendingEvents.push({
       type: 'payout',
       objectId: e.machineId,

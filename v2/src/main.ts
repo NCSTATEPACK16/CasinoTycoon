@@ -1,12 +1,16 @@
 import './style.css';
 import './ui/ui.css';
+import { GameAudio, audio } from './audio';
+import { AmbienceFeed } from './audio/AmbienceFeed';
 import { SimClient } from './client/SimClient';
 import { PlayerControls } from './input/PlayerControls';
 import type { PlayRequestedDetail } from './input/avatar/Interaction';
 import type { PickHit } from './input/Picker';
+import type { SoundName } from './audio/sounds';
 import { Stage } from './render/Stage';
 import { Hud } from './ui/Hud';
 import { Menus } from './ui/Menus';
+import { Settings } from './ui/Settings';
 import { SidePanel } from './ui/SidePanel';
 import { TablePlay } from './ui/TablePlay';
 
@@ -23,6 +27,14 @@ const table = new TablePlay(sim);
 const menus = new Menus(sim);
 ui.append(panel.root, table.root, menus.root);
 controls.onMessage = (t) => hud.say(t);
+const settings = new Settings(audio, stage);
+settings.mount(ui);
+audio.unlockOn(window);
+const gameAudio = new GameAudio(audio, sim);
+gameAudio.watchPanels([panel.root, table.root, menus.root, settings.root]);
+gameAudio.watchClicks(ui);
+stage.fx.sound = (name, at, delay, rate) => audio.play(name as SoundName, { at, delay, rate });
+const ambience = new AmbienceFeed(audio);
 
 // ---------- sim → screen ----------
 
@@ -33,6 +45,10 @@ let lastHour = -1;
 sim.onSnapshot((s) => {
   if (s.objects) stage.setObjects(s.objects);
   if (s.floor) stage.setFloor(s.floor);
+  if (s.objects) ambience.setObjects(s.objects);
+  if (s.floor) ambience.setFloor(s.floor);
+  ambience.setHud(s.hud.guests, s.hud.speed);
+  stage.fx.speed = s.hud.speed;
   stage.handleEvents(s.events);
   hud.update(s.hud);
   hud.events(s.events);
@@ -51,6 +67,16 @@ sim.onSnapshot((s) => {
     lastHour = s.hud.hour;
   }
 });
+
+// Tell the worker which games are near the camera, so their rounds play out.
+let interestKey = '';
+setInterval(() => {
+  const ids = stage.interestIds();
+  const key = ids.join(',');
+  if (key === interestKey) return;
+  interestKey = key;
+  void sim.command({ type: 'setInterest', objectIds: ids }).catch(() => (interestKey = ''));
+}, 500);
 
 // ---------- management UI ----------
 
@@ -136,10 +162,14 @@ stage.renderer.setAnimationLoop((now) => {
       : null;
   if (sim.curr) stage.updateAgents(sim.prev, sim.curr, sim.alpha(now));
   stage.render(controls.camera);
+  audio.update(controls.camera);
+  ambience.update(controls.camera, now / 1000);
 });
 
 // Title screen once the worker is up; the sim idles at speed 0 behind it.
 void sim.command({ type: 'setSpeed', speed: 0 }).then(() => menus.title());
 
 // Debug/test hook for browser playtests.
-Object.assign(window, { __v2: { sim, stage, god, build, controls, panel, table, menus } });
+Object.assign(window, {
+  __v2: { sim, stage, god, build, controls, panel, table, menus, audio, settings, ambience },
+});

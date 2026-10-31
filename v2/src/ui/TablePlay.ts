@@ -2,6 +2,7 @@
 // engine the guests play (roundBegin / roundAct). The view is drawn from the
 // engine's public round view — cards, dice, reels — never re-simulated here.
 
+import { audio } from '../audio';
 import type { SimClient } from '../client/SimClient';
 import type { GameKind } from '../shared/games';
 import type { RoundResult } from '../shared/games';
@@ -34,6 +35,9 @@ const BET_SPOTS: Partial<Record<GameKind, { value: string; label: string }[]>> =
   ],
 };
 
+/** Actions that push more chips onto the felt. */
+const CHIP_ACTIONS = /^(bet|double|split|odds|place|press)/;
+
 const ACTION_LABEL: Record<string, string> = {
   bet4x: 'Raise 4×',
   bet3x: 'Raise 3×',
@@ -50,6 +54,9 @@ export class TablePlay {
   /** Chips committed to the round in progress, out of the wallet until it settles. */
   private onTable = 0;
   private inRound = false;
+  /** What the last view showed, so each new card or roll makes its own sound. */
+  private seenCards = 0;
+  private seenRolls = 0;
   onLeave: () => void = () => {};
 
   constructor(private sim: SimClient) {
@@ -75,6 +82,7 @@ export class TablePlay {
       });
       this.wallet = f.wallet;
       this.onTable = f.onTable;
+      if (this.kind === 'blackjack' || this.kind === 'uth') audio.play('shuffle');
     } catch (err) {
       this.root.innerHTML = `<p>${escapeHtml((err as Error).message)}</p>`;
       return;
@@ -199,6 +207,9 @@ export class TablePlay {
         bets,
       });
       this.inRound = true;
+      audio.play('chips');
+      this.seenCards = 0;
+      this.seenRolls = 0;
       this.show(r);
     } catch (err) {
       this.renderBetting(`<span class="bad">${escapeHtml((err as Error).message)}</span>`);
@@ -206,6 +217,7 @@ export class TablePlay {
   }
 
   private async act(action: string): Promise<void> {
+    if (CHIP_ACTIONS.test(action)) audio.play('chips');
     const r = await this.sim.command<RoundReply>({
       type: 'roundAct',
       objectId: this.objectId!,
@@ -215,6 +227,7 @@ export class TablePlay {
   }
 
   private show(r: RoundReply): void {
+    this.sound(r);
     this.wallet = r.wallet;
     this.onTable = r.onTable;
     if (!r.options) {
@@ -243,6 +256,25 @@ export class TablePlay {
       );
     body.append(acts);
     this.root.replaceChildren(this.header(), body);
+  }
+
+  private sound(r: RoundReply): void {
+    const v = (r.view ?? {}) as Record<string, unknown>;
+    const cards = visibleCards(this.kind, v);
+    for (let i = 0; i < Math.min(6, cards - this.seenCards); i++)
+      audio.play('card', { delay: i * 0.12 });
+    this.seenCards = Math.max(this.seenCards, cards);
+    if (this.kind === 'craps') {
+      const rolls = (v.rolls as unknown[] | undefined)?.length ?? 0;
+      if (rolls > this.seenRolls) audio.play('dice');
+      this.seenRolls = rolls;
+    }
+    if (this.kind === 'roulette' && v.pocket !== null && v.pocket !== undefined) audio.play('ball');
+    const res = r.result;
+    if (!r.options && res && res.returned > res.wagered) {
+      audio.play('chips', { delay: 0.35 });
+      audio.play('win', { delay: 0.35 });
+    }
   }
 
   private renderView(view: unknown): HTMLElement {
@@ -334,6 +366,18 @@ export class TablePlay {
     }
     return box;
   }
+}
+
+/** Face-up cards in a round view (a hole card counts once it turns over). */
+function visibleCards(kind: GameKind | null, v: Record<string, unknown>): number {
+  const up = (cs: unknown) =>
+    ((cs as number[] | null | undefined) ?? []).filter((c) => c >= 0).length;
+  if (kind === 'blackjack') {
+    const hands = (v.hands as { cards: number[] }[] | undefined) ?? [];
+    return up(v.dealerCards ?? [v.dealerUp]) + hands.reduce((n, h) => n + up(h.cards), 0);
+  }
+  if (kind === 'uth') return up(v.dealer) + up(v.board) + up(v.hole);
+  return 0;
 }
 
 function cap(s: string): string {

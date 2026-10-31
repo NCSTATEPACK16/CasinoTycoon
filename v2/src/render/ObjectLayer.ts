@@ -12,10 +12,22 @@ import type { Asset, AssetLibrary } from './assets/AssetLibrary';
 import type { Lod } from './assets/procedural';
 import { CHUNK, chunkKey } from './core/ChunkGrid';
 import { InstancePool } from './core/InstancePool';
-import { createObjectMaterial } from './materials/ObjectMaterial';
+import { defaultSheet, MAX_REELS, packStops, restingStops, SHEET_ORDER, STRIP_MAX } from './fx/reels';
+import { PAR_SHEETS } from '../sim/games/slots/sheets';
+import { createObjectMaterial, objectUniforms } from './materials/ObjectMaterial';
+
+/** Games that play rounds without a GameEngine (the big six pays from a table). */
+const TABLE_WHEELS = new Set(['big-six-wheel']);
 
 const CH_MATRIX = 0;
 const CH_STATE = 1;
+/** Live reels: (spin start, sheet, reel 0, reel 1) and (reel 2, 3, 4, duration scale). */
+const CH_REEL_A = 2;
+const CH_REEL_B = 3;
+const REEL_ATTRS = [
+  ['aReelA', CH_REEL_A],
+  ['aReelB', CH_REEL_B],
+] as const;
 /** Chunk-centre distance bands for LOD0→1 and LOD1→2. LOD0 stops at 16 m:
  *  a chunk centre that far still puts every object within ~10 m of the eye at
  *  full detail, and the 24 m band drew ~220 full slot cabinets (2.3k tris each)
@@ -31,7 +43,7 @@ const LOW_CAMERA_Y = 6;
 
 /** One InstancedMesh fed by an InstancePool. */
 class PoolMesh {
-  readonly pool = new InstancePool<string>([16, 4], 64);
+  readonly pool = new InstancePool<string>([16, 4, 4, 4], 64);
   mesh: THREE.InstancedMesh;
   /** Whether only full-detail instances cast (a low camera); see ObjectLayer.update. */
   private nearOnly = false;
@@ -51,7 +63,8 @@ class PoolMesh {
     // geometry, and each pool needs its own aState attribute on it.
     const geo = new THREE.BufferGeometry();
     geo.setIndex(src.index);
-    for (const [k, a] of Object.entries(src.attributes)) if (k !== 'aState') geo.setAttribute(k, a);
+    for (const [k, a] of Object.entries(src.attributes))
+      if (k !== 'aState' && k !== 'aReelA' && k !== 'aReelB') geo.setAttribute(k, a);
     geo.boundingBox = src.boundingBox;
     geo.boundingSphere = src.boundingSphere;
     const m = new THREE.InstancedMesh(geo, material, 0);
@@ -60,6 +73,11 @@ class PoolMesh {
     const state = new THREE.InstancedBufferAttribute(this.pool.channels[CH_STATE]!.array, 4);
     state.setUsage(THREE.DynamicDrawUsage);
     geo.setAttribute('aState', state);
+    for (const [name, ch] of REEL_ATTRS) {
+      const a = new THREE.InstancedBufferAttribute(this.pool.channels[ch]!.array, 4);
+      a.setUsage(THREE.DynamicDrawUsage);
+      geo.setAttribute(name, a);
+    }
     m.count = 0;
     m.castShadow = this.castsShadow();
     m.receiveShadow = true;
@@ -99,6 +117,11 @@ class PoolMesh {
       const st = new THREE.InstancedBufferAttribute(p.channels[CH_STATE]!.array, 4);
       st.setUsage(THREE.DynamicDrawUsage);
       this.mesh.geometry.setAttribute('aState', st);
+      for (const [name, ch] of REEL_ATTRS) {
+        const a = new THREE.InstancedBufferAttribute(p.channels[ch]!.array, 4);
+        a.setUsage(THREE.DynamicDrawUsage);
+        this.mesh.geometry.setAttribute(name, a);
+      }
     } else if (p.dirty) {
       const lo = p.dirtyMin;
       const n = p.dirtyMax - p.dirtyMin + 1;
@@ -109,6 +132,12 @@ class PoolMesh {
       st.clearUpdateRanges();
       st.addUpdateRange(lo * 4, n * 4);
       st.needsUpdate = true;
+      for (const [name] of REEL_ATTRS) {
+        const a = this.mesh.geometry.attributes[name] as THREE.InstancedBufferAttribute;
+        a.clearUpdateRanges();
+        a.addUpdateRange(lo * 4, n * 4);
+        a.needsUpdate = true;
+      }
     }
     this.mesh.count = p.count;
     this.mesh.visible = p.count > 0;
@@ -129,6 +158,18 @@ interface Placed {
   box: THREE.Box3;
   variant: number;
   flashAt: number;
+  /** aReelA then aReelB; sheet −1 when the object has no reels. */
+  reel: Float32Array;
+}
+
+/** What a reel window shows: a spin (or a rest) from `prev` to `stops`. */
+export interface ReelSpin {
+  sheet: string;
+  stops: number[];
+  /** Stage time the spin started; far in the past for a cabinet at rest. */
+  t0: number;
+  /** durationScale(speed): shorter spins at 2× and 4×. */
+  dur: number;
 }
 
 const tmpM = new THREE.Matrix4();
@@ -155,6 +196,17 @@ export class ObjectLayer {
   constructor(private lib: AssetLibrary) {
     this.group.name = 'objects';
     this.material = createObjectMaterial(lib.atlas.texture);
+    const u = (k: string) => lib.atlas.rect(k);
+    const vec = (r: { u0: number; v0: number; u1: number; v1: number }) =>
+      new THREE.Vector4(r.u0, r.v0, r.u1, r.v1);
+    objectUniforms.uReelRect.value.copy(vec(u('slotReels')));
+    objectUniforms.uScreenRect.value.copy(vec(u('pennyScreen')));
+    objectUniforms.uStripRect.value.copy(vec(u('reelStrips')));
+    objectUniforms.uStripGrid.value.set(SHEET_ORDER.length * MAX_REELS, STRIP_MAX);
+    SHEET_ORDER.forEach((id, i) => {
+      const sh = PAR_SHEETS[id]!;
+      objectUniforms.uSheets.value[i]!.set(sh.reels.length, sh.reels[0]!.stops.length, sh.rows, 0);
+    });
     lib.onUpdate = (a) => {
       for (const p of this.pools.values())
         if (p.asset === a) p.setGeometry(a.lods[p.lod]);
@@ -236,6 +288,7 @@ export class ObjectLayer {
       ),
       variant: v.decalRow ?? hash(v.id),
       flashAt: -100,
+      reel: restingReel(v),
     };
     this.placed.set(v.id, p);
     let set = this.byChunk.get(chunk);
@@ -272,6 +325,66 @@ export class ObjectLayer {
     state4[2] = this.hovered === p.view.id ? 1 : 0;
     state4[3] = (p.variant % p.asset.variantRows) * p.asset.variantStep;
     pool.set(CH_STATE, i, state4);
+    pool.set(CH_REEL_A, i, p.reel.subarray(0, 4));
+    pool.set(CH_REEL_B, i, p.reel.subarray(4, 8));
+  }
+
+  /** Spin (or set) an object's reels; the shader runs the motion from here. */
+  setReels(id: string, spin: ReelSpin): void {
+    const p = this.placed.get(id);
+    const si = SHEET_ORDER.indexOf(spin.sheet);
+    if (!p || si < 0) return;
+    const r = p.reel;
+    // Each reel starts from wherever the last spin left it.
+    const prevSheet = r[1]!;
+    const prev = [r[2]!, r[3]!, r[4]!, r[5]!, r[6]!].map((v) => (prevSheet === si ? v % 64 : 0));
+    r[0] = spin.t0;
+    r[1] = si;
+    for (let k = 0; k < MAX_REELS; k++) r[2 + k] = packStops(spin.stops[k] ?? 0, prev[k]!);
+    r[7] = spin.dur;
+    this.writeState(p);
+    this.syncPools();
+  }
+
+  /** The stops an object's reels show (or are spinning to), and its sheet. */
+  reelsOf(id: string): { sheet: string; stops: number[] } | null {
+    const p = this.placed.get(id);
+    if (!p || p.reel[1]! < 0) return null;
+    const sheet = SHEET_ORDER[p.reel[1]!]!;
+    const n = PAR_SHEETS[sheet]!.reels.length;
+    return { sheet, stops: Array.from({ length: n }, (_, k) => p.reel[2 + k]! % 64) };
+  }
+
+  /** Flash an object by id (a revealed round's win). */
+  flash(id: string, now: number): void {
+    const p = this.placed.get(id);
+    if (!p) return;
+    p.flashAt = now;
+    this.writeState(p);
+  }
+
+  /** Centre of an object's footprint, for labels and sounds. */
+  centreOf(id: string): THREE.Vector3 | null {
+    const p = this.placed.get(id);
+    return p ? p.box.getCenter(new THREE.Vector3()).setY(0) : null;
+  }
+
+  /** Games within `radius` of the camera and in view, nearest first. */
+  nearGames(camera: THREE.Camera, radius: number, max: number): string[] {
+    camera.updateMatrixWorld();
+    projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    frustum.setFromProjectionMatrix(projScreen);
+    const cam = camera.position;
+    const out: [number, string][] = [];
+    for (const [id, p] of this.placed) {
+      if (get3D(p.view.defId).game === undefined && !TABLE_WHEELS.has(p.view.defId)) continue;
+      p.box.getCenter(tmpV);
+      const d = tmpV.distanceTo(cam);
+      if (d > radius || !frustum.intersectsBox(p.box)) continue;
+      out.push([d, id]);
+    }
+    out.sort((a, b) => a[0] - b[0]);
+    return out.slice(0, max).map(([, id]) => id);
   }
 
   private matrixOf(p: Placed): THREE.Matrix4 {
@@ -408,4 +521,14 @@ function hash(s: string): number {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
   return h >>> 0;
+}
+
+/** A placed object's reels before any round: its sheet's resting stops, or none. */
+function restingReel(v: ObjectView): Float32Array {
+  const r = new Float32Array([-1000, -1, 0, 0, 0, 0, 0, 1]);
+  const sheet = defaultSheet(v.defId);
+  if (!sheet) return r;
+  r[1] = SHEET_ORDER.indexOf(sheet);
+  restingStops(sheet, hash(v.id)).forEach((s, k) => (r[2 + k] = packStops(s, s)));
+  return r;
 }

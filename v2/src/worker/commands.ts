@@ -191,6 +191,9 @@ export function runCommand(world: CasinoWorld, snap: SnapshotBuilder, cmd: Comma
     case 'continueScenario':
       world.scenario?.continue();
       return { ok: true };
+    case 'setInterest':
+      snap.interest = new Set(cmd.objectIds);
+      return { ok: true };
     default:
       return { ok: false, error: `${(cmd as Command).type} not implemented` };
   }
