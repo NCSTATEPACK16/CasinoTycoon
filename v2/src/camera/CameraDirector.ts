@@ -48,6 +48,7 @@ const SEAT_EYE_Y = 1.95;
 const SEAT_BACK = 0.3;
 const SEAT_SIDE = 0.38;
 const SEAT_AIM = 0.6;
+const SEAT_PAN = 0.25;
 const ARM_LENGTH = 3.4;
 const ARM_MIN = 0.7;
 const ARM_PIVOT_Y = 1.5;
@@ -338,10 +339,11 @@ export class CameraDirector {
         );
         this.dummy.position.copy(out.position);
         // At the player's own spot on the felt, between the seat and the centre.
+        // Panned right of it, so the felt sits left of the play panel.
         this.dummy.lookAt(
-          s.x + (s.lookAt.x - s.x) * SEAT_AIM,
+          s.x + (s.lookAt.x - s.x) * SEAT_AIM - bz * SEAT_PAN,
           0.75,
-          s.z + (s.lookAt.z - s.z) * SEAT_AIM,
+          s.z + (s.lookAt.z - s.z) * SEAT_AIM + bx * SEAT_PAN,
         );
         out.quaternion.copy(this.dummy.quaternion);
         return;

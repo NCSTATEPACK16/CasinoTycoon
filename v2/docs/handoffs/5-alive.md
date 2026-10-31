@@ -347,7 +347,7 @@ v2 ships to Netlify after this cut. Do these next, in this order, then the finis
     - **Browser** (Sandbox: 4 blackjack and 2 poker tables, 9 dealers, 160 guests): after about a minute, 33 blackjack and 10 UTH hands shown in 35 s. Caught `obj-3` and froze render time: at 2.6 s the dealer's 3♦ up and the hole card face down, the player's Q♣ 4♣ A♠ at the seat with the $8 bet; at 4.4 s the dealer's 3♦ 5♦ 8♦ A♠ (17) face up, identical to the inspector's round (player 15, lose). Overview of the poker tables: 40 calls, 73k triangles.
     - **Note:** the "nothing shown" in the first attempt was the title menu still open over a scripted Sandbox (sim at tick 0). Click `button.scenario` first.
 
-- [ ] **A6. Graphical table play for the avatar.**
+- [x] ✅ **A6. Graphical table play for the avatar.**
   - Replace the DOM debug form with a proper play view:
     - the camera frames the felt from the player's seat, and the avatar stays visible in its seat
     - the real 3D cards, chips, wheel, dice and reels from A3–A5 show your own round
@@ -363,6 +363,21 @@ v2 ships to Netlify after this cut. Do these next, in this order, then the finis
   - **Evidence:**
     - existing `avatarPlay.test.ts` green, plus tests for bet-layout hit mapping
     - in the browser, one full round of each of the 5 core games through the new view, screenshots of each
+  - **Done 2026-10-31** (c233e07, e0c20d7, and the seat-camera pan with this tick).
+    - **Built:**
+      - Your round plays on the table: `TableView` (wired in `main.ts` to `FxDirector.playOwn` / `ownHand` / `setStakes`). Spins, rolls and pulls run the A3/A4 parts at 1× whatever the sim speed; blackjack and UTH deal live from the engine's round view (`felt.ts` `seenCards` + `livePlan`): new cards dealt, the hole card and the board turn as the engine reveals them, then paid or collected. While you sit at a table its guests' rounds stay off the felt. `fxOf` in `src/sim/fx/rounds.ts` builds the RoundFx from your settled result (no worker change).
+      - Seat camera (`CameraDirector`): above and beside your shoulder (1.95 m, 0.3 m back, 0.38 m aside, 48° FOV), aimed at your spot on the felt and panned so it sits left of the panel. The avatar is drawn seated (`Anim.Play`, `Stage.avatar.anim`).
+      - Panel at the right edge, buttons and text only; it says "the ball is spinning" (etc.) until the table has shown the result.
+      - Betting: a chip tray from the table limits (`layouts.ts` `trayChips`); roulette bets by clicking the printed layout (`feltPoint.ts` raycast → `rouletteSpotAt`: straight incl. 0/00, split, street, corner, six-line, basket, column, dozen, even money); spot buttons elsewhere; any number of bets; Clear, Rebet, Double. Laid chips show on the felt at their spots and stay for the spin. An engine without spots of its own gets one main bet, and the action buttons come from the engine's options, so B9's engines play without per-game UI.
+    - **Tests:** `src/ui/play/layouts.test.ts` (every engine bet reachable on the layout and back, clicks read like the printed layout, sheet↔felt, tray chips): 4/4; `avatarPlay.test.ts` and the fx suites: 13/13 and 42/42. `tsc` clean.
+    - **Browser** (Sandbox, sim paused, a row of the five games; sat with F; bets and actions through the panel and the layout):
+      - Roulette: chips laid by clicking 17, the 1|4 line and Red sat on those spots; slip "Straight 17 $50 · Red $25 · Split 1-4 $25"; the live double-zero head and ball spun; 14 red: Red paid, net −$50.
+      - Craps: pass $5 + field $5; Roll threw the live dice to 1–1; "1 roll, last 2 — +$5.00" (pass lost, field paid double).
+      - Slots: the machine's own reels stopped on cherry, cherry, BAR with the payline drawn; "pays 2.00× (1 line) — +$10.00".
+      - Blackjack: K♦ 3♣ vs 2♦ and a face-down hole card on the felt mid-hand; another hand J♠ 6♠ stood, dealer 2♠ J♦ 9♠: −$5; 9♠ 9♥ with Split offered.
+      - UTH: 2♥ 8♦ dealt to the seat, two dealer and five board cards face down, Check / Raise 4× / Raise 3×.
+    - **Not done:** slots "bet per line or lines": the slot engine takes one stake per spin from the machine's rules (denomination × credits), so there is nothing to choose without a Track B engine change. Craps bets are buttons, not layout clicks (the printed craps felt has no hit map yet). The main.ts gate needs no change: any catalog entry with an engine `game` already opens the view.
+    - **Known:** sitting down mid-round after leaving a table answers "a round is already in progress" (pre-existing PlayerPlay behaviour).
 
 - [ ] **A13. Finish.**
   1. Merge `origin/v2-playable` if it moved.
