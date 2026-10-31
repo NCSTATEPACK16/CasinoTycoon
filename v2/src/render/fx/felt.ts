@@ -227,3 +227,102 @@ export function chipsFor(amount: number): number[] {
 export function chipColor(value: number): number {
   return DENOMS.find((d) => d.value === value)?.color ?? 0xf2efe6;
 }
+
+// ---------- the avatar's own hand ----------
+
+/** A card a round view shows: its slot, and its value or −1 while face down. */
+export interface SeenCard {
+  slot: Slot;
+  card: number;
+}
+
+/** The cards an engine's round view shows so far (blackjack, UTH), or null. */
+export function seenCards(kind: string, view: unknown): SeenCard[] | null {
+  const v = (view ?? {}) as Record<string, unknown>;
+  const out: SeenCard[] = [];
+  const dealer = (i: number, card: number | undefined) =>
+    out.push({ slot: { kind: 'dealer', index: i }, card: card ?? -1 });
+  if (kind === 'blackjack') {
+    const hands = (v.hands as { cards: number[] }[] | undefined) ?? [];
+    const shown = v.dealerCards as number[] | null | undefined;
+    hands.forEach((h, hi) =>
+      h.cards.forEach((c, i) => out.push({ slot: { kind: 'hand', hand: hi, index: i }, card: c })),
+    );
+    dealer(0, shown?.[0] ?? (v.dealerUp as number | undefined));
+    dealer(1, shown?.[1]);
+    for (let i = 2; i < (shown?.length ?? 0); i++) dealer(i, shown![i]);
+    return out;
+  }
+  if (kind === 'uth') {
+    const hole = (v.hole as number[] | undefined) ?? [];
+    const shown = v.dealer as number[] | null | undefined;
+    const board = (v.board as number[] | undefined) ?? [];
+    hole.forEach((c, i) => out.push({ slot: { kind: 'hand', hand: 0, index: i }, card: c }));
+    dealer(0, shown?.[0]);
+    dealer(1, shown?.[1]);
+    for (let i = 0; i < 5; i++)
+      out.push({ slot: { kind: 'board', index: i }, card: board[i] ?? -1 });
+    return out;
+  }
+  return null;
+}
+
+const slotKey = (s: Slot) =>
+  s.kind === 'hand' ? `h${s.hand}.${s.index}` : `${s.kind[0]}${s.index}`;
+
+/**
+ * The avatar's hand so far as a deal plan, `t` seconds into it: cards already
+ * on the felt keep their timing, new ones are dealt now one after another,
+ * and a face-down card that the view now shows turns over. Settled once
+ * `returned` is known: paid or collected after the last card lands, then
+ * cleared. Pure, so FxDirector can call it on every reply.
+ */
+export function livePlan(
+  prev: DealPlan | null,
+  seen: readonly SeenCard[],
+  t: number,
+  wagered: number,
+  returned: number | null,
+): DealPlan {
+  const was = new Map((prev?.cards ?? []).map((c) => [slotKey(c.slot), c]));
+  const cards: PlannedCard[] = [];
+  let next = Math.max(t, prev ? 0 : FIRST_CARD_S);
+  let flip = t;
+  let last = 0;
+  for (const s of seen) {
+    const old = was.get(slotKey(s.slot));
+    if (!old) {
+      const up = s.card >= 0;
+      cards.push({ card: up ? s.card : BACK, slot: s.slot, dealAt: next, up, flipAt: null });
+      last = Math.max(last, next);
+      next += CARD_GAP_S;
+      continue;
+    }
+    const c = { ...old };
+    if (!c.up && c.flipAt === null && s.card >= 0) {
+      // Turned over as soon as the cards dealt before it have landed.
+      flip = Math.max(flip, next - CARD_GAP_S + FLIP_GAP_S / 2);
+      c.card = s.card;
+      c.flipAt = flip;
+      last = Math.max(last, flip);
+      // The dealer draws once the hole card has shown.
+      next = Math.max(next, flip + FLIP_GAP_S);
+    }
+    last = Math.max(last, c.dealAt, c.flipAt ?? 0);
+    cards.push(c);
+  }
+  const hands = new Set(
+    seen.filter((s) => s.slot.kind === 'hand').map((s) => (s.slot as { hand: number }).hand),
+  );
+  const settleAt = returned === null ? Infinity : Math.max(t, last) + SETTLE_GAP_S;
+  return {
+    cards,
+    hands: Math.max(1, hands.size),
+    wagered,
+    returned: returned ?? 0,
+    result: returned === null ? 'push' : resultOf(wagered, returned),
+    betAt: prev?.betAt ?? Math.min(BET_S, t),
+    settleAt,
+    clearAt: settleAt + CLEAR_GAP_S * 3,
+  };
+}

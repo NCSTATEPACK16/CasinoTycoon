@@ -198,12 +198,14 @@ table.fin td:first-child {
 }
 
 /* ---------- table play ---------- */
+/* At the right edge, clear of the felt: the round itself plays on the table. */
 .table-play {
   position: absolute;
-  left: 50%;
-  bottom: 96px;
-  transform: translateX(-50%);
-  width: min(640px, calc(100vw - 24px));
+  right: 12px;
+  top: 64px;
+  width: min(340px, calc(100vw - 24px));
+  max-height: calc(100vh - 180px);
+  overflow-y: auto;
   background: rgba(14, 40, 28, 0.92);
   border: 1px solid rgba(246, 196, 83, 0.45);
   border-radius: 16px;

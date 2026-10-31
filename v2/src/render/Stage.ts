@@ -164,7 +164,7 @@ export class Stage {
 
   /** The player's avatar, drawn as one more crowd agent (the Avatar outfit)
    *  so it is the same rigged, animated human as everyone else. Null hides it. */
-  avatar: { x: number; z: number; heading: number; moving: boolean } | null = null;
+  avatar: AvatarPose | null = null;
   private avatarPrevSrc: Snapshot | null = null;
   private avatarPrev: Snapshot | null = null;
 
@@ -198,7 +198,9 @@ export class Stage {
 
   /** Engine games close enough to watch a round on (setInterest), nearest first. */
   interestIds(): string[] {
-    const ids = this.lastCamera ? this.objects.nearGames(this.lastCamera, INTEREST_RADIUS_M, 48) : [];
+    const ids = this.lastCamera
+      ? this.objects.nearGames(this.lastCamera, INTEREST_RADIUS_M, 48)
+      : [];
     this.fx.retain(new Set(ids));
     return ids;
   }
@@ -355,22 +357,25 @@ export function defaultPlan(): FloorPlanView {
 }
 
 /** The avatar's slot: id 0 with AgentKind.Avatar never collides with a sim agent. */
-function writeAgent(
-  s: Snapshot,
-  p: { x: number; z: number; heading: number; moving: boolean },
-): void {
+export interface AvatarPose {
+  x: number;
+  z: number;
+  heading: number;
+  moving: boolean;
+  /** A pose other than walking or standing (seated at a game). */
+  anim?: Anim;
+}
+
+function writeAgent(s: Snapshot, p: AvatarPose): void {
   const o = (s.agentCount - 1) * AGENT_STRIDE;
   const a = s.agents;
   a[o] = p.x;
   a[o + 1] = p.z;
   a[o + 2] = p.heading;
-  a[o + 3] = p.moving ? Anim.Walk : Anim.Idle;
+  a[o + 3] = p.anim ?? (p.moving ? Anim.Walk : Anim.Idle);
 }
 
-function withAgent(
-  s: Snapshot,
-  p: { x: number; z: number; heading: number; moving: boolean },
-): Snapshot {
+function withAgent(s: Snapshot, p: AvatarPose): Snapshot {
   const n = s.agentCount;
   const agents = new Float32Array((n + 1) * AGENT_STRIDE);
   agents.set(s.agents.subarray(0, n * AGENT_STRIDE));

@@ -1,12 +1,17 @@
 // The avatar's seat at a game: lay bets, then drive the round with the same
-// engine the guests play (roundBegin / roundAct). The view is drawn from the
-// engine's public round view — cards, dice, reels — never re-simulated here.
+// engine the guests play (roundBegin / roundAct). The round plays out on the
+// table itself — the real reels, wheel, dice, cards and chips (TableView, the
+// FxDirector) — from the engine's public round view and its settled result,
+// never re-simulated here. The DOM holds buttons and text only.
 
 import { audio } from '../audio';
 import type { SimClient } from '../client/SimClient';
+import { seenCards, type SeenCard } from '../render/fx/felt';
+import type { RoundFx } from '../shared/contracts';
 import type { GameKind } from '../shared/games';
 import type { RoundResult } from '../shared/games';
 import { cardLabel } from '../sim/games/cards';
+import { fxOf } from '../sim/fx/rounds';
 import type { MachineInspect } from '../worker/inspect';
 import { button, el, escapeHtml, money } from './dom';
 
@@ -45,6 +50,16 @@ const ACTION_LABEL: Record<string, string> = {
   bet1x: 'Bet 1×',
 };
 
+/** Where the avatar's rounds play out on the table (main.ts wires the FxDirector). */
+export interface TableView {
+  /** The table the avatar plays at, or null once it leaves. */
+  setOwn(objectId: string | null): void;
+  /** Show a settled spin or roll; returns the seconds until its result shows. */
+  play(objectId: string, fx: RoundFx): number;
+  /** Show a card round so far; returns the seconds until the result shows once settled. */
+  hand(objectId: string, seen: SeenCard[], wagered: number, settled: RoundFx | null): number;
+}
+
 export class TablePlay {
   readonly root = el('div', 'table-play');
   private objectId: string | null = null;
@@ -57,6 +72,9 @@ export class TablePlay {
   /** What the last view showed, so each new card or roll makes its own sound. */
   private seenCards = 0;
   private seenRolls = 0;
+  /** Chips staked at the start of the round in progress. */
+  private staked = 0;
+  view: TableView | null = null;
   onLeave: () => void = () => {};
 
   constructor(private sim: SimClient) {
@@ -75,6 +93,7 @@ export class TablePlay {
     this.objectId = objectId;
     this.kind = game as GameKind;
     this.root.hidden = false;
+    this.view?.setOwn(objectId);
     try {
       this.info = await this.sim.command<MachineInspect>({ type: 'inspect', target: { objectId } });
       const f = await this.sim.command<{ wallet: number; onTable: number }>({
@@ -91,6 +110,7 @@ export class TablePlay {
   }
 
   leave(): void {
+    this.view?.setOwn(null);
     this.root.hidden = true;
     this.objectId = null;
     this.inRound = false;
@@ -207,10 +227,10 @@ export class TablePlay {
         bets,
       });
       this.inRound = true;
-      audio.play('chips');
+      this.staked = bets.reduce((t, b) => t + b.amount, 0);
       this.seenCards = 0;
       this.seenRolls = 0;
-      this.show(r);
+      await this.show(r);
     } catch (err) {
       this.renderBetting(`<span class="bad">${escapeHtml((err as Error).message)}</span>`);
     }
@@ -223,11 +243,19 @@ export class TablePlay {
       objectId: this.objectId!,
       action,
     });
-    this.show(r);
+    await this.show(r);
   }
 
-  private show(r: RoundReply): void {
-    this.sound(r);
+  /** Play the reply on the table, then show its text once the table has shown it. */
+  private async show(r: RoundReply): Promise<void> {
+    const wait = this.playOnTable(r);
+    if (wait > 0) {
+      const body = el('div', 'tp-body');
+      body.append(this.renderView(r.view), el('div', 'dim', r.options ? '' : 'Dealing…'));
+      this.root.replaceChildren(this.header(), body);
+      await new Promise((res) => setTimeout(res, wait * 1000));
+      if (this.root.hidden) return;
+    }
     this.wallet = r.wallet;
     this.onTable = r.onTable;
     if (!r.options) {
@@ -258,109 +286,79 @@ export class TablePlay {
     this.root.replaceChildren(this.header(), body);
   }
 
-  private sound(r: RoundReply): void {
+  /** Hand the reply to the table; the seconds until its result shows there. */
+  private playOnTable(r: RoundReply): number {
+    const id = this.objectId!;
+    const kind = this.kind!;
+    const rules = (this.info?.game?.rules ?? {}) as Record<string, unknown>;
+    const fx = r.result ? fxOf(kind, rules, r.result) : null;
     const v = (r.view ?? {}) as Record<string, unknown>;
-    const cards = visibleCards(this.kind, v);
-    for (let i = 0; i < Math.min(6, cards - this.seenCards); i++)
-      audio.play('card', { delay: i * 0.12 });
-    this.seenCards = Math.max(this.seenCards, cards);
-    if (this.kind === 'craps') {
-      const rolls = (v.rolls as unknown[] | undefined)?.length ?? 0;
-      if (rolls > this.seenRolls) audio.play('dice');
-      this.seenRolls = rolls;
+    const seen = seenCards(kind, v);
+    if (seen) {
+      this.seenCards = Math.max(this.seenCards, visibleCards(kind, v));
+      return this.view?.hand(id, seen, r.result?.wagered ?? this.staked, fx) ?? 0;
     }
-    if (this.kind === 'roulette' && v.pocket !== null && v.pocket !== undefined) audio.play('ball');
-    const res = r.result;
-    if (!r.options && res && res.returned > res.wagered) {
-      audio.play('chips', { delay: 0.35 });
-      audio.play('win', { delay: 0.35 });
+    if (fx) return this.view?.play(id, fx) ?? 0;
+    // A craps roll that didn't settle the round still throws the dice.
+    const rolls = (v.rolls as [number, number][] | undefined) ?? [];
+    if (kind === 'craps' && rolls.length > this.seenRolls) {
+      this.seenRolls = rolls.length;
+      const [a, b] = rolls[rolls.length - 1]!;
+      const roll: RoundFx = { kind, wagered: 0, returned: 0, summary: '', craps: { dice: [a, b] } };
+      return this.view?.play(id, roll) ?? 0;
     }
+    return 0;
   }
 
+  /** The round in words; the cards, dice, wheel and reels are on the table. */
   private renderView(view: unknown): HTMLElement {
     const box = el('div', 'tp-view');
-    const v = view as Record<string, unknown>;
+    const v = (view ?? {}) as Record<string, unknown>;
+    const line = (t: string) => box.append(el('div', '', t));
     switch (this.kind) {
       case 'blackjack': {
-        const dealer = (v.dealerCards as number[] | null) ?? [v.dealerUp as number, -1];
-        box.append(cardsRow('Dealer', dealer));
-        const hands = v.hands as { cards: number[]; bet: number; total: number }[];
+        const dealer = (v.dealerCards as number[] | null) ?? [v.dealerUp as number];
+        line(`Dealer <b>${cardsText(dealer)}</b>${v.dealerCards ? '' : ' + hole card'}`);
+        const hands = (v.hands as { cards: number[]; bet: number; total: number }[]) ?? [];
         hands.forEach((h, i) =>
-          box.append(
-            cardsRow(
-              `${hands.length > 1 ? `Hand ${i + 1}` : 'You'} · ${h.total} · ${money(h.bet)}`,
-              h.cards,
-              i === v.active && hands.length > 1,
-            ),
+          line(
+            `${hands.length > 1 ? `Hand ${i + 1}` : 'You'} <b>${cardsText(h.cards)}</b> · ${h.total} · ${money(h.bet)}${i === v.active && hands.length > 1 ? ' ◀' : ''}`,
           ),
         );
         break;
       }
       case 'uth': {
-        box.append(cardsRow('Dealer', (v.dealer as number[] | null) ?? [-1, -1]));
-        box.append(cardsRow('Board', padCards(v.board as number[], 5)));
-        box.append(
-          cardsRow(
-            `You · ante ${money(v.ante as number)}${(v.play as number) ? ` · play ${money(v.play as number)}` : ''}`,
-            v.hole as number[],
-          ),
+        const board = ((v.board as number[]) ?? []).filter((c) => c >= 0);
+        line(
+          `You <b>${cardsText((v.hole as number[]) ?? [])}</b> · ante ${money(v.ante as number)}${(v.play as number) ? ` · play ${money(v.play as number)}` : ''}`,
         );
+        line(`Board <b>${board.length ? cardsText(board) : 'face down'}</b>`);
+        if (v.dealer) line(`Dealer <b>${cardsText(v.dealer as number[])}</b>`);
         break;
       }
       case 'craps': {
         const rolls = (v.rolls as [number, number][]) ?? [];
         const last = rolls[rolls.length - 1];
-        box.append(
-          el(
-            'div',
-            'dice',
-            last
-              ? `${die(last[0])} ${die(last[1])} <b>${last[0] + last[1]}</b>`
-              : '<span class="dim">Come-out roll</span>',
-          ),
+        line(
+          last ? `Rolled <b>${last[0] + last[1]}</b> (${last[0]}, ${last[1]})` : 'Come-out roll',
         );
-        box.append(el('p', '', `Point: <b>${v.point ?? 'off'}</b> · rolls ${rolls.length}`));
+        line(`Point <b>${v.point ?? 'off'}</b> · rolls ${rolls.length}`);
         const working =
           (v.working as { spot: string; amount: number; point: number | null; odds: number }[]) ??
           [];
-        if (working.length)
-          box.append(
-            el(
-              'p',
-              'small',
-              working
-                .map(
-                  (w) =>
-                    `${w.spot} ${money(w.amount)}${w.point ? ` on ${w.point}` : ''}${w.odds ? ` + odds ${money(w.odds)}` : ''}`,
-                )
-                .join(' · '),
-            ),
+        for (const w of working)
+          line(
+            `<span class="small">${w.spot} ${money(w.amount)}${w.point ? ` on ${w.point}` : ''}${w.odds ? ` + odds ${money(w.odds)}` : ''}</span>`,
           );
         break;
       }
       case 'roulette': {
         const pocket = v.pocket as number | null;
-        box.append(
-          el(
-            'div',
-            'wheel',
-            pocket === null
-              ? '<span class="dim">Place your bets…</span>'
-              : `Ball lands on <b class="pocket">${pocket === 37 ? '00' : pocket}</b>`,
-          ),
+        line(
+          pocket === null || pocket === undefined
+            ? 'Place your bets…'
+            : `Ball in <b>${pocket === 37 ? '00' : pocket}</b>`,
         );
-        break;
-      }
-      case 'slots': {
-        const out = v.outcome as { window: string[][]; multiplier: number } | null;
-        if (out) {
-          const rows = out.window[0]?.length ?? 1;
-          const grid = el('div', 'reels');
-          grid.style.setProperty('--cols', String(out.window.length));
-          for (let r = 0; r < rows; r++)
-            for (const reel of out.window) grid.append(el('span', '', escapeHtml(reel[r] ?? '')));
-          box.append(grid);
-        } else box.append(el('div', 'dim', 'Pull the handle…'));
         break;
       }
     }
@@ -389,27 +387,13 @@ function labelFor(action: string): string {
   return cap(action);
 }
 
-function padCards(cards: number[], n: number): number[] {
-  return [...cards, ...Array<number>(Math.max(0, n - cards.length)).fill(-1)];
-}
-
-function cardsRow(label: string, cards: number[], active = false): HTMLElement {
-  const row = el('div', `cards-row${active ? ' active' : ''}`);
-  row.append(el('span', 'dim', escapeHtml(label)));
-  const hand = el('div', 'cards');
-  for (const c of cards) {
-    if (c < 0) hand.append(el('span', 'card back', ''));
-    else {
+/** Cards as short text: "Q♣ 4♦". */
+function cardsText(cards: number[]): string {
+  return cards
+    .filter((c) => c >= 0)
+    .map((c) => {
       const lab = cardLabel(c);
-      const suit = { c: '♣', d: '♦', h: '♥', s: '♠' }[lab[1]!]!;
-      const rank = lab[0] === 'T' ? '10' : lab[0]!;
-      hand.append(el('span', `card ${'dh'.includes(lab[1]!) ? 'red' : ''}`, `${rank}${suit}`));
-    }
-  }
-  row.append(hand);
-  return row;
-}
-
-function die(n: number): string {
-  return `<span class="die">${'⚀⚁⚂⚃⚄⚅'[n - 1] ?? n}</span>`;
+      return `${lab[0] === 'T' ? '10' : lab[0]}${{ c: '♣', d: '♦', h: '♥', s: '♠' }[lab[1]!]}`;
+    })
+    .join(' ');
 }

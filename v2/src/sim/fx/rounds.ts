@@ -7,7 +7,7 @@
 // round and the machine's rules — so it cannot move a single outcome.
 
 import type { RoundFx } from '../../shared/contracts';
-import type { RoundResult } from '../../shared/games';
+import type { GameKind, RoundResult } from '../../shared/games';
 import type { GameMath } from '../entities/machines/GameMath';
 import type { RouletteRules } from '../games/roulette/roulette';
 import type { SpinOutcome } from '../games/slots/parSheet';
@@ -34,27 +34,35 @@ export function lastRound(math: GameMath | null | undefined): RoundRecord | null
 }
 
 function toFx(math: GameMath, r: RoundResult): RoundFx {
+  return fxOf(math.kind, math.rules as unknown as Record<string, unknown>, r);
+}
+
+/**
+ * A settled round as the floor shows it, from the game, its rules and the
+ * engine's result. The avatar's play view builds its own round's fx with it.
+ */
+export function fxOf(kind: GameKind, rules: Record<string, unknown>, r: RoundResult): RoundFx {
   const fx: RoundFx = {
-    kind: math.kind,
+    kind,
     wagered: r.wagered,
     returned: r.returned,
     summary: r.summary,
   };
-  if (math.kind === 'slots') {
-    const sheet = (math.rules as unknown as SlotRules).sheet;
+  if (kind === 'slots') {
+    const sheet = (rules as unknown as SlotRules).sheet;
     const o = r.detail as SpinOutcome;
     fx.slots = { sheet, stops: stopsFor(sheet, o.window), lines: o.lineWins.map((w) => w.line) };
-  } else if (math.kind === 'roulette') {
+  } else if (kind === 'roulette') {
     const { pocket } = r.detail as { pocket: number };
-    fx.roulette = { pocket, wheel: (math.rules as unknown as RouletteRules).wheel };
-  } else if (math.kind === 'craps') {
+    fx.roulette = { pocket, wheel: (rules as unknown as RouletteRules).wheel };
+  } else if (kind === 'craps') {
     // A round is a whole shooter sequence; the floor throws the roll that settled it.
     const last = (r.detail as { rolls: [number, number][] }).rolls.at(-1);
     if (last) fx.craps = { dice: [last[0], last[1]] };
-  } else if (math.kind === 'blackjack') {
+  } else if (kind === 'blackjack') {
     const d = r.detail as { dealer: string[]; hands: string[][] };
     fx.cards = { dealer: [...d.dealer], hands: d.hands.map((h) => [...h]) };
-  } else if (math.kind === 'uth') {
+  } else if (kind === 'uth') {
     const d = r.detail as { player: string[]; dealer: string[]; board: string[]; folded: boolean };
     fx.cards = {
       dealer: [...d.dealer],

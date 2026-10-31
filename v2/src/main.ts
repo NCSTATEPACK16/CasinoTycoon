@@ -8,6 +8,7 @@ import type { PlayRequestedDetail } from './input/avatar/Interaction';
 import type { PickHit } from './input/Picker';
 import type { SoundName } from './audio/sounds';
 import { Stage } from './render/Stage';
+import { Anim } from './shared/contracts';
 import { Hud } from './ui/Hud';
 import { Menus } from './ui/Menus';
 import { Settings } from './ui/Settings';
@@ -124,6 +125,12 @@ window.addEventListener('playRequested', (ev) => {
   panel.close();
   void table.open(d.objectId, d.game);
 });
+table.view = {
+  setOwn: (id) => (stage.fx.own = id),
+  play: (id, fx) => stage.fx.playOwn(id, fx, controls.avatar.pos),
+  hand: (id, seen, wagered, settled) =>
+    stage.fx.ownHand(id, seen, wagered, controls.avatar.pos, settled),
+};
 table.onLeave = () => {
   if (controls.director.mode === 'seat') controls.director.stand();
 };
@@ -151,13 +158,15 @@ stage.renderer.setAnimationLoop((now) => {
   const av = controls.avatar;
   for (const c of av.mesh.children) c.visible = false;
   const mode = controls.director.mode;
+  // Seated, the body stays in its seat in front of the lens, playing.
   stage.avatar =
-    av.mesh.visible && mode !== 'first' && mode !== 'seat'
+    (av.mesh.visible || mode === 'seat') && mode !== 'first'
       ? {
           x: av.pos.x,
           z: av.pos.z,
           heading: av.heading,
           moving: Math.hypot(av.vel.x, av.vel.z) > 0.2,
+          anim: mode === 'seat' ? Anim.Play : undefined,
         }
       : null;
   if (sim.curr) stage.updateAgents(sim.prev, sim.curr, sim.alpha(now));

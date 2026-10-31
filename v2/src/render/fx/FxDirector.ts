@@ -19,7 +19,7 @@ import type { RoundFx } from '../../shared/contracts';
 import type { ObjectLayer } from '../ObjectLayer';
 import type { Overlays } from '../Overlays';
 import { dieAt, diceReveal, FLIGHT_S, type Throw } from './dice';
-import { CX, dealPlan, seatAngle } from './felt';
+import { CX, dealPlan, livePlan, seatAngle, type SeenCard } from './felt';
 import type { FeltParts } from './FeltParts';
 import { drawFelt, type FeltState } from './FeltShow';
 import { durationScale, revealTime, reelStopTime } from './reels';
@@ -61,6 +61,8 @@ interface TableShow {
 const SHUFFLE_EVERY = 7;
 /** A dealt card is heard as it lands, this long after it leaves the shoe (s at 1×). */
 const CARD_LAND_S = 0.22;
+/** The avatar's seat in a table's per-seat state: never a guest seat index. */
+const OWN_SEAT = -2;
 
 const BALL_R = 0.011;
 const tmpM = new THREE.Matrix4();
@@ -93,6 +95,9 @@ export class FxDirector {
   private cues: Cue[] = [];
   private tables = new Map<string, TableShow>();
   private now = 0;
+  /** The table the avatar plays at: its own rounds show there, not the guests'. */
+  own: string | null = null;
+  private revealAt = new Map<string, number>();
 
   constructor(
     private objects: ObjectLayer,
@@ -103,6 +108,7 @@ export class FxDirector {
   round(objectId: string, fx: RoundFx): void {
     // Every seat's bet shows on the felt, even when its cards don't.
     if (fx.cards) this.noteBet(objectId, fx);
+    if (objectId === this.own) return;
     if ((this.busyUntil.get(objectId) ?? -Infinity) > this.now) {
       const seat = fx.player?.seat ?? -1;
       let q = this.pending.get(objectId);
@@ -154,6 +160,63 @@ export class FxDirector {
     this.reveal(id, fx, pos, this.now);
   }
 
+  /**
+   * Show the avatar's own settled round (a spin, a roll) on its table now,
+   * whatever the table was showing. Returns the seconds until its result shows.
+   */
+  playOwn(id: string, fx: RoundFx, player: { x: number; z: number }): number {
+    this.busyUntil.delete(id);
+    this.pending.delete(id);
+    // The avatar's own round runs at its own pace, whatever the sim speed.
+    const speed = this.speed;
+    this.speed = 1;
+    this.start(id, { ...fx, player: { seat: OWN_SEAT, ...player } });
+    this.speed = speed;
+    return Math.max(0, (this.revealAt.get(id) ?? this.now) - this.now);
+  }
+
+  /**
+   * The avatar's hand so far on its card table: new cards are dealt, turned
+   * cards flip, and once `settled` is given the bet is paid or collected.
+   * Returns the seconds until the result shows (0 mid-hand).
+   */
+  ownHand(
+    id: string,
+    seen: readonly SeenCard[],
+    wagered: number,
+    player: { x: number; z: number },
+    settled: RoundFx | null,
+  ): number {
+    const at = this.objects.centreOf(id);
+    const s = this.seatAt(id, player);
+    if (!at || !s) return 0;
+    const pos = { x: at.x, y: 0.9, z: at.z };
+    const t = this.table(id);
+    t.felt ??= { bets: new Map() };
+    const h = t.felt.hand;
+    const going = h && h.seat === OWN_SEAT && h.plan.settleAt === Infinity ? h : null;
+    const t0 = going ? going.t0 : this.now;
+    const tau = this.now - t0;
+    const plan = livePlan(going?.plan ?? null, seen, tau, wagered, settled?.returned ?? null);
+    const before = new Map((going?.plan.cards ?? []).map((c) => [c.dealAt, c.flipAt]));
+    for (const c of plan.cards) {
+      if (!before.has(c.dealAt))
+        this.cue(t0 + c.dealAt + CARD_LAND_S, () => this.sound('card', pos));
+      else if (c.flipAt !== null && before.get(c.dealAt) === null)
+        this.cue(t0 + c.flipAt, () => this.sound('card', pos));
+    }
+    if (!going) this.cue(t0 + plan.betAt, () => this.sound('chips', pos));
+    t.felt.hand = { plan, t0, dur: 1, seat: OWN_SEAT, a: s.a, player: { x: s.x, z: s.z } };
+    t.felt.bets.delete(OWN_SEAT);
+    this.busyUntil.set(id, t0 + plan.clearAt + 0.5);
+    if (!settled) return 0;
+    this.showing.set(id, settled);
+    if (plan.result !== 'push') this.cue(t0 + plan.settleAt, () => this.sound('chips', pos));
+    this.reveal(id, settled, pos, t0 + plan.settleAt);
+    this.busyUntil.set(id, t0 + plan.clearAt + 0.5);
+    return Math.max(0, t0 + plan.settleAt - this.now);
+  }
+
   /** Forget tables no longer watched; their own static art shows again. */
   retain(ids: ReadonlySet<string>): void {
     for (const id of this.tables.keys()) if (!ids.has(id)) this.tables.delete(id);
@@ -162,11 +225,18 @@ export class FxDirector {
 
   /** Where a round's player sits in the table's own frame, and its seat's angle. */
   private seatOf(id: string, fx: RoundFx): { a: number; x: number; z: number } | null {
+    return this.seatAt(id, fx.player);
+  }
+
+  private seatAt(
+    id: string,
+    player: { x: number; z: number } | undefined,
+  ): { a: number; x: number; z: number } | null {
     const o = this.objects.get(id);
     if (!o) return null;
     // Without a seat (a test world), the middle of the arc.
-    const p = fx.player
-      ? tmpV.set(fx.player.x, 0, fx.player.z).applyMatrix4(tmpInv.copy(o.matrix).invert())
+    const p = player
+      ? tmpV.set(player.x, 0, player.z).applyMatrix4(tmpInv.copy(o.matrix).invert())
       : tmpV.set(CX, 0, 1.8);
     return { a: seatAngle(p.x, p.z), x: p.x, z: p.z };
   }
@@ -306,6 +376,7 @@ export class FxDirector {
     landing?: string,
   ): void {
     this.busyUntil.set(id, when + HOLD_S);
+    this.revealAt.set(id, when);
     this.cue(when, () => {
       this.stats.revealed++;
       if (landing) this.sound(landing, at);
