@@ -215,4 +215,10 @@ export interface RoundFx {
   craps?: { dice: [number, number] };
   /** Big six: the segment index (atlas order) that agrees with what was paid. */
   bigSix?: { segment: number };
+  /** Dealt games (blackjack, UTH): card labels like "As", "Td". Blackjack
+   *  fills `hands` (more than one after a split); UTH has one hand, the board
+   *  and whether the player folded. */
+  cards?: { dealer: string[]; hands: string[][]; board?: string[]; folded?: boolean };
+  /** Seated games: which seat played this round and where its player sits. */
+  player?: { seat: number; x: number; z: number };
 }
