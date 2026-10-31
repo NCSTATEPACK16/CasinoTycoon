@@ -322,7 +322,7 @@ v2 ships to Netlify after this cut. Do these next, in this order, then the finis
     - **Browser (1280×800, `v2-tycoon`), all driven through the UI after clearing storage:** the first-run title shows only the lesson; Paint a zone (Zone tool, drag), Place a slot machine, Place a blackjack table (a click on unzoned ground showed "Can't build: wrong-zone", which is the lesson), Hire a dealer (Staff tab, Hire), the table opened by itself at 4×, Build a food stall (the camera had to be moved to the food court: the pointer does not move it), Set a price (soda $2.50 → $2), Read the rating (click ★). The card reached "8 of 8" with Keep building / Main menu, `casino-v2-onboarding` held `tutorialDone: true`, and the title then showed Learn ✓ and the career. Starting The Dusty Dime showed the controls tip and no lesson card. No console errors.
     - **Rough edges:** the lesson's camera does not point at the food court (a player has to look for it), and the Rating panel showed blank at 4× while the lesson finished (not this task).
 
-- [ ] **B13. Finish.**
+- [x] ✅ **B13. Finish.**
   1. Merge `origin/v2-playable` if it moved.
   2. Run the full suite under `caffeinate -i` and `npm run build`.
   3. Measure the stress scene.
@@ -330,6 +330,12 @@ v2 ships to Netlify after this cut. Do these next, in this order, then the finis
   5. Push and update the PR description with the checklist and evidence; take the PR out of draft.
      List the "After ship" tasks in the PR description as post-ship work, not as missing.
   6. Report to the user and stop the loop.
+  - **Done 2026-10-31.**
+    1. `origin/v2-playable` had not moved (nothing to merge); `origin/v2-tycoon` equalled HEAD.
+    2. **Full suite** under `caffeinate -i`: 104 files, 940 tests, all green, 538 s. `npm run build`: clean in 2.8 s (JS 1,240 kB, 414 kB gzipped; the VAT is the largest asset at 6.2 MB).
+    3. **Stress scene** (`sandbox.stress.test.ts`, 2,036 objects, 500 guests, 90 staff, `NAV_PERF=1`): the machine's load average was 13–18, so a lone run read 51.6 ms and failed the 24 ms budget (8 ms × the 300 ms tick). Alternated with the B7a commit (3e6b09e) on the same machine: tick mean 19.8 → 9.5 ms, then 11.8 → 11.7 ms (B7a → now), p95 47 → 16 and 22 → 21 ms, crowd step 10.5 → 5.5 and 7.0 → 6.7 ms, identical repaths (3,240) and teleports (68). B8 and B12 added nothing to the tick; the budget holds when the machine is not busy.
+    4. **Browser screenshots** (1280×800, `v2-tycoon`): the title with medals ("3 of 9 won · 🥇1 · 🥈1 · 🥉1", Learn ✓); a scenario's goal panel (Lucky Strike: "Goals 1/2 · Day 1 of 10 · 🥇 by day 4", one goal ticked); the Finances tab's profit-by-hour chart and Bank loans; the day report card at midnight; the rating breakdown (all terms); the traffic heat map with its legend; the Opening Night guide at each step, the finish card, the first-run title, and the win and lose cards (all from B8 and B12). No console errors on any of them.
+    5. PR description updated with the checklist and evidence, with the "After ship" tasks (B6, B9, B10, B11) listed as post-ship work, not as missing; PR #20 taken out of draft. Not merged.
 
 ### After ship (backlog: don't start these until the user says so)
 
