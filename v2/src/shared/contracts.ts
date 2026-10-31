@@ -98,6 +98,9 @@ export interface HudView {
   reputation?: { value: number; label: string };
   /** B3: how many guests the floor holds right now (seats, services, rating). */
   guestCap?: number;
+  /** B8: the scenario's goals and where the casino stands on each. Absent in
+   *  Sandbox and free play. */
+  goals?: { text: string; progress: string; fraction: number; met: boolean }[];
 }
 
 export type SimEvent =
@@ -209,7 +212,10 @@ export type Command =
   // traffic heat map for the overlay (reply types live in worker/feedback.ts).
   | { type: 'thoughts' }
   | { type: 'guestList' }
-  | { type: 'heatMap'; kind: 'mood' | 'traffic' };
+  | { type: 'heatMap'; kind: 'mood' | 'traffic' }
+  // B8: how the run ended (or stands): goals, medal and score for the end
+  // card (reply type lives in worker/scenario.ts).
+  | { type: 'scenarioResult' };
 
 /** Reply to { type: 'stats' }. */
 export interface SimStats {
