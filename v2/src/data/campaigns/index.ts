@@ -51,6 +51,9 @@ export interface CampaignDef {
   unlocks?: readonly string[];
   /** B8: the run opens owing this to the bank (already in startingCash). */
   startingLoan?: { amount: number; days: number };
+  /** B12: a lesson, not a contest: no goal and no clock (the run starts
+   *  'endless', like Sandbox), and the title keeps it out of the career. */
+  tutorial?: boolean;
 }
 
 /** The goals a scenario is judged on: its own list, or the P16 profit rule. */
@@ -156,6 +159,26 @@ export const SANDBOX: CampaignDef = {
   // SPEC §9.7: room for 2,000 objects and 500 guests.
   lot: { cols: 96, rows: 64 },
   // B3: the daily rhythm, and a cap that grows with the floor up to 500.
+  traffic: OPEN_TRAFFIC,
+};
+
+/**
+ * B12: "Opening Night", the tutorial. The standard lot with its own shell
+ * (sim/floor/starter.ts) whose east half of the hall is still unzoned, so
+ * the lesson starts with painting a zone. It has no goal: the steps in
+ * ui/tutorial/steps.ts are the objectives. Kept out of CAREER and CAMPAIGNS,
+ * which are all goals the tournament must be able to win.
+ */
+export const TUTORIAL: CampaignDef = {
+  id: 'opening-night',
+  name: 'Opening Night',
+  tagline: 'New here? Open a small casino step by step.',
+  startingCash: 6_000,
+  goalDailyProfit: 0,
+  dayLimit: 1_000_000,
+  goalWindowDays: 1,
+  creditLimit: 1_000,
+  tutorial: true,
   traffic: OPEN_TRAFFIC,
 };
 
@@ -318,8 +341,8 @@ export const CAREER: readonly CampaignDef[] = [
   'the-strip',
 ].map(byId);
 
-/** Everything the scenario picker offers: the career, then Sandbox. */
-export const SCENARIOS: readonly CampaignDef[] = [...CAREER, SANDBOX];
+/** Everything the scenario picker offers: the tutorial, the career, then Sandbox. */
+export const SCENARIOS: readonly CampaignDef[] = [TUTORIAL, ...CAREER, SANDBOX];
 
 const BY_ID = new Map(SCENARIOS.map((c) => [c.id, c]));
 

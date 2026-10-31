@@ -195,6 +195,8 @@ export interface ScenarioInfo {
   lot: { cols: number; rows: number };
   restriction?: string;
   sandbox: boolean;
+  /** B12: the lesson, which the title keeps out of the career. */
+  tutorial: boolean;
   unlockAfter?: string;
   unlocks: string[];
 }
@@ -208,11 +210,12 @@ export function scenarioList(): ScenarioInfo[] {
     goalDailyProfit: c.goalDailyProfit,
     dayLimit: c.dayLimit,
     goalWindowDays: c.goalWindowDays,
-    goals: c.sandbox ? [] : goalsOf(c).map(goalText),
+    goals: c.sandbox || c.tutorial ? [] : goalsOf(c).map(goalText),
     medalDays: medalDays(c),
     lot: c.lot ?? { cols: GRID_COLS, rows: GRID_ROWS },
     restriction: c.restriction,
     sandbox: !!c.sandbox,
+    tutorial: !!c.tutorial,
     unlockAfter: c.unlockAfter,
     unlocks: [...(c.unlocks ?? [])],
   }));

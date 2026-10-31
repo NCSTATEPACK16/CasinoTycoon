@@ -69,7 +69,8 @@ export class ScenarioManager {
     this.window = windowDays(this.goals);
     // Sandbox has nothing to win: it is the post-victory free play from the
     // first day, with the bank still watching (at a limit nobody reaches).
-    if (def.sandbox) this.status = 'endless';
+    // The tutorial is the same: its steps live in the UI, not in a goal.
+    if (def.sandbox || def.tutorial) this.status = 'endless';
   }
 
   isAllowed(defId: string): boolean {

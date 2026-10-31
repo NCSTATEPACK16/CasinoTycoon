@@ -282,7 +282,19 @@ const THE_STRIP: Layout = {
   entrance: { col: 63, row: 22 },
 };
 
+// B12: Opening Night. The standard shell, except that the east half of the
+// gaming hall has carpet and no zone yet: the first lesson is zoning it.
+const OPENING_NIGHT: Layout = {
+  ...STANDARD,
+  rooms: [
+    STANDARD.rooms[0]!,
+    { rect: rect(20, 4, 33, 25), floor: 'carpet-red', zone: 'none' },
+    ...STANDARD.rooms.slice(1),
+  ],
+};
+
 const LAYOUTS: Record<string, Layout> = {
+  'opening-night': OPENING_NIGHT,
   'dusty-dime': DUSTY_DIME,
   'high-roller': HIGH_ROLLER,
   sandbox: SANDBOX,

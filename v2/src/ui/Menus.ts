@@ -13,6 +13,7 @@ import {
   type Progress,
 } from '../services/progress';
 import { getCampaign } from '../data/campaigns';
+import { isFirstRun, loadOnboarding } from '../services/onboarding';
 import { AUTOSAVE_SLOT, MANUAL_SLOTS, saveService, type SlotInfo } from '../services/SaveService';
 import type { CasinoWorldJSON } from '../sim/world';
 import type { ScenarioInfo } from '../worker/inspect';
@@ -86,8 +87,21 @@ export class Menus {
     const p = this.progress;
     const career = el('div', 'scenario-list career');
     const free = el('div', 'scenario-list');
+    const learn = el('div', 'scenario-list learn');
+    const onboarding = loadOnboarding();
     let n = 0;
     for (const s of scenarios) {
+      if (s.tutorial) {
+        // B12: the lesson sits apart from the career: no number, no medal.
+        const b = button(
+          `<span class="medal ${onboarding.tutorialDone ? 'bronze' : 'none'}">${onboarding.tutorialDone ? '✓' : '★'}</span><b>${escapeHtml(s.name)}</b><small>${escapeHtml(s.tagline)}</small><span class="dim small">Eight short steps · no goal, no clock · ${money(s.startingCash)} to start</span>`,
+          () => void this.start(s.id),
+          'scenario',
+        );
+        b.dataset.scenario = s.id;
+        learn.append(b);
+        continue;
+      }
       if (s.sandbox) {
         free.append(
           button(
@@ -149,15 +163,24 @@ export class Menus {
       );
     if (slots.some((s) => s.slot !== AUTOSAVE_SLOT))
       actions.append(button('Load game…', () => void this.loadMenu()));
-    this.card(
-      head,
-      actions,
-      el('h3', '', 'Career'),
-      summary,
-      career,
-      el('h3', '', 'Free play'),
-      free,
-    );
+    const rest = [el('h3', '', 'Career'), summary, career, el('h3', '', 'Free play'), free];
+    if (isFirstRun(onboarding, won.length > 0, slots.length > 0)) {
+      // B12: a clean first screen: the lesson, and everything else tucked away.
+      const more = el('details', 'first-more');
+      more.append(el('summary', '', 'Already know casinos? Pick a scenario'), ...rest);
+      this.card(
+        head,
+        el(
+          'p',
+          'first-lead',
+          'Welcome. Start with a short lesson: you will build a small casino and learn every control as you use it.',
+        ),
+        learn,
+        more,
+      );
+      return;
+    }
+    this.card(head, actions, el('h3', '', 'Learn'), learn, ...rest);
   }
 
   private async start(id: string): Promise<void> {

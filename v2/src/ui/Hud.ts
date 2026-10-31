@@ -21,6 +21,7 @@ const SPEEDS: Speed[] = [0, 1, 2, 4];
 
 export class Hud {
   private bar: HTMLElement;
+  private top!: HTMLElement;
   /** The bar's fields, built once and patched: the bar updates many times a
    *  second, and rebuilding it would swallow clicks on the rating button. */
   private f: Record<'cash' | 'time' | 'paused' | 'guests' | 'today' | 'goal', HTMLElement>;
@@ -48,7 +49,7 @@ export class Hud {
     private sim: SimClient,
     build: BuildTool,
   ) {
-    const top = el('div', 'hud-top');
+    const top = (this.top = el('div', 'hud-top'));
     const row = el('div', 'hud-row');
     this.bar = el('div', 'hud-bar');
     this.f = {
@@ -102,6 +103,11 @@ export class Hud {
     new ResizeObserver(() =>
       root.style.setProperty('--hud-bottom', `${Math.ceil(top.getBoundingClientRect().bottom)}px`),
     ).observe(top);
+  }
+
+  /** B12: a panel that sits under the bar, where the goals do. */
+  mountBelowBar(node: HTMLElement): void {
+    this.top.append(node);
   }
 
   /** The speed last reported by the sim (0 is paused). */

@@ -14,6 +14,8 @@ import { DayReportCard } from './ui/panels/DayReportCard';
 import { GuestFollower } from './ui/panels/follow';
 import { HeatControl } from './ui/panels/HeatControl';
 import { HelpOverlay } from './ui/panels/HelpOverlay';
+import { Tutorial } from './ui/Tutorial';
+import { Tips } from './ui/tutorial/Tips';
 import type { DayReport } from './worker/finance';
 import { guestPosition, locate } from './ui/panels/locate';
 
@@ -37,6 +39,13 @@ const showReport = () =>
     .then((r) => report.show(r))
     .catch((err: Error) => hud.say(err.message));
 report.onFinances = () => panel.open('finances');
+// B12: Opening Night's guide and the first-time tips.
+const tutorial = new Tutorial();
+const tips = new Tips();
+tutorial.watch(sim);
+tutorial.onExit = () => void menus.title();
+hud.mountBelowBar(tutorial.root);
+ui.append(tips.root);
 // B5: the mood/traffic heat map over the floor, and following a guest.
 const heat = new HeatOverlay();
 stage.scene.add(heat.object);
@@ -62,6 +71,7 @@ menus.onStarted = () => (playing = true);
 hud.palette.setProgress(menus.progress);
 menus.onProgress = (p) => hud.palette.setProgress(p);
 menus.onStarting = () => {
+  tutorial.reset();
   hud.ticker.clear();
   report.resetDay();
 };
@@ -71,6 +81,13 @@ sim.onSnapshot((s) => {
   if (s.floor) stage.setFloor(s.floor);
   stage.handleEvents(s.events);
   hud.update(s.hud);
+  tutorial.update(s.hud, s.objects, menus.isOpen);
+  tips.enabled = playing && !tutorial.isActive && !menus.isOpen;
+  if (tips.enabled) {
+    tips.once('controls');
+    if (s.hud.guests > 0) tips.once('guests');
+    if (s.hud.day > 1) tips.once('finances');
+  }
   if (report.dayRolled(s.hud.day) && playing && report.autoShow && !menus.isOpen) showReport();
   hud.events(s.events);
   for (const e of s.events) {
@@ -102,7 +119,10 @@ hud.menu.load.onclick = () => {
   );
 };
 hud.menu.help.onclick = () => help.toggle();
-hud.onRating = () => panel.toggle('rating');
+hud.onRating = () => {
+  panel.toggle('rating');
+  tutorial.noteRating();
+};
 panel.onMessage = (t) => hud.say(t);
 panel.onLocateGuest = (agentId) => {
   const at = guestPosition(sim.curr, agentId);

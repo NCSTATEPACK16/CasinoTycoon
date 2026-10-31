@@ -16,6 +16,7 @@ export function goalLine(world: CasinoWorld): string {
   const sc = world.scenario;
   if (!sc) return '';
   if (sc.def.sandbox) return 'Unlimited funds';
+  if (sc.def.tutorial) return 'Learn the ropes';
   const by = `by day ${sc.def.dayLimit}`;
   return sc.goals.length === 1
     ? `${goalText(sc.goals[0]!)} ${by}`
@@ -25,7 +26,7 @@ export function goalLine(world: CasinoWorld): string {
 /** Every goal with its progress, while there is a goal to chase. */
 export function hudGoals(world: CasinoWorld): HudView['goals'] {
   const sc = world.scenario;
-  if (!sc || sc.def.sandbox || sc.status === 'endless') return undefined;
+  if (!sc || sc.def.sandbox || sc.def.tutorial || sc.status === 'endless') return undefined;
   return sc.progress(world.scenarioFacts());
 }
 
@@ -45,7 +46,7 @@ export interface ScenarioResult {
 
 export function scenarioResult(world: CasinoWorld): ScenarioResult | null {
   const sc = world.scenario;
-  if (!sc || sc.def.sandbox) return null;
+  if (!sc || sc.def.sandbox || sc.def.tutorial) return null;
   const won = sc.wonOnDay !== null;
   const day = sc.wonOnDay ?? Math.max(1, world.time.day - 1);
   // The P16 campaigns score their window average against the goal; the
