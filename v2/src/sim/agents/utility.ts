@@ -103,8 +103,11 @@ export function* rankChoices(world: CasinoWorld, g: GuestView): Generator<Choice
     ord++;
   };
   if (world.hasServiceObject('toilet')) service('toilet', needUrgency(g.needs.bladder, 2));
-  if (world.hasServiceObject('food-stall')) service('food-stall', needUrgency(g.needs.hunger, 1));
-  if (world.hasServiceObject('bar')) service('bar', needUrgency(g.needs.thirst, 0));
+  // B2: dear food and drink pull less hard (exactly 1 at default prices).
+  if (world.hasServiceObject('food-stall'))
+    service('food-stall', needUrgency(g.needs.hunger, 1) * world.serviceAppeal('food-stall'));
+  if (world.hasServiceObject('bar'))
+    service('bar', needUrgency(g.needs.thirst, 0) * world.serviceAppeal('bar'));
   if (!g.usedCashAdvance && g.wallet < CASHIER_BALANCE.walletThreshold) service('cage', 1.3);
   heap.push({ kind: 'wander', score: AI.wanderScore }, Infinity);
 

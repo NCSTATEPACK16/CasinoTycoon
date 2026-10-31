@@ -46,7 +46,8 @@ The ported v1 code under `src/sim`, `src/data` and `src/services` is a fork; v1 
  └──────────────┘   transferred)   └────────────────────────────┘
 ```
 - The sim is authoritative and deterministic for a seed plus a command sequence. The main thread never mutates sim state; it sends `Command`s (`shared/contracts.ts`).
-- The fixed step is `SIM_TICK_MS` = 100 ms, with 50 ticks per in-game hour. Speeds are 0/1/2/4. A wake-up runs at most 40 ticks.
+- The fixed step is `SIM_TICK_MS` = 300 ms, with 50 ticks per in-game hour: an in-game hour lasts 15 s at 1× and a day 6 minutes. Speeds are 0/1/2/4. A wake-up runs at most 40 ticks.
+  - Changed from 100 ms in B7a (2026-10-30, the user's decision). Game time is counted in ticks, so needs, arrivals, play cadence and stays keep their in-game lengths. Motion is real time: the crowd steps 0.3 s per tick (three 0.1 s sub-steps), so walking takes a third as much of a guest's evening. At 100 ms, guests needed 4–7 in-game hours to walk from a big floor's door to a seat.
 - `Snapshot` carries:
   - `agents`: a `Float32Array`, SoA with stride 8 — x, z, heading, Anim, AgentKind, variant, mood, id. It is transferred, never copied.
   - `objects`: sent only when `objectsVersion` changes.

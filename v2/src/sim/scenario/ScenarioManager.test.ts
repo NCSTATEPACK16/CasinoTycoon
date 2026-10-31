@@ -211,3 +211,91 @@ describe('a rolling-average goal', () => {
     expect(back.status).toBe('won');
   });
 });
+
+describe('B8: a list of goals', () => {
+  const MULTI: CampaignDef = {
+    ...DEF,
+    id: 'multi',
+    dayLimit: 6,
+    goals: [
+      { kind: 'dayProfit', amount: 1000 },
+      { kind: 'guests', count: 40 },
+      { kind: 'rating', min: 70 },
+    ],
+  };
+  const world = (rating: number) => ({
+    rating,
+    patrons: { silver: 0, gold: 0, black: 0 },
+    highLimitGames: 0,
+    debt: 0,
+    cash: 0,
+  });
+
+  it('wins only at a close where every goal is met at once, and records the day', () => {
+    const sm = new ScenarioManager(MULTI);
+    sm.onDayEnded(record(1, 1500), world(80)); // big day, but too few guests yet
+    expect(sm.status).toBe('active');
+    sm.observeGuests(45);
+    sm.onDayEnded(record(2, 100), world(65)); // records kept; rating short today
+    expect(sm.status).toBe('active');
+    expect(sm.progress(world(65)).map((p) => p.met)).toEqual([true, true, false]);
+    sm.onDayEnded(record(3, 100), world(72));
+    expect(sm.status).toBe('won');
+    expect(sm.wonOnDay).toBe(3);
+  });
+
+  it('keeps the window as long as the longest goal needs', () => {
+    const sm = new ScenarioManager({
+      ...DEF,
+      dayLimit: 9,
+      goals: [{ kind: 'hold', min: 0, max: 1, days: 3, minHandle: 1e9 }],
+    });
+    for (let d = 1; d <= 5; d++) sm.onDayEnded(record(d, d));
+    expect(sm.recentProfits).toEqual([3, 4, 5]);
+    expect(sm.recentPlay).toHaveLength(3);
+  });
+
+  it('reads the day’s handle and win off the gaming rows', () => {
+    const sm = new ScenarioManager(MULTI);
+    const row = (id: string, wagered: number, won: number) => ({
+      id,
+      defId: 'slot-machine',
+      wagered,
+      won,
+      revenue: wagered - won,
+      upkeep: 0,
+      theo: 0,
+      rounds: 1,
+      occupiedTicks: 0,
+      capacityTicks: 0,
+    });
+    sm.onDayEnded({
+      ...record(1, 0),
+      sources: [
+        row('a', 1000, 920),
+        row('b', 500, 480),
+        { ...row('house:wages', 0, 0), rounds: 0 },
+      ],
+    });
+    expect(sm.recentPlay).toEqual([{ handle: 1500, win: 100 }]);
+  });
+
+  it('carries goal state through a save round-trip, and old saves load', () => {
+    const sm = new ScenarioManager(MULTI);
+    sm.observeGuests(41);
+    sm.onDayEnded(record(1, 1200), world(90));
+    const back = ScenarioManager.fromJSON(JSON.parse(JSON.stringify(sm.toJSON())));
+    expect(back.peakGuests).toBe(41);
+    expect(back.wonOnDay).toBe(1);
+    expect(back.recentPlay).toEqual(sm.recentPlay);
+    const old = ScenarioManager.fromJSON({
+      def: DEF,
+      status: 'active',
+      bestDailyProfit: null,
+      recentProfits: [],
+    });
+    expect(old.peakGuests).toBe(0);
+    expect(old.wonOnDay).toBeNull();
+    expect(old.goals).toEqual([{ kind: 'avgProfit', amount: 500, days: 1 }]);
+  });
+});

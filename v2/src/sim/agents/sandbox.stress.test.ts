@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { eventBus } from '../../EventBus';
+import { SIM_TICK_MS } from '../../config';
 import { SANDBOX } from '../../data/campaigns';
 import type { StaffKind } from '../entities/staff/Staff';
 import { furnishSandbox, navWorld } from './testkit';
@@ -58,6 +59,11 @@ describe('Sandbox stress (SPEC §9.7)', () => {
     expect(world.guests.size).toBeGreaterThanOrEqual(GUESTS - 5);
     // Wall-clock budget: asserted when run on its own (NAV_PERF=1), and
     // only reported under the full suite's parallel load.
-    if (env.NAV_PERF === '1') expect(mean).toBeLessThanOrEqual(8);
+    // The 8 ms budget was set for a 100 ms tick. B7a made a tick 300 ms with
+    // three crowd sub-steps, so a tick does about three times the crowd work
+    // and comes a third as often: the budget scales with the tick's length,
+    // which keeps the same share of real time (measured: 5.6–5.8 ms per
+    // 100 ms tick before, 12–17 ms per 300 ms tick after on a loaded machine).
+    if (env.NAV_PERF === '1') expect(mean).toBeLessThanOrEqual((8 * SIM_TICK_MS) / 100);
   }, 600_000);
 });
