@@ -30,7 +30,7 @@ freesound page was checked and states "Creative Commons 0".
 | `sfx-bell-big` | impactBell_heavy_000 | Kenney | https://kenney.nl/assets/impact-sounds | CC0 | none |
 | `amb-crowd` | Small Crowd Walla | IENBA | https://freesound.org/people/IENBA/sounds/653920/ | CC0 | 3.5–21 s, 2 s loop crossfade, stereo |
 | `amb-murmur` | Indoor adult murmur, couple | SpliceSound | https://freesound.org/people/SpliceSound/sounds/260124/ | CC0 | 1.5 s loop crossfade, mono |
-| `amb-slots` | Casino.PalmDesert.CA | fkunze | https://freesound.org/people/fkunze/sounds/342309/ | CC0 | 32–72 s, 2 s loop crossfade, stereo |
+| `amb-slots` | Casino.PalmDesert.CA | fkunze | https://freesound.org/people/fkunze/sounds/342309/ | CC0 | 32–72 s, 2 s equal-power loop crossfade (redone in A7: the first pass left a step at the seam), 36 s, stereo |
 | `amb-fountain` | Ambiance_Fountain_Small_Loop_Stereo | Nox_Sound | https://freesound.org/people/Nox_Sound/sounds/676173/ | CC0 | 1 s loop crossfade, mono |
 | `music-lounge` | Dusty rhodes neo soul loop 75bpm | modcam.music | https://freesound.org/people/modcam.music/sounds/676586/ | CC0 | none (16 bars, loops as is) |
 | `sfx-reel-spin` | reelsBegin | David819 | https://freesound.org/people/David819/sounds/668435/ | CC0 | mono |

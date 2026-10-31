@@ -288,7 +288,7 @@ v2 ships to Netlify after this cut. Do these next, in this order, then the finis
       - fps not measured: the session window was closed again.
     - **Found (not A4):** at the close slot-bank view (8 m) the scene reads 1.8–2.0M triangles, over the 1.5M budget, and the crowd is 1.27M of it (objects 517k). HEAD read 2.25M there in A3's first run. It depends on how many guests stand near the camera at full VAT detail. Measured again in A13.
 
-- [ ] **A7. Ambience.** Use the A0 download if approved, or synthesize what was declined.
+- [x] ✅ **A7. Ambience.** Use the A0 download if approved, or synthesize what was declined.
   - Room tone plus distant slot chatter plus crowd murmur, scaled by guest count and camera height (quieter and wider in the god view, close and detailed at eye level).
   - An optional low music bed on the ambience bus.
   - Zone-aware: the bar and food court sound different from the slot floor.
@@ -296,6 +296,32 @@ v2 ships to Netlify after this cut. Do these next, in this order, then the finis
   - **Evidence:**
     - a unit test for the mix curve
     - in the browser: gain readings at god view versus eye level and at 0 versus 200 guests, plus a short listening note: no audible loop seam over 60 s
+  - **Done 2026-10-31.**
+    - **Built:**
+      - `src/audio/ambience.ts` (pure): four looped beds from the approved A0 download: the slot room (`amb-slots`), distant crowd walla (`amb-crowd`), close conversation (`amb-murmur`) and the lounge music (`music-lounge`). The mix takes the guest count (crowd density 1 − e^(−guests/150)), camera height (eye level below 3 m, full god view from 45 m), speed, and what stands within 12 m of the ears.
+        - God view: every bed lower (−45 % at the top), murmur gone, and a low-pass sliding from 16 kHz to 2.5 kHz, so the room sounds wide and far off.
+        - Eye level: the murmur comes in with the crowd and the full bandwidth.
+        - Zones: the share of bar, food stalls and food-court floor near the ears raises music (up to 3.5×) and murmur and lowers the slot room; from high up a corner's character fades (×0.3).
+        - Paused: everything ducks to 0.35×, music included.
+        - Lounge music is optional: a new "Lounge music" switch in Settings, saved with the volumes (`AudioSettings.music`, default on).
+      - `AudioEngine`: the beds loop from a random offset each (no two line up), each through its own gain into a shared low-pass and on to the ambience bus. They sit outside the 24-voice cap. Mixes glide (0.6 s time constant), so a camera move swells rather than jumps.
+      - `src/audio/AmbienceFeed.ts`: gathers guests and speed from each snapshot, sorts objects into machines, tables and lounge, and recomputes the mix 4 times a second around the listener point (on the camera at eye level, down the view ray from the god view).
+      - `amb-slots.ogg` re-made: its A1 loop had a step at the seam (left channel −604 → 10,893, about 5× the file's 99th-percentile sample step: a click every 38 s). Now a 2 s equal-power crossfade of tail into head, 36 s, 46 kb/s, 196 KB (was 213 KB). Noted in CREDITS.md.
+    - **Tests:** `src/audio/ambience.test.ts`, 8: the crowd filling with guests and levelling off, empty floor left to the machines; god view lower on every bed with no murmur and a falling cutoff; bar vs slot floor; the pause duck; music off; gains within 0..1 on any input; object classes; distance weighting and the 12 m cut. With `mix`, `voices` and `Settings`: 32/32. `tsc` clean.
+    - **Browser** (65 slot machines and 2 bars on a fresh Sandbox; audio unlocked by a real click; camera through the Walk button and Esc; pause and the music switch through the HUD and Settings):
+
+      | Where | Guests | Slots | Crowd | Murmur | Music | Cutoff |
+      |---|---|---|---|---|---|---|
+      | God view (camera 70 m) over the slots | 3 | 0.440 | 0.005 | 0 | 0.055 | 2.5 kHz |
+      | Eye level (2.6 m) in the slot bank | 11 | 0.794 | 0.048 | 0.025 | 0.099 | 15.8 kHz |
+      | Eye level in the slot bank | 211 | 0.799 | 0.528 | 0.271 | 0.100 | 16.0 kHz |
+      | Eye level by the bar | 211 | 0.121 | 0.686 | 0.633 | 0.350 | 16.0 kHz |
+      | God view over the slots | 211 | 0.439 | 0.291 | 0.001 | 0.055 | 2.5 kHz |
+      | The same, paused from the HUD | 211 | 0.154 | 0.102 | 0 | 0.019 | 2.5 kHz |
+
+      The Lounge music switch took music from 0.055 to 0 and back, saved as `"music":false` while off. On the stress floor the food court corner read music 0.26 and murmur 0.56 at 10 m.
+    - **Loop seams** (instead of a listening note, which this session can't give): each bed decoded in the browser at its exact length (36, 15.5, 18.2, 51.2 s), and the jump from last sample to first is below the file's own 99th-percentile sample step: slots 0.021 vs 0.066, crowd 0.001 vs 0.011, murmur 0.0007 vs 0.0014, music 0.003 vs 0.017. The user should still give it a listen.
+    - **Performance:** no rendering. The feed's update costs 0.03–0.06 ms on the stress floor (1,680 sound-relevant objects), 4 times a second. Four looping sources and one filter in WebAudio.
 
 - [ ] **A5. Live cards and chips on the felt.**
   - Use instanced card and chip pools; card faces come from the existing `cardFace` atlas.

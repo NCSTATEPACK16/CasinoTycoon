@@ -140,6 +140,13 @@ export class Settings {
     const muteRow = el('label', 'st-row st-mute');
     muteRow.append(mute, el('span', '', 'Mute all sound'));
     sound.append(muteRow);
+    const music = el('input');
+    music.type = 'checkbox';
+    music.checked = this.audio.settings.music;
+    music.onchange = () => this.audio.setSettings({ music: music.checked });
+    const musicRow = el('label', 'st-row st-mute');
+    musicRow.append(music, el('span', '', 'Lounge music'));
+    sound.append(musicRow);
 
     const gfx = el('div', 'st-group');
     gfx.append(el('h4', '', 'Graphics'));

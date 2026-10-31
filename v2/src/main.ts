@@ -1,6 +1,7 @@
 import './style.css';
 import './ui/ui.css';
 import { GameAudio, audio } from './audio';
+import { AmbienceFeed } from './audio/AmbienceFeed';
 import { SimClient } from './client/SimClient';
 import { PlayerControls } from './input/PlayerControls';
 import type { PlayRequestedDetail } from './input/avatar/Interaction';
@@ -33,6 +34,7 @@ const gameAudio = new GameAudio(audio, sim);
 gameAudio.watchPanels([panel.root, table.root, menus.root, settings.root]);
 gameAudio.watchClicks(ui);
 stage.fx.sound = (name, at, delay, rate) => audio.play(name as SoundName, { at, delay, rate });
+const ambience = new AmbienceFeed(audio);
 
 // ---------- sim → screen ----------
 
@@ -43,6 +45,9 @@ let lastHour = -1;
 sim.onSnapshot((s) => {
   if (s.objects) stage.setObjects(s.objects);
   if (s.floor) stage.setFloor(s.floor);
+  if (s.objects) ambience.setObjects(s.objects);
+  if (s.floor) ambience.setFloor(s.floor);
+  ambience.setHud(s.hud.guests, s.hud.speed);
   stage.fx.speed = s.hud.speed;
   stage.handleEvents(s.events);
   hud.update(s.hud);
@@ -158,6 +163,7 @@ stage.renderer.setAnimationLoop((now) => {
   if (sim.curr) stage.updateAgents(sim.prev, sim.curr, sim.alpha(now));
   stage.render(controls.camera);
   audio.update(controls.camera);
+  ambience.update(controls.camera, now / 1000);
 });
 
 // Title screen once the worker is up; the sim idles at speed 0 behind it.
@@ -165,5 +171,5 @@ void sim.command({ type: 'setSpeed', speed: 0 }).then(() => menus.title());
 
 // Debug/test hook for browser playtests.
 Object.assign(window, {
-  __v2: { sim, stage, god, build, controls, panel, table, menus, audio, settings },
+  __v2: { sim, stage, god, build, controls, panel, table, menus, audio, settings, ambience },
 });

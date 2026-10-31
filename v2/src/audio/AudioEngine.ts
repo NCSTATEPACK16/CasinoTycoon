@@ -1,6 +1,8 @@
 // WebAudio engine: master → {sfx, ambience, ui} buses, unlocked on the first
 // gesture, positional voices heard from the camera, a global voice cap and
-// saved volumes. Pure maths lives in mix.ts and voices.ts.
+// saved volumes, plus the looped ambience beds (a low-pass into the ambience
+// bus; they sit outside the voice cap). Pure maths lives in mix.ts, voices.ts
+// and ambience.ts.
 
 import type { Camera } from 'three';
 import { Vector3 } from 'three';
@@ -17,6 +19,7 @@ import {
   type Bus,
   type Vec3,
 } from './mix';
+import { BED_FILES, BEDS, type AmbienceMix, type Bed } from './ambience';
 import { SOUNDS, type SoundDef, type SoundName } from './sounds';
 import { VoiceLimiter } from './voices';
 
@@ -60,6 +63,9 @@ export class AudioEngine {
     (k) => (SOUNDS as Record<string, SoundDef>)[k]?.maxVoices ?? 4,
   );
   private ear: Vec3 = { x: 0, y: 0, z: 0 };
+  private beds: Partial<Record<Bed, GainNode>> = {};
+  private bedFilter: BiquadFilterNode | null = null;
+  private bedMix: AmbienceMix | null = null;
   private tmpPos = new Vector3();
   private tmpDir = new Vector3();
 
@@ -99,6 +105,7 @@ export class AudioEngine {
       this.applySettings(true);
       // Small files: fetch them all now so the first coin isn't silent.
       for (const def of Object.values(SOUNDS)) for (const f of def.files) void this.load(f);
+      this.startBeds(ctx);
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume();
   }
@@ -126,6 +133,52 @@ export class AudioEngine {
     };
     set(this.master.gain, masterGain(this.settings));
     for (const b of BUSES) set(this.buses[b].gain, busGain(this.settings, b));
+  }
+
+  /** Where the ears are now (on the camera, or down its view ray from the god view). */
+  get earPoint(): Readonly<Vec3> {
+    return this.ear;
+  }
+
+  /** Each bed loops for good from a random point, silent until the first mix. */
+  private startBeds(ctx: AudioContext): void {
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.Q.value = 0.5;
+    filter.connect(this.buses.ambience);
+    this.bedFilter = filter;
+    for (const bed of BEDS)
+      void this.load(BED_FILES[bed]).then((buf) => {
+        if (!buf) return;
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.loop = true;
+        const gain = ctx.createGain();
+        gain.gain.value = 0;
+        src.connect(gain).connect(filter);
+        // Offsets differ per bed and per session, so no two loops line up.
+        src.start(0, Math.random() * buf.duration);
+        this.beds[bed] = gain;
+        if (this.bedMix) this.setAmbience(this.bedMix);
+      });
+  }
+
+  /** Glide the beds toward a mix (ambience.ts); slow enough that a camera move swells, not jumps. */
+  setAmbience(mix: AmbienceMix): void {
+    this.bedMix = mix;
+    const ctx = this.ctx;
+    if (!ctx || !this.bedFilter) return;
+    const t = ctx.currentTime;
+    for (const bed of BEDS) this.beds[bed]?.gain.setTargetAtTime(mix[bed], t, 0.6);
+    this.bedFilter.frequency.setTargetAtTime(mix.cutoff, t, 0.6);
+  }
+
+  /** Current bed gains and cutoff, for tests in the browser. */
+  ambienceGains(): Partial<Record<Bed, number>> & { cutoff?: number } {
+    const out: Partial<Record<Bed, number>> & { cutoff?: number } = {};
+    for (const bed of BEDS) if (this.beds[bed]) out[bed] = this.beds[bed]!.gain.value;
+    if (this.bedFilter) out.cutoff = this.bedFilter.frequency.value;
+    return out;
   }
 
   /** Once a frame: put the ears where the camera is looking. */

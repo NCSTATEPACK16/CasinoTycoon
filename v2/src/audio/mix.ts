@@ -12,6 +12,8 @@ export interface AudioSettings {
   ambience: number;
   ui: number;
   muted: boolean;
+  /** The lounge music bed under the room's ambience. */
+  music: boolean;
 }
 
 export const DEFAULT_SETTINGS: Readonly<AudioSettings> = {
@@ -20,6 +22,7 @@ export const DEFAULT_SETTINGS: Readonly<AudioSettings> = {
   ambience: 0.6,
   ui: 0.6,
   muted: false,
+  music: true,
 };
 
 export const SETTINGS_KEY = 'v2-audio-settings';
@@ -60,6 +63,7 @@ export function loadSettings(storage: Reader | null | undefined): AudioSettings 
       if (typeof v === 'number' && Number.isFinite(v)) out[k] = Math.min(1, Math.max(0, v));
     }
     if (typeof p.muted === 'boolean') out.muted = p.muted;
+    if (typeof p.music === 'boolean') out.music = p.music;
   } catch {
     // Private mode, blocked storage or a corrupt entry: play with the defaults.
   }

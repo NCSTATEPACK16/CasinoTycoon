@@ -63,7 +63,14 @@ export const SOUNDS = {
   bigSixSpin: { files: ['sfx-bigsix-spin'], bus: 'sfx', volume: 0.5, priority: 2, maxVoices: 2 },
   win: { files: ['sfx-victory'], bus: 'sfx', volume: 0.5, priority: 4, maxVoices: 1 },
   // Slot reels (A3): the spin, a clunk as each reel stops, a bell on a win.
-  reelSpin: { files: ['sfx-reel-spin'], bus: 'sfx', volume: 0.35, priority: 2, maxVoices: 3, jitter: 60 },
+  reelSpin: {
+    files: ['sfx-reel-spin'],
+    bus: 'sfx',
+    volume: 0.35,
+    priority: 2,
+    maxVoices: 3,
+    jitter: 60,
+  },
   reelStop: {
     files: range('sfx-reel-clunk', 3),
     bus: 'sfx',

@@ -37,7 +37,7 @@ const throwing = {
 };
 
 describe('bus gain', () => {
-  const s: AudioSettings = { master: 0.5, sfx: 1, ambience: 0.5, ui: 0, muted: false };
+  const s: AudioSettings = { ...DEFAULT_SETTINGS, master: 0.5, sfx: 1, ambience: 0.5, ui: 0 };
 
   it('squares the slider so its travel feels even', () => {
     expect(sliderGain(0)).toBe(0);
@@ -66,7 +66,14 @@ describe('bus gain', () => {
 describe('settings persistence', () => {
   it('round-trips through storage', () => {
     const st = memoryStorage();
-    const s: AudioSettings = { master: 0.3, sfx: 0.9, ambience: 0.1, ui: 0.4, muted: true };
+    const s: AudioSettings = {
+      master: 0.3,
+      sfx: 0.9,
+      ambience: 0.1,
+      ui: 0.4,
+      muted: true,
+      music: false,
+    };
     expect(saveSettings(st, s)).toBe(true);
     expect(loadSettings(st)).toEqual(s);
   });
@@ -76,7 +83,10 @@ describe('settings persistence', () => {
     expect(loadSettings(st)).toEqual(DEFAULT_SETTINGS);
     st.setItem(SETTINGS_KEY, '{not json');
     expect(loadSettings(st)).toEqual(DEFAULT_SETTINGS);
-    st.setItem(SETTINGS_KEY, JSON.stringify({ master: 7, sfx: 'loud', ui: -2, muted: 'yes' }));
+    st.setItem(
+      SETTINGS_KEY,
+      JSON.stringify({ master: 7, sfx: 'loud', ui: -2, muted: 'yes', music: 1 }),
+    );
     expect(loadSettings(st)).toEqual({ ...DEFAULT_SETTINGS, master: 1, ui: 0 });
   });
 
