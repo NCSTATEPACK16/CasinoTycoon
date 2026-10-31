@@ -19,9 +19,9 @@ import type { RoundFx } from '../../shared/contracts';
 import type { ObjectLayer } from '../ObjectLayer';
 import type { Overlays } from '../Overlays';
 import { dieAt, diceReveal, FLIGHT_S, type Throw } from './dice';
-import { CX, dealPlan, livePlan, seatAngle, type SeenCard } from './felt';
+import { betSpot, CX, dealPlan, FELT_Y, livePlan, seatAngle, type SeenCard } from './felt';
 import type { FeltParts } from './FeltParts';
-import { drawFelt, type FeltState } from './FeltShow';
+import { drawFelt, stack, type FeltState } from './FeltShow';
 import { durationScale, revealTime, reelStopTime } from './reels';
 import { BIG_SIX_HUB, ROULETTE_HUB, type TableParts } from './TableParts';
 import {
@@ -98,6 +98,8 @@ export class FxDirector {
   /** The table the avatar plays at: its own rounds show there, not the guests'. */
   own: string | null = null;
   private revealAt = new Map<string, number>();
+  /** Chips the avatar is laying before a round, table-local. */
+  private stakes = new Map<string, { x: number; z: number; amount: number }[]>();
 
   constructor(
     private objects: ObjectLayer,
@@ -215,6 +217,29 @@ export class FxDirector {
     this.reveal(id, settled, pos, t0 + plan.settleAt);
     this.busyUntil.set(id, t0 + plan.clearAt + 0.5);
     return Math.max(0, t0 + plan.settleAt - this.now);
+  }
+
+  /**
+   * The avatar's chips laid before a round, table-local; a stake without a
+   * position goes on its own seat's betting circle. An empty list clears them.
+   */
+  setStakes(
+    id: string,
+    list: readonly { x?: number; z?: number; amount: number }[],
+    player: { x: number; z: number },
+  ): void {
+    if (!list.length) {
+      this.stakes.delete(id);
+      return;
+    }
+    const s = this.seatAt(id, player);
+    if (!s) return;
+    const circle = betSpot(s.a);
+    this.table(id);
+    this.stakes.set(
+      id,
+      list.map((k) => ({ x: k.x ?? circle.x, z: k.z ?? circle.z, amount: k.amount })),
+    );
   }
 
   /** Forget tables no longer watched; their own static art shows again. */
@@ -345,6 +370,8 @@ export class FxDirector {
           parts.push('die', tmpM.multiplyMatrices(base, tmpL));
         }
       if (t.felt) drawFelt(felt, base, t.felt, this.now);
+      // Roulette's felt and a card table's share a height (heroes.py).
+      for (const k of this.stakes.get(id) ?? []) stack(felt, base, k.amount, k.x, k.z, 0, FELT_Y);
       if (t.six) {
         tmpQ.setFromAxisAngle(Z, sixAngle(t.six, this.now));
         tmpL.compose(BIG_SIX_HUB, tmpQ, ONE);

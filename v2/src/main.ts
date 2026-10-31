@@ -13,6 +13,7 @@ import { Hud } from './ui/Hud';
 import { Menus } from './ui/Menus';
 import { Settings } from './ui/Settings';
 import { SidePanel } from './ui/SidePanel';
+import { feltPoint } from './ui/play/feltPoint';
 import { TablePlay } from './ui/TablePlay';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#view')!;
@@ -130,7 +131,12 @@ table.view = {
   play: (id, fx) => stage.fx.playOwn(id, fx, controls.avatar.pos),
   hand: (id, seen, wagered, settled) =>
     stage.fx.ownHand(id, seen, wagered, controls.avatar.pos, settled),
+  stakes: (id, list) => stage.fx.setStakes(id, list, controls.avatar.pos),
+  feltPoint: (id, x, y) => feltPoint(controls.camera, canvas, stage.objects.get(id)?.matrix, x, y),
 };
+canvas.addEventListener('click', (e) => {
+  if (controls.director.mode === 'seat') table.clickAt(e.clientX, e.clientY);
+});
 table.onLeave = () => {
   if (controls.director.mode === 'seat') controls.director.stand();
 };

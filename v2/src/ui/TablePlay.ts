@@ -12,6 +12,14 @@ import type { GameKind } from '../shared/games';
 import type { RoundResult } from '../shared/games';
 import { cardLabel } from '../sim/games/cards';
 import { fxOf } from '../sim/fx/rounds';
+import {
+  fromSheet,
+  rouletteSpotAt,
+  rouletteSpotCentre,
+  toSheet,
+  trayChips,
+  type Wheel,
+} from './play/layouts';
 import type { MachineInspect } from '../worker/inspect';
 import { button, el, escapeHtml, money } from './dom';
 
@@ -23,21 +31,41 @@ interface RoundReply {
   onTable: number;
 }
 
+/** Bets laid with buttons; roulette's are laid by clicking its layout on the felt. */
 const BET_SPOTS: Partial<Record<GameKind, { value: string; label: string }[]>> = {
-  roulette: [
-    ...['red', 'black', 'odd', 'even', 'low', 'high'].map((s) => ({ value: s, label: cap(s) })),
-    ...[1, 2, 3].map((d) => ({ value: `dozen:${d}`, label: `Dozen ${d}` })),
-    ...[1, 2, 3].map((c) => ({ value: `column:${c}`, label: `Column ${c}` })),
-    { value: 'straight', label: 'Straight up (pick a number)' },
+  blackjack: [{ value: 'main', label: 'Bet' }],
+  uth: [
+    { value: 'ante', label: 'Ante (Blind matches)' },
+    { value: 'trips', label: 'Trips' },
   ],
   craps: [
     { value: 'pass', label: 'Pass line' },
-    { value: 'dontPass', label: "Don't Pass (bar 12)" },
+    { value: 'dontPass', label: "Don't Pass" },
     { value: 'field', label: 'Field' },
     ...[4, 5, 6, 8, 9, 10].map((n) => ({ value: `place:${n}`, label: `Place ${n}` })),
     ...[4, 6, 8, 10].map((n) => ({ value: `hard:${n}`, label: `Hard ${n}` })),
     { value: 'any7', label: 'Any 7' },
   ],
+};
+
+/** A bet's name for the slip: "Split 1-2", "Red", "Place 6". */
+function spotLabel(spot: string): string {
+  const fixed = Object.values(BET_SPOTS)
+    .flat()
+    .find((b) => b?.value === spot);
+  if (fixed) return fixed.label;
+  const [k, a] = spot.split(':');
+  const name = k === 'sixline' ? 'Six line' : cap(k!);
+  return a ? `${name} ${a}` : name;
+}
+
+/** What the panel says while the table plays a round out. */
+const WAITING: Partial<Record<GameKind, string>> = {
+  roulette: 'No more bets. The ball is spinning…',
+  craps: 'Dice are out…',
+  slots: 'Spinning…',
+  blackjack: 'The dealer plays…',
+  uth: 'Showdown…',
 };
 
 /** Actions that push more chips onto the felt. */
@@ -58,6 +86,16 @@ export interface TableView {
   play(objectId: string, fx: RoundFx): number;
   /** Show a card round so far; returns the seconds until the result shows once settled. */
   hand(objectId: string, seen: SeenCard[], wagered: number, settled: RoundFx | null): number;
+  /** Chips laid before the round (table-local; no position = the seat's circle). */
+  stakes(objectId: string, stakes: Stake[]): void;
+  /** Where a screen point falls on the table's felt, table-local, or null. */
+  feltPoint(objectId: string, clientX: number, clientY: number): { x: number; z: number } | null;
+}
+
+export interface Stake {
+  x?: number;
+  z?: number;
+  amount: number;
 }
 
 export class TablePlay {
@@ -74,6 +112,10 @@ export class TablePlay {
   private seenRolls = 0;
   /** Chips staked at the start of the round in progress. */
   private staked = 0;
+  /** The bets being laid before a round, by spot, and the last round's for Rebet. */
+  private bets = new Map<string, number>();
+  private lastBets: [string, number][] = [];
+  private chip = 0;
   view: TableView | null = null;
   onLeave: () => void = () => {};
 
@@ -127,96 +169,130 @@ export class TablePlay {
     return h;
   }
 
+  private limits(): { min: number; max: number } {
+    const rules = (this.info?.game?.rules ?? {}) as Record<string, number | string>;
+    return { min: Number(rules.minBet ?? 1), max: Number(rules.maxBet ?? 1000) };
+  }
+
   private renderBetting(note = ''): void {
     const rules = (this.info?.game?.rules ?? {}) as Record<string, number | string>;
     const kind = this.kind!;
-    const min = Number(rules.minBet ?? 1);
-    const max = Number(rules.maxBet ?? 1000);
     const body = el('div', 'tp-body');
     if (note) body.append(el('div', 'tp-result', note));
-    const form = el('div', 'tp-bets');
-    let spotSel: HTMLSelectElement | null = null;
-    let numberIn: HTMLInputElement | null = null;
-    const amount = el('input');
-    amount.type = 'number';
-    amount.min = String(min);
-    amount.max = String(max);
-    amount.step = String(Math.max(1, min));
-    amount.value = String(
-      Math.min(
-        max,
-        Math.max(min, Math.round((this.wallet - this.onTable) / 20 / min) * min || min),
-      ),
-    );
-    const spots = BET_SPOTS[kind];
-    if (spots) {
-      spotSel = el('select');
-      for (const s of spots) {
-        const o = el('option', '', s.label);
-        o.value = s.value;
-        spotSel.append(o);
-      }
-      form.append(spotSel);
-      if (kind === 'roulette') {
-        numberIn = el('input');
-        numberIn.type = 'number';
-        numberIn.min = '0';
-        numberIn.max = '36';
-        numberIn.value = '17';
-        numberIn.className = 'narrow';
-        numberIn.hidden = true;
-        spotSel.onchange = () => (numberIn!.hidden = spotSel!.value !== 'straight');
-        form.append(numberIn);
-      }
-    }
-    let trips: HTMLInputElement | null = null;
     if (kind === 'slots') {
+      // One bet per spin: the machine's denomination × credits on every line.
       const bet = Math.round(Number(rules.denomination) * Number(rules.credits) * 100) / 100;
-      form.append(el('span', '', `Bet per spin: <b>${money(bet, true)}</b>`));
-      amount.value = String(bet);
-    } else {
-      const label = el('label', '', kind === 'uth' ? 'Ante (Blind matches) ' : 'Bet ');
-      label.append(amount);
-      form.append(label);
-      if (kind === 'uth') {
-        trips = el('input');
-        trips.type = 'checkbox';
-        const tl = el('label', '', ' Trips side bet');
-        tl.prepend(trips);
-        form.append(tl);
-      }
-      form.append(el('span', 'dim small', `limits ${money(min)}–${money(max)}`));
+      const form = el('div', 'tp-bets');
+      form.append(el('span', '', `Bet per spin <b>${money(bet, true)}</b>`));
+      form.append(
+        button('Spin', () => void this.begin([{ spot: 'spin', amount: bet }]), 'primary'),
+      );
+      body.append(form);
+      this.root.replaceChildren(this.header(), body);
+      return;
     }
-    const deal = button(
-      kind === 'slots' || kind === 'roulette' ? 'Place bet' : 'Deal',
+    const { min, max } = this.limits();
+    const chips = trayChips(min, max);
+    if (!chips.includes(this.chip)) this.chip = chips[Math.min(1, chips.length - 1)]!;
+    const tray = el('div', 'tp-chips');
+    for (const v of chips) {
+      const b = button(
+        money(v),
+        () => {
+          this.chip = v;
+          this.renderBetting(note);
+        },
+        `chip${v === this.chip ? ' active' : ''}`,
+      );
+      tray.append(b);
+    }
+    body.append(tray);
+    // An engine without its own spots (a game Track B adds later) takes one main bet.
+    const spots =
+      kind === 'roulette' ? null : (BET_SPOTS[kind] ?? [{ value: 'main', label: 'Bet' }]);
+    if (spots) {
+      const row = el('div', 'tp-bets');
+      for (const sp of spots) row.append(button(sp.label, () => this.addChip(sp.value), 'small'));
+      body.append(row);
+    } else if (kind === 'roulette') {
+      body.append(
+        el(
+          'div',
+          'dim small',
+          'Click the layout to bet the chip: on a number, a line, a corner or an outside box.',
+        ),
+      );
+    }
+    const slip = el('div', 'small');
+    const total = [...this.bets.values()].reduce((t, a) => t + a, 0);
+    slip.innerHTML = this.bets.size
+      ? [...this.bets].map(([sp, a]) => `${escapeHtml(spotLabel(sp))} ${money(a)}`).join(' · ') +
+        ` <b>= ${money(total)}</b>`
+      : `<span class="dim">No bets · limits ${money(min)}–${money(max)} a spot</span>`;
+    body.append(slip);
+    const acts = el('div', 'tp-actions');
+    acts.append(
+      button('Clear', () => this.setBets([]), 'small'),
+      button('Rebet', () => this.setBets(this.lastBets), 'small'),
+      button('Double', () => this.setBets([...this.bets].map(([sp, a]) => [sp, a * 2])), 'small'),
+    );
+    const go = button(
+      kind === 'roulette' || kind === 'craps' ? 'Place bets' : 'Deal',
       () => {
-        const amt = Number(amount.value);
-        const bets: { spot: string; amount: number }[] = [];
-        switch (kind) {
-          case 'slots':
-            bets.push({ spot: 'spin', amount: amt });
-            break;
-          case 'blackjack':
-            bets.push({ spot: 'main', amount: amt });
-            break;
-          case 'uth':
-            bets.push({ spot: 'ante', amount: amt });
-            if (trips?.checked)
-              bets.push({ spot: 'trips', amount: Math.max(1, Math.round(amt / 2)) });
-            break;
-          default: {
-            const spot =
-              spotSel!.value === 'straight' ? `straight:${numberIn!.value}` : spotSel!.value;
-            bets.push({ spot, amount: amt });
-          }
-        }
+        const bets = [...this.bets].map(([spot, amount]) => ({ spot, amount }));
+        this.lastBets = [...this.bets];
         void this.begin(bets);
       },
       'primary',
     );
-    form.append(deal);
-    body.append(form);
+    go.disabled = this.bets.size === 0;
+    acts.append(go);
+    body.append(acts);
     this.root.replaceChildren(this.header(), body);
+    this.showStakes();
+  }
+
+  /** The selected chip onto a spot, up to the table maximum. */
+  private addChip(spot: string): void {
+    if (this.inRound) return;
+    const { max } = this.limits();
+    const next = Math.min(max, (this.bets.get(spot) ?? 0) + this.chip);
+    this.bets.set(spot, next);
+    audio.play('chips');
+    this.renderBetting();
+  }
+
+  private setBets(bets: [string, number][]): void {
+    if (this.inRound) return;
+    const { min, max } = this.limits();
+    this.bets = new Map(
+      bets.map(([sp, a]) => [sp, Math.min(max, Math.max(min, a))] as [string, number]),
+    );
+    this.renderBetting();
+  }
+
+  /** A click on the canvas while seated: a roulette bet where the layout was hit. */
+  clickAt(clientX: number, clientY: number): void {
+    if (this.root.hidden || this.inRound || this.kind !== 'roulette' || !this.objectId) return;
+    const p = this.view?.feltPoint(this.objectId, clientX, clientY);
+    if (!p) return;
+    const { u, v } = toSheet(p.x, p.z);
+    const wheel = (this.info?.game?.rules as { wheel?: Wheel } | undefined)?.wheel ?? 'double';
+    const spot = rouletteSpotAt(u, v, wheel);
+    if (spot) this.addChip(spot);
+  }
+
+  /** The bets being laid, as chips on the felt (roulette spots, the seat's circle). */
+  private showStakes(): void {
+    if (!this.objectId || !this.view) return;
+    const stakes: Stake[] = [];
+    for (const [spot, amount] of this.bets) {
+      if (this.kind === 'roulette') {
+        const c = rouletteSpotCentre(spot);
+        if (c) stakes.push({ ...fromSheet(c.u, c.v), amount });
+      } else if (this.kind === 'blackjack' || this.kind === 'uth') stakes.push({ amount });
+    }
+    this.view.stakes(this.objectId, stakes);
   }
 
   private async begin(bets: { spot: string; amount: number }[]): Promise<void> {
@@ -228,6 +304,9 @@ export class TablePlay {
       });
       this.inRound = true;
       this.staked = bets.reduce((t, b) => t + b.amount, 0);
+      this.bets = new Map();
+      // A dealt hand puts its own chips down; laid roulette chips stay for the spin.
+      if (this.kind !== 'roulette') this.view?.stakes(this.objectId!, []);
       this.seenCards = 0;
       this.seenRolls = 0;
       await this.show(r);
@@ -250,12 +329,14 @@ export class TablePlay {
   private async show(r: RoundReply): Promise<void> {
     const wait = this.playOnTable(r);
     if (wait > 0) {
+      // Only a status line until the table shows it: the view already holds the result.
       const body = el('div', 'tp-body');
-      body.append(this.renderView(r.view), el('div', 'dim', r.options ? '' : 'Dealing…'));
+      body.append(el('div', 'dim', WAITING[this.kind!] ?? 'Dealing…'));
       this.root.replaceChildren(this.header(), body);
       await new Promise((res) => setTimeout(res, wait * 1000));
       if (this.root.hidden) return;
     }
+    if (!r.options) this.view?.stakes(this.objectId!, []);
     this.wallet = r.wallet;
     this.onTable = r.onTable;
     if (!r.options) {

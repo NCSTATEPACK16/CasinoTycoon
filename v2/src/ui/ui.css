@@ -240,6 +240,24 @@ table.fin td:first-child {
   gap: 8px;
   align-items: center;
 }
+.tp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tp-chips .chip {
+  min-width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 3px dashed rgba(255, 255, 255, 0.55);
+  background: #1f8f4a;
+  font-weight: 700;
+  font-size: 12px;
+}
+.tp-chips .chip.active {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
 .tp-actions button {
   min-width: 88px;
 }

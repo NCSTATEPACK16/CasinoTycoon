@@ -69,7 +69,7 @@ const ease = (k: number) => 1 - (1 - k) ** 3;
 const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 
 /** Place one stack (or two side by side) of chips for an amount. */
-function stack(
+export function stack(
   out: FeltParts,
   base: THREE.Matrix4,
   amount: number,
