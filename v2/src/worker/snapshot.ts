@@ -4,6 +4,7 @@
 import type { GameEvents } from '../EventBus';
 import { footprintOf } from '../sim/build';
 import type { CasinoWorld } from '../sim/world';
+import { goalLine, hudGoals } from './scenario';
 import type { CasinoGame } from '../sim/entities/machines/CasinoGame';
 import { SeatedCasinoGame } from '../sim/entities/machines/SeatedCasinoGame';
 import type { BlackjackRules } from '../sim/games/blackjack/rules';
@@ -181,10 +182,7 @@ export class SnapshotBuilder {
         ? {
             id: sc.def.id,
             name: sc.def.name,
-            goal:
-              sc.def.id === 'sandbox'
-                ? 'Unlimited funds'
-                : `Average $${sc.def.goalDailyProfit.toLocaleString()}/day by day ${sc.def.dayLimit}`,
+            goal: goalLine(world),
             status:
               sc.def.id === 'sandbox'
                 ? 'active'
@@ -197,6 +195,7 @@ export class SnapshotBuilder {
         : null,
       reputation: { value: world.reputation.value, label: world.reputation.label },
       guestCap: world.guestCap(),
+      goals: hudGoals(world),
       modifiers: world.modifiers.activeModifiers.map((m) => ({
         id: m.id,
         name: m.name,

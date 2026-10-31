@@ -25,6 +25,7 @@ import {
 } from './inspect';
 import { guestList, heatMap, thoughtSummary } from './feedback';
 import { dayReport, financeHistory, loansView } from './finance';
+import { scenarioResult } from './scenario';
 import type { SnapshotBuilder } from './snapshot';
 
 export type CommandResult = { ok: true; data?: unknown } | { ok: false; error: string };
@@ -253,6 +254,8 @@ export function runCommand(world: CasinoWorld, snap: SnapshotBuilder, cmd: Comma
       return { ok: true, data: guestList(world) };
     case 'heatMap':
       return { ok: true, data: heatMap(world, cmd.kind) };
+    case 'scenarioResult':
+      return { ok: true, data: scenarioResult(world) };
     default:
       return { ok: false, error: `${(cmd as Command).type} not implemented` };
   }

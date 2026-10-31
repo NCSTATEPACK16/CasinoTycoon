@@ -15,7 +15,10 @@ import {
   SECURITY_BALANCE,
   type CompKind,
 } from '../data/balance';
-import { SCENARIOS } from '../data/campaigns';
+import { goalsOf, SCENARIOS } from '../data/campaigns';
+import { GRID_COLS, GRID_ROWS } from '../config';
+import { goalText } from '../data/campaigns/goals';
+import { medalDays } from '../data/score';
 import { getDefaultMenuItem } from '../data/foodMenu';
 import { getObjectDef } from '../data/objects';
 import type { PatronVisit } from '../sim/patrons';
@@ -185,6 +188,15 @@ export interface ScenarioInfo {
   goalDailyProfit: number;
   dayLimit: number;
   goalWindowDays: number;
+  /** B8: each goal in words, the medal days, the lot, what it forbids, and
+   *  where it sits in the career. */
+  goals: string[];
+  medalDays: { gold: number; silver: number; bronze: number };
+  lot: { cols: number; rows: number };
+  restriction?: string;
+  sandbox: boolean;
+  unlockAfter?: string;
+  unlocks: string[];
 }
 
 export function scenarioList(): ScenarioInfo[] {
@@ -196,6 +208,13 @@ export function scenarioList(): ScenarioInfo[] {
     goalDailyProfit: c.goalDailyProfit,
     dayLimit: c.dayLimit,
     goalWindowDays: c.goalWindowDays,
+    goals: c.sandbox ? [] : goalsOf(c).map(goalText),
+    medalDays: medalDays(c),
+    lot: c.lot ?? { cols: GRID_COLS, rows: GRID_ROWS },
+    restriction: c.restriction,
+    sandbox: !!c.sandbox,
+    unlockAfter: c.unlockAfter,
+    unlocks: [...(c.unlocks ?? [])],
   }));
 }
 

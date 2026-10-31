@@ -1212,3 +1212,144 @@ input.guest-search {
 .pal-card .small {
   margin-top: 3px;
 }
+
+/* Track B — B8: the goal panel, the career on the title, the end card */
+.hud-top > .goal-panel {
+  pointer-events: auto;
+}
+.goal-panel {
+  max-width: 460px;
+  padding: 6px 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 12px;
+}
+.goal-panel[hidden] {
+  display: none;
+}
+.goal-head {
+  cursor: pointer;
+  user-select: none;
+}
+.goal-fold {
+  float: right;
+  color: var(--dim);
+}
+.goal-list {
+  display: grid;
+  gap: 4px;
+  margin-top: 5px;
+}
+.goal-list[hidden] {
+  display: none;
+}
+.goal-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 8px;
+  align-items: baseline;
+}
+.goal-row::before {
+  content: '○';
+  position: absolute;
+  left: 0;
+  color: var(--dim);
+}
+.goal-row .goal-text {
+  padding-left: 16px;
+}
+.goal-row.met::before {
+  content: '✓';
+  color: #58d68d;
+}
+.goal-row.met .goal-text {
+  color: #9fe6b8;
+}
+.goal-bar {
+  grid-column: 1 / -1;
+  height: 3px;
+  margin-left: 16px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.goal-bar i {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+  transition: width 0.4s;
+}
+.goal-row.met .goal-bar i {
+  background: #58d68d;
+}
+.hud-bar .goal.has-goals {
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.career-summary {
+  margin: -4px 0 8px;
+}
+.scenario-list.career button.scenario {
+  position: relative;
+  padding-left: 46px;
+}
+.scenario-list.career .medal {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  font-size: 22px;
+  line-height: 1;
+}
+.scenario-list.career .medal.none {
+  color: var(--dim);
+  font-size: 18px;
+  left: 16px;
+}
+.scenario-list.career .goals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 12px;
+  color: var(--gold);
+}
+.scenario-list.career .goals span::before {
+  content: '◆ ';
+  opacity: 0.6;
+}
+button.scenario.locked {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.medal-big {
+  font-size: 64px;
+  line-height: 1;
+  text-align: center;
+  filter: drop-shadow(0 0 18px rgba(246, 196, 83, 0.5));
+}
+.menu-card > h1.good,
+.menu-card > h1.bad {
+  text-align: center;
+}
+.end-goals {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0;
+  display: grid;
+  gap: 4px;
+}
+.end-goals li.met {
+  color: #9fe6b8;
+}
+.end-goals li:not(.met) {
+  color: #f1948a;
+}
+.unlocks {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(246, 196, 83, 0.1);
+  border: 1px solid rgba(246, 196, 83, 0.4);
+}

@@ -10,6 +10,7 @@ import type { HudView, SimEvent } from '../shared/contracts';
 import type { SimClient } from '../client/SimClient';
 import type { BuildTool } from '../input/BuildTool';
 import { ConditionsBanner } from './panels/ConditionsBanner';
+import { GoalPanel } from './panels/GoalPanel';
 import { Palette } from './panels/Palette';
 import { Ticker } from './panels/Ticker';
 
@@ -29,6 +30,8 @@ export class Hud {
   onRating: () => void = () => {};
   private speedButtons = new Map<Speed, HTMLElement>();
   private conditions = new ConditionsBanner();
+  /** B8: the scenario's goals, folded away from the bar's goal text. */
+  private goals = new GoalPanel();
   readonly ticker = new Ticker();
   /** The build palette; B8 locks and unlocks items through it. */
   readonly palette: Palette;
@@ -93,7 +96,8 @@ export class Hud {
     const slotA = el('div', '');
     slotA.id = 'hud-slot-a';
     row.append(this.bar, menu, speeds, help, slotA);
-    top.append(row, this.conditions.root);
+    f.goal.onclick = () => this.goals.toggle();
+    top.append(row, this.conditions.root, this.goals.root);
     root.append(top, palette, this.toast, this.ticker.root, this.ticker.historyRoot);
     new ResizeObserver(() =>
       root.style.setProperty('--hud-bottom', `${Math.ceil(top.getBoundingClientRect().bottom)}px`),
@@ -158,6 +162,8 @@ export class Hud {
     setText(f.goal, sc);
     f.goal.title = sc;
     this.conditions.update(h.modifiers);
+    this.goals.update(h);
+    f.goal.classList.toggle('has-goals', !!h.goals?.length);
     this.palette.setScenario(h.scenario?.id ?? null);
   }
 

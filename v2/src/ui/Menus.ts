@@ -3,10 +3,23 @@
 // localStorage): the worker hands over world JSON and takes it back.
 
 import type { SimClient } from '../client/SimClient';
+import { MEDAL_GLYPH, type Medal } from '../data/score';
+import {
+  isScenarioUnlocked,
+  loadProgress,
+  objectNames,
+  recordWin,
+  saveProgress,
+  type Progress,
+} from '../services/progress';
+import { getCampaign } from '../data/campaigns';
 import { AUTOSAVE_SLOT, MANUAL_SLOTS, saveService, type SlotInfo } from '../services/SaveService';
 import type { CasinoWorldJSON } from '../sim/world';
 import type { ScenarioInfo } from '../worker/inspect';
+import type { ScenarioResult } from '../worker/scenario';
 import { button, el, escapeHtml, money } from './dom';
+
+const MEDAL_NAME: Record<Medal, string> = { bronze: 'Bronze', silver: 'Silver', gold: 'Gold' };
 
 export class Menus {
   readonly root = el('div', 'menus');
@@ -15,6 +28,10 @@ export class Menus {
   onStarting: () => void = () => {};
   /** Set while the pause card is up: how to get back into the game. */
   private resume: (() => void) | null = null;
+  /** B8: the career — medals, scores and what they unlock. */
+  progress: Progress = loadProgress();
+  /** The career changed (a first win, a better medal): relock the palette. */
+  onProgress: (p: Progress) => void = () => {};
 
   constructor(private sim: SimClient) {
     this.root.hidden = true;
@@ -66,20 +83,59 @@ export class Menus {
   async title(): Promise<void> {
     const scenarios = await this.sim.command<ScenarioInfo[]>({ type: 'scenarios' });
     const slots = await saveService.list().catch(() => [] as SlotInfo[]);
-    const list = el('div', 'scenario-list');
+    const p = this.progress;
+    const career = el('div', 'scenario-list career');
+    const free = el('div', 'scenario-list');
+    let n = 0;
     for (const s of scenarios) {
-      const sandbox = s.id === 'sandbox';
+      if (s.sandbox) {
+        free.append(
+          button(
+            `<b>${escapeHtml(s.name)}</b><small>${escapeHtml(s.tagline)}</small><span class="dim small">Unlimited funds, no goal, every object you have unlocked</span>`,
+            () => void this.start(s.id),
+            'scenario',
+          ),
+        );
+        continue;
+      }
+      n++;
+      const def = getCampaign(s.id);
+      const open = !def || isScenarioUnlocked(def, p);
+      const rec = p.scenarios[s.id];
+      const after = s.unlockAfter ? getCampaign(s.unlockAfter)?.name : null;
+      const badge = rec
+        ? `<span class="medal ${rec.medal}" title="${MEDAL_NAME[rec.medal]} · best score ${rec.score.toLocaleString()}">${MEDAL_GLYPH[rec.medal]}</span>`
+        : open
+          ? '<span class="medal none" title="Not won yet">○</span>'
+          : '<span class="medal locked" title="Locked">🔒</span>';
+      const md = s.medalDays;
+      const lines = open
+        ? `<span class="goals">${s.goals.map((g) => `<span>${escapeHtml(g)}</span>`).join('')}</span>
+           <span class="dim small">Start ${money(s.startingCash)} · ${s.lot.cols}×${s.lot.rows} lot · by day ${s.dayLimit} · ${MEDAL_GLYPH.gold} ${md.gold} · ${MEDAL_GLYPH.silver} ${md.silver}${
+             rec ? ` · best ${rec.score.toLocaleString()}` : ''
+           }</span>${s.restriction ? `<span class="dim small">${escapeHtml(s.restriction)}</span>` : ''}`
+        : `<span class="dim small">🔒 Win ${escapeHtml(after ?? 'the scenario before')} to unlock.</span>`;
       const b = button(
-        `<b>${escapeHtml(s.name)}</b><small>${escapeHtml(s.tagline)}</small><span class="dim small">${
-          sandbox
-            ? 'Unlimited funds, no goal'
-            : `Start ${money(s.startingCash)} · average ${money(s.goalDailyProfit)}/day over ${s.goalWindowDays} days by day ${s.dayLimit}`
-        }</span>`,
+        `${badge}<b>${n}. ${escapeHtml(s.name)}</b><small>${escapeHtml(s.tagline)}</small>${lines}`,
         () => void this.start(s.id),
         'scenario',
       );
-      list.append(b);
+      b.dataset.scenario = s.id;
+      if (!open) {
+        b.disabled = true;
+        b.classList.add('locked');
+      }
+      career.append(b);
     }
+    const won = Object.values(p.scenarios);
+    const tally = (m: Medal) => won.filter((r) => r.medal === m).length;
+    const summary = el(
+      'p',
+      'career-summary dim',
+      won.length
+        ? `${won.length} of ${n} won · ${MEDAL_GLYPH.gold} ${tally('gold')} · ${MEDAL_GLYPH.silver} ${tally('silver')} · ${MEDAL_GLYPH.bronze} ${tally('bronze')}`
+        : 'Win a scenario to open the next one and unlock new games.',
+    );
     const resume = slots.find((s) => s.slot === AUTOSAVE_SLOT && s.status !== 'newer');
     const head = el('div', 'title', '<h1>Casino Tycoon</h1><h2>High Roller</h2>');
     const actions = el('div', 'menu-actions');
@@ -93,7 +149,15 @@ export class Menus {
       );
     if (slots.some((s) => s.slot !== AUTOSAVE_SLOT))
       actions.append(button('Load game…', () => void this.loadMenu()));
-    this.card(head, actions, el('h3', '', 'New game'), list);
+    this.card(
+      head,
+      actions,
+      el('h3', '', 'Career'),
+      summary,
+      career,
+      el('h3', '', 'Free play'),
+      free,
+    );
   }
 
   private async start(id: string): Promise<void> {
@@ -156,18 +220,61 @@ export class Menus {
     await saveService.save(AUTOSAVE_SLOT, json);
   }
 
-  gameOver(won: boolean, reason: string, keepPlaying: () => void): void {
-    this.card(
-      el('h1', won ? 'good' : 'bad', won ? 'Jackpot!' : 'Closed for business'),
-      el(
-        'p',
-        '',
-        won ? `${escapeHtml(reason)} — the board is impressed.` : `${escapeHtml(reason)}.`,
-      ),
-      el('div', 'menu-actions'),
-    );
-    const actions = this.root.querySelector('.menu-actions')!;
-    if (won)
+  /** The win or lose card, with the medal, score and goals (B8). A win is
+   *  folded into the career first, so the card can say what it unlocked. */
+  async gameOver(won: boolean, reason: string, keepPlaying: () => void): Promise<void> {
+    const r = await this.sim.command<ScenarioResult | null>({ type: 'scenarioResult' });
+    const actions = el('div', 'menu-actions');
+    const goals = el('ul', 'end-goals');
+    for (const g of r?.goals ?? [])
+      goals.append(
+        el(
+          'li',
+          g.met ? 'met' : '',
+          `${g.met ? '✓' : '✗'} ${escapeHtml(g.text)} <span class="dim">${escapeHtml(g.progress)}</span>`,
+        ),
+      );
+    if (won && r?.medal) {
+      const before = this.progress.scenarios[r.scenarioId];
+      const { progress, unlocked } = recordWin(this.progress, r.scenarioId, {
+        medal: r.medal,
+        score: r.score,
+        day: r.day,
+      });
+      this.progress = progress;
+      saveProgress(progress);
+      this.onProgress(progress);
+      const best = progress.scenarios[r.scenarioId]!;
+      const news: string[] = [];
+      if (unlocked.scenarios.length)
+        news.push(
+          `New scenario: <b>${unlocked.scenarios.map((d) => escapeHtml(d.name)).join(', ')}</b>`,
+        );
+      if (unlocked.objects.length)
+        news.push(`Unlocked: <b>${escapeHtml(objectNames(unlocked.objects))}</b>`);
+      const record =
+        before && r.score > before.score
+          ? ' · a new best'
+          : before
+            ? ` · best ${best.score.toLocaleString()}`
+            : '';
+      this.card(
+        el('div', `medal-big ${r.medal}`, MEDAL_GLYPH[r.medal]),
+        el('h1', 'good', `${MEDAL_NAME[r.medal]} medal`),
+        el(
+          'p',
+          '',
+          `${escapeHtml(r.name)} won on day ${r.day} of ${r.dayLimit}. Score <b>${r.score.toLocaleString()}</b>${record}.`,
+        ),
+        el(
+          'p',
+          'dim small',
+          `${MEDAL_GLYPH.gold} by day ${r.medalDays.gold} · ${MEDAL_GLYPH.silver} by day ${r.medalDays.silver} · ${MEDAL_GLYPH.bronze} by day ${r.medalDays.bronze}`,
+        ),
+        goals,
+        ...(news.length ? [el('p', 'unlocks', news.join('<br>'))] : []),
+        actions,
+      );
       actions.append(
         button(
           'Keep playing',
@@ -178,6 +285,30 @@ export class Menus {
           'primary',
         ),
       );
+      const next = unlocked.scenarios[0];
+      if (next)
+        actions.append(button(`Play ${escapeHtml(next.name)}`, () => void this.start(next.id)));
+    } else {
+      this.card(
+        el('h1', 'bad', won ? 'Jackpot!' : 'Closed for business'),
+        el('p', '', `${escapeHtml(reason)}${r ? ` on day ${r.day} of ${r.dayLimit}` : ''}.`),
+        ...(r ? [goals] : []),
+        actions,
+      );
+      if (won)
+        actions.append(
+          button(
+            'Keep playing',
+            () => {
+              this.close();
+              keepPlaying();
+            },
+            'primary',
+          ),
+        );
+      else if (r)
+        actions.append(button('Try again', () => void this.start(r.scenarioId), 'primary'));
+    }
     actions.append(button('Main menu', () => void this.title()));
   }
 }

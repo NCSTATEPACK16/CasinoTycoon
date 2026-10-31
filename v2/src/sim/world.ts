@@ -58,7 +58,7 @@ import { ModifierSystem, type ModifierSystemJSON } from './modifiers';
 import { LoanBook, type Loan, type LoanBookJSON } from './economy/loans';
 import { type Patron, PatronRegistry, type PatronRegistryJSON } from './patrons';
 import { Reputation, type ReputationJSON } from './reputation';
-import { ScenarioManager, type ScenarioJSON } from './scenario/ScenarioManager';
+import { ScenarioManager, type ScenarioJSON, type WorldFacts } from './scenario/ScenarioManager';
 import { interestFor, pickLiquidation, type LiquidationCandidate } from './solvency';
 import { TimeSystem, type TimeSystemJSON } from './TimeSystem';
 import {
@@ -365,6 +365,11 @@ export class CasinoWorld {
         : FloorPlan.open(cols, rows, entranceFor(cols, rows)),
     );
     this.scenario = def ? new ScenarioManager(def) : null;
+    // B8: a run that opens in debt. The loan's cash is already counted in
+    // startingCash, so it is booked straight onto the loan book.
+    if (def?.startingLoan) {
+      this.loans.take(def.startingLoan.amount, def.startingLoan.days, this.time.day, Infinity);
+    }
     // Day 1 gets conditions too. Without this the first day is always the
     // quiet baseline, which teaches the player that modifiers are rare.
     this.modifiers.drawForDay(this.time.day, this.modifierRng);
@@ -538,6 +543,7 @@ export class CasinoWorld {
       for (const guest of this.guests.values()) this.foldGuestSession(guest);
     }
     this.ledger.closeHour(closedDay, closedHour, this.guests.size, this.state.cash);
+    this.scenario?.observeGuests(this.guests.size);
     eventBus.emit('hourPassed', { hour: this.time.hour, day: this.time.day });
     if (midnight) {
       // Settle the closing day's conditions before the books close, so a fine
@@ -582,7 +588,7 @@ export class CasinoWorld {
         cash: this.state.cash,
         debt: this.loans.outstanding,
       });
-      this.scenario?.onDayEnded(record);
+      this.scenario?.onDayEnded(record, this.scenarioFacts());
       // P16: the bank takes what it is owed. After onDayEnded, so a day that
       // reached the goal is a win even if it also closed under the limit.
       // The tick-level check above will already have sold against any breach
@@ -801,6 +807,30 @@ export class CasinoWorld {
       }
     }
     return net;
+  }
+
+  // ---------- B8: scenario goals ----------
+
+  /** What the scenario's goals read from the world, right now. */
+  scenarioFacts(): WorldFacts {
+    let gold = 0;
+    let black = 0;
+    for (const p of this.patrons.all()) {
+      if (p.tier.id === 'black') black++;
+      if (p.tier.id === 'gold' || p.tier.id === 'black') gold++;
+    }
+    let highLimitGames = 0;
+    for (const o of this.state.allObjects()) {
+      if (getObjectDef(o.defId)?.category !== 'game') continue;
+      if (this.floor.zoneAt(o.col, o.row) === 'highLimit') highLimitGames++;
+    }
+    return {
+      rating: this.rating,
+      patrons: { silver: this.patrons.all().length, gold, black },
+      highLimitGames,
+      debt: this.loans.outstanding,
+      cash: this.state.cash,
+    };
   }
 
   // ---------- B4: loans ----------

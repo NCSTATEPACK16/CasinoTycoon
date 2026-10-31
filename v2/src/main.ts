@@ -58,6 +58,9 @@ hud.ticker.onLocate = (at) => {
 /** Autosave only once a game is under way — never the idle world behind the title. */
 let playing = false;
 menus.onStarted = () => (playing = true);
+// B8: the career decides what the palette locks.
+hud.palette.setProgress(menus.progress);
+menus.onProgress = (p) => hud.palette.setProgress(p);
 menus.onStarting = () => {
   hud.ticker.clear();
   report.resetDay();
@@ -73,7 +76,7 @@ sim.onSnapshot((s) => {
   for (const e of s.events) {
     if (e.type === 'gameOver') {
       void sim.command({ type: 'setSpeed', speed: 0 });
-      menus.gameOver(e.won, e.reason, () => {
+      void menus.gameOver(e.won, e.reason, () => {
         void sim.command({ type: 'continueScenario' });
         void sim.command({ type: 'setSpeed', speed: 1 });
       });

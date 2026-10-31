@@ -271,7 +271,7 @@ v2 ships to Netlify after this cut. Do these next, in this order, then the finis
     - **Stress scene** (`sandbox.stress`, NAV_PERF=1, alternated with the B7 commit on the same loaded machine): before 5.6–5.8 ms per 100 ms tick (crowd 2.8 ms); after 12.0–17.0 ms per 300 ms tick (crowd 7.0–9.8 ms). That is the same or lower CPU per real second (56–58 ms before, 40–57 ms after, at 1×). The test's 8 ms budget is now scaled to the tick's length (24 ms per 300 ms tick). NEXT-SESSION's "≤ 7 ms sim tick" guardrail reads as ≤ 21 ms at the new tick length.
     - **Browser:** a fresh Sandbox (7 tables, 162 slots, services, staff) ran at 3.33 ticks/s, 15 s per in-game hour at 1×. At 4× overnight, 11–12% of guests were at games while the night crowd left (180 of 308 heading out at 03:00), rising to 19% by mid-morning; the floor went 354 at midnight to 95 at 10:00. No console errors.
 
-- [ ] **B8. Progression and a real campaign.**
+- [x] ✅ **B8. Progression and a real campaign.**
   - 8–12 scenarios with rising, varied goals, for example:
     - reach a rating
     - hold N guests at once
@@ -289,6 +289,20 @@ v2 ships to Netlify after this cut. Do these next, in this order, then the finis
     - per scenario, an automated test that a reasonable furnished strategy wins it, and that doing nothing does not
     - progress storage tests
     - browser screenshots of the title with medals, and of a win card and a lose card reached by playing
+  - **Done 2026-10-31.**
+    - **Built:**
+      - `data/campaigns/goals.ts`: eight goal kinds (avgProfit, dayProfit, rating, guests, hold, patrons, highLimit, noDebt), each with text, live progress and a met test. Goals are checked at each midnight close and must all hold together; records (best day, most guests) are kept once reached, states (rating, no debt, hold band, patrons, averages) must hold at the winning close. `ScenarioManager` gained `observeGuests`, a goal list and `wonOnDay`; `world.ts` got three hooks (`scenarioFacts`, `observeGuests`, and `startingLoan` in `startScenario`).
+      - Career of 9: the P16 three (Dusty Dime, Neon Nights, High Roller, goals untouched) plus Lucky Strike Lanes (50 guests at once, ★70), The Velvet Rope (6 club members, avg $800), House Rules (hold 4–8% on $12k wagered, arcade-only licence), The Salon (4 high-limit games, $2,000 in a day), Clean Slate (opens $6,000 in debt, end debt-free), The Strip (150 guests, ★75, $2,500 in a day). Five lot sizes (32×24 to 64×44) and a walled starter layout each. Then Sandbox.
+      - Medals by win day (`medals {gold, silver}` per scenario, else 50%/75% of the day limit), score from `computeCampaignScore`. Unlocks (objects and the next scenario) saved under `casino-v2-progress` (version 1; corrupt, missing or blocked storage reads as a fresh player). Locks are applied in the palette, and a scenario's own `allowedObjects` are exempt.
+      - UI: goal panel under the HUD (folds, remembered), title menu with a numbered career list (medal badge, ○ open, 🔒 locked with the hint), end cards with medal, day, score, goals, unlocks, Keep playing / Play next / Main menu, and a lose card with the goals and Try again.
+      - Contract (own `contract:` commit): `HudView.goals?` and the `scenarioResult` command, both additive.
+    - **Tests:** 13 files, 133 tests green under caffeinate in 417 s (tsc clean, Prettier on touched files).
+      - `goals.test.ts`, `progress.test.ts`, `score.test.ts` (medals), `ScenarioManager.test.ts` (goal lists), `world.career.test.ts`, and `career.test.ts`: structure, plus every new scenario played by the career bot on the grid and on the Recast crowd over the seven tournament seeds. A reasonable plan wins at least 4 of 7; building once and walking away wins 0 of 7 everywhere.
+      - Wins by seed, grid then crowd (`W<day>`, `-` = lost): Lucky Strike W4 W2 W3 W3 W9 W5 W10 / W4 W2 - W4 W6 - W2; Velvet Rope W13 - W7 W11 W13 - W7 / W14 W12 W6 W12 - - W9; House Rules W3 W3 W3 W3 W5 W3 W3 / W3 W3 W4 W4 W4 W6 W3; The Salon W3 W4 W4 W5 W2 W5 W6 / W6 W12 - - W3 W12 W6; Clean Slate W9 W5 - W11 W14 W10 W12 / W5 W12 W14 - W12 W10 W14; The Strip W11 W5 W4 W5 W4 W5 W5 / - W8 W5 W5 W4 W7 W4.
+      - **Economics guard, before → after:** the P16 three are unchanged. Grid greedy 7/7, 5/7, 5/7 → 7/7, 5/7, 5/7 (same per-seed results); `crowd.campaigns.test.ts` 6/6 → 6/6 (greedy ≥ 4/7, minimal 0/7); `difficulty`, `world.tier2`, `agents/crowd` and `agents/playshare` all green. Their win days on the crowd (greedy: Dusty Dime 10,5,4,8,10,6,10) fit the default medal days, so the three keep the defaults.
+      - Tuning found on the way (goals first set too hard, then eased and re-proved): club members instead of gold patrons; House Rules $1,200 → $400 a day; The Strip $3,000 → $2,500 a day and ★75; Lucky Strike 60 → 50 guests; the bot repays Clean Slate's loan late and paints The Salon's room before buying more.
+    - **Browser:** a fresh player's title shows only The Dusty Dime open. Lucky Strike (opened by seeding a Dusty Dime medal) reached the win card by playing at 4×: "🥇 Gold medal, won on day 1 of 10, score 181", both goals ticked, unlocks Pachinko, Bingo and Neon Nights; the palette lost its 🔒 on those two, localStorage held lucky-strike gold 181, and the title read "2 of 9 won · 🥇1 · 🥈0 · 🥉1". The Dusty Dime reached the lose card ("Closed for business, Bankrupt on day 1 of 12", goal crossed out, Try again restarted at $4,000). No console errors.
+    - **Not covered:** the browser win used a furnished Lucky Strike set up with `window.__v2`, and the restarted game after Try again leaves the previous day report open on top (cosmetic).
 
 - [ ] **B12. Onboarding.**
   - A tutorial scenario ("Opening Night") with step objectives and UI pointers: paint a zone, place a slot, hire a dealer, open a table, set a price, read the rating.

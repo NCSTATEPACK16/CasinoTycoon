@@ -7,6 +7,7 @@
 import { getCampaign } from '../../data/campaigns';
 import { OBJECT_CATALOG, type ObjectDef } from '../../data/objects';
 import type { BuildTool } from '../../input/BuildTool';
+import { locksFor, type Progress } from '../../services/progress';
 import { get3D } from '../../shared/catalog';
 import { el, escapeHtml, money } from '../dom';
 
@@ -64,6 +65,9 @@ export class Palette {
   private forbidden = new Map<string, string>();
   /** defId → how to unlock it (B8). */
   private locked = new Map<string, string>();
+  /** B8: the career, which decides what is locked. Null until main.ts hands
+   *  it over (nothing is locked before then). */
+  private progress: Progress | null = null;
   /** Where to report "can't pick that" (the HUD toast). */
   onMessage: (text: string) => void = () => {};
 
@@ -110,6 +114,7 @@ export class Palette {
     this.scenarioId = id;
     this.forbidden.clear();
     const def = id ? getCampaign(id) : undefined;
+    if (this.progress) this.locked = locksFor(def, this.progress);
     if (def?.allowedObjects) {
       const allowed = new Set(def.allowedObjects);
       const why = def.restriction ?? `Not part of ${def.name}.`;
@@ -128,6 +133,14 @@ export class Palette {
   setLock(defId: string, hint: string | null): void {
     if (hint) this.locked.set(defId, hint);
     else this.locked.delete(defId);
+    this.render();
+  }
+
+  /** B8: the career changed (a win, or the game started): relock. */
+  setProgress(p: Progress): void {
+    this.progress = p;
+    const id = this.scenarioId;
+    this.locked = locksFor(id ? getCampaign(id) : undefined, p);
     this.render();
   }
 
