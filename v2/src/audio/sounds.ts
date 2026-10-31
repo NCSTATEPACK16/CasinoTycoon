@@ -58,6 +58,9 @@ export const SOUNDS = {
   },
   shuffle: { files: ['sfx-shuffle'], bus: 'sfx', volume: 0.7, priority: 2, maxVoices: 1 },
   ball: { files: ['sfx-roulette-ball'], bus: 'sfx', volume: 0.8, priority: 2, maxVoices: 2 },
+  // Wheels (A4): the ball running down the track, the big six clapper.
+  ballRoll: { files: ['sfx-roulette-slow'], bus: 'sfx', volume: 0.45, priority: 2, maxVoices: 2 },
+  bigSixSpin: { files: ['sfx-bigsix-spin'], bus: 'sfx', volume: 0.5, priority: 2, maxVoices: 2 },
   win: { files: ['sfx-victory'], bus: 'sfx', volume: 0.5, priority: 4, maxVoices: 1 },
   // Slot reels (A3): the spin, a clunk as each reel stops, a bell on a win.
   reelSpin: { files: ['sfx-reel-spin'], bus: 'sfx', volume: 0.35, priority: 2, maxVoices: 3, jitter: 60 },

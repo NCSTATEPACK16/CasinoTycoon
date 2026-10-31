@@ -56,6 +56,37 @@ describe('round records', () => {
     expect(new Set(seen).size).toBe(40);
   });
 
+  it('records the pocket and the wheel of a roulette spin', () => {
+    for (const wheel of ['single', 'double'] as const) {
+      const math = new GameMath('roulette', { minBet: 20, maxBet: 1000, wheel, laPartage: false });
+      const rng = new Rng(3);
+      const pockets = new Set<number>();
+      for (let i = 0; i < 400; i++) {
+        playEngineRounds(math, 2, rng, ctx);
+        const fx = lastRound(math)!.fx;
+        expect(fx.roulette!.wheel).toBe(wheel);
+        // The summary is the engine's own "17 red" / "00 green".
+        const label = fx.roulette!.pocket === 37 ? '00' : String(fx.roulette!.pocket);
+        expect(fx.summary.split(' ')[0]).toBe(label);
+        pockets.add(fx.roulette!.pocket);
+      }
+      expect(Math.max(...pockets)).toBe(wheel === 'double' ? 37 : 36);
+    }
+  });
+
+  it('records the craps roll that settled the round', () => {
+    const math = new GameMath('craps');
+    const rng = new Rng(5);
+    for (let i = 0; i < 100; i++) {
+      playEngineRounds(math, 3, rng, ctx);
+      const fx = lastRound(math)!.fx;
+      const [a, b] = fx.craps!.dice;
+      for (const d of [a, b]) expect(d >= 1 && d <= 6 && Number.isInteger(d)).toBe(true);
+      // The engine's summary ends with the last roll's total.
+      expect(fx.summary).toMatch(new RegExp(`last ${a + b}$`));
+    }
+  });
+
   it('never touches the RNG or the outcome', () => {
     // The same deals through playEngineRounds (which records) and through the
     // bare engine leave both RNGs in the same state with the same money.

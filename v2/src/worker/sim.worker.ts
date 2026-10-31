@@ -5,6 +5,7 @@
 import { SIM_TICK_MS } from '../config';
 import { eventBus } from '../EventBus';
 import type { WorkerIn, WorkerOut } from '../shared/contracts';
+import { recordBigSix } from '../sim/fx/bigSix';
 import { lastRound } from '../sim/fx/rounds';
 import { WorldNav } from '../sim/nav/WorldNav';
 import { CasinoWorld } from '../sim/world';
@@ -35,7 +36,10 @@ function wireEvents(w: CasinoWorld): void {
     if (!o) return;
     // Watched objects get the play's last round instead of its payout: the
     // client shows that round and its own win when the round is revealed.
-    const rec = snap.interest.has(e.machineId) ? lastRound(w.machines.get(e.machineId)?.math) : null;
+    const m = w.machines.get(e.machineId);
+    // The big six pays from a table, not an engine: its round is the spin itself.
+    const six = m?.defId === 'big-six-wheel' ? recordBigSix(m, e.wager, e.payout) : null;
+    const rec = snap.interest.has(e.machineId) ? (six ?? lastRound(m?.math)) : null;
     if (rec && sentSeq.get(e.machineId) !== rec.seq) {
       sentSeq.set(e.machineId, rec.seq);
       snap.pendingEvents.push({

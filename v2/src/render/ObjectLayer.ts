@@ -16,6 +16,9 @@ import { defaultSheet, MAX_REELS, packStops, restingStops, SHEET_ORDER, STRIP_MA
 import { PAR_SHEETS } from '../sim/games/slots/sheets';
 import { createObjectMaterial, objectUniforms } from './materials/ObjectMaterial';
 
+/** Games that play rounds without a GameEngine (the big six pays from a table). */
+const TABLE_WHEELS = new Set(['big-six-wheel']);
+
 const CH_MATRIX = 0;
 const CH_STATE = 1;
 /** Live reels: (spin start, sheet, reel 0, reel 1) and (reel 2, 3, 4, duration scale). */
@@ -366,7 +369,7 @@ export class ObjectLayer {
     return p ? p.box.getCenter(new THREE.Vector3()).setY(0) : null;
   }
 
-  /** Engine games within `radius` of the camera and in view, nearest first. */
+  /** Games within `radius` of the camera and in view, nearest first. */
   nearGames(camera: THREE.Camera, radius: number, max: number): string[] {
     camera.updateMatrixWorld();
     projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
@@ -374,7 +377,7 @@ export class ObjectLayer {
     const cam = camera.position;
     const out: [number, string][] = [];
     for (const [id, p] of this.placed) {
-      if (get3D(p.view.defId).game === undefined) continue;
+      if (get3D(p.view.defId).game === undefined && !TABLE_WHEELS.has(p.view.defId)) continue;
       p.box.getCenter(tmpV);
       const d = tmpV.distanceTo(cam);
       if (d > radius || !frustum.intersectsBox(p.box)) continue;

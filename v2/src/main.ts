@@ -32,7 +32,7 @@ audio.unlockOn(window);
 const gameAudio = new GameAudio(audio, sim);
 gameAudio.watchPanels([panel.root, table.root, menus.root, settings.root]);
 gameAudio.watchClicks(ui);
-stage.fx.sound = (name, at, delay) => audio.play(name as SoundName, { at, delay });
+stage.fx.sound = (name, at, delay, rate) => audio.play(name as SoundName, { at, delay, rate });
 
 // ---------- sim → screen ----------
 

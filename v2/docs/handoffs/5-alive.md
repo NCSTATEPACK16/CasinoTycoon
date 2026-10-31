@@ -255,7 +255,7 @@ v2 ships to Netlify after this cut. Do these next, in this order, then the finis
 
       The reels add no draw calls; the labels went from about one call each to one in all (running = paused + 1). Tick, headless `sandbox.stress.test.ts` alternating: HEAD 3.23 and 2.95 ms mean, A3 3.06 and 2.86 ms. fps not measured: the session window was closed, so the page ran as a background tab; for the same reason the in-browser tick read 20–77 ms on both builds.
 
-- [ ] **A4. Wheels and dice move.**
+- [x] ✅ **A4. Wheels and dice move.**
   - Roulette: the wheel head spins and decelerates. The ball orbits, drops, bounces and settles in the pocket of the real result, using the European or American pocket order from the layout.
   - Big six: the wheel stops on a segment showing what was actually paid, with the clapper ticking (sound). Big six still runs a `{p, multiplier}` table until Track B's B9 lands, so pick a segment whose payout matches the multiplier paid. After merge: use the exact segment B9's engine reports.
   - Craps: two dice arc from the shooter's spot, tumble and land showing the rolled faces. Scripted motion is fine; no physics engine.
@@ -263,6 +263,30 @@ v2 ships to Netlify after this cut. Do these next, in this order, then the finis
     - unit tests for pocket angle and face orientation
     - screenshots of each at rest matching the inspector's result
     - stress scene numbers
+  - **Done 2026-10-31.**
+    - **Built:**
+      - `contract:` 83b528c: optional `roulette {pocket, wheel}`, `craps {dice}` and `bigSix {segment}` on `RoundFx`.
+      - `src/sim/fx/rounds.ts` now also records roulette (the engine's pocket, 37 = 00, and the table's wheel) and craps (a round is a shooter sequence; the floor throws the roll that settled it). Still the same one call in `playEngineRounds`, reading the settled round only.
+      - Big six: it pays from `BIG_SIX_BALANCE.payoutTable`, not an engine, so the worker records each spin from the real `machinePlayed` wager and payout (`src/sim/fx/bigSix.ts`, no change to Track B's files). The segment agrees with the payout: a 2× return is a $1 segment, a loss any non-$1 segment. The table's 4× return has no exact segment (no wheel pays 3:1), so it shows the nearest, $2. The inspector's `lastRound` shows it too. After B9: use the segment the engine reports.
+      - Motion (`src/render/fx/wheel.ts`, `dice.ts`): the roulette head gets a push that decays to an idle turn; the ball runs the other way, picked from its last pocket, drops off the track at 3.0 s, rattles over the frets and settles in the result's pocket at 4.1 s, then rides the head. The European and American pocket orders are real wheel orders. The big six face spins three-plus turns and slows onto the segment under the clapper at 5.0 s. The dice are scripted backwards from their resting pose: arc from the shooter's end, hit the felt at 0.75 s, hop and tumble, at rest at 1.35 s showing the roll. All shorter by 1/√speed at 2× and 4×.
+      - `src/render/fx/TableParts.ts`: five instanced part pools on the object material (EU head, US head, ball, die, big six face), drawn a few millimetres over each hero's painted wheel only for watched tables that have shown a round, so an unwatched table keeps its static art. No Blender split was needed: the parts are built from the atlas.
+      - Atlas: a double-zero head (`rouletteWheelUS`, with 00) and a die-face sheet (`dieFaces`). Roulette tables default to the double-zero wheel, so the live head matches the rules, not the static art.
+      - `heroes.py`: the craps table's two baked dice are gone (`table-craps.glb` re-exported, LOD0 1,860 triangles, seats unchanged). A pair baked in would lie beside the live dice showing a number nobody rolled. The big six already had its clapper at the top.
+      - The big six joins the watched set (`ObjectLayer.nearGames`), since its catalog entry has no engine `game`.
+      - Sounds: the ball rolling down (`ballRoll`, sped up to end with the spin at 2× and 4× through a new `rate` play option), the ball dropping into the pocket at the reveal, dice on the felt at the bounce, and the big six's clapper spin.
+    - **Tests:** `src/render/fx/tables.test.ts` (both wheel orders complete and correct; pocket angle ↔ pocket for every number; the ball settled in the result's pocket at the reveal and after; the ball launched from where it lay, running against the head; each value on top in its resting orientation; dice landing on the rolled faces with no jump into rest; dice apart; big six segment agreeing with the payout and spreading losses; big six slowing onto the segment, continuous into the stop, every rest angle mapping back) and `src/sim/fx/rounds.test.ts` (roulette pocket matches the engine's summary on both wheels, 00 included; craps dice match the summary's last roll): 47/47 with the A3 and audio tests. `tsc` clean.
+    - **Economics guard:** `src/data/campaigns`, `world.tier2`, `crowd`, `src/sim/entities`, `src/sim/fx`: 24 files, 235/235.
+    - **Browser** (open floor: 4 roulette, 4 craps, 6 big six, 10 dealers, 160 guests; each round caught as it started, the sim paused there so the inspector keeps that round, render time then frozen or stepped):
+      - Roulette `obj-1`: mid-spin, the ball out on the track; at rest it sits on the red pocket beside "3" on the double-zero head. Inspector `lastRound` "3 red", pocket 3, wheel double, identical to the round shown. Reading the drawn instance matrices back: the ball is 0.205 m from the hub, in pocket 3 relative to the head.
+      - Craps `obj-2`: at rest the tops read 5 and 6 for the inspector's `[6, 5]` ("1 roll, last 11"). Next throw: at 0.95 s both dice tilted mid-hop; at rest 2 and 5 for `[5, 2]`.
+      - Big six `obj-9`: mid-spin at 2 s; at rest the $1 between $2 and $10 (segment 6) under the clapper, for `lastRound` "$1 pays" on a $5 stake returning $10.
+      - Sounds over 25 s after a real click: `ballRoll` 11, `ball` 10, `dice` 7, `bigSixSpin` 2.
+    - **Performance:**
+      - Parts on vs off on the table floor, same frames: 126 vs 119 calls with four part types live (each type draws once plus its shadow pass; ten at most with all five). Triangles by geometry: about 550 per head, 170 per ball, 12 per die, 48 per big six face, so about 1.6k on that floor; the measured difference was lost in crowd noise. Nothing draws while no watched table has shown a round.
+      - Stress scene after A4, same layout and method as A3: 223 / 112 / 77 / 70 calls (A3: 223 / 112 / 80 / 70), overview paused 222; triangles 312k / 506k / 378k at overview / mid / close. The stress layout's tables sit boxed in by slot banks and never get a player, so no parts show there.
+      - Headless tick, `sandbox.stress.test.ts`, HEAD (A3) vs A4 in alternating order: HEAD 3.87, 3.97, 4.00 ms; A4 4.02, 4.07, 3.10 ms. Whichever runs second is slower, so the difference is run order.
+      - fps not measured: the session window was closed again.
+    - **Found (not A4):** at the close slot-bank view (8 m) the scene reads 1.8–2.0M triangles, over the 1.5M budget, and the crowd is 1.27M of it (objects 517k). HEAD read 2.25M there in A3's first run. It depends on how many guests stand near the camera at full VAT detail. Measured again in A13.
 
 - [ ] **A7. Ambience.** Use the A0 download if approved, or synthesize what was declined.
   - Room tone plus distant slot chatter plus crowd murmur, scaled by guest count and camera height (quieter and wider in the god view, close and detailed at eye level).

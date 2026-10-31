@@ -33,6 +33,8 @@ export interface PlayOptions {
   volume?: number;
   /** Seconds from now. */
   delay?: number;
+  /** Playback rate: a spin sound sped up to end with a spin shortened at 2× and 4×. */
+  rate?: number;
 }
 
 function browserStorage(): Storage | null {
@@ -187,6 +189,7 @@ export class AudioEngine {
     const src = ctx.createBufferSource();
     src.buffer = buf;
     if (def.jitter) src.detune.value = (Math.random() * 2 - 1) * def.jitter;
+    if (opts.rate) src.playbackRate.value = opts.rate;
     const gain = ctx.createGain();
     gain.gain.value = def.volume * (opts.volume ?? 1);
     src.connect(gain);

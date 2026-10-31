@@ -26,6 +26,7 @@ import { AssetLibrary } from './assets/AssetLibrary';
 import { Crowd } from './Crowd';
 import { FloorLayer } from './FloorLayer';
 import { FxDirector } from './fx/FxDirector';
+import { TableParts } from './fx/TableParts';
 import { Lighting } from './Lighting';
 import { objectUniforms } from './materials/ObjectMaterial';
 import { ObjectLayer } from './ObjectLayer';
@@ -59,6 +60,8 @@ export class Stage {
   readonly crowd = new Crowd();
   readonly overlays: Overlays;
   readonly fx: FxDirector;
+  /** Roulette heads and balls, dice, big six faces on watched tables. */
+  readonly parts: TableParts;
   readonly lighting: Lighting;
   private post: Post;
   private quality: Quality = 'high';
@@ -102,8 +105,15 @@ export class Stage {
     this.floor = new FloorLayer(this.assets);
     this.overlays = new Overlays(this.assets);
     this.fx = new FxDirector(this.objects, this.overlays);
+    this.parts = new TableParts(this.assets);
     this.floor.onZones = (g) => this.overlays.rebuildZones(g);
-    this.scene.add(this.floor.group, this.objects.group, this.crowd.group, this.overlays.group);
+    this.scene.add(
+      this.floor.group,
+      this.objects.group,
+      this.parts.group,
+      this.crowd.group,
+      this.overlays.group,
+    );
 
     // Exterior: a dark stone plaza the lot sits on, faded out by fog.
     this.ground = new THREE.Mesh(
@@ -183,7 +193,9 @@ export class Stage {
 
   /** Engine games close enough to watch a round on (setInterest), nearest first. */
   interestIds(): string[] {
-    return this.lastCamera ? this.objects.nearGames(this.lastCamera, INTEREST_RADIUS_M, 48) : [];
+    const ids = this.lastCamera ? this.objects.nearGames(this.lastCamera, INTEREST_RADIUS_M, 48) : [];
+    this.fx.retain(new Set(ids));
+    return ids;
   }
 
   // ---------- interaction ----------
@@ -292,6 +304,7 @@ export class Stage {
     this.lastCamera = cam;
     objectUniforms.uTime.value = now;
     this.fx.update(now);
+    this.fx.drawParts(this.parts);
     this.updateView(cam);
     this.objects.update(cam, now);
     this.overlays.update(now, cam);

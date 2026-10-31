@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { PAR_SHEETS } from '../../sim/games/slots/sheets';
 import { MAX_REELS, REEL_CELL, SHEET_ORDER, STRIP_MAX } from '../fx/reels';
+import { AMERICAN, EUROPEAN } from '../fx/wheel';
 
 export interface UvRect {
   u0: number;
@@ -39,7 +40,11 @@ const DECALS: Record<string, DecalSpec> = {
   bjFeltHL: { w: 512, h: 288, rows: 4, paint: (g, w, h, r) => blackjackFelt(g, w, h, r, '#20193d', '#e8c06a') },
   crapsFelt: { w: 640, h: 352, paint: crapsFelt },
   rouletteFelt: { w: 512, h: 224, paint: rouletteFelt },
-  rouletteWheel: { w: 256, h: 256, paint: rouletteWheel },
+  rouletteWheel: { w: 256, h: 256, paint: (g, w, h) => rouletteWheel(g, w, h, EUROPEAN) },
+  // The double-zero head the floor spins on an American table (render/fx/wheel.ts).
+  rouletteWheelUS: { w: 256, h: 256, paint: (g, w, h) => rouletteWheel(g, w, h, AMERICAN) },
+  // A die's six faces, 1–3 on the top row and 4–6 below (render/fx/TableParts.ts).
+  dieFaces: { w: 192, h: 128, paint: dieFaces },
   uthFelt: { w: 512, h: 288, paint: uthFelt },
   carnivalFelt: { w: 512, h: 288, paint: carnivalFelt },
   slotReels: { w: 192, h: 128, paint: slotReels },
@@ -440,32 +445,27 @@ function rouletteFelt(g: CanvasRenderingContext2D, w: number, h: number) {
   }
 }
 
-const WHEEL_ORDER = [
-  0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14,
-  31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26,
-];
-
-function rouletteWheel(g: CanvasRenderingContext2D, w: number, h: number) {
+function rouletteWheel(g: CanvasRenderingContext2D, w: number, h: number, order: readonly number[]) {
   const cx = w / 2;
   const cy = h / 2;
   const R = w / 2;
   g.fillStyle = '#4a2412';
   g.fillRect(0, 0, w, h);
-  const n = WHEEL_ORDER.length;
+  const n = order.length;
   for (let i = 0; i < n; i++) {
     const a0 = (i / n) * Math.PI * 2;
     const a1 = ((i + 1) / n) * Math.PI * 2;
-    const num = WHEEL_ORDER[i]!;
+    const num = order[i]!;
     g.beginPath();
     g.moveTo(cx, cy);
     g.arc(cx, cy, R * 0.92, a0, a1);
     g.closePath();
-    g.fillStyle = num === 0 ? '#1e9b4f' : RED_NUMS.has(num) ? '#c8202e' : '#121216';
+    g.fillStyle = num === 0 || num === 37 ? '#1e9b4f' : RED_NUMS.has(num) ? '#c8202e' : '#121216';
     g.fill();
     g.save();
     g.translate(cx, cy);
     g.rotate((a0 + a1) / 2 + Math.PI / 2);
-    text(g, String(num), 0, -R * 0.82, 11, '#fff', SIGN_FONT, '700');
+    text(g, num === 37 ? '00' : String(num), 0, -R * 0.82, num === 37 ? 9 : 11, '#fff', SIGN_FONT, '700');
     g.restore();
   }
   // Ball track and the brass turret in the middle.
@@ -491,6 +491,35 @@ function rouletteWheel(g: CanvasRenderingContext2D, w: number, h: number) {
   g.beginPath();
   g.arc(cx, cy, 14, 0, Math.PI * 2);
   g.fill();
+}
+
+/** Six ivory die faces with pips, in a 3 × 2 grid: 1 2 3 / 4 5 6. */
+function dieFaces(g: CanvasRenderingContext2D, w: number, h: number) {
+  const c = w / 3;
+  const PIPS: Record<number, [number, number][]> = {
+    1: [[0, 0]],
+    2: [[-1, -1], [1, 1]],
+    3: [[-1, -1], [0, 0], [1, 1]],
+    4: [[-1, -1], [1, -1], [-1, 1], [1, 1]],
+    5: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]],
+    6: [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]],
+  };
+  g.fillStyle = '#c9c2b0';
+  g.fillRect(0, 0, w, h);
+  for (let v = 1; v <= 6; v++) {
+    const x = ((v - 1) % 3) * c + c / 2;
+    const y = Math.floor((v - 1) / 3) * c + c / 2;
+    g.fillStyle = '#f6f1e4';
+    g.beginPath();
+    g.roundRect(x - c * 0.47, y - c * 0.47, c * 0.94, c * 0.94, c * 0.16);
+    g.fill();
+    g.fillStyle = v === 1 ? '#c8102e' : '#1a1a1a';
+    for (const [px, py] of PIPS[v]!) {
+      g.beginPath();
+      g.arc(x + px * c * 0.26, y + py * c * 0.26, c * (v === 1 ? 0.13 : 0.09), 0, Math.PI * 2);
+      g.fill();
+    }
+  }
 }
 
 function uthFelt(g: CanvasRenderingContext2D, w: number, h: number) {

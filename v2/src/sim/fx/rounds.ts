@@ -9,6 +9,7 @@
 import type { RoundFx } from '../../shared/contracts';
 import type { RoundResult } from '../../shared/games';
 import type { GameMath } from '../entities/machines/GameMath';
+import type { RouletteRules } from '../games/roulette/roulette';
 import type { SpinOutcome } from '../games/slots/parSheet';
 import { PAR_SHEETS } from '../games/slots/sheets';
 import type { SlotRules } from '../games/slots/slots';
@@ -43,6 +44,13 @@ function toFx(math: GameMath, r: RoundResult): RoundFx {
     const sheet = (math.rules as unknown as SlotRules).sheet;
     const o = r.detail as SpinOutcome;
     fx.slots = { sheet, stops: stopsFor(sheet, o.window), lines: o.lineWins.map((w) => w.line) };
+  } else if (math.kind === 'roulette') {
+    const { pocket } = r.detail as { pocket: number };
+    fx.roulette = { pocket, wheel: (math.rules as unknown as RouletteRules).wheel };
+  } else if (math.kind === 'craps') {
+    // A round is a whole shooter sequence; the floor throws the roll that settled it.
+    const last = (r.detail as { rolls: [number, number][] }).rolls.at(-1);
+    if (last) fx.craps = { dice: [last[0], last[1]] };
   }
   return fx;
 }
