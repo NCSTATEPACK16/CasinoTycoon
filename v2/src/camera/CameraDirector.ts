@@ -39,11 +39,16 @@ export interface Seat {
 }
 
 export const TRANSITION_S = 0.8;
-const FOV: Record<CameraMode, number> = { god: GOD_FOV, third: 65, first: 75, seat: 70 };
+const FOV: Record<CameraMode, number> = { god: GOD_FOV, third: 65, first: 75, seat: 48 };
 /** How "deep" a mode is: going deeper dollies forward, shallower pulls back. */
 const DEPTH: Record<CameraMode, number> = { god: 0, third: 1, first: 2, seat: 3 };
 const EYE_Y = AVATAR_HEIGHT - 0.13;
-const SEAT_EYE_Y = 1.25;
+const SEAT_EYE_Y = 1.95;
+/** The seated camera: behind the seat, beside the head, aimed this far towards the centre. */
+const SEAT_BACK = 0.3;
+const SEAT_SIDE = 0.38;
+const SEAT_AIM = 0.6;
+const SEAT_PAN = 0.25;
 const ARM_LENGTH = 3.4;
 const ARM_MIN = 0.7;
 const ARM_PIVOT_Y = 1.5;
@@ -320,10 +325,26 @@ export class CameraDirector {
         return;
       }
       case 'seat': {
+        // Over the shoulder: behind and above the seat, so the seated avatar
+        // stays in the frame and the felt or reels fill the rest of it.
         const s = this.seat!;
-        out.position.set(s.x, SEAT_EYE_Y, s.z);
+        const d = Math.hypot(s.x - s.lookAt.x, s.z - s.lookAt.z) || 1;
+        // Back (away from the game) and right, in the floor plane.
+        const bx = (s.x - s.lookAt.x) / d;
+        const bz = (s.z - s.lookAt.z) / d;
+        out.position.set(
+          s.x + bx * SEAT_BACK - bz * SEAT_SIDE,
+          SEAT_EYE_Y,
+          s.z + bz * SEAT_BACK + bx * SEAT_SIDE,
+        );
         this.dummy.position.copy(out.position);
-        this.dummy.lookAt(s.lookAt.x, 0.75, s.lookAt.z);
+        // At the player's own spot on the felt, between the seat and the centre.
+        // Panned right of it, so the felt sits left of the play panel.
+        this.dummy.lookAt(
+          s.x + (s.lookAt.x - s.x) * SEAT_AIM - bz * SEAT_PAN,
+          0.75,
+          s.z + (s.lookAt.z - s.z) * SEAT_AIM + bx * SEAT_PAN,
+        );
         out.quaternion.copy(this.dummy.quaternion);
         return;
       }

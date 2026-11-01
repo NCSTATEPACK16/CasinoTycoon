@@ -1,9 +1,13 @@
 // Turns a CasinoWorld into the wire Snapshot. Pure apart from the reusable
 // buffer it owns, so it is unit-testable without a Worker.
 
+import type { GameEvents } from '../EventBus';
+import { footprintOf } from '../sim/build';
 import type { CasinoWorld } from '../sim/world';
+import { goalLine, hudGoals } from './scenario';
 import type { CasinoGame } from '../sim/entities/machines/CasinoGame';
 import { SeatedCasinoGame } from '../sim/entities/machines/SeatedCasinoGame';
+import type { BlackjackRules } from '../sim/games/blackjack/rules';
 import {
   AGENT_STRIDE,
   AgentKind,
@@ -32,6 +36,13 @@ function occupants(m: CasinoGame | undefined): number {
   return m.reservedBy ? 1 : 0;
 }
 
+/** Blackjack felt rows: 3:2 S17, 3:2 H17, 6:5 S17, 6:5 H17 (see Atlas.ts). */
+function decalRow(m: CasinoGame | undefined): number | undefined {
+  const r = m?.math?.rules as Partial<BlackjackRules> | undefined;
+  if (r?.blackjackPays === undefined) return undefined;
+  return (r.blackjackPays === '6:5' ? 2 : 0) + (r.h17 ? 1 : 0);
+}
+
 function idNum(id: string): number {
   return Number(id.replace(/\D+/g, '')) || 0;
 }
@@ -45,6 +56,8 @@ export class SnapshotBuilder {
   floorVersion = 0;
   speed = 1;
   pendingEvents: SimEvent[] = [];
+  /** Objects the client is watching closely (setInterest): their plays send roundFx. */
+  interest = new Set<string>();
   /** world.tick() wall times (ms), newest last, for the stats command. */
   readonly tickTimes: number[] = [];
 
@@ -142,10 +155,13 @@ export class SnapshotBuilder {
         broken: m?.broken ?? false,
         open: m ? world.isTableOpen(o.id) : true,
         occupants: occupants(m),
+        decalRow: decalRow(m),
       };
     });
     const key = views
-      .map((v) => `${v.id}:${v.broken ? 1 : 0}:${v.open ? 1 : 0}:${v.occupants}`)
+      .map(
+        (v) => `${v.id}:${v.broken ? 1 : 0}:${v.open ? 1 : 0}:${v.occupants}:${v.decalRow ?? ''}`,
+      )
       .join('|');
     if (key === this.lastObjectsKey) return undefined;
     this.lastObjectsKey = key;
@@ -168,15 +184,51 @@ export class SnapshotBuilder {
         ? {
             id: sc.def.id,
             name: sc.def.name,
-            goal: `Average $${sc.def.goalDailyProfit.toLocaleString()}/day by day ${sc.def.dayLimit}`,
+            goal: goalLine(world),
             status:
-              sc.status === 'won' || sc.status === 'endless'
-                ? 'won'
-                : sc.status === 'failed'
-                  ? 'lost'
-                  : 'active',
+              sc.def.id === 'sandbox'
+                ? 'active'
+                : sc.status === 'won' || sc.status === 'endless'
+                  ? 'won'
+                  : sc.status === 'failed'
+                    ? 'lost'
+                    : 'active',
           }
         : null,
+      reputation: { value: world.reputation.value, label: world.reputation.label },
+      guestCap: world.guestCap(),
+      goals: hudGoals(world),
+      modifiers: world.modifiers.activeModifiers.map((m) => ({
+        id: m.id,
+        name: m.name,
+        blurb: m.blurb,
+      })),
     };
   }
+}
+
+/** A ticker line for the wire, placed where its subject is right now: the
+ *  centre of an object's footprint, or a guest's current pose. A subject that
+ *  is already gone leaves the line unplaced rather than pointing at nothing. */
+export function tickerEvent(world: CasinoWorld, e: GameEvents['tickerMessage']): SimEvent {
+  const ev: Extract<SimEvent, { type: 'ticker' }> = {
+    type: 'ticker',
+    text: e.text,
+    severity: e.severity ?? 'info',
+  };
+  const o = e.objectId ? world.state.getObject(e.objectId) : undefined;
+  if (o) {
+    const fp = footprintOf(o.defId, o.rot ?? 0);
+    ev.objectId = o.id;
+    ev.x = o.col + fp.w / 2;
+    ev.z = o.row + fp.h / 2;
+  }
+  const g = e.guestId ? world.guests.get(e.guestId) : undefined;
+  if (g && g.state !== 'gone') {
+    const p = g.renderPose();
+    ev.agentId = idNum(g.id);
+    ev.x = p.x;
+    ev.z = p.z;
+  }
+  return ev;
 }

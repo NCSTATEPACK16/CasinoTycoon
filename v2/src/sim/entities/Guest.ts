@@ -20,7 +20,7 @@ import { Anim } from '../../shared/contracts';
 import { AI } from '../agents/aiBalance';
 import { drawProfile, guestRng, stopReason, type BankrollProfile } from '../agents/bankroll';
 import { joinQueue, leaveQueue, queuePlace, queueSpot } from '../agents/queue';
-import { approachPose } from '../agents/seats';
+import { approachPose, playsStanding } from '../agents/seats';
 import { spreadStand, standKey } from '../agents/stands';
 import {
   needUrgency,
@@ -109,6 +109,8 @@ export class Guest extends Walker {
   private wagersByGame = new Map<string, number>();
   private thoughtLast = new Map<string, number>();
   private machineId: string | null = null;
+  /** Cosmetic: the reserved game is played on your feet at a rail (craps). */
+  private playsStanding = false;
   private spinsLeft = 0;
   private spinTimer = 0;
   private spinEveryTicks = 8; // from the machine's cadence at sit-down
@@ -143,6 +145,12 @@ export class Guest extends Walker {
   drunk = false;
   /** Being walked out by security. */
   escorted = false;
+  /** B3: under daily traffic, the tick a visit is planned to end; the guest
+   *  finishes what they are doing and goes home. Null: stay as long as
+   *  money, mood and energy last (the campaigns' rule). */
+  leaveAtTick: number | null = null;
+  /** B5: the tick this guest walked in, for the Guests list. */
+  arrivedTick = 0;
   /** Standing in High-Limit right now — keeps the zone on this guest's filter
    *  until they step out, so a bust-out never strands an agent off-mesh. */
   private inHighLimit = false;
@@ -180,6 +188,18 @@ export class Guest extends Walker {
     this.z += (this.brainRng.next() - 0.5) * 0.8;
   }
 
+  /**
+   * v2's crowd only: arrive somewhere between just fed and ready for dinner
+   * (GUEST_BALANCE.arrivalNeedsMin). Drawn after the constructor's draws, so a
+   * guest's profile and spawn point are unchanged; grid-mode worlds (the
+   * ported balance suites the campaign goals were tuned on) never call it.
+   */
+  varyArrivalNeeds(): void {
+    const min = GUEST_BALANCE.arrivalNeedsMin;
+    for (const need of ['bladder', 'hunger', 'thirst'] as const)
+      this.needs[need] = min[need] + (100 - min[need]) * this.brainRng.next();
+  }
+
   get navSpeed(): number {
     let speed = GUEST_SPEED;
     if (this.raging) speed *= RAGE_BALANCE.speedMult;
@@ -202,6 +222,8 @@ export class Guest extends Walker {
     if (this.walking) return Anim.Walk;
     if (this.state === 'play') {
       if (this.celebrating) return Anim.Cheer;
+      // At a standing rail there is no stool: wait on your feet, play leaning in.
+      if (this.playsStanding) return this.waitingForPlayersTicks > 0 ? Anim.Idle : Anim.StandPlay;
       return this.waitingForPlayersTicks > 0 ? Anim.Sit : Anim.Play;
     }
     if (
@@ -335,6 +357,17 @@ export class Guest extends Walker {
   }
 
   private act(world: CasinoWorld): void {
+    // B3: when the planned visit is over, anyone not seated or being served
+    // heads home now rather than at their next re-think; a player finishes
+    // the run of plays they are in (tickPlay re-thinks at its end).
+    if (
+      this.leaveAtTick !== null &&
+      world.tickCount >= this.leaveAtTick &&
+      (this.state === 'wander' || this.state === 'seekGame' || this.state === 'queue')
+    ) {
+      this.evaluate(world);
+      return;
+    }
     switch (this.state) {
       case 'wander':
         // On the crowd a wanderer browses where it lands for a few seconds
@@ -368,9 +401,13 @@ export class Guest extends Walker {
   }
 
   /** v1's leave rules plus the bankroll model's stop-loss and win goal. */
-  private wantsToLeave(): boolean {
+  private wantsToLeave(tick: number): boolean {
     const b = GUEST_BALANCE;
     if (this.needs.energy <= b.leaveEnergy || this.wallet < b.brokeWallet) return true;
+    if (this.leaveAtTick !== null && tick >= this.leaveAtTick) {
+      this.recordThought(tick, 'homeTime', 'Good night. Time to head home.');
+      return true;
+    }
     if (this.needs.happiness <= AI.leaveUnhappy) return true;
     return stopReason(this.profile, this.sessionNet) !== null;
   }
@@ -396,7 +433,7 @@ export class Guest extends Walker {
   private evaluate(world: CasinoWorld): void {
     this.dropQueue(world);
     this.serviceStand = null;
-    if (this.wantsToLeave()) {
+    if (this.wantsToLeave(world.tickCount)) {
       this.leave(world);
       return;
     }
@@ -438,6 +475,7 @@ export class Guest extends Walker {
       if (this.goTo(world, res.stand, approachPose(world, res.stand, res.machineId) ?? undefined)) {
         this.state = 'seekGame';
         this.machineId = res.machineId;
+        this.playsStanding = playsStanding(world.machineDefId(res.machineId));
         return true;
       }
       world.releaseMachines(this.id);
@@ -489,15 +527,43 @@ export class Guest extends Walker {
     return Math.hypot(e.col + 0.5 - this.x, e.row + 0.5 - this.z) < AI.exitReach;
   }
 
-  /** A walkable cell within a few metres, from this guest's own stream. */
+  /**
+   * Somewhere to browse, from this guest's own stream: a walkable cell within
+   * a few metres. Off the gaming floor (just through the door, or back from a
+   * restroom) "nearby" is the lobby, so a guest who finds every seat taken
+   * would stand by the door with every other new arrival; they head onto the
+   * floor instead, to browse beside one of the games they may play.
+   */
   private nearbyTile(world: CasinoWorld): Cell | null {
-    const r = AI.browseRadius;
+    const zone = world.floor.zoneAt(this.pos.col, this.pos.row);
+    const onFloor = zone === 'gaming' || zone === 'highLimit';
+    const around = (onFloor ? null : this.gameToBrowse(world)) ?? this.pos;
+    const r = onFloor ? AI.browseRadius : AI.browseRadius >> 1;
     for (let i = 0; i < 12; i++) {
-      const col = this.pos.col + this.brainRng.int(-r, r);
-      const row = this.pos.row + this.brainRng.int(-r, r);
-      if (world.grid.isWalkable(col, row)) return { col, row };
+      const col = around.col + this.brainRng.int(-r, r);
+      const row = around.row + this.brainRng.int(-r, r);
+      if (!world.grid.isWalkable(col, row)) continue;
+      if (!this.mayEnter(world, col, row)) continue;
+      return { col, row };
     }
     return null;
+  }
+
+  /** A random game on the floor this guest is allowed to stand beside. */
+  private gameToBrowse(world: CasinoWorld): Cell | null {
+    const games: Cell[] = [];
+    for (const id of world.machines.keys()) {
+      const po = world.state.getObject(id);
+      if (po && this.mayEnter(world, po.col, po.row)) games.push({ col: po.col, row: po.row });
+    }
+    return games.length ? games[this.brainRng.int(0, games.length - 1)]! : null;
+  }
+
+  /** High-Limit is closed to guests below its bankroll; back-of-house to all. */
+  private mayEnter(world: CasinoWorld, col: number, row: number): boolean {
+    const zone = world.floor.zoneAt(col, row);
+    if (zone === 'backOfHouse') return false;
+    return zone !== 'highLimit' || this.wallet >= AI.highLimitBankroll;
   }
 
   /** Line up behind a full table, two cells out, and wait for a seat. */
@@ -535,6 +601,7 @@ export class Guest extends Walker {
         this.queueFor = null;
         this.state = 'seekGame';
         this.machineId = res.machineId;
+        this.playsStanding = playsStanding(world.machineDefId(res.machineId));
         return;
       }
       if (res) world.releaseMachines(this.id);
@@ -605,7 +672,12 @@ export class Guest extends Walker {
       this.stopPlaying(world);
       return;
     }
-    if (!this.waitingForDrink && this.needs.thirst < b.needThreshold) {
+    // B2: at a dear bar a seated guest holds out longer before ordering.
+    if (
+      !this.waitingForDrink &&
+      this.needs.thirst < b.needThreshold &&
+      this.needs.thirst < b.needThreshold * Math.min(1, world.serviceAppeal('bar'))
+    ) {
       this.waitingForDrink = true;
     }
     this.spinTimer++;
@@ -649,8 +721,38 @@ export class Guest extends Walker {
     this.spinsLeft--;
     // The bankroll model ends a session the moment a stop rule trips, not at
     // the end of the planned run of plays.
-    if (this.spinsLeft <= 0 || stopReason(this.profile, this.sessionNet) !== null)
-      this.stopPlaying(world);
+    if (stopReason(this.profile, this.sessionNet) !== null) return this.stopPlaying(world);
+    if (this.spinsLeft > 0) return;
+    if (this.staysForAnotherRun(world)) {
+      const cadence = world.machineCadence(this.machineId);
+      if (cadence) {
+        this.spinsLeft = world.rng.int(cadence.playsMin, cadence.playsMax);
+        return;
+      }
+    }
+    this.stopPlaying(world);
+  }
+
+  /**
+   * B7a: at the end of a run of plays, a guest with no reason to get up keeps
+   * the seat and plays another run. Walking is real time, so a guest who got
+   * up after every run spent most of a visit crossing the floor (0.5% of
+   * guests at a game on a big Sandbox floor before B7a).
+   * Each play is worth exactly what it was; only the walking between runs
+   * goes. A need, the stop rules, a dwindling wallet or the end of the
+   * planned visit still end the sitting.
+   */
+  private staysForAnotherRun(world: CasinoWorld): boolean {
+    // Only on the crowd, where walking costs real time. The grid walker
+    // crosses 25 cells an in-game hour, so there a guest loses nothing by
+    // getting up, and the tuned campaign tournament keeps its numbers.
+    if (!world.nav || !this.machineId) return false;
+    // The visit's end is checked here without wantsToLeave's goodbye thought,
+    // which the re-think after stopPlaying records once.
+    if (this.leaveAtTick !== null && world.tickCount >= this.leaveAtTick) return false;
+    if (this.wantsToLeave(world.tickCount)) return false;
+    if (this.wallet < world.machineCost(this.machineId)) return false;
+    return this.brainRng.chance(AI.stayAtGame);
   }
 
   private startCelebrating(world: CasinoWorld): void {
@@ -701,7 +803,7 @@ export class Guest extends Walker {
       if (purchase) {
         this.wallet -= purchase.price;
         this.needs.thirst = BAR_BALANCE.thirstRestore;
-        this.adjustHappiness(BAR_BALANCE.happinessOnSelfServe);
+        this.drinkMood(world, purchase.ripoff, BAR_BALANCE.happinessOnSelfServe);
         if (++this.drinks >= AI.drunkAfterDrinks && !this.drunk) {
           this.drunk = true;
           this.recordThought(world.tickCount, 'drunk', 'One more and I’ll own this place!');
@@ -733,10 +835,19 @@ export class Guest extends Walker {
       eventBus.emit('tickerMessage', {
         text: `${this.name} storms out in a rage!`,
         severity: 'warn',
+        guestId: this.id,
       });
     }
     this.state = 'leaving';
     if (!this.goTo(world, world.entranceTile)) this.state = 'gone';
+  }
+
+  /** How a drink went down: the usual lift, or resentment at a price past
+   *  PRICE_BALANCE.ripoffIndex (the same hit as a food rip-off). */
+  drinkMood(world: CasinoWorld, ripoff: boolean, happiness: number): void {
+    if (!ripoff) return this.adjustHappiness(happiness);
+    this.adjustHappiness(FOOD_BALANCE.happinessOnRipoff);
+    this.recordThought(world.tickCount, 'ripoff', 'Who charges that for a drink?');
   }
 
   adjustHappiness(delta: number): void {

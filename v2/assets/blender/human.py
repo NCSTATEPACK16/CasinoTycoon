@@ -291,6 +291,23 @@ def pose(clip, t):
         p['shoulder.R'] = R(-48 - 8 * max(0.0, c), 10 + 22 * s)
         p['elbow.R'] = R(-40)
         p['wrist.R'] = R(-15 * s)
+    elif clip == 'standplay':
+        # On your feet at a rail (craps, the big six): leaning in on both
+        # forearms, the right hand reaching out now and then to lay chips or
+        # toss the dice, weight shifting from foot to foot.
+        reach = max(0.0, math.sin(2 * math.pi * t)) ** 2
+        p['root_off'] = (0.01 * math.sin(math.pi * t), -0.04, -0.01)
+        p['spine'] = R(12)
+        p['chest'] = R(8, 0, 2 * s)
+        p['head'] = R(10 - 4 * reach, 10 * math.sin(2 * math.pi * t + 0.6))
+        p['shoulder.L'] = R(-52, -6)
+        p['elbow.L'] = R(-62)
+        p['shoulder.R'] = R(-52 - 28 * reach, 8)
+        p['elbow.R'] = R(-62 + 42 * reach)
+        p['wrist.R'] = R(-12 * reach)
+        for side in 'LR':
+            p[f'knee.{side}'] = R(6)
+            p[f'hip.{side}'] = R(-4)
     elif clip == 'cheer':
         hop = abs(math.sin(2 * math.pi * t))
         p['root_off'] = (0, 0, 0.07 * hop)
@@ -323,7 +340,7 @@ def pose(clip, t):
     return p
 
 
-CLIPS = [  # name, seconds, loop — order = Anim ids (Idle..Eat) then 'deal'
+CLIPS = [  # name, seconds, loop — order = Anim ids (Idle..Eat), then 'deal', 'standplay'
     ('idle', 2.0, True),
     ('walk', 1.0, True),
     ('sit', 2.0, True),
@@ -332,6 +349,7 @@ CLIPS = [  # name, seconds, loop — order = Anim ids (Idle..Eat) then 'deal'
     ('sad', 2.0, True),
     ('eat', 2.5, True),
     ('deal', 2.0, True),
+    ('standplay', 2.0, True),
 ]
 
 

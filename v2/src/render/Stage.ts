@@ -4,11 +4,15 @@
 //   FloorLayer   floor / walls / decor / ceiling merged per 8×8 chunk
 //   Crowd        every agent through vertex-animation textures
 //   Overlays     ghost, zone tint, selection, payout labels
+//   FxDirector   sampled real rounds on the objects near the camera
 //   Lighting + Post   HDRI, fitted shadows, N8AO, bloom, ACES, SMAA
 
 import * as THREE from 'three';
 import { ENTRANCE_TILE, GRID_COLS, GRID_ROWS } from '../config';
 import {
+  AGENT_STRIDE,
+  AgentKind,
+  Anim,
   FLOOR_TYPES,
   ZONES,
   type FloorPlanView,
@@ -21,6 +25,9 @@ import {
 import { AssetLibrary } from './assets/AssetLibrary';
 import { Crowd } from './Crowd';
 import { FloorLayer } from './FloorLayer';
+import { FxDirector } from './fx/FxDirector';
+import { FeltParts } from './fx/FeltParts';
+import { TableParts } from './fx/TableParts';
 import { Lighting } from './Lighting';
 import { objectUniforms } from './materials/ObjectMaterial';
 import { ObjectLayer } from './ObjectLayer';
@@ -35,6 +42,8 @@ const QUALITY: Record<Quality, { pixelRatio: number; shadow: number; shadows: bo
   low: { pixelRatio: 1, shadow: 1024, shadows: false },
 };
 
+/** Rounds play out on games within this distance of the camera. */
+const INTEREST_RADIUS_M = 24;
 const focus = new THREE.Vector3();
 const fwd = new THREE.Vector3();
 const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -51,6 +60,11 @@ export class Stage {
   readonly floor: FloorLayer;
   readonly crowd = new Crowd();
   readonly overlays: Overlays;
+  readonly fx: FxDirector;
+  /** Roulette heads and balls, dice, big six faces on watched tables. */
+  readonly parts: TableParts;
+  /** Dealt cards and chips on watched card tables. */
+  readonly felt: FeltParts;
   readonly lighting: Lighting;
   private post: Post;
   private quality: Quality = 'high';
@@ -93,12 +107,22 @@ export class Stage {
     this.objects = new ObjectLayer(this.assets);
     this.floor = new FloorLayer(this.assets);
     this.overlays = new Overlays(this.assets);
+    this.fx = new FxDirector(this.objects, this.overlays);
+    this.parts = new TableParts(this.assets);
+    this.felt = new FeltParts(this.assets);
     this.floor.onZones = (g) => this.overlays.rebuildZones(g);
-    this.scene.add(this.floor.group, this.objects.group, this.crowd.group, this.overlays.group);
+    this.scene.add(
+      this.floor.group,
+      this.objects.group,
+      this.parts.group,
+      this.felt.group,
+      this.crowd.group,
+      this.overlays.group,
+    );
 
     // Exterior: a dark stone plaza the lot sits on, faded out by fog.
     this.ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI / 2).translate(GRID_COLS / 2, -0.02, GRID_ROWS / 2),
+      new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI / 2),
       new THREE.MeshStandardMaterial({ color: 0x1b1720, roughness: 0.85, metalness: 0 }),
     );
     this.ground.receiveShadow = true;
@@ -107,7 +131,12 @@ export class Stage {
 
     this.ghost = new THREE.Mesh(
       new THREE.BoxGeometry(1, 1, 1).translate(0.5, 0.5, 0.5),
-      new THREE.MeshBasicMaterial({ color: 0x2ecc71, transparent: true, opacity: 0.35, depthWrite: false }),
+      new THREE.MeshBasicMaterial({
+        color: 0x2ecc71,
+        transparent: true,
+        opacity: 0.35,
+        depthWrite: false,
+      }),
     );
     this.ghost.visible = false;
     this.scene.add(this.ghost);
@@ -128,20 +157,52 @@ export class Stage {
 
   setFloor(plan: FloorPlanView): void {
     this.floor.setFloor(plan);
+    // The plaza stays centred under whatever lot the scenario brought.
+    this.ground.position.set(plan.cols / 2, -0.02, plan.rows / 2);
     this.hasFloor = true;
   }
+
+  /** The player's avatar, drawn as one more crowd agent (the Avatar outfit)
+   *  so it is the same rigged, animated human as everyone else. Null hides it. */
+  avatar: AvatarPose | null = null;
+  private avatarPrevSrc: Snapshot | null = null;
+  private avatarPrev: Snapshot | null = null;
 
   /** Interpolate agents between two snapshots matched by numeric id. */
   updateAgents(prev: Snapshot | null, curr: Snapshot, alpha: number): void {
     const now = performance.now();
     const dt = Math.min(0.1, (now - this.lastAgentsAt) / 1000);
     this.lastAgentsAt = now;
+    if (this.avatar) {
+      // Same pose in prev and curr, so interpolation leaves it where the
+      // controller put it. prev is rebuilt only when the sim's prev changes:
+      // the crowd caches its id index by snapshot identity.
+      if (prev !== this.avatarPrevSrc) {
+        this.avatarPrevSrc = prev;
+        this.avatarPrev = prev ? withAgent(prev, this.avatar) : null;
+      } else if (this.avatarPrev) writeAgent(this.avatarPrev, this.avatar);
+      prev = this.avatarPrev;
+      curr = withAgent(curr, this.avatar);
+    }
     if (this.lastCamera) this.crowd.update(prev, curr, alpha, this.lastCamera, dt);
   }
 
-  /** Convenience for main.ts: payout labels + win flashes from sim events. */
+  /** Convenience for main.ts: payout labels + win flashes from sim events,
+   *  and the rounds sampled at watched objects. */
   handleEvents(events: SimEvent[]): void {
-    for (const e of events) if (e.type === 'payout') this.spawnPayout(e.x, e.z, e.amount);
+    for (const e of events) {
+      if (e.type === 'payout') this.spawnPayout(e.x, e.z, e.amount);
+      else if (e.type === 'roundFx') this.fx.round(e.objectId, e.fx);
+    }
+  }
+
+  /** Engine games close enough to watch a round on (setInterest), nearest first. */
+  interestIds(): string[] {
+    const ids = this.lastCamera
+      ? this.objects.nearGames(this.lastCamera, INTEREST_RADIUS_M, 48)
+      : [];
+    this.fx.retain(new Set(ids));
+    return ids;
   }
 
   // ---------- interaction ----------
@@ -160,7 +221,8 @@ export class Stage {
 
   /** Floating "+$1,250" and a topper flash on whatever stands at (x, z). */
   spawnPayout(x: number, z: number, amount: number): void {
-    const t = this.clock.getElapsedTime();
+    // elapsedTime, not getElapsedTime(): that would eat the next frame's delta.
+    const t = this.clock.elapsedTime;
     this.overlays.spawnPayout(x, z, amount);
     if (amount > 0) this.objects.flashAt(x, z, t);
   }
@@ -220,7 +282,8 @@ export class Stage {
     if (this.frameEma > 18.2 && this.renderScale > 0.7) {
       next = Math.max(0.7, this.renderScale - 0.1);
       // Just came down from a failed step up: stay put for a while.
-      if (next < this.renderScale) this.upscaleBlockedUntil = Math.max(this.upscaleBlockedUntil, now + 8000);
+      if (next < this.renderScale)
+        this.upscaleBlockedUntil = Math.max(this.upscaleBlockedUntil, now + 8000);
     } else if (this.frameEma < 17.2 && this.renderScale < 1 && now > this.upscaleBlockedUntil) {
       next = Math.min(1, this.renderScale + 0.1);
       this.upscaleBlockedUntil = now + 4000;
@@ -247,9 +310,11 @@ export class Stage {
     const cam = camera as THREE.PerspectiveCamera;
     this.lastCamera = cam;
     objectUniforms.uTime.value = now;
+    this.fx.update(now);
+    this.fx.drawParts(this.parts, this.felt);
     this.updateView(cam);
     this.objects.update(cam, now);
-    this.overlays.update(now);
+    this.overlays.update(now, cam);
     if (this.lighting.sun.castShadow) this.lighting.update(cam);
     this.renderer.info.reset();
     this.post.render(cam, dt);
@@ -289,4 +354,37 @@ export function defaultPlan(): FloorPlanView {
   for (let c = 0; c < cols; c++) walls.push({ col: c, row: 0, edge: 'n', door: false });
   for (let r = 0; r < rows; r++) walls.push({ col: 0, row: r, edge: 'w', door: false });
   return { cols, rows, floor, zone, walls, entrance: { ...ENTRANCE_TILE } };
+}
+
+/** The avatar's slot: id 0 with AgentKind.Avatar never collides with a sim agent. */
+export interface AvatarPose {
+  x: number;
+  z: number;
+  heading: number;
+  moving: boolean;
+  /** A pose other than walking or standing (seated at a game). */
+  anim?: Anim;
+}
+
+function writeAgent(s: Snapshot, p: AvatarPose): void {
+  const o = (s.agentCount - 1) * AGENT_STRIDE;
+  const a = s.agents;
+  a[o] = p.x;
+  a[o + 1] = p.z;
+  a[o + 2] = p.heading;
+  a[o + 3] = p.anim ?? (p.moving ? Anim.Walk : Anim.Idle);
+}
+
+function withAgent(s: Snapshot, p: AvatarPose): Snapshot {
+  const n = s.agentCount;
+  const agents = new Float32Array((n + 1) * AGENT_STRIDE);
+  agents.set(s.agents.subarray(0, n * AGENT_STRIDE));
+  const o = n * AGENT_STRIDE;
+  agents[o + 4] = AgentKind.Avatar;
+  agents[o + 5] = 0;
+  agents[o + 6] = 1;
+  agents[o + 7] = 0;
+  const out = { ...s, agents, agentCount: n + 1 };
+  writeAgent(out, p);
+  return out;
 }

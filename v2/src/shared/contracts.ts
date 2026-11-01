@@ -55,7 +55,7 @@ export const AgentKind = {
 } as const;
 export type AgentKind = (typeof AgentKind)[keyof typeof AgentKind];
 
-export const Anim = { Idle: 0, Walk: 1, Sit: 2, Play: 3, Cheer: 4, Sad: 5, Eat: 6 } as const;
+export const Anim = { Idle: 0, Walk: 1, Sit: 2, Play: 3, Cheer: 4, Sad: 5, Eat: 6, StandPlay: 7 } as const;
 export type Anim = (typeof Anim)[keyof typeof Anim];
 
 /** Floats per agent in Snapshot.agents. Order is fixed:
@@ -75,6 +75,9 @@ export interface ObjectView {
   broken: boolean;
   open: boolean;
   occupants: number;
+  /** Decal row picked by the object's rules (the blackjack felt prints its
+   *  payout and soft-17 rule); absent when the renderer may pick any row. */
+  decalRow?: number;
 }
 
 // ---------- snapshot (worker → main, every sim tick) ----------
@@ -89,12 +92,35 @@ export interface HudView {
   speed: number;
   todayProfit: number;
   scenario: { id: string; name: string; goal: string; status: 'active' | 'won' | 'lost' } | null;
+  /** B1: today's conditions, for the banner. Empty or absent on a quiet day. */
+  modifiers?: { id: string; name: string; blurb: string }[];
+  /** B2: the casino's standing, 0–100 (50 is unknown), and its word. */
+  reputation?: { value: number; label: string };
+  /** B3: how many guests the floor holds right now (seats, services, rating). */
+  guestCap?: number;
+  /** B8: the scenario's goals and where the casino stands on each. Absent in
+   *  Sandbox and free play. */
+  goals?: { text: string; progress: string; fraction: number; met: boolean }[];
 }
 
 export type SimEvent =
   | { type: 'payout'; objectId: string; x: number; z: number; amount: number }
-  | { type: 'ticker'; text: string; severity: 'info' | 'warn' | 'alert' }
-  | { type: 'gameOver'; won: boolean; reason: string };
+  | {
+      type: 'ticker';
+      text: string;
+      severity: 'info' | 'warn' | 'alert';
+      /** B1: where the news happened, for click-to-locate. x/z is the spot at
+       *  the time; objectId or agentId (a guest's numeric id, as in
+       *  Snapshot.agents) names the subject, which may since have moved or gone. */
+      x?: number;
+      z?: number;
+      objectId?: string;
+      agentId?: number;
+    }
+  | { type: 'gameOver'; won: boolean; reason: string }
+  // One real round, sampled from a play at an object the client said it is
+  // watching (setInterest). Replaces that play's `payout` event.
+  | { type: 'roundFx'; objectId: string; x: number; z: number; fx: RoundFx };
 
 export interface Snapshot {
   tick: number;
@@ -142,11 +168,20 @@ export type Command =
   | { type: 'fire'; staffId: string }
   | { type: 'startScenario'; scenarioId: string | null }
   | { type: 'inspect'; target: { objectId: string } | { agentId: number } }
+  // Read-only panel data: P&L, staff roster, scenario list.
+  | { type: 'financials' }
+  | { type: 'staffList' }
+  | { type: 'scenarios' }
+  // After a win: keep the casino open with the campaign's limits lifted.
+  | { type: 'continueScenario' }
   // Workers have no localStorage: save replies with the world JSON and the
   // main thread persists it; load hands that JSON back.
   | { type: 'save' }
   | { type: 'load'; json: unknown }
-  // Avatar play: begin a round as the player, then act until the round settles.
+  // Avatar play: take a seat (replies an error when every seat is taken), begin
+  // a round as the player, act until the round settles, and stand to free it.
+  | { type: 'sit'; objectId: string }
+  | { type: 'stand' }
   | { type: 'roundBegin'; objectId: string; bets: { spot: string; amount: number }[] }
   | { type: 'roundAct'; objectId: string; action: string }
   // Dev/perf: spawn guests past the arrival cap, and read worker timings.
@@ -158,7 +193,34 @@ export type Command =
   | { type: 'stats' }
   // Run N ticks synchronously in the worker and reply with their timings —
   // unaffected by background-tab timer throttling, unlike the pump.
-  | { type: 'debugTicks'; count: number };
+  | { type: 'debugTicks'; count: number }
+  // Objects near the camera: only these get per-round `roundFx` events.
+  | { type: 'setInterest'; objectIds: string[] }
+  // B2: the hidden sim, surfaced. Read-only views for the Rating, Patrons and
+  // Prices panels (reply types live in worker/inspect.ts), and the two
+  // actions they offer: comp a guest, and price a menu item or a drink.
+  | { type: 'rating' }
+  | { type: 'patrons' }
+  | { type: 'prices' }
+  | { type: 'sendComp'; guestId: string; kind: 'drink' | 'meal' | 'matchPlay' }
+  | { type: 'setPrice'; objectId: string; itemId: string; price: number }
+  // B4: finance depth. Chart series from the ledger's history, the report
+  // card for a closed day (the latest when no day is given), and loans
+  // (reply types live in worker/finance.ts).
+  | { type: 'financeHistory' }
+  | { type: 'dayReport'; day?: number }
+  | { type: 'loans' }
+  | { type: 'takeLoan'; amount: number; days: number }
+  | { type: 'repayLoan'; loanId: string; amount: number }
+  // B5: the feedback loop. What guests are thinking (top thoughts with counts
+  // and a trend), every guest on the floor for the Guests list, and a mood or
+  // traffic heat map for the overlay (reply types live in worker/feedback.ts).
+  | { type: 'thoughts' }
+  | { type: 'guestList' }
+  | { type: 'heatMap'; kind: 'mood' | 'traffic' }
+  // B8: how the run ended (or stands): goals, medal and score for the end
+  // card (reply type lives in worker/scenario.ts).
+  | { type: 'scenarioResult' };
 
 /** Reply to { type: 'stats' }. */
 export interface SimStats {
@@ -179,3 +241,29 @@ export type WorkerOut =
   | { type: 'ready' }
   | { type: 'snapshot'; snap: Snapshot }
   | { type: 'reply'; reqId: number; ok: boolean; data?: unknown; error?: string };
+
+// ---------- round effects (Track A) ----------
+
+/** The last round of a play, with what the renderer needs to show it truly. */
+export interface RoundFx {
+  kind: string;
+  /** This round alone, not the whole play. */
+  wagered: number;
+  returned: number;
+  summary: string;
+  /** Slots: the par sheet, the stop each reel landed on (the middle row is
+   *  strip[stop]) and the winning payline indices. */
+  slots?: { sheet: string; stops: number[]; lines: number[] };
+  /** Roulette: the pocket the ball landed in (37 is 00) and the wheel. */
+  roulette?: { pocket: number; wheel: 'single' | 'double' };
+  /** Craps: the round's last roll, the one that settled it. */
+  craps?: { dice: [number, number] };
+  /** Big six: the segment index (atlas order) that agrees with what was paid. */
+  bigSix?: { segment: number };
+  /** Dealt games (blackjack, UTH): card labels like "As", "Td". Blackjack
+   *  fills `hands` (more than one after a split); UTH has one hand, the board
+   *  and whether the player folded. */
+  cards?: { dealer: string[]; hands: string[][]; board?: string[]; folded?: boolean };
+  /** Seated games: which seat played this round and where its player sits. */
+  player?: { seat: number; x: number; z: number };
+}

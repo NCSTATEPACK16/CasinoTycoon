@@ -8,13 +8,18 @@ export class SimClient {
   private nextReq = 1;
   private pending = new Map<
     number,
-    { resolve: (v: unknown) => void; reject: (e: Error) => void }
+    { resolve: (v: unknown) => void; reject: (e: Error) => void; cmd: Command }
   >();
   prev: Snapshot | null = null;
   curr: Snapshot | null = null;
   /** main-thread performance.now() when curr arrived. */
   currAt = 0;
   private listeners = new Set<(s: Snapshot) => void>();
+  private commandListeners = new Set<(cmd: Command, ok: boolean) => void>();
+  /** Init is async in the worker (Recast's WASM loads first), so commands
+   *  issued before `ready` wait here instead of bouncing off it. */
+  private queued: WorkerIn[] = [];
+  private isReady = false;
 
   constructor(seed = Date.now() >>> 0) {
     this.worker = new Worker(new URL('../worker/sim.worker.ts', import.meta.url), {
@@ -29,7 +34,11 @@ export class SimClient {
   }
 
   private receive(msg: WorkerOut): void {
-    if (msg.type === 'snapshot') {
+    if (msg.type === 'ready') {
+      this.isReady = true;
+      for (const q of this.queued) this.send(q);
+      this.queued = [];
+    } else if (msg.type === 'snapshot') {
       this.prev = this.curr;
       this.curr = msg.snap;
       this.currAt = performance.now();
@@ -38,6 +47,7 @@ export class SimClient {
       const p = this.pending.get(msg.reqId);
       if (!p) return;
       this.pending.delete(msg.reqId);
+      for (const l of this.commandListeners) l(p.cmd, msg.ok);
       if (msg.ok) p.resolve(msg.data);
       else p.reject(new Error(msg.error ?? 'command failed'));
     }
@@ -46,14 +56,22 @@ export class SimClient {
   command<T = unknown>(cmd: Command): Promise<T> {
     const reqId = this.nextReq++;
     return new Promise<T>((resolve, reject) => {
-      this.pending.set(reqId, { resolve: resolve as (v: unknown) => void, reject });
-      this.send({ type: 'cmd', reqId, cmd });
+      this.pending.set(reqId, { resolve: resolve as (v: unknown) => void, reject, cmd });
+      const msg: WorkerIn = { type: 'cmd', reqId, cmd };
+      if (this.isReady) this.send(msg);
+      else this.queued.push(msg);
     });
   }
 
   onSnapshot(fn: (s: Snapshot) => void): () => void {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
+  }
+
+  /** Every command's outcome once the worker replies, e.g. for sound feedback. */
+  onCommand(fn: (cmd: Command, ok: boolean) => void): () => void {
+    this.commandListeners.add(fn);
+    return () => this.commandListeners.delete(fn);
   }
 
   /** 0..1 progress from prev toward curr, for render interpolation. */

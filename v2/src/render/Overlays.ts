@@ -1,6 +1,6 @@
 // Build and inspect feedback: the hologram placement ghost (the real asset in
-// green/red), the zone tint, the selection outline, and pooled floating
-// "+$1,250" payout labels.
+// green/red), the zone tint, the selection outline, and the floating
+// "+$1,250" payout labels (one instanced draw, PayoutLabels.ts).
 
 import * as THREE from 'three';
 import { getObjectDef } from '../data/objects';
@@ -8,6 +8,7 @@ import { get3D } from '../shared/catalog';
 import { ZONES, type Rotation } from '../shared/contracts';
 import type { AssetLibrary } from './assets/AssetLibrary';
 import type { ChunkGrid } from './core/ChunkGrid';
+import { PayoutLabels } from './PayoutLabels';
 
 const ZONE_COLORS: Record<(typeof ZONES)[number], number> = {
   none: 0x000000,
@@ -45,14 +46,6 @@ function hologram(): THREE.ShaderMaterial {
   });
 }
 
-interface Label {
-  sprite: THREE.Sprite;
-  canvas: HTMLCanvasElement;
-  tex: THREE.CanvasTexture;
-  t0: number;
-  big: boolean;
-}
-
 export class Overlays {
   readonly group = new THREE.Group();
   private ghost: THREE.Mesh;
@@ -62,7 +55,7 @@ export class Overlays {
   private zones: THREE.Mesh | null = null;
   private zonesVisible = false;
   private outline: THREE.Mesh;
-  private labels: Label[] = [];
+  readonly labels = new PayoutLabels();
   private now = 0;
 
   constructor(private lib: AssetLibrary) {
@@ -89,7 +82,7 @@ export class Overlays {
       }),
     );
     this.outline.visible = false;
-    this.group.add(this.ghost, this.ghostPad, this.outline);
+    this.group.add(this.ghost, this.ghostPad, this.outline, this.labels.mesh);
   }
 
   /** Show the real asset as a hologram at a cell, or hide with defId = null. */
@@ -189,60 +182,13 @@ export class Overlays {
   }
 
   spawnPayout(x: number, z: number, amount: number): void {
-    let l = this.labels.find((k) => !k.sprite.visible);
-    if (!l) {
-      if (this.labels.length >= 48) l = this.labels.reduce((a, b) => (a.t0 < b.t0 ? a : b));
-      else {
-        const canvas = Object.assign(document.createElement('canvas'), { width: 256, height: 72 });
-        const tex = new THREE.CanvasTexture(canvas);
-        tex.colorSpace = THREE.SRGBColorSpace;
-        const sprite = new THREE.Sprite(
-          new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, toneMapped: false }),
-        );
-        sprite.renderOrder = 20;
-        this.group.add(sprite);
-        l = { sprite, canvas, tex, t0: 0, big: false };
-        this.labels.push(l);
-      }
-    }
-    const g = l.canvas.getContext('2d')!;
-    g.clearRect(0, 0, 256, 72);
-    const text = `${amount >= 0 ? '+' : '−'}$${Math.abs(Math.round(amount)).toLocaleString()}`;
-    g.font = '900 48px "Arial Black", "Helvetica Neue", Arial, sans-serif';
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    g.lineWidth = 8;
-    g.strokeStyle = 'rgba(40,16,0,0.9)';
-    g.strokeText(text, 128, 38);
-    const grad = g.createLinearGradient(0, 14, 0, 62);
-    const win = amount >= 0;
-    grad.addColorStop(0, win ? '#fff6c0' : '#ffd0d0');
-    grad.addColorStop(1, win ? '#f2a91e' : '#e0303c');
-    g.fillStyle = grad;
-    g.fillText(text, 128, 38);
-    l.tex.needsUpdate = true;
-    l.big = Math.abs(amount) >= 1000;
-    l.t0 = this.now;
-    l.sprite.position.set(x, 2.2, z);
-    l.sprite.visible = true;
+    this.labels.spawn(x, z, amount, this.now);
   }
 
-  update(now: number): void {
+  update(now: number, camera: THREE.Camera): void {
+    void camera;
     this.now = now;
     this.ghostMat.uniforms.uTime!.value = now;
-    for (const l of this.labels) {
-      if (!l.sprite.visible) continue;
-      const t = (now - l.t0) / 1.8;
-      if (t >= 1) {
-        l.sprite.visible = false;
-        continue;
-      }
-      // Pop in with an overshoot, drift up, fade out over the last third.
-      const pop = t < 0.12 ? (t / 0.12) * 1.25 : 1 + 0.25 * Math.exp(-(t - 0.12) * 18);
-      const s = (l.big ? 2.2 : 1.5) * pop;
-      l.sprite.scale.set(s, s * (72 / 256), 1);
-      l.sprite.position.y = 2.2 + t * 1.3;
-      (l.sprite.material as THREE.SpriteMaterial).opacity = t > 0.66 ? 1 - (t - 0.66) / 0.34 : 1;
-    }
+    this.labels.update(now);
   }
 }

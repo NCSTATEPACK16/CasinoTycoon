@@ -1,6 +1,7 @@
 // Command dispatch for the sim worker. Kept apart from the Worker global so
 // tests can drive a world exactly the way the UI does.
 
+import { COMPS, DEBT, LOANS, type CompKind } from '../data/balance';
 import { getCampaign } from '../data/campaigns';
 import type { Command, SimStats } from '../shared/contracts';
 import {
@@ -12,6 +13,19 @@ import {
 } from '../sim/build';
 import type { StaffKind } from '../sim/entities/staff/Staff';
 import type { CasinoWorld, CasinoWorldJSON } from '../sim/world';
+import {
+  financials,
+  inspectAgent,
+  inspectObject,
+  patronList,
+  priceList,
+  ratingReport,
+  scenarioList,
+  staffList,
+} from './inspect';
+import { guestList, heatMap, thoughtSummary } from './feedback';
+import { dayReport, financeHistory, loansView } from './finance';
+import { scenarioResult } from './scenario';
 import type { SnapshotBuilder } from './snapshot';
 
 export type CommandResult = { ok: true; data?: unknown } | { ok: false; error: string };
@@ -158,8 +172,15 @@ export function runCommand(world: CasinoWorld, snap: SnapshotBuilder, cmd: Comma
         ? { ok: true, data: applied }
         : { ok: false, error: 'no game rules on that object' };
     }
-    // Avatar play. Both reply { options, view, wallet }, plus `result` (the
+    // Avatar play. Both reply { options, view, wallet, onTable }, plus `result` (the
     // RoundResult with its theo) once the round has settled.
+    case 'sit': {
+      const reply = world.seatPlayer(cmd.objectId);
+      return reply === true ? { ok: true } : { ok: false, error: reply };
+    }
+    case 'stand':
+      world.unseatPlayer();
+      return { ok: true };
     case 'roundBegin': {
       const reply = world.beginPlayerRound(cmd.objectId, cmd.bets);
       return typeof reply === 'string' ? { ok: false, error: reply } : { ok: true, data: reply };
@@ -168,8 +189,92 @@ export function runCommand(world: CasinoWorld, snap: SnapshotBuilder, cmd: Comma
       const reply = world.actPlayerRound(cmd.objectId, cmd.action);
       return typeof reply === 'string' ? { ok: false, error: reply } : { ok: true, data: reply };
     }
+    case 'inspect': {
+      const t = cmd.target;
+      const view =
+        'objectId' in t ? inspectObject(world, t.objectId) : inspectAgent(world, t.agentId);
+      return view ? { ok: true, data: view } : { ok: false, error: 'nothing there' };
+    }
+    case 'financials':
+      return { ok: true, data: financials(world) };
+    case 'staffList':
+      return { ok: true, data: staffList(world) };
+    case 'scenarios':
+      return { ok: true, data: scenarioList() };
+    case 'continueScenario':
+      world.scenario?.continue();
+      return { ok: true };
+    case 'setInterest':
+      snap.interest = new Set(cmd.objectIds);
+      return { ok: true };
+    case 'rating':
+      return { ok: true, data: ratingReport(world) };
+    case 'patrons':
+      return { ok: true, data: patronList(world) };
+    case 'prices':
+      return { ok: true, data: priceList(world) };
+    case 'sendComp':
+      return world.sendComp(cmd.guestId, cmd.kind)
+        ? { ok: true, data: inspectAgentById(world, cmd.guestId) }
+        : { ok: false, error: compRefusal(world, cmd.guestId, cmd.kind) };
+    case 'setPrice': {
+      const applied = world.setPrice(cmd.objectId, cmd.itemId, cmd.price);
+      return applied === null
+        ? { ok: false, error: 'nothing to price there' }
+        : { ok: true, data: applied };
+    }
+    case 'financeHistory':
+      return { ok: true, data: financeHistory(world) };
+    case 'dayReport': {
+      const report = dayReport(world, cmd.day);
+      return report ? { ok: true, data: report } : { ok: false, error: 'No day has closed yet.' };
+    }
+    case 'loans':
+      return { ok: true, data: loansView(world, DEBT.dailyInterestRate) };
+    case 'takeLoan': {
+      const loan = world.takeLoan(cmd.amount, cmd.days);
+      return loan
+        ? { ok: true, data: loan }
+        : {
+            ok: false,
+            error: `The bank won't lend that: up to $${world.loanLimit.toLocaleString('en-US')} in all, and no less than $${LOANS.step}.`,
+          };
+    }
+    case 'repayLoan': {
+      const paid = world.repayLoan(cmd.loanId, cmd.amount);
+      return paid > 0
+        ? { ok: true, data: paid }
+        : {
+            ok: false,
+            error: !world.loans.loans.some((l) => l.id === cmd.loanId)
+              ? 'That loan is already paid off.'
+              : 'No cash on hand to repay with.',
+          };
+    }
+    case 'thoughts':
+      return { ok: true, data: thoughtSummary(world) };
+    case 'guestList':
+      return { ok: true, data: guestList(world) };
+    case 'heatMap':
+      return { ok: true, data: heatMap(world, cmd.kind) };
+    case 'scenarioResult':
+      return { ok: true, data: scenarioResult(world) };
     default:
-      // inspect → integration (src/ui inspector).
-      return { ok: false, error: `${cmd.type} not implemented yet` };
+      return { ok: false, error: `${(cmd as Command).type} not implemented` };
   }
+}
+
+/** The guest's inspector view after a comp, so the panel can redraw at once. */
+function inspectAgentById(world: CasinoWorld, guestId: string): unknown {
+  return inspectAgent(world, Number(guestId.replace(/\D+/g, '')) || 0);
+}
+
+/** Why a comp was refused, in the player's terms. */
+function compRefusal(world: CasinoWorld, guestId: string, kind: CompKind): string {
+  const g = world.guests.get(guestId);
+  if (!g || g.state === 'gone') return 'They have already left.';
+  if (!g.compEligible) return 'Not yet: they have to play a while before a comp means anything.';
+  if (COMPS.compUnit[kind] > g.compHeadroom())
+    return 'They have had all the comps this visit allows.';
+  return 'The comp could not be given.';
 }

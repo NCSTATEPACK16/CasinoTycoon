@@ -34,7 +34,11 @@ export interface NavStats {
 }
 
 export class WorldNav {
-  readonly sys: NavSystem;
+  /** Replaced, never mutated from outside, when a new lot needs a new size. */
+  private _sys: NavSystem;
+  get sys(): NavSystem {
+    return this._sys;
+  }
   private agents = new Map<Walker, CrowdAgent>();
   private speeds = new Map<Walker, number>();
   private filters = new Map<Walker, NavFilter>();
@@ -44,7 +48,7 @@ export class WorldNav {
   lastStepMs = 0;
 
   constructor(cols: number, rows: number) {
-    this.sys = new NavSystem(cols, rows);
+    this._sys = new NavSystem(cols, rows);
   }
 
   /** Load the WASM if needed and size a navmesh for this world's lot. The
@@ -62,6 +66,11 @@ export class WorldNav {
     this.speeds.clear();
     this.filters.clear();
     this.flags.clear();
+    // A scenario on a different lot needs a navmesh sized for it.
+    if (this.sys.cols !== world.floor.cols || this.sys.rows !== world.floor.rows) {
+      this.sys.destroy();
+      this._sys = new NavSystem(world.floor.cols, world.floor.rows);
+    }
     this.sys.bakeAll(floorNavSource(world.floor, world.grid));
   }
 

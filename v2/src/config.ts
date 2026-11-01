@@ -4,12 +4,19 @@
 export const TILE_W = 128;
 export const TILE_H = 64;
 
-// Casino floor dimensions (grid cells).
+// Casino floor dimensions (grid cells): the default lot. A scenario may bring
+// its own (CampaignDef.lot); sim code reads the live grid/floor size, never these.
 export const GRID_COLS = 40;
 export const GRID_ROWS = 30;
 
 // Simulation runs on a fixed timestep; render interpolates between ticks.
-export const SIM_TICKS_PER_SECOND = 10;
+// B7a: one tick is 0.3 s of real time (was 0.1 s), so an in-game hour lasts
+// 15 s at 1× and a day 6 minutes. Every game-time quantity is counted in
+// ticks and keeps its in-game length; only real-time motion (guests and
+// staff walking, which the crowd steps in seconds) covers 3× as much ground
+// per in-game hour. At 0.1 s a guest needed 4–7 in-game hours to walk from
+// a big floor's door to a seat and most never sat down.
+export const SIM_TICKS_PER_SECOND = 10 / 3;
 export const SIM_TICK_MS = 1000 / SIM_TICKS_PER_SECOND;
 
 // Game time: how many sim ticks make one in-game hour.
@@ -30,3 +37,8 @@ export const JACKPOT_PAYOUT_MULT = 10;
 
 // Where guests enter and exit: middle of the open east edge (walls line north/west only).
 export const ENTRANCE_TILE = { col: GRID_COLS - 1, row: 15 } as const;
+
+/** The same spot on any lot: the east edge, halfway down. */
+export function entranceFor(cols: number, rows: number): { col: number; row: number } {
+  return { col: cols - 1, row: Math.floor(rows / 2) };
+}
