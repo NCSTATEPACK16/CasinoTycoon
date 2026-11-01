@@ -7,7 +7,16 @@ export interface RngLike {
   next(): number;
 }
 
-export type GameKind = 'slots' | 'roulette' | 'blackjack' | 'craps' | 'uth' | 'sicbo' | 'tcp';
+export type GameKind =
+  | 'slots'
+  | 'roulette'
+  | 'blackjack'
+  | 'craps'
+  | 'uth'
+  | 'sicbo'
+  | 'tcp'
+  | 'paigow'
+  | 'keno';
 
 export interface Bet {
   /** Engine-specific spot id: 'pass', 'dontPass', 'straight:17', 'ante', 'main'... */
