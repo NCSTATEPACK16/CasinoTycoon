@@ -4,7 +4,6 @@ import {
   PACHINKO_BALANCE,
   PENNY_SLOT_BALANCE,
   VIDEO_POKER_BALANCE,
-  kenoExpectedRtp,
   pachinkoExpectedRtp,
   pennySlotExpectedRtp,
   videoPokerExpectedRtp,
@@ -127,10 +126,11 @@ describe('Tier 1 payouts over many plays', () => {
   // The payout tables are asserted analytically in payoutVariance.test.ts; this
   // checks the machines actually roll against the table they claim, which a
   // copy-paste between four near-identical subclasses could easily get wrong.
+  // Keno left this list in B9b: it draws real tickets, and engineMachines.test.ts
+  // checks its hold against its theoretical edge.
   const cases = [
     { id: 'penny-slots', rtp: pennySlotExpectedRtp(), wager: PENNY_SLOT_BALANCE.costToPlay },
     { id: 'pachinko', rtp: pachinkoExpectedRtp(), wager: PACHINKO_BALANCE.costToPlay },
-    { id: 'keno-lounge', rtp: kenoExpectedRtp(), wager: KENO_BALANCE.costToPlay },
     { id: 'video-poker', rtp: videoPokerExpectedRtp(), wager: VIDEO_POKER_BALANCE.costToPlay },
   ];
 

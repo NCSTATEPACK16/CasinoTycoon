@@ -82,13 +82,13 @@ interface TableSpec {
 
 const ALL_TABLES: readonly TableSpec[] = [
   { name: 'big-six-wheel', table: BIG_SIX_BALANCE.payoutTable, rtp: 0.8 },
-  // P17 Tier 1 — all four are inside the default bar by construction.
+  // P17 Tier 1 — inside the default bar by construction. Keno is an engine now
+  // (B9b) and has no table to measure.
   { name: 'pachinko', table: PACHINKO_BALANCE.payoutTable, rtp: 0.88 },
-  { name: 'keno-lounge', table: KENO_BALANCE.payoutTable, rtp: 0.75 },
   { name: 'video-poker', table: VIDEO_POKER_BALANCE.payoutTable, rtp: 0.96 },
   // P17 Tier 2 — inside the default bar, no allowances needed. Sic bo and
-  // three-card poker are engines now (B9a) and have no table to measure.
-  { name: 'pai-gow', table: PAI_GOW_BALANCE.payoutTable, rtp: 0.91 },
+  // three-card poker are engines now (B9a), pai gow too (B9b), and have no
+  // table to measure.
   { name: 'bingo-hall', table: BINGO_BALANCE.payoutTable, rtp: 0.86 },
 ];
 
@@ -202,11 +202,11 @@ describe('catalogue differentiation', () => {
     profile('high-limit-table', HIGH_LIMIT_BALANCE),
     profile('penny-slots', PENNY_SLOT_BALANCE),
     profile('pachinko', PACHINKO_BALANCE, PACHINKO_BALANCE.payoutTable),
-    profile('keno-lounge', KENO_BALANCE, KENO_BALANCE.payoutTable),
+    profile('keno-lounge', KENO_BALANCE),
     profile('video-poker', VIDEO_POKER_BALANCE, VIDEO_POKER_BALANCE.payoutTable),
     profile('sic-bo', SIC_BO_BALANCE),
     profile('three-card-poker', THREE_CARD_POKER_BALANCE),
-    profile('pai-gow', PAI_GOW_BALANCE, PAI_GOW_BALANCE.payoutTable),
+    profile('pai-gow', PAI_GOW_BALANCE),
     profile('bingo-hall', BINGO_BALANCE, BINGO_BALANCE.payoutTable),
   ];
 
@@ -246,26 +246,5 @@ describe('catalogue differentiation', () => {
   it('makes video poker the thinnest edge in the house', () => {
     const edges = ALL_TABLES.map((t) => moments(t.table).edge);
     expect(moments(VIDEO_POKER_BALANCE.payoutTable).edge).toBe(Math.min(...edges));
-  });
-
-  it('gives pai gow the flattest per-play distribution of any dealt game', () => {
-    // Its "steady pick" claim, stated precisely, because two looser versions of
-    // it are false and this test caught both.
-    //
-    // It is NOT the flattest game outright — video poker is (sd 0.445 against
-    // 0.621), because a 4% edge capped at 2x barely moves. But video poker is a
-    // machine bank with no dealer; among the games someone actually deals, pai
-    // gow swings least per hand.
-    //
-    // And it is about ABSOLUTE spread, not sd/edge: keno has the lower ratio
-    // (2.7 against 5.2) because its edge is thicker. Both are true and they are
-    // different claims — pai gow swings least per hand, keno needs fewest hands
-    // before its edge shows through.
-    const dealt = ALL_TABLES.filter((t) => t.name !== 'video-poker');
-    expect(moments(PAI_GOW_BALANCE.payoutTable).sd).toBe(
-      Math.min(...dealt.map((t) => moments(t.table).sd)),
-    );
-    const ratio = (tbl: readonly PayoutOutcome[]) => moments(tbl).sd / moments(tbl).edge;
-    expect(ratio(KENO_BALANCE.payoutTable)).toBeLessThan(ratio(PAI_GOW_BALANCE.payoutTable));
   });
 });

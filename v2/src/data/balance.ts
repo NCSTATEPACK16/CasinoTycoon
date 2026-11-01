@@ -259,7 +259,8 @@ export function pachinkoExpectedRtp(): number {
 // slowest cadence and the longest sessions in the game, against the highest
 // house edge — which is what real keno is. Differs from every existing game on
 // cadence (30 ticks vs blackjack's 12), session length (10-24 vs 4-10), seats
-// (6), RTP (0.75) and footprint-to-earnings.
+// (6), RTP (about 0.74 on the standard tickets, sim/games/keno) and
+// footprint-to-earnings.
 //
 // It parks six guests somewhere for a long time and takes a little from each.
 // That is worth building when the floor has bodies and nowhere to put them, and
@@ -271,19 +272,11 @@ export const KENO_BALANCE = {
   playsMin: 10,
   playsMax: 24,
   seats: 6,
-  // RTP 0.75 — the thickest edge in the house, and still the lowest variance
-  // (sd/edge = 2.7). High edge plus low variance is exactly why a keno lounge
-  // is a reliable earner rather than an exciting one.
-  payoutTable: [
-    { p: 0.5, multiplier: 1 },
-    { p: 0.12, multiplier: 2 },
-    { p: 0.0025, multiplier: 4 },
-  ] as readonly PayoutOutcome[],
 } as const;
 
-/** Expected RTP implied by the keno payout table (0.75 → 25% house edge). */
+/** RTP of the lounge's ticket mix on the opening paytable (sim/games/keno). */
 export function kenoExpectedRtp(): number {
-  return KENO_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+  return engineRtp('keno-lounge');
 }
 
 // Video poker: the thinnest edge in the house, sold on throughput. Three
@@ -380,14 +373,9 @@ export function threeCardPokerExpectedRtp(): number {
   return engineRtp('three-card-poker');
 }
 
-// Pai Gow Poker: the steady pick. Very slow, very long sessions, and a huge
-// push band — the lowest per-play standard deviation of any game in the
-// catalogue at 0.610, under keno's 0.677.
-//
-// Note keno still has the lower sd/EDGE ratio (2.7 against 5.2), because its
-// edge is thicker. Both statements are true and they are different claims: pai
-// gow swings least in absolute dollars per hand, keno needs fewest hands before
-// its edge shows through.
+// Pai Gow Poker: the steady pick (sim/games/paigow). Very slow, very long
+// sessions, and a huge push band: about 41% of hands push, which is what
+// flattens a pai gow session.
 export const PAI_GOW_BALANCE = {
   costToPlay: 22,
   wearPerPlay: 0.12,
@@ -395,17 +383,11 @@ export const PAI_GOW_BALANCE = {
   playsMin: 8,
   playsMax: 18,
   seats: 6,
-  // RTP 0.91. The 0.62 band at 1x is the push — pai gow's real signature, and
-  // what flattens the distribution.
-  payoutTable: [
-    { p: 0.62, multiplier: 1 },
-    { p: 0.145, multiplier: 2 },
-  ] as readonly PayoutOutcome[],
 } as const;
 
-/** Expected RTP implied by the pai gow payout table (0.91 → 9% house edge). */
+/** RTP of a house-way hand against the banker under the opening rules (sim/games/paigow). */
 export function paiGowExpectedRtp(): number {
-  return PAI_GOW_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+  return engineRtp('pai-gow');
 }
 
 // Bingo Hall: a crowd draw that pays in arrivals more than in takings. Twelve
@@ -968,6 +950,8 @@ export const ENGINE_RULES: Readonly<Record<string, Record<string, unknown>>> = {
   'poker-table': { minBet: 2, maxBet: 500, trips: '50-40-30-8-7-4-3' },
   'sic-bo': { minBet: 2, maxBet: 200, triple: 180, anyTriple: 30, singleTriple: 3 },
   'three-card-poker': { minBet: 2, maxBet: 500, pairPlus: '40-30-6-4-1', anteBonus: '5-4-1' },
+  'pai-gow': { minBet: 5, maxBet: 1000, commission: 0.05, jokerRule: 'semi-wild' },
+  'keno-lounge': { minBet: 1, maxBet: 100, paytable: 'standard' },
 };
 
 export const ENGINE_BALANCE = {
@@ -1010,6 +994,8 @@ export const ENGINE_BALANCE = {
     'poker-table': { rounds: 12, handle: 2.8 },
     'sic-bo': { rounds: 6, handle: 1.02 },
     'three-card-poker': { rounds: 8, handle: 1.06 },
+    'pai-gow': { rounds: 8, handle: 3.3 },
+    'keno-lounge': { rounds: 6, handle: 1 },
   } as Readonly<Record<string, { rounds: number; handle: number }>>,
   /** Seated players the shapes above are quoted at. */
   referenceSeated: 2,

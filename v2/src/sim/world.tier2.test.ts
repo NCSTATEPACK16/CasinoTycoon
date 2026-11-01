@@ -6,7 +6,6 @@ import {
   TABLE_MINIMUMS,
   THREE_CARD_POKER_BALANCE,
   bingoExpectedRtp,
-  paiGowExpectedRtp,
 } from '../data/balance';
 import { getObjectDef } from '../data/objects';
 import { BingoHall } from './entities/machines/BingoHall';
@@ -124,10 +123,9 @@ describe('Tier 2 payouts over many plays', () => {
   // The tables themselves are asserted analytically in payoutVariance.test.ts.
   // This checks each machine rolls against the table it claims — the failure a
   // copy-paste between near-identical subclasses produces. Sic bo and
-  // three-card poker left this list in B9a: they play real engines, and
+  // three-card poker left this list in B9a, pai gow in B9b: they play real engines, and
   // engineMachines.test.ts checks their hold against their theoretical edge.
   const cases = [
-    { id: 'pai-gow', rtp: paiGowExpectedRtp(), wager: PAI_GOW_BALANCE.costToPlay },
     { id: 'bingo-hall', rtp: bingoExpectedRtp(), wager: BINGO_BALANCE.costToPlay },
   ];
 

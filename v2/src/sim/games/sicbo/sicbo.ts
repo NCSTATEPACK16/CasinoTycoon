@@ -2,7 +2,8 @@
 // enumerated over the 216 ordered outcomes, so nothing here is a quoted figure.
 //
 // Spots: `small`, `big`, `single:N`, `double:N`, `triple:N`, `anyTriple`,
-// `total:T` (4-17) and `pair:a-b` (two different faces, a < b).
+// `total:T` (4-17) and `pair:a-b` (two different faces, a < b). A plain
+// `main` bet backs small.
 
 import type { BaseRules, Bet, Round, RoundResult, RngLike } from '../../../shared/games';
 import {
@@ -49,6 +50,9 @@ export function spotWinnings(rules: SicBoRules, spot: string, dice: readonly num
   const triple = a === b && b === c;
   const [kind, arg] = spot.split(':') as [string, string | undefined];
   switch (kind) {
+    // `main` is a plain bet with no layout spot (the avatar's generic play
+    // view): it backs small.
+    case 'main':
     case 'small':
       return !triple && total >= 4 && total <= 10 ? 1 : -1;
     case 'big':

@@ -5,6 +5,8 @@
 import type { GameKind } from '../../shared/games';
 import { blackjackEngine } from './blackjack/blackjack';
 import { crapsEngine } from './craps/craps';
+import { kenoEngine } from './keno/keno';
+import { paiGowEngine } from './paigow/paigow';
 import { rouletteEngine } from './roulette/roulette';
 import { sicBoEngine } from './sicbo/sicbo';
 import { slotsEngine } from './slots/slots';
@@ -19,6 +21,8 @@ export const ENGINES = {
   uth: uthEngine,
   sicbo: sicBoEngine,
   tcp: tcpEngine,
+  paigow: paiGowEngine,
+  keno: kenoEngine,
 } as const;
 
 // Every GameKind has an engine; checked here so a new kind fails to compile.
@@ -37,6 +41,8 @@ export const ENGINE_FOR_DEF: Readonly<Record<string, GameKind>> = {
   'poker-table': 'uth',
   'sic-bo': 'sicbo',
   'three-card-poker': 'tcp',
+  'pai-gow': 'paigow',
+  'keno-lounge': 'keno',
 };
 
 export function engineKindFor(defId: string): GameKind | null {

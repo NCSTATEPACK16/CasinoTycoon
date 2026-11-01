@@ -4,6 +4,7 @@
 
 import type { GameKind } from '../shared/games';
 import { ODDS_OPTIONS } from '../sim/games/craps/craps';
+import { KENO_PAYTABLES } from '../sim/games/keno/keno';
 import { DENOMINATIONS } from '../sim/games/slots/slots';
 import { PAR_SHEETS } from '../sim/games/slots/sheets';
 import { ANTE_BONUS_TABLES, PAIR_PLUS_TABLES } from '../sim/games/tcp/tcp';
@@ -155,6 +156,36 @@ export const RULE_FIELDS: Record<GameKind, RuleField[]> = {
       label: 'Ante bonus (SF-trips-straight)',
       type: 'select',
       options: Object.keys(ANTE_BONUS_TABLES).map((k) => ({ value: k, label: k })),
+    },
+  ],
+  paigow: [
+    ...LIMITS,
+    {
+      key: 'commission',
+      label: 'Commission on wins',
+      type: 'select',
+      options: [
+        { value: 0.05, label: '5%' },
+        { value: 0.04, label: '4%' },
+      ],
+    },
+    {
+      key: 'jokerRule',
+      label: 'Joker',
+      type: 'select',
+      options: [
+        { value: 'semi-wild', label: 'Semi-wild (53 cards)' },
+        { value: 'none', label: 'No joker (52 cards)' },
+      ],
+    },
+  ],
+  keno: [
+    ...LIMITS,
+    {
+      key: 'paytable',
+      label: 'Ticket paytables',
+      type: 'select',
+      options: Object.keys(KENO_PAYTABLES).map((k) => ({ value: k, label: k })),
     },
   ],
 };

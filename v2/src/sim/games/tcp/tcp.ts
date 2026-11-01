@@ -318,7 +318,8 @@ export const tcpEngine: CasinoEngine<TcpRules> = {
   },
 
   begin(rng, rules, bets: Bet[]) {
-    const ante = bets.find((b) => b.spot === 'ante')?.amount ?? rules.minBet;
+    // A plain `main` bet (the avatar's generic play view) is the Ante.
+    const ante = bets.find((b) => b.spot === 'ante' || b.spot === 'main')?.amount ?? rules.minBet;
     const pairPlus = bets.find((b) => b.spot === 'pairPlus')?.amount ?? 0;
     return new TcpRound(rng, rules, ante, pairPlus);
   },
@@ -335,7 +336,7 @@ export const tcpEngine: CasinoEngine<TcpRules> = {
   },
 
   spotEdge(rules, spot) {
-    if (spot === 'ante') return tcpAnteEdge(rules.anteBonus);
+    if (spot === 'ante' || spot === 'main') return tcpAnteEdge(rules.anteBonus);
     if (spot === 'pairPlus') return pairPlusEdge(rules.pairPlus);
     return 0;
   },

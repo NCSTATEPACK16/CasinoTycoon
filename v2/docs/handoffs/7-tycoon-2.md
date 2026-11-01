@@ -31,7 +31,14 @@ Anti-goals, carried over: breaking the campaign economy without re-tuning it; go
   - **Campaigns before → after, identical** (the bots never buy these two): Dusty Dime 7/7, Neon Nights 5/7, High Roller 5/7; career grid and crowd win days unchanged (e.g. House Rules grid `W3 W3 W3 W3 W5 W3 W3`, Velvet Rope grid `W13 - W7 W11 W13 - W7`). `world.tier2`, `payoutVariance` (sic bo / 3CP removed from the table checks), `engineMachines` (hold ≈ theo within 4σ over 40k plays each) and a new `ui/rulesSchema.test.ts` pass; `crowd.test.ts` timed out once under the parallel run and passes alone.
   - **Browser:** both tables placed and played in Sandbox; the rules editor shows the new levers; Finances "By game" books handle, win, hold and theo for each. The avatar play gate (`game` in `catalog.ts`) is left alone: neither table has a player seat until A6's generic play view is merged.
   - **Old classes:** `SicBoTable` and `ThreeCardPokerTable` are now `EngineTable` subclasses; their payout tables are gone from `balance.ts`.
-- [ ] **B9b. Pai gow and keno.**
+- [x] **B9b. Pai gow and keno.** Done 2026-11-01 (PR #22). `sim/games/paigow/` and `sim/games/keno/`, contract commit e1fb58e (`GameKind` += `paigow`, `keno`).
+  - **Pai gow poker:** 53 cards, semi-wild joker, 5% commission; player and banker set by one documented house way (`setHand`, a posted-style way close to Wizard of Odds' list; legal on every random deal tested). 10M hands per deck: win 28.88% / push 40.99% / lose 30.13% (no joker 29.66 / 39.40 / 30.94), hardcoded as `PAI_GOW_RATES`; edge P(lose) − P(win)(1 − c) = **2.69%** (Wizard of Odds ≈ 2.7%), 2.40% at 4% commission, 2.76% with no joker. `paigow.test.ts` re-measures 2M hands per deck within ±0.15 points and asserts the ~41% pushes. Levers `commission` 5%/4%, `jokerRule` semi-wild/none. Round detail `{ player: {high, low}, dealer: {high, low}, outcome }`, the joker labelled `Jk`.
+  - **Keno:** 20 of 80, exact hypergeometric edges per ticket (1-spot at 3 for 1 is exactly 75%; 4-spot catch-all 1 in 326.4; 10-spot catch-all 1 in 8.9M, checked). Three table sets shaped like Wizard of Odds' live-keno survey range (65–80%), tops capped at lounge sizes; standard tickets return 72–75%. Guest mix 1/4/6/8/10-spot 30/40/20/7/3% → **26.2%** edge (generous 21.3%, tight 33.6%); 2M-ticket Monte Carlo within 2 points (per-ticket SD ~10, so that is ~3σ). Lever `paytable`. Detail `{ picks, drawn, hits }`.
+  - **Take per play** (30k plays, 2% errors, two seated) vs the old tables: pai gow theo $1.94 (take $1.69, SD $19) vs $1.98 with `playShape` 8 rounds × handle 3.3; keno $1.49 (theo $1.57) vs $1.50 with 6 × $1 tickets. Keno's per-play SD rises from the old table's $4 to ~$31: the real 8- and 10-spot tops. Noted in ECONOMY.md.
+  - **Campaigns before → after:** House Rules grid `W3 W3 W3 W3 W5 W3 W3` → identical, crowd `W3 W3 W4 W4 W4 W6 W3` → identical (its plan buys slots and video poker); `catalogue.test.ts` (the P16 bots that buy keno and pai gow: "keno-lounge / pai-gow is a going concern on its own", "every Tier 1 / Tier 2 game bought by a winning line", build-and-abandon never wins) 11/11. The career plans and P16 campaign ladders don't buy either game, so their numbers are untouched.
+  - **Tests:** `paigow.test.ts`, `keno.test.ts`, sic bo / 3CP suites, `engineMachines`, `factory`, `payoutVariance` (keno and pai gow drop out of the table checks; the "pai gow is the flattest dealt game" claim is gone with its table), `world.tier1`/`tier2` (their 40k-play RTP cases for keno and pai gow removed), `rulesSchema`: all green. `tsc` clean.
+  - **A6 is merged, so the catalog `game` field is now set** for sic bo, three-card poker, pai gow and keno (B9a had left sic bo and 3CP unset). A6's generic view bets a plain `main`, so `main` now reads as small (sic bo), the Ante (3CP) and a 4-spot ticket (keno).
+  - **Browser:** Sandbox, two pai gow tables and two keno lounges placed; inspector shows edge 2.69% / 26.19%, 33 and 15 rounds an hour; keno's paytable set to generous in the rules editor → edge 21.25%, appeal 108%. Avatar: sat at pai gow, bet $25, Deal → "straight vs pair — push"; at keno, a 4-spot "caught 2 of 4 — pays 1×".
 - [ ] **B9c. Video poker and pachinko.**
 - [ ] **B9d. Bingo and big six.**
 
@@ -74,7 +81,7 @@ Anti-goals, carried over: breaking the campaign economy without re-tuning it; go
 
 ## Requests to Track A
 
-(none yet)
+- **Felt effects for the B9 engines** (`src/sim/fx/rounds.ts` `fxOf`, Track A's): sic bo (`detail.dice`), three-card poker (`detail.player/dealer/folded`), pai gow (`detail.player.high/low`, `detail.dealer.high/low`, `detail.outcome`; the joker's label is `'Jk'`) and keno (`detail.picks/drawn/hits`) settle with the shapes in 9-tycoon-2-rest.md, but `fxOf` has no case for them yet, so their rounds don't show on the felt (the avatar's play view works through the generic panel). (B9b)
 
 ## The loop prompt
 

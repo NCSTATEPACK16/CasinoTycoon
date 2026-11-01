@@ -13,8 +13,10 @@ Every gambling object that used to roll an abstract `{p, multiplier}` table now 
 | `poker-table`      | `uth`       | Ultimate Texas Hold'em, Trips 50-40-30-8-7-4-3, $2–$500                  |
 | `sic-bo`           | `sicbo`     | 180:1 triples, any triple 30:1, singles 1-2-3:1, $2–$200                 |
 | `three-card-poker` | `tcp`       | Pair Plus 40-30-6-4-1, Ante bonus 5-4-1, queen-high dealer, $2–$500      |
+| `pai-gow`          | `paigow`    | 53 cards (semi-wild joker), 5% commission, house way both sides, $5–$1,000 |
+| `keno-lounge`      | `keno`      | 20 of 80, 1/4/6/8/10-spot tickets on the standard tables, $1–$100        |
 
-Big six, video poker, pai gow, keno, bingo and pachinko still use v1 payout tables (B9b–B9d).
+Big six, video poker, bingo and pachinko still use v1 payout tables (B9c–B9d).
 
 ## Where each edge comes from
 
@@ -26,6 +28,9 @@ Big six, video poker, pai gow, keno, bingo and pachinko still use v1 payout tabl
 
 - **Sic bo (B9a):** enumerated. Every bet's edge is 1 − E[return] over the 216 ordered rolls (`sicBoSpotEdge`): small/big 7/252 = 2.78% (triples lose), singles 17/216 = 7.87%, doubles 18.52%, specific triple 16.2% at 180:1, any triple 13.89% at 30:1, two-dice combination 16.67%, totals 9.72–18.98% by number (`TOTAL_PAYS`). `sicbo.test.ts` checks each against the published figure and a 2M-round Monte Carlo of the guest mix. The engine's `theoreticalEdge` is that mix's stake-weighted edge (8.3%), because the money sits on the long shots, not the 2.78% even-money bets.
 - **Three-card poker (B9a):** exact. Pair Plus is enumerated over the 22,100 hands (2.32% on 40-30-6-4-1, 7.28% on 40-30-6-3-1). The Ante edge for the reference strategy (play Q-6-4 or better) is the sum over all 407,170,400 disjoint (player, dealer) pairs, hardcoded as `TCP_BASE_NET` and re-derived in `tcp.test.ts` (about 10 s): −3.373% of the Ante with the 5-4-1 bonus, which is Wizard of Odds' 3.37%. A 3M-hand Monte Carlo of the engine confirms it within ±0.15%.
+
+- **Pai gow poker (B9b):** Monte Carlo, because the house way has no closed form a test can enumerate. Both player and banker set by the same documented house way (`setHand` in `paigow/paigow.ts`; a simple posted-style way close to the ones Wizard of Odds lists). A 10M-hand run per deck gives win 28.88% / push 40.99% / lose 30.13% with the joker and 29.66% / 39.40% / 30.94% without, hardcoded as `PAI_GOW_RATES`. The edge is then exact in the commission: P(lose) − P(win)(1 − c), so 2.69% at 5% (Wizard of Odds: about 2.7% for house way against house way) and 2.40% at 4%; 2.76% with no joker. `paigow.test.ts` re-measures 2M hands per deck within ±0.15 points and asserts the ~41% pushes.
+- **Keno (B9b):** exact. P(k catches on an n-spot ticket) = C(n,k)·C(80−n,20−k)/C(80,20), summed against each ticket's paytable (`kenoReturn`). Three sets of tables (generous / standard / tight) shaped like the live and lounge tickets Wizard of Odds surveys (Las Vegas live keno returned 65–80% in 2001), with the tops capped at lounge sizes. The standard tickets return 72–75% each (1-spot 3 for 1 is exactly 75%); the guest mix (1-spot 30%, 4-spot 40%, 6-spot 20%, 8-spot 7%, 10-spot 3%, equal stakes) is a 26.2% edge, generous 21.3%, tight 33.6%. `theoreticalEdge` is that mix.
 
 ## Theo, hold and skill
 
@@ -48,6 +53,8 @@ The avatar's rounds book theo at the book edge with no premium.
 | UTH       | `trips` paytable, limits                                                                                                                 |
 | Sic bo    | `triple` 150/180, `anyTriple` 24/30, `singleTriple` 2/3, limits                                                                          |
 | 3-card    | `pairPlus` 40-30-6-4-1 / 40-30-6-3-1 / 50-40-6-3-1, `anteBonus` 5-4-1 / 3-2-1, limits                                                    |
+| Pai gow   | `commission` 5% / 4%, `jokerRule` semi-wild (53 cards) / none (52), limits                                                               |
+| Keno      | `paytable` generous / standard / tight, limits                                                                                           |
 
 ### The appeal curve
 
@@ -60,6 +67,8 @@ The avatar's rounds book theo at the book edge with no premium.
 - **UTH:** Trips 9-7-4-3 is 1.08, 8-7-4-3 is 1.00, 8-6-5-3 is 0.97.
 - **Sic bo** (additive from 1.0): 180:1 triple ±0.04, any triple at 30 ±0.03, single-number triple at 3:1 ±0.02.
 - **Three-card poker** (multiplicative): Pair Plus 40-30-6-4-1 1.06, 50-40-6-3-1 1.00, 40-30-6-3-1 0.94; Ante bonus 5-4-1 ×1.02, 3-2-1 ×0.94.
+- **Pai gow:** 4% commission ×1.05; no joker ×0.97.
+- **Keno:** generous 1.08, standard 1.00, tight 0.93. Keno players are loyal and barely price-sensitive.
 
 Price and limits tune who sits down: the guest's wallet must cover the opening bet (`minBet` and `costToPlay`), and the v1 table-minimum dial and `minWallet` gates still apply.
 
@@ -76,6 +85,8 @@ Price and limits tune who sits down: the guest's wallet must cover the opening b
 | Slots     | the sheet's `spinsPerHour`                               | 400 for a stepper, 600 for video        |
 | Sic bo    | 80 / (1 + 0.12 n)                                        | about 64 → 47                           |
 | 3-card    | 75 / (1 + 0.1 n)                                         | about 62 → 50                           |
+| Pai gow   | 36 / (1 + 0.08 n)                                        | about 33 → 24                           |
+| Keno      | 15, whoever is seated                                    | a game every 4 minutes, one draw for all |
 
 A table with an assigned dealer runs at full speed. Without one it deals at `ENGINE_BALANCE.noDealerSpeed` = 0.5.
 
@@ -91,6 +102,8 @@ The forked guest AI still makes one decision per play interval, so one "play" is
 | Slots      | 1 spin                   | —                                       |
 | Sic bo     | 6 × $2.04 (any one bet)  | ~8.3% of the guest mix (long shots)     |
 | 3-card     | 8 × $2.65 Ante (+Pair Plus 40%) | ~4.3% of the Ante before errors |
+| Pai gow    | 8 × $9 (22 × 3.3 / 8)    | 2.69%: theo $1.94 a play, the old table's $1.98 |
+| Keno       | 6 × $1 tickets           | 26.2%: $1.49 a play over 30k, the old $1.50; per-play SD ~$31 (the 8- and 10-spot tops) against the old table's $4 |
 
 These shapes hold each game's take per play, and its swing per play, near what v1's economy (wages, upkeep, campaign goals, and P16's "a day is not a coin flip" bar) was tuned on. For a fixed take, n rounds at stake/n swing 1/√n as much. Occupancy and dealer speed scale the round count by `roundsPerHour(seated) × dealerSpeed`, with fractions rounded stochastically. Once Session 3's bankroll guests call `GameMath.playRound` per round at the table's real pace, `playShape` can retire.
 
@@ -114,6 +127,8 @@ Spot ids by game:
 | Roulette  | `straight:N`, `straight:00`, `split:a-b`, `street:a`, `corner:a`, `sixline:a`, `basket`, `column:1-3`, `dozen:1-3`, `red`, `black`, `odd`, `even`, `low`, `high` |
 | Craps     | `pass`, `dontPass`, `come`, `dontCome`, `place:N`, `hard:N`, `field`, `any7`, `anyCraps`, `yo`; odds via the `odds:<spot>` action                                |
 | UTH       | `ante`, plus optional `trips`                                                                                                                                    |
-| Sic bo    | `small`, `big`, `single:N`, `double:N`, `triple:N`, `anyTriple`, `total:4-17`, `pair:a-b`; action `roll`                                                          |
-| 3-card    | `ante`, plus optional `pairPlus`; actions `play` (a Play bet equal to the Ante) and `fold`                                                                         |
+| Sic bo    | `small` (or `main`), `big`, `single:N`, `double:N`, `triple:N`, `anyTriple`, `total:4-17`, `pair:a-b`; action `roll`                                                          |
+| 3-card    | `ante` (or `main`), plus optional `pairPlus`; actions `play` (a Play bet equal to the Ante) and `fold`                                                             |
+| Pai gow   | `main`; action `deal` (both hands set by the house way)                                                                                                          |
+| Keno      | `spot:1`, `spot:4`, `spot:6`, `spot:8`, `spot:10` (a plain `main` is a 4-spot); action `draw`                                                                    |
 | Slots     | `spin` (the bet is fixed by the rules)                                                                                                                           |
