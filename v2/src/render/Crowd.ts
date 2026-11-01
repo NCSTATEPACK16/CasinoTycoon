@@ -22,7 +22,14 @@ const FADE_S = 0.25;
  *  floor seen at eye level was spending ~400k triangles on faces too small to
  *  tell apart. */
 export const CROWD_LOD = [14, 48] as const;
+/** VAT clip indices past the Anim ids (human.py CLIPS order). */
 const CLIP_DEAL = 7;
+const CLIP_STANDPLAY = 8;
+/** A guest who gets up from a stool without walking off (done playing, now
+ *  looking around, or cheering) steps this far back so it isn't standing in
+ *  the stool; the sim parks it on the seat marker either way. */
+const STEP_OFF = 0.4;
+const STEP_OFF_S = 0.35;
 
 interface VatMeta {
   clips: { name: string; start: number; frames: number; fps: number; loop: boolean }[];
@@ -105,7 +112,7 @@ function paletteTexture(): THREE.DataTexture {
 const VAT_COMMON = /* glsl */ `
   uniform highp sampler2D uVat;
   uniform int uVatF;
-  uniform vec4 uClips[8];
+  uniform vec4 uClips[16];
   attribute vec4 aXform;
   attribute vec4 aAnim;
   attribute vec4 aLook;
@@ -327,6 +334,12 @@ interface AgentState {
   frame: number;
   look: Float32Array;
   scale: number;
+  /** Where the agent last sat, facing the table; NaN when it isn't on a seat. */
+  seatX: number;
+  seatZ: number;
+  seatHeading: number;
+  /** 0 on the seat, 1 stepped back off it. */
+  off: number;
 }
 
 const animBuf = new Float32Array(4);
@@ -359,7 +372,7 @@ export class Crowd {
       fetch(vatBinUrl).then((r) => r.arrayBuffer()),
     ]);
     const clips = meta.clips.map((c) => new THREE.Vector4(c.start, c.frames, c.fps, c.loop ? 1 : 0));
-    while (clips.length < 8) clips.push(new THREE.Vector4(0, 1, 1, 1));
+    while (clips.length < 16) clips.push(new THREE.Vector4(0, 1, 1, 1));
     this.clipDur = meta.clips.map((c) => c.frames / c.fps);
     for (const [li, L] of meta.lods.entries()) {
       const tex = new THREE.DataTexture(
@@ -455,7 +468,12 @@ export class Crowd {
       st.x = x;
       st.z = z;
       const simAnim = a[o + 3]!;
-      let clip = simAnim === Anim.Play && kind === AgentKind.Dealer ? CLIP_DEAL : simAnim;
+      let clip =
+        simAnim === Anim.Play && kind === AgentKind.Dealer
+          ? CLIP_DEAL
+          : simAnim === Anim.StandPlay
+            ? CLIP_STANDPLAY
+            : simAnim;
       // The sim may still say Idle for a tick while the agent is visibly moving.
       if (clip === Anim.Idle && dist > 0.6 * dt) clip = Anim.Walk;
       if (clip !== st.clip) {
@@ -475,6 +493,21 @@ export class Crowd {
       dh = Math.atan2(Math.sin(dh), Math.cos(dh));
       st.heading += dh * (1 - Math.exp(-dt * 10));
       st.look[3] = a[o + 6]!;
+      if (kind === AgentKind.Guest) {
+        const seated = clip === Anim.Sit || clip === Anim.Play;
+        if (seated) {
+          st.seatX = x;
+          st.seatZ = z;
+          st.seatHeading = a[o + 2]!;
+        } else if (Math.hypot(x - st.seatX, z - st.seatZ) > 0.05) st.seatX = NaN;
+        const want = seated || Number.isNaN(st.seatX) ? 0 : 1;
+        st.off += Math.sign(want - st.off) * Math.min(Math.abs(want - st.off), dt / STEP_OFF_S);
+        if (st.off > 0) {
+          const k = STEP_OFF * st.off * st.off * (3 - 2 * st.off);
+          x -= Math.sin(st.seatHeading) * k;
+          z -= Math.cos(st.seatHeading) * k;
+        }
+      }
       sphere.center.set(x, 0.9, z);
       sphere.radius = 1.1;
       if (!frustum.intersectsSphere(sphere)) continue;
@@ -511,6 +544,10 @@ export class Crowd {
       frame: this.frame,
       look: new Float32Array([outfit, (h >>> 16) % SKIN.length, (h >>> 20) % HAIR.length, 0.6]),
       scale,
+      seatX: NaN,
+      seatZ: NaN,
+      seatHeading: 0,
+      off: 0,
     };
     void id;
   }

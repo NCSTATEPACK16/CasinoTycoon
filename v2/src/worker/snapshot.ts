@@ -56,6 +56,8 @@ export class SnapshotBuilder {
   floorVersion = 0;
   speed = 1;
   pendingEvents: SimEvent[] = [];
+  /** Objects the client is watching closely (setInterest): their plays send roundFx. */
+  interest = new Set<string>();
   /** world.tick() wall times (ms), newest last, for the stats command. */
   readonly tickTimes: number[] = [];
 

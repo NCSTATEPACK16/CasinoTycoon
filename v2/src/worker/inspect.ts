@@ -24,6 +24,9 @@ import { getObjectDef } from '../data/objects';
 import type { PatronVisit } from '../sim/patrons';
 import { SeatedCasinoGame } from '../sim/entities/machines/SeatedCasinoGame';
 import { casinoFinancials, type CasinoFinancials } from '../sim/economy/financials';
+import { lastBigSix } from '../sim/fx/bigSix';
+import { lastRound } from '../sim/fx/rounds';
+import type { RoundFx } from '../shared/contracts';
 import type { CasinoWorld } from '../sim/world';
 
 export interface MachineInspect {
@@ -47,6 +50,8 @@ export interface MachineInspect {
   } | null;
   /** Today's books for this object, from the ledger. */
   today: { handle: number; win: number; hold: number | null; theo: number; rounds: number } | null;
+  /** The last round a guest played here, as the floor shows it (Track A). */
+  lastRound?: RoundFx | null;
 }
 
 export interface GuestInspect {
@@ -121,6 +126,7 @@ export function inspectObject(world: CasinoWorld, objectId: string): MachineInsp
           rounds: src.rounds,
         }
       : null,
+    lastRound: (lastRound(math) ?? lastBigSix(world.machines.get(objectId)))?.fx ?? null,
   };
 }
 

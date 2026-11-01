@@ -204,6 +204,9 @@ export function runCommand(world: CasinoWorld, snap: SnapshotBuilder, cmd: Comma
     case 'continueScenario':
       world.scenario?.continue();
       return { ok: true };
+    case 'setInterest':
+      snap.interest = new Set(cmd.objectIds);
+      return { ok: true };
     case 'rating':
       return { ok: true, data: ratingReport(world) };
     case 'patrons':
