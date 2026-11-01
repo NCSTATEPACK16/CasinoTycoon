@@ -11,7 +11,7 @@ import { lastRound } from '../sim/fx/rounds';
 import { WorldNav } from '../sim/nav/WorldNav';
 import { CasinoWorld } from '../sim/world';
 import { runCommand } from './commands';
-import { SnapshotBuilder } from './snapshot';
+import { SnapshotBuilder, tickerEvent } from './snapshot';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -65,9 +65,7 @@ function wireEvents(w: CasinoWorld): void {
       amount: e.payout,
     });
   });
-  eventBus.on('tickerMessage', (e) =>
-    snap.pendingEvents.push({ type: 'ticker', text: e.text, severity: e.severity ?? 'info' }),
-  );
+  eventBus.on('tickerMessage', (e) => snap.pendingEvents.push(tickerEvent(w, e)));
   eventBus.on('goalReached', () =>
     snap.pendingEvents.push({ type: 'gameOver', won: true, reason: 'Goal reached' }),
   );

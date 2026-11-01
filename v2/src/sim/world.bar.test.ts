@@ -33,13 +33,23 @@ describe('CasinoWorld — bar', () => {
     expect(world.ledger.todayExpenses).toBe(expenseBefore + BAR_BALANCE.drinkCost);
   });
 
+  it('brewDrink at a full bar pours nothing and charges nothing', () => {
+    const world = new CasinoWorld({ seed: 3, autoSpawn: false });
+    const po = world.place('bar', 10, 10)!;
+    for (let i = 0; i < BAR_BALANCE.maxStock; i++) world.brewDrink(po.id);
+    const expenseBefore = world.ledger.todayExpenses;
+    world.brewDrink(po.id);
+    expect(world.bars.get(po.id)!.stock).toBe(BAR_BALANCE.maxStock);
+    expect(world.ledger.todayExpenses).toBe(expenseBefore);
+  });
+
   it('buyDrink takes stock, charges the wallet-equivalent price, and books revenue', () => {
     const world = new CasinoWorld({ seed: 4, autoSpawn: false });
     const po = world.place('bar', 10, 10)!;
     world.brewDrink(po.id);
     const revenueBefore = world.ledger.todayRevenue;
     const purchase = world.buyDrink(po.id, 1000);
-    expect(purchase).toEqual({ price: BAR_BALANCE.drinkPrice });
+    expect(purchase).toEqual({ price: BAR_BALANCE.drinkPrice, ripoff: false });
     expect(world.bars.get(po.id)!.stock).toBe(0);
     expect(world.ledger.todayRevenue).toBe(revenueBefore + BAR_BALANCE.drinkPrice);
   });

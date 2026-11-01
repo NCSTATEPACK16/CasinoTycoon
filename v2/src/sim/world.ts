@@ -8,6 +8,7 @@ import {
   JACKPOT_PAYOUT_MULT,
   SELL_REFUND_RATIO,
   STARTING_CASH,
+  TICKS_PER_HOUR,
 } from '../config';
 import {
   ARCHETYPE_BALANCE,
@@ -17,15 +18,26 @@ import {
   type CompKind,
   DEALER_BALANCE,
   DEBT,
+  LOANS,
   ENGINE_BALANCE,
   GUEST_BALANCE,
   MESS_BALANCE,
+  PRICE_BALANCE,
+  priceAppeal,
   RAGE_BALANCE,
   RATING_BALANCE,
   REPUTATION,
   SECURITY_BALANCE,
 } from '../data/balance';
 import type { CampaignDef } from '../data/campaigns';
+import {
+  CAMPAIGN_TRAFFIC,
+  dayFactor,
+  guestCap as scaledGuestCap,
+  hourFactor,
+  TRAFFIC_BALANCE,
+  type TrafficProfile,
+} from '../data/traffic';
 import { getObjectDef } from '../data/objects';
 import { canPlaceObject, footprintOf, placeObject, sellObject, type PlaceCheck } from './build';
 import { FloorPlan, type FloorPlanJSON } from './floor/FloorPlan';
@@ -43,9 +55,10 @@ import { HOUSE_SOURCES, Ledger, type LedgerJSON } from './economy';
 import { MoodField, type MoodFieldJSON } from './MoodField';
 import { TrafficField, type TrafficFieldJSON } from './TrafficField';
 import { ModifierSystem, type ModifierSystemJSON } from './modifiers';
+import { LoanBook, type Loan, type LoanBookJSON } from './economy/loans';
 import { type Patron, PatronRegistry, type PatronRegistryJSON } from './patrons';
 import { Reputation, type ReputationJSON } from './reputation';
-import { ScenarioManager, type ScenarioJSON } from './scenario/ScenarioManager';
+import { ScenarioManager, type ScenarioJSON, type WorldFacts } from './scenario/ScenarioManager';
 import { interestFor, pickLiquidation, type LiquidationCandidate } from './solvency';
 import { TimeSystem, type TimeSystemJSON } from './TimeSystem';
 import {
@@ -119,6 +132,11 @@ export function spawnChance(rating: number, machineCount: number, reputation: nu
   );
 }
 
+/** B3: services that count toward the floor's room for guests. */
+const CAP_SERVICES = new Set(['toilet', 'food-stall', 'bar', 'cage']);
+/** B3: how often a scaled guest cap is recomputed. */
+const CAP_REFRESH_TICKS = 10;
+
 interface MachineJSON {
   /** P4: the player's per-instance table minimum. Absent for fixed-denomination
    *  games, and absent in saves written before A2 — both default correctly. */
@@ -183,6 +201,8 @@ export interface CasinoWorldJSON {
   /** P3 — the carded roster. Required from SAVE_VERSION 4 up; older files get
    *  an empty registry from the migration ladder rather than a missing key. */
   patrons: PatronRegistryJSON;
+  /** B4: absent in older saves. */
+  loans?: LoanBookJSON;
   /** Optional: added after SAVE_VERSION 3, and absent from both a v3 save
    *  written before it and a v2 file migrated up. `MoodField.fromJSON` starts
    *  empty in either case, which is exactly right — a returning player's mood
@@ -240,6 +260,7 @@ export class CasinoWorld {
   /** P3/A1b — the bounded roster of carded patrons. Data records, not agents:
    *  nothing here ticks, and a record only becomes a live Guest on a visit. */
   patrons = new PatronRegistry();
+  loans = new LoanBook();
   scenario: ScenarioManager | null = null;
   tickCount = 0;
   entranceTile: Cell = { ...ENTRANCE_TILE };
@@ -344,6 +365,11 @@ export class CasinoWorld {
         : FloorPlan.open(cols, rows, entranceFor(cols, rows)),
     );
     this.scenario = def ? new ScenarioManager(def) : null;
+    // B8: a run that opens in debt. The loan's cash is already counted in
+    // startingCash, so it is booked straight onto the loan book.
+    if (def?.startingLoan) {
+      this.loans.take(def.startingLoan.amount, def.startingLoan.days, this.time.day, Infinity);
+    }
     // Day 1 gets conditions too. Without this the first day is always the
     // quiet baseline, which teaches the player that modifiers are rare.
     this.modifiers.drawForDay(this.time.day, this.modifierRng);
@@ -377,6 +403,7 @@ export class CasinoWorld {
     this.mood = new MoodField(cols, rows);
     this.traffic = new TrafficField(cols, rows);
     this.patrons = new PatronRegistry();
+    this.loans = new LoanBook();
     this.tickCount = 0;
     this.nextGuestNum = 1;
     this.nextMessNum = 1;
@@ -515,7 +542,8 @@ export class CasinoWorld {
       this.chargeUpkeep();
       for (const guest of this.guests.values()) this.foldGuestSession(guest);
     }
-    this.ledger.closeHour(closedDay, closedHour, this.guests.size);
+    this.ledger.closeHour(closedDay, closedHour, this.guests.size, this.state.cash);
+    this.scenario?.observeGuests(this.guests.size);
     eventBus.emit('hourPassed', { hour: this.time.hour, day: this.time.day });
     if (midnight) {
       // Settle the closing day's conditions before the books close, so a fine
@@ -528,13 +556,15 @@ export class CasinoWorld {
         this.ledger.addExpense(penalty);
         this.ledger.accrue(HOUSE_SOURCES.fines.id, HOUSE_SOURCES.fines.defId, { upkeep: penalty });
         eventBus.emit('moneyChanged', { cash: this.state.cash, delta: -penalty });
-        eventBus.emit('tickerMessage', {
-          text: `${reasons.join(' and ')} failed — ${formatDollarAmount(penalty)} in fines.`,
-          severity: 'alert',
-        });
+        const text = `${reasons.join(' and ')} failed — ${formatDollarAmount(penalty)} in fines.`;
+        this.ledger.note(text);
+        eventBus.emit('tickerMessage', { text, severity: 'alert' });
       }
       const repDelta = this.reputation.closeDay();
       eventBus.emit('reputationChanged', { value: this.reputation.value, delta: repDelta });
+      // B4: loan installments, before the overdraft interest, so a payment
+      // that tips the house into the red is charged for it like any other.
+      this.settleLoans();
       // P16: interest on the closing balance, charged before the books close
       // so the cost of the debt lands in the day that ran it — the same
       // reasoning as the modifier fine above.
@@ -546,23 +576,25 @@ export class CasinoWorld {
           upkeep: interest,
         });
         eventBus.emit('moneyChanged', { cash: this.state.cash, delta: -interest });
-        eventBus.emit('tickerMessage', {
-          text: `Interest on the overdraft — ${formatDollarAmount(interest)}.`,
-          severity: 'alert',
-        });
+        const text = `Interest on the overdraft — ${formatDollarAmount(interest)}.`;
+        this.ledger.note(text);
+        eventBus.emit('tickerMessage', { text, severity: 'alert' });
       }
       const record = this.ledger.closeDay(closedDay, {
         reputation: this.reputation.value,
         reputationDelta: repDelta,
         modifierIds,
+        rating: this.rating,
+        cash: this.state.cash,
+        debt: this.loans.outstanding,
       });
-      this.scenario?.onDayEnded(record);
+      this.scenario?.onDayEnded(record, this.scenarioFacts());
       // P16: the bank takes what it is owed. After onDayEnded, so a day that
       // reached the goal is a win even if it also closed under the limit.
       // The tick-level check above will already have sold against any breach
       // during the day; this catches the one the close itself just opened,
       // since upkeep, wages, interest and fines all land immediately above.
-      this.liquidateToLimit();
+      this.liquidateToLimit(record.notes);
       if (
         (this.scenario?.status === 'active' || this.scenario?.status === 'endless') &&
         this.state.cash < -this.creditLimit
@@ -777,13 +809,95 @@ export class CasinoWorld {
     return net;
   }
 
+  // ---------- B8: scenario goals ----------
+
+  /** What the scenario's goals read from the world, right now. */
+  scenarioFacts(): WorldFacts {
+    let gold = 0;
+    let black = 0;
+    for (const p of this.patrons.all()) {
+      if (p.tier.id === 'black') black++;
+      if (p.tier.id === 'gold' || p.tier.id === 'black') gold++;
+    }
+    let highLimitGames = 0;
+    for (const o of this.state.allObjects()) {
+      if (getObjectDef(o.defId)?.category !== 'game') continue;
+      if (this.floor.zoneAt(o.col, o.row) === 'highLimit') highLimitGames++;
+    }
+    return {
+      rating: this.rating,
+      patrons: { silver: this.patrons.all().length, gold, black },
+      highLimitGames,
+      debt: this.loans.outstanding,
+      cash: this.state.cash,
+    };
+  }
+
+  // ---------- B4: loans ----------
+
+  /** The most the bank will have out on loan at once, for this scenario. */
+  get loanLimit(): number {
+    return this.scenario?.def.loanLimit ?? LOANS.defaultLimit;
+  }
+
+  /** Borrow `amount` (rounded to LOANS.step) over a term on offer. The cash
+   *  is financing, not revenue: it moves the balance, never the day's P&L. */
+  takeLoan(amount: number, days: number): Loan | null {
+    const step = LOANS.step;
+    const rounded = Math.floor(amount / step) * step;
+    const loan = this.loans.take(rounded, days, this.time.day, this.loanLimit);
+    if (!loan) return null;
+    this.state.cash += loan.principal;
+    eventBus.emit('moneyChanged', { cash: this.state.cash, delta: loan.principal });
+    const text = `Borrowed ${formatDollarAmount(loan.principal)} over ${days} days.`;
+    this.ledger.note(text);
+    eventBus.emit('tickerMessage', { text });
+    return loan;
+  }
+
+  /** Pay a loan down early from cash on hand. Returns what was paid. */
+  repayLoan(loanId: string, amount: number): number {
+    const paid = this.loans.repay(loanId, Math.min(amount, Math.max(0, this.state.cash)));
+    if (paid <= 0) return 0;
+    this.state.cash -= paid;
+    eventBus.emit('moneyChanged', { cash: this.state.cash, delta: -paid });
+    if (!this.loans.loans.some((l) => l.id === loanId)) {
+      const text = 'A loan was paid off early.';
+      this.ledger.note(text);
+      eventBus.emit('tickerMessage', { text });
+    }
+    return paid;
+  }
+
+  /** Midnight: every loan's installment comes out of cash, interest booked
+   *  as the cost of debt and principal as plain repayment. */
+  private settleLoans(): void {
+    const s = this.loans.settleDay();
+    const interest = Math.round(s.interest * 100) / 100;
+    const paid = s.interest + s.principal;
+    if (paid <= 0) return;
+    this.state.cash -= paid;
+    this.ledger.addLoanInterest(interest);
+    this.ledger.accrue(HOUSE_SOURCES.interest.id, HOUSE_SOURCES.interest.defId, {
+      upkeep: interest,
+    });
+    eventBus.emit('moneyChanged', { cash: this.state.cash, delta: -paid });
+    for (const _ of s.paidOff) {
+      const text = 'A loan is paid off.';
+      this.ledger.note(text);
+      eventBus.emit('tickerMessage', { text });
+    }
+  }
+
   /**
    * P16 — sell assets until the house is back above its credit limit.
    *
    * Returns the defIds sold, in order. An empty return while still below the
    * limit is the insolvency condition; Task 5's caller reads it that way.
    */
-  private liquidateToLimit(): string[] {
+  /** `notes`: a closed day's report notes, when the sale belongs to a day
+   *  whose books just closed (the midnight call), not to the one beginning. */
+  private liquidateToLimit(notes?: string[]): string[] {
     const sold: string[] = [];
     // Bounded by the floor: every pass removes one object, so this cannot spin.
     while (this.state.cash < -this.creditLimit) {
@@ -808,22 +922,69 @@ export class CasinoWorld {
       if (!pick) break;
       const refund = this.sell(pick.id);
       sold.push(pick.defId);
-      eventBus.emit('tickerMessage', {
-        text: `The bank forced a sale — ${pick.defId.replace(/-/g, ' ')} gone for ${formatDollarAmount(refund ?? 0)}.`,
-        severity: 'alert',
-      });
+      const text = `The bank forced a sale — ${pick.defId.replace(/-/g, ' ')} gone for ${formatDollarAmount(refund ?? 0)}.`;
+      if (notes) notes.push(text);
+      else this.ledger.note(text);
+      eventBus.emit('tickerMessage', { text, severity: 'alert' });
     }
     return sold;
   }
 
   private maybeSpawn(): void {
-    if (this.guests.size >= GUEST_BALANCE.maxGuests) return;
-    const chance =
-      spawnChance(this.rating, this.machines.size, this.reputation.value) *
-      this.modifiers.spawnMult();
-    if (!this.rng.chance(chance)) return;
+    if (this.guests.size >= this.guestCap()) return;
+    if (!this.rng.chance(this.arrivalChance())) return;
     if (!this.grid.isWalkable(this.entranceTile.col, this.entranceTile.row)) return;
     this.spawnGuest();
+  }
+
+  /** B3: how guests arrive here: the scenario's own profile, else the flat
+   *  rate and fixed cap the campaigns were tuned on. */
+  get trafficProfile(): TrafficProfile {
+    return this.scenario?.def.traffic ?? CAMPAIGN_TRAFFIC;
+  }
+
+  /** B3: the floor's room, in seats: every seat at a game, plus
+   *  TRAFFIC_BALANCE.serviceSeats per restroom, food stall, bar or cage. */
+  floorCapacity(): number {
+    let room = 0;
+    for (const m of this.machines.values()) room += m instanceof SeatedCasinoGame ? m.seatCount : 1;
+    for (const po of this.state.allObjects())
+      if (CAP_SERVICES.has(po.defId)) room += TRAFFIC_BALANCE.serviceSeats;
+    return room;
+  }
+
+  private capCache = { tick: -Infinity, value: 0 };
+
+  /** B3: how many guests may be on the floor at once. A scaled cap follows
+   *  the floor and the rating, refreshed every few ticks (it walks every
+   *  object, and neither moves faster than that matters). */
+  guestCap(): number {
+    const cap = this.trafficProfile.cap;
+    if (cap !== 'scaled') return cap;
+    if (this.tickCount - this.capCache.tick >= CAP_REFRESH_TICKS) {
+      this.capCache = {
+        tick: this.tickCount,
+        value: scaledGuestCap(this.floorCapacity(), this.rating),
+      };
+    }
+    return this.capCache.value;
+  }
+
+  /** B3: the chance a guest walks in this tick. Flat traffic is the campaign
+   *  formula unchanged; daily traffic shapes it by hour and weekday, and a
+   *  scaled cap multiplies it by cap / minCap, so a floor that holds ten
+   *  times the people draws ten times the arrivals. */
+  arrivalChance(): number {
+    const base =
+      spawnChance(this.rating, this.machines.size, this.reputation.value) *
+      this.modifiers.spawnMult();
+    const p = this.trafficProfile;
+    if (p.curve === 'flat') return base;
+    const t = TRAFFIC_BALANCE;
+    const scale = p.cap === 'scaled' ? (this.guestCap() / t.minCap) * t.fill : 1;
+    const clock =
+      hourFactor(this.time.hour, this.time.tickInHour / TICKS_PER_HOUR) * dayFactor(this.time.day);
+    return Math.min(1, base * scale * clock);
   }
 
   spawnGuest(archetypeOverride?: GuestArchetype): Guest {
@@ -850,9 +1011,16 @@ export class CasinoWorld {
       patron ? { id: patron.id, name: patron.name, tier: patron.tier } : null,
     );
     if (this.nav) guest.varyArrivalNeeds();
+    guest.arrivedTick = this.tickCount;
+    // B3: open play's guests come for an evening, not for good.
+    if (this.trafficProfile.curve === 'daily') {
+      const h = TRAFFIC_BALANCE.stayHours;
+      guest.leaveAtTick =
+        this.tickCount + this.rng.int(h.min * TICKS_PER_HOUR, h.max * TICKS_PER_HOUR);
+    }
     this.guests.set(id, guest);
     eventBus.emit('guestSpawned', { id, archetype: guest.archetype });
-    if (patron) this.announcePatronArrival(patron);
+    if (patron) this.announcePatronArrival(patron, id);
     return guest;
   }
 
@@ -864,17 +1032,19 @@ export class CasinoWorld {
    * arrival is escalated to an alert, because that tier's benefit is only felt
    * if failing to look after them is something the player can notice and lose.
    */
-  private announcePatronArrival(patron: Patron): void {
+  private announcePatronArrival(patron: Patron, guestId: string): void {
     const visit = patron.visits + 1;
     if (patron.tier.wantsHost) {
       eventBus.emit('tickerMessage', {
         text: `${patron.name} (${patron.tier.name}) is on the floor — visit ${visit}. Look after them.`,
         severity: 'alert',
+        guestId,
       });
       return;
     }
     eventBus.emit('tickerMessage', {
       text: `${patron.name} (${patron.tier.name}) is back — visit ${visit}.`,
+      guestId,
     });
   }
 
@@ -897,12 +1067,14 @@ export class CasinoWorld {
     if (out.carded) {
       eventBus.emit('tickerMessage', {
         text: `${out.patron.name} just earned a player's card — ${out.patron.tier.name}.`,
+        guestId: guest.id,
       });
       return;
     }
     if (out.promotedTo) {
       eventBus.emit('tickerMessage', {
         text: `${out.patron.name} is now a ${out.promotedTo.name} player.`,
+        guestId: guest.id,
       });
       return;
     }
@@ -910,6 +1082,7 @@ export class CasinoWorld {
       eventBus.emit('tickerMessage', {
         text: `${out.patron.name} left without so much as a drink.`,
         severity: 'warn',
+        guestId: guest.id,
       });
     }
   }
@@ -1037,7 +1210,10 @@ export class CasinoWorld {
       machine.reliability = 100;
       machine.broken = false;
       eventBus.emit('machineFixed', { machineId: machine.id });
-      eventBus.emit('tickerMessage', { text: 'A machine has been repaired!' });
+      eventBus.emit('tickerMessage', {
+        text: 'A machine has been repaired!',
+        objectId: machine.id,
+      });
       return;
     }
     if (member.kind === 'waitress') {
@@ -1050,7 +1226,7 @@ export class CasinoWorld {
       if (!purchase) return;
       guest.wallet -= purchase.price;
       guest.needs.thirst = BAR_BALANCE.thirstRestore;
-      guest.adjustHappiness(BAR_BALANCE.happinessOnDelivery);
+      guest.drinkMood(this, purchase.ripoff, BAR_BALANCE.happinessOnDelivery);
       guest.waitingForDrink = false;
       return;
     }
@@ -1454,17 +1630,55 @@ export class CasinoWorld {
     return true;
   }
 
-  /** An operational food stall: has at least one unlocked item the wallet can afford. */
+  /** An operational food stall: has at least one unlocked item the wallet can
+   *  afford. The cheapest such stall wins (B2); ties keep placement order, so a
+   *  casino whose stalls share a price list picks exactly as before. */
   findFoodStall(wallet: number): { standId: string; stand: Cell } | null {
+    let best: { standId: string; stand: Cell } | null = null;
+    let bestIndex = Infinity;
     for (const po of this.state.allObjects()) {
       if (po.defId !== 'food-stall') continue;
       const stall = this.foodStalls.get(po.id);
-      if (!stall || !stall.pickAffordableItem(wallet, this.rng)) continue;
+      if (!stall || stall.priceIndex >= bestIndex) continue;
+      if (!stall.pickAffordableItem(wallet, this.rng)) continue;
       const stand = this.standTileFor(po);
       if (!stand) continue;
-      return { standId: po.id, stand };
+      best = { standId: po.id, stand };
+      bestIndex = stall.priceIndex;
     }
-    return null;
+    return best;
+  }
+
+  /**
+   * B2 — how much the prices of a kind of service draw custom: priceAppeal of
+   * the cheapest one on the floor, since that is the one a guest would pick.
+   * Exactly 1 at default prices.
+   */
+  serviceAppeal(kind: 'food-stall' | 'bar'): number {
+    let index = Infinity;
+    const all = kind === 'bar' ? this.bars.values() : this.foodStalls.values();
+    for (const s of all) index = Math.min(index, s.priceIndex);
+    return index === Infinity ? 1 : priceAppeal(index);
+  }
+
+  /**
+   * B2 — the player prices a menu item ('burger', ...) at a food stall, or the
+   * drink ('drink') at a bar. Clamped to the object's band; returns the price
+   * as applied, or null when there is no such object or item.
+   */
+  setPrice(objectId: string, itemId: string, price: number): number | null {
+    if (!Number.isFinite(price)) return null;
+    const bar = this.bars.get(objectId);
+    if (bar) {
+      if (itemId !== 'drink') return null;
+      bar.setPrice(price);
+      return bar.price;
+    }
+    const stall = this.foodStalls.get(objectId);
+    const item = stall?.items.find((m) => m.id === itemId);
+    if (!stall || !item) return null;
+    stall.setPrice(itemId, price);
+    return item.currentPrice;
   }
 
   /** Buy a random unlocked, affordable item from the stall; null if nothing qualifies anymore. */
@@ -1485,38 +1699,45 @@ export class CasinoWorld {
     return purchase;
   }
 
-  /** An operational bar: has stock and a walkable stand tile. */
+  /** An operational bar: has stock and a walkable stand tile. The cheapest
+   *  wins (B2); ties keep placement order, as findFoodStall. */
   findBar(): { barId: string; stand: Cell } | null {
+    let best: { barId: string; stand: Cell } | null = null;
+    let bestIndex = Infinity;
     for (const po of this.state.allObjects()) {
       if (po.defId !== 'bar') continue;
       const bar = this.bars.get(po.id);
-      if (!bar || !bar.hasStock()) continue;
+      if (!bar || !bar.hasStock() || bar.priceIndex >= bestIndex) continue;
       const stand = this.standTileFor(po);
       if (!stand) continue;
-      return { barId: po.id, stand };
+      best = { barId: po.id, stand };
+      bestIndex = bar.priceIndex;
     }
-    return null;
+    return best;
   }
 
-  /** Bartender production: one drink into stock, charged as an expense. */
+  /** Bartender production: one drink into stock, charged as an expense. A
+   *  full bar pours nothing and costs nothing (B2: it used to book $4 every
+   *  brew regardless, ~$300 a day against a few drinks sold). */
   brewDrink(barId: string): void {
     const bar = this.bars.get(barId);
-    if (!bar) return;
-    bar.brew();
+    if (!bar || !bar.brew()) return;
     this.ledger.addExpense(BAR_BALANCE.drinkCost);
     this.ledger.accrue(barId, 'bar', { upkeep: BAR_BALANCE.drinkCost });
   }
 
-  /** Self-serve or delivered sale: null if unaffordable or out of stock. */
-  buyDrink(barId: string, wallet: number): { price: number } | null {
+  /** Self-serve or delivered sale at the bar's own price: null if
+   *  unaffordable or out of stock. `ripoff` past PRICE_BALANCE.ripoffIndex. */
+  buyDrink(barId: string, wallet: number): { price: number; ripoff: boolean } | null {
     const bar = this.bars.get(barId);
-    if (!bar || !bar.hasStock() || wallet < BAR_BALANCE.drinkPrice) return null;
+    if (!bar || !bar.hasStock() || wallet < bar.price) return null;
     if (!bar.takeDrink()) return null;
-    this.state.cash += BAR_BALANCE.drinkPrice;
-    this.ledger.addRevenue(BAR_BALANCE.drinkPrice);
-    this.ledger.accrue(barId, 'bar', { revenue: BAR_BALANCE.drinkPrice });
-    eventBus.emit('moneyChanged', { cash: this.state.cash, delta: BAR_BALANCE.drinkPrice });
-    return { price: BAR_BALANCE.drinkPrice };
+    const price = bar.price;
+    this.state.cash += price;
+    this.ledger.addRevenue(price);
+    this.ledger.accrue(barId, 'bar', { revenue: price });
+    eventBus.emit('moneyChanged', { cash: this.state.cash, delta: price });
+    return { price, ripoff: bar.priceIndex > PRICE_BALANCE.ripoffIndex };
   }
 
   /** Public wrapper so Staff.ts (bartender) can reach a bar's stand tile
@@ -1628,6 +1849,7 @@ export class CasinoWorld {
       modifiers: this.modifiers.toJSON(),
       reputation: this.reputation.toJSON(),
       patrons: this.patrons.toJSON(),
+      loans: this.loans.toJSON(),
       mood: this.mood.toJSON(),
       traffic: this.traffic.toJSON(),
       floor: this.floor.toJSON(),
@@ -1694,6 +1916,7 @@ export class CasinoWorld {
     this.modifiers = ModifierSystem.fromJSON(data.modifiers);
     this.reputation = Reputation.fromJSON(data.reputation);
     this.patrons = PatronRegistry.fromJSON(data.patrons);
+    this.loans = LoanBook.fromJSON(data.loans);
     this.mood = MoodField.fromJSON(data.mood);
     this.traffic = TrafficField.fromJSON(data.traffic);
     this.player = PlayerPlay.fromJSON(data.player);

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { AGENT_STRIDE, AgentKind } from '../shared/contracts';
 import { getCampaign } from '../data/campaigns';
+import { footprintOf } from '../sim/build';
+import { ModifierSystem } from '../sim/modifiers';
 import { CasinoWorld } from '../sim/world';
 import { runCommand } from './commands';
-import { SnapshotBuilder } from './snapshot';
+import { SnapshotBuilder, tickerEvent } from './snapshot';
 
 describe('worker bridge', () => {
   it('places through commands and reports objects and moving guests', () => {
@@ -82,5 +84,53 @@ describe('worker bridge', () => {
     const other = new CasinoWorld({ seed: 9 });
     expect(saved.ok && runCommand(other, snap, { type: 'load', json: saved.data }).ok).toBe(true);
     expect(other.state.allObjects().map((o) => o.defId)).toEqual(['blackjack-table']);
+  });
+
+  it("carries today's modifiers on the HUD for the conditions banner", () => {
+    const world = new CasinoWorld({ seed: 2, autoSpawn: false });
+    world.startScenario(null);
+    world.modifiers = ModifierSystem.fromJSON({ activeIds: ['heat-wave'], drawnForDay: 1 });
+    const hud = new SnapshotBuilder().build(world, 0).hud;
+    expect(hud.modifiers).toEqual([
+      { id: 'heat-wave', name: 'Heat wave', blurb: 'Nobody can stop drinking. Stock the bar.' },
+    ]);
+    world.modifiers = new ModifierSystem();
+    expect(new SnapshotBuilder().build(world, 0).hud.modifiers).toEqual([]);
+  });
+
+  it('places ticker lines on their object or guest for click-to-locate', () => {
+    const world = new CasinoWorld({ seed: 6, autoSpawn: false });
+    world.startScenario(null);
+    const snap = new SnapshotBuilder();
+    const placed = runCommand(world, snap, {
+      type: 'place',
+      defId: 'blackjack-table',
+      col: 8,
+      row: 6,
+      rot: 1,
+    });
+    const id = (placed as { data: { id: string } }).data.id;
+    const fp = footprintOf('blackjack-table', 1);
+    expect(tickerEvent(world, { text: 'Broke', severity: 'alert', objectId: id })).toEqual({
+      type: 'ticker',
+      text: 'Broke',
+      severity: 'alert',
+      objectId: id,
+      x: 8 + fp.w / 2,
+      z: 6 + fp.h / 2,
+    });
+
+    const guest = world.spawnGuest('regular');
+    const ev = tickerEvent(world, { text: 'Back', guestId: guest.id });
+    const pose = guest.renderPose();
+    expect(ev).toMatchObject({ severity: 'info', x: pose.x, z: pose.z });
+    expect(ev.type === 'ticker' && ev.agentId).toBe(Number(guest.id.replace(/\D+/g, '')));
+
+    // A subject that is gone leaves the line unplaced rather than pointing nowhere.
+    expect(tickerEvent(world, { text: 'Sold', objectId: 'nope', guestId: 'g-999' })).toEqual({
+      type: 'ticker',
+      text: 'Sold',
+      severity: 'info',
+    });
   });
 });
