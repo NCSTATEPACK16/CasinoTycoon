@@ -379,7 +379,7 @@ v2 ships to Netlify after this cut. Do these next, in this order, then the finis
     - **Not done:** slots "bet per line or lines": the slot engine takes one stake per spin from the machine's rules (denomination × credits), so there is nothing to choose without a Track B engine change. Craps bets are buttons, not layout clicks (the printed craps felt has no hit map yet). The main.ts gate needs no change: any catalog entry with an engine `game` already opens the view.
     - **Known:** sitting down mid-round after leaving a table answers "a round is already in progress" (pre-existing PlayerPlay behaviour).
 
-- [ ] **A13. Finish.**
+- [x] ✅ **A13. Finish.**
   1. Merge `origin/v2-playable` if it moved.
   2. Run the full suite under `caffeinate -i` and `npm run build`.
   3. Measure the stress scene.
@@ -387,6 +387,31 @@ v2 ships to Netlify after this cut. Do these next, in this order, then the finis
   5. Push and update the PR description with the checklist and evidence; take the PR out of draft.
      List the "After ship" tasks in the PR description as post-ship work, not as missing.
   6. Report to the user and stop the loop.
+  - **Done 2026-11-01.**
+    - **Merge:** `origin/v2-playable` had moved (Track B's PR #20, B1–B13). Merged in b74a4fc (merge, not rebase). Conflicts only in the shared append-only files: `contracts.ts` keeps B's located ticker events and both tracks' new commands (`setInterest`, then B2–B8's), with `roundFx` after `gameOver`; `commands.ts` keeps every new case; `main.ts` keeps both wiring blocks, and `__v2` carries `hud`, `audio`, `settings` and `ambience`; `ui.css` is A's file plus B's appended `/* Track B */` block (B only appended). `tsc` clean.
+    - **Full suite** under `caffeinate -i`: 115 files, 1019/1019, no timeouts. **`npm run build`:** clean (only Vite's usual large-chunk notice). GLBs, VAT (7.1 MB) and audio unchanged since A6.
+    - **Stress scene** (the A0 `stress.js` floor through the command path: 1,971 objects, 90 staff, 500 guests spawned; High, auto-quality off; same god views as A0–A4). The session window was closed, so rAF ran at about 1 Hz and fps could not be measured again.
+
+      | View | A4 calls, triangles | A13 calls, triangles |
+      |---|---|---|
+      | Overview (76.8 m), running | 223, 312k | 217, 304k |
+      | Mid (30 m) | 112, 506k | 129, 617k |
+      | Close (10 m) | 77, 378k | 87, 478k |
+      | Slot bank close (8 m), six spots | 70, 1.8–2.0M | 60–131, 0.53–1.29M |
+
+      All inside the 300-call and 1.5M-triangle budgets. The close slot-bank overage A3/A4 found did not recur at any of the six spots tried, but this is not a fix: B3's traffic now sends guests home, so the floor held 378–434 guests while measuring, not 500, and the crowd is most of the triangles up close. Treat the 8 m view as still at risk at a full 500 (A9's people and A12's LOD work will touch it anyway).
+    - **Tick:** in the browser the worker read 25–43 ms, the hidden-page throttling seen in A3/A4. Headless `sandbox.stress.test.ts` with `NAV_PERF=1` (2,036 objects, 496 guests, 90 staff), each run alone: 34.7 ms (the dev page's own 500-guest sim still running beside it), then 14.5, 14.3 and 9.3 ms mean with the page paused. B7a made a tick 300 ms, so the budget is now 24 ms (8 ms per 100 ms); all three clean runs pass.
+    - **Screenshots** (in the session notes folder `A13-screens/`; a fresh Sandbox for the live tables: a 32-cabinet slot bank, 2 blackjack, 2 roulette, 2 craps, 10 dealers, 160 guests; each round caught as it arrived, the sim paused so the inspector keeps it, render time stepped):
+      - God-view overview of the stress floor.
+      - Eye-level slot bank mid-spin: `obj-10` 0.9 s in, reel 1 landed on a cherry, reels 2–3 blurred, over the player's shoulder; at rest three cherries on the payline for the inspector's `lastRound` "pays 5.00× (1 line)", stops [0, 4, 13].
+      - Roulette at rest: `obj-36`, the ball in pocket 21 on the double-zero head for `lastRound` "21 red".
+      - Blackjack mid-hand: `obj-33` at 2.6 s, dealer 6♣ up and the hole card face down, the player's 4♠ 7♠ Q♠ at the seat, for the round "21 vs dealer bust 23".
+      - Craps roll: `obj-37` mid-hop at 0.95 s, then at rest; the drawn dice read 5 and 5 on top (from the instance matrices through `valueUp`, and on screen) for the round's `[5, 5]`.
+      - Your own round in the play view: seated at a roulette table, chips laid by clicking 17, Red and the first dozen (slip "Straight 17 $25 · Red $25 · Dozen 1 $25"), Place bets, Spin, the live head and ball, "Ball in 23 · 23 red — −$25.00": Red paid, the rest lost, wallet $925 → $975.
+    - **Found (not fixed; post-ship):**
+      - At 1280×800 the play panel (right edge) covers most of the roulette wheel in the seat view; the layout stays clear. A6's pan keeps your spot left of the panel, not the wheel.
+      - At eye level on the dense stress floor, neon signs next to the camera bloom into large white shapes (global bloom; A8's selective bloom is the fix).
+      - With the sim paused, queued rounds keep starting on the felt as render time runs (the director drains its queue). Harmless, but it makes catching one round fiddly.
 
 ### After ship (backlog: don't start these until the user says so)
 
