@@ -1,13 +1,19 @@
 import './style.css';
 import './ui/ui.css';
+import { GameAudio, audio } from './audio';
+import { AmbienceFeed } from './audio/AmbienceFeed';
 import { SimClient } from './client/SimClient';
 import { PlayerControls } from './input/PlayerControls';
 import type { PlayRequestedDetail } from './input/avatar/Interaction';
 import type { PickHit } from './input/Picker';
+import type { SoundName } from './audio/sounds';
 import { Stage } from './render/Stage';
+import { Anim } from './shared/contracts';
 import { Hud } from './ui/Hud';
 import { Menus } from './ui/Menus';
+import { Settings } from './ui/Settings';
 import { SidePanel } from './ui/SidePanel';
+import { feltPoint } from './ui/play/feltPoint';
 import { TablePlay } from './ui/TablePlay';
 import { HeatOverlay } from './render/HeatOverlay';
 import { DayReportCard } from './ui/panels/DayReportCard';
@@ -58,6 +64,14 @@ panel.onFollowGuest = (agentId, name) => {
 };
 panel.onReport = showReport;
 controls.onMessage = (t) => hud.say(t);
+const settings = new Settings(audio, stage);
+settings.mount(ui);
+audio.unlockOn(window);
+const gameAudio = new GameAudio(audio, sim);
+gameAudio.watchPanels([panel.root, table.root, menus.root, settings.root]);
+gameAudio.watchClicks(ui);
+stage.fx.sound = (name, at, delay, rate) => audio.play(name as SoundName, { at, delay, rate });
+const ambience = new AmbienceFeed(audio);
 hud.ticker.onLocate = (at) => {
   if (!locate(at, { sim, controls, stage, panel })) hud.say('Stand up from the table first (F)');
 };
@@ -79,6 +93,10 @@ let lastHour = -1;
 sim.onSnapshot((s) => {
   if (s.objects) stage.setObjects(s.objects);
   if (s.floor) stage.setFloor(s.floor);
+  if (s.objects) ambience.setObjects(s.objects);
+  if (s.floor) ambience.setFloor(s.floor);
+  ambience.setHud(s.hud.guests, s.hud.speed);
+  stage.fx.speed = s.hud.speed;
   stage.handleEvents(s.events);
   hud.update(s.hud);
   tutorial.update(s.hud, s.objects, menus.isOpen);
@@ -105,6 +123,16 @@ sim.onSnapshot((s) => {
     lastHour = s.hud.hour;
   }
 });
+
+// Tell the worker which games are near the camera, so their rounds play out.
+let interestKey = '';
+setInterval(() => {
+  const ids = stage.interestIds();
+  const key = ids.join(',');
+  if (key === interestKey) return;
+  interestKey = key;
+  void sim.command({ type: 'setInterest', objectIds: ids }).catch(() => (interestKey = ''));
+}, 500);
 
 // ---------- management UI ----------
 
@@ -180,6 +208,17 @@ window.addEventListener('playRequested', (ev) => {
   panel.close();
   void table.open(d.objectId, d.game);
 });
+table.view = {
+  setOwn: (id) => (stage.fx.own = id),
+  play: (id, fx) => stage.fx.playOwn(id, fx, controls.avatar.pos),
+  hand: (id, seen, wagered, settled) =>
+    stage.fx.ownHand(id, seen, wagered, controls.avatar.pos, settled),
+  stakes: (id, list) => stage.fx.setStakes(id, list, controls.avatar.pos),
+  feltPoint: (id, x, y) => feltPoint(controls.camera, canvas, stage.objects.get(id)?.matrix, x, y),
+};
+canvas.addEventListener('click', (e) => {
+  if (controls.director.mode === 'seat') table.clickAt(e.clientX, e.clientY);
+});
 table.onLeave = () => {
   if (controls.director.mode === 'seat') controls.director.stand();
 };
@@ -207,21 +246,27 @@ stage.renderer.setAnimationLoop((now) => {
   const av = controls.avatar;
   for (const c of av.mesh.children) c.visible = false;
   const mode = controls.director.mode;
+  // Seated, the body stays in its seat in front of the lens, playing.
   stage.avatar =
-    av.mesh.visible && mode !== 'first' && mode !== 'seat'
+    (av.mesh.visible || mode === 'seat') && mode !== 'first'
       ? {
           x: av.pos.x,
           z: av.pos.z,
           heading: av.heading,
           moving: Math.hypot(av.vel.x, av.vel.z) > 0.2,
+          anim: mode === 'seat' ? Anim.Play : undefined,
         }
       : null;
   if (sim.curr) stage.updateAgents(sim.prev, sim.curr, sim.alpha(now));
   stage.render(controls.camera);
+  audio.update(controls.camera);
+  ambience.update(controls.camera, now / 1000);
 });
 
 // Title screen once the worker is up; the sim idles at speed 0 behind it.
 void sim.command({ type: 'setSpeed', speed: 0 }).then(() => menus.title());
 
 // Debug/test hook for browser playtests.
-Object.assign(window, { __v2: { sim, stage, god, build, controls, panel, table, menus, hud } });
+Object.assign(window, {
+  __v2: { sim, stage, god, build, controls, panel, table, menus, hud, audio, settings, ambience },
+});

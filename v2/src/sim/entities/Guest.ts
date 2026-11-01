@@ -20,7 +20,7 @@ import { Anim } from '../../shared/contracts';
 import { AI } from '../agents/aiBalance';
 import { drawProfile, guestRng, stopReason, type BankrollProfile } from '../agents/bankroll';
 import { joinQueue, leaveQueue, queuePlace, queueSpot } from '../agents/queue';
-import { approachPose } from '../agents/seats';
+import { approachPose, playsStanding } from '../agents/seats';
 import { spreadStand, standKey } from '../agents/stands';
 import {
   needUrgency,
@@ -109,6 +109,8 @@ export class Guest extends Walker {
   private wagersByGame = new Map<string, number>();
   private thoughtLast = new Map<string, number>();
   private machineId: string | null = null;
+  /** Cosmetic: the reserved game is played on your feet at a rail (craps). */
+  private playsStanding = false;
   private spinsLeft = 0;
   private spinTimer = 0;
   private spinEveryTicks = 8; // from the machine's cadence at sit-down
@@ -220,6 +222,8 @@ export class Guest extends Walker {
     if (this.walking) return Anim.Walk;
     if (this.state === 'play') {
       if (this.celebrating) return Anim.Cheer;
+      // At a standing rail there is no stool: wait on your feet, play leaning in.
+      if (this.playsStanding) return this.waitingForPlayersTicks > 0 ? Anim.Idle : Anim.StandPlay;
       return this.waitingForPlayersTicks > 0 ? Anim.Sit : Anim.Play;
     }
     if (
@@ -471,6 +475,7 @@ export class Guest extends Walker {
       if (this.goTo(world, res.stand, approachPose(world, res.stand, res.machineId) ?? undefined)) {
         this.state = 'seekGame';
         this.machineId = res.machineId;
+        this.playsStanding = playsStanding(world.machineDefId(res.machineId));
         return true;
       }
       world.releaseMachines(this.id);
@@ -596,6 +601,7 @@ export class Guest extends Walker {
         this.queueFor = null;
         this.state = 'seekGame';
         this.machineId = res.machineId;
+        this.playsStanding = playsStanding(world.machineDefId(res.machineId));
         return;
       }
       if (res) world.releaseMachines(this.id);

@@ -55,15 +55,22 @@
    "frames": 40,
    "fps": 20,
    "loop": true
+  },
+  {
+   "name": "standplay",
+   "start": 280,
+   "frames": 40,
+   "fps": 20,
+   "loop": true
   }
  ],
- "frames": 280,
+ "frames": 320,
  "lods": [
   {
    "vertexCount": 902,
    "indexCount": 4860,
    "width": 902,
-   "height": 560,
+   "height": 640,
    "indexOffset": 0,
    "regionOffset": 9720,
    "vatOffset": 10624
@@ -72,10 +79,10 @@
    "vertexCount": 484,
    "indexCount": 2472,
    "width": 484,
-   "height": 560,
-   "indexOffset": 4051584,
-   "regionOffset": 4056528,
-   "vatOffset": 4057012
+   "height": 640,
+   "indexOffset": 4628864,
+   "regionOffset": 4633808,
+   "vatOffset": 4634292
   }
  ]
 }

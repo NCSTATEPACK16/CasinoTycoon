@@ -322,13 +322,9 @@ def card_table(g, d, felt, rail='leatherRed', wood='mahogany', trim='brass', sea
         g.box(0.14, 0.09, 0.22, cx + 0.62, 0.76, zb + 0.18, 'blackGloss', ry=0.3)
         if d == 0:
             g.box(0.1, 0.06, 0.14, cx - 0.62, 0.76, zb + 0.16, 'chrome')
-            # A few cards and bets on the felt.
-            for i in range(3):
-                a = math.pi * (0.32 + i * 0.18)
-                px = cx + math.cos(a) * 0.62
-                pz = zb + math.sin(a) * 0.7
-                g.box(0.06, 0.004, 0.085, px, 0.762, pz, 'white', ry=a - math.pi / 2)
-                chips(g, px - 0.04, 0.762, pz + 0.1, d, n=2)
+            # No cards or bets baked on the felt: a watched table deals its
+            # real rounds as live parts (src/render/fx/felt.ts), and baked ones
+            # would lie beside them, or on seats nobody is sitting in.
     if hl and d == 0:
         g.cyl(0.012, 0.012, 0.35, cx + 0.8, 0.76, zb + 0.08, 'gold', seg=6)
         g.sphere(0.06, cx + 0.8, 1.14, zb + 0.08, 'lampWarm', seg=10, rings=6)
@@ -377,9 +373,9 @@ def craps_table(g, d):
     else:
         g.slab(outer, 0.95, 1.02, 'leatherBlack')
     if d == 0:
-        # Dice, the stick and a boxman's chip stacks.
-        g.box(0.03, 0.03, 0.03, 1.3, 0.955, 0.9, 'white', ry=0.4)
-        g.box(0.03, 0.03, 0.03, 1.35, 0.955, 0.95, 'white', ry=1.1)
+        # The stick and a boxman's chip stacks. No dice: a watched table throws
+        # the real roll as live parts (src/render/fx/dice.ts), and a pair baked
+        # in here would lie beside them showing a number nobody rolled.
         g.cyl(0.006, 0.006, 1.0, 0.6, 1.08, 1.6, 'oak', seg=6, axis='x')
         chips(g, 0.8, 0.955, 0.48, d, n=8)
     # Players stand around the rail.

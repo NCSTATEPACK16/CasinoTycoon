@@ -198,12 +198,14 @@ table.fin td:first-child {
 }
 
 /* ---------- table play ---------- */
+/* At the right edge, clear of the felt: the round itself plays on the table. */
 .table-play {
   position: absolute;
-  left: 50%;
-  bottom: 96px;
-  transform: translateX(-50%);
-  width: min(640px, calc(100vw - 24px));
+  right: 12px;
+  top: 64px;
+  width: min(340px, calc(100vw - 24px));
+  max-height: calc(100vh - 180px);
+  overflow-y: auto;
   background: rgba(14, 40, 28, 0.92);
   border: 1px solid rgba(246, 196, 83, 0.45);
   border-radius: 16px;
@@ -237,6 +239,24 @@ table.fin td:first-child {
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+}
+.tp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tp-chips .chip {
+  min-width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 3px dashed rgba(255, 255, 255, 0.55);
+  background: #1f8f4a;
+  font-weight: 700;
+  font-size: 12px;
+}
+.tp-chips .chip.active {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
 }
 .tp-actions button {
   min-width: 88px;
@@ -383,6 +403,68 @@ button.slot small {
   .hud-menu {
     right: 180px;
   }
+}
+
+/* Track A */
+/* ---------- settings ---------- */
+.settings-gear {
+  font-size: 16px;
+  line-height: 1;
+  padding: 8px 10px;
+}
+/* Bottom-left, above the palette: the one corner no other panel uses. */
+.settings-gear.floating {
+  position: absolute;
+  left: 12px;
+  bottom: 96px;
+}
+.settings-panel {
+  position: absolute;
+  left: 12px;
+  bottom: 140px;
+  width: 300px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.45);
+}
+.settings-panel[hidden] {
+  display: none;
+}
+.st-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.st-group h4 {
+  margin: 0 0 6px;
+  color: var(--gold);
+  font-size: 13px;
+  font-weight: 600;
+}
+.st-row {
+  display: grid;
+  grid-template-columns: 76px 1fr 42px;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 3px 0;
+}
+.st-row input[type='range'] {
+  accent-color: var(--gold);
+}
+.st-row .st-val,
+.st-row .dim {
+  text-align: right;
+  color: var(--dim);
+  white-space: nowrap;
+}
+.st-row.st-mute {
+  grid-template-columns: auto 1fr;
 }
 
 /* Track B */
