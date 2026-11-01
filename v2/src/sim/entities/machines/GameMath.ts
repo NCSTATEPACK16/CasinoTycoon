@@ -10,12 +10,14 @@ import type { CrapsView } from '../../games/craps/craps';
 import { ENGINES } from '../../games';
 import { theoForBets, type CasinoEngine, type RulesIssue } from '../../games/types';
 import { Rng as SeededRng } from '../../rng';
+import type { TcpView } from '../../games/tcp/tcp';
 import type { UthView } from '../../games/uth/uth';
 
 /** Hands per skill-premium measurement: the premium to about ±0.15 points,
  *  for ~0.25 s (blackjack) and ~0.6 s (UTH) on first use of a rule set. */
 const PREMIUM_HANDS_BJ = 60_000;
 const PREMIUM_HANDS_UTH = 30_000;
+const PREMIUM_HANDS_TCP = 60_000;
 /** Shared across tables: the premium is a function of the rules alone. */
 const PREMIUMS = new Map<string, number>();
 
@@ -55,6 +57,8 @@ export function actionCost(kind: GameKind, view: unknown, action: string): numbe
       const m = /^bet(\d)x$/.exec(action);
       return m ? (view as UthView).ante * Number(m[1]) : 0;
     }
+    case 'tcp':
+      return action === 'play' ? (view as TcpView).ante : 0;
     case 'craps': {
       if (!action.startsWith('odds:')) return 0;
       const spot = action.slice(5);
@@ -203,17 +207,22 @@ export class GameMath<R extends BaseRules = BaseRules> {
    * and once with errors (common random numbers, so the difference is far
    * quieter than either run), on a private shoe and RNG so the measurement
    * never disturbs the live table. Cached per rule set and error rate. Only
-   * blackjack and UTH have decisions with an edge cost — craps' only
+   * blackjack, UTH and three-card poker have decisions with an edge cost — craps' only
    * decision is the zero-edge odds, and slots and roulette have none.
    */
   skillPremium(skillError: number): number {
-    if (skillError <= 0 || (this.kind !== 'blackjack' && this.kind !== 'uth')) return 0;
+    if (skillError <= 0 || !['blackjack', 'uth', 'tcp'].includes(this.kind)) return 0;
     // Table limits don't change a decision's cost; leave them out of the key.
     const { minBet: _min, maxBet: _max, ...decisive } = this.rules;
     const key = `${this.kind}|${JSON.stringify(decisive)}|${skillError}`;
     const cached = PREMIUMS.get(key);
     if (cached !== undefined) return cached;
-    const hands = this.kind === 'blackjack' ? PREMIUM_HANDS_BJ : PREMIUM_HANDS_UTH;
+    const hands =
+      this.kind === 'blackjack'
+        ? PREMIUM_HANDS_BJ
+        : this.kind === 'tcp'
+          ? PREMIUM_HANDS_TCP
+          : PREMIUM_HANDS_UTH;
     const run = (err: number): number => {
       const probe = new GameMath<R>(this.kind, this.rules);
       const deal = new SeededRng(0x5eed);

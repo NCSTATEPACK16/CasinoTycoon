@@ -11,8 +11,10 @@ Every gambling object that used to roll an abstract `{p, multiplier}` table now 
 | `high-limit-table` | `blackjack` | As above plus late surrender, $25–$10,000                                |
 | `craps-table`      | `craps`     | 3-4-5x odds, field 12 pays 2:1, $2–$1,000                                |
 | `poker-table`      | `uth`       | Ultimate Texas Hold'em, Trips 50-40-30-8-7-4-3, $2–$500                  |
+| `sic-bo`           | `sicbo`     | 180:1 triples, any triple 30:1, singles 1-2-3:1, $2–$200                 |
+| `three-card-poker` | `tcp`       | Pair Plus 40-30-6-4-1, Ante bonus 5-4-1, queen-high dealer, $2–$500      |
 
-Sic bo, big six, video poker, three-card poker, pai gow, keno, bingo and pachinko still use v1 payout tables (follow-up).
+Big six, video poker, pai gow, keno, bingo and pachinko still use v1 payout tables (B9b–B9d).
 
 ## Where each edge comes from
 
@@ -21,6 +23,9 @@ Sic bo, big six, video poker, three-card poker, pai gow, keno, bingo and pachink
 - **Craps:** exact Markov ratios per bet: Pass 7/495, Don't Pass (bar 12) 3/220, odds 0, place 6/8 1/66, field 1/18 (1/36 with 3:1 on 12), hardways 1/9 and 1/11, any 7 1/6.
 - **Blackjack:** rule-adjustment table (Wizard of Odds rule variations; see `blackjack/rules.ts` for each value), verified by 2M-hand Monte Carlo runs of the engine's own generated basic strategy on three rule sets (`blackjack.mc.test.ts`).
 - **UTH:** Ante edge 2.43% for the standard decision table. That's Wizard of Odds' figure for this "simple strategy"; optimal play is 2.185%. Checked by a 2M-hand Monte Carlo run. Trips edges are exact, from the seven-card category counts, which the evaluator re-derives over all 133,784,560 hands.
+
+- **Sic bo (B9a):** enumerated. Every bet's edge is 1 − E[return] over the 216 ordered rolls (`sicBoSpotEdge`): small/big 7/252 = 2.78% (triples lose), singles 17/216 = 7.87%, doubles 18.52%, specific triple 16.2% at 180:1, any triple 13.89% at 30:1, two-dice combination 16.67%, totals 9.72–18.98% by number (`TOTAL_PAYS`). `sicbo.test.ts` checks each against the published figure and a 2M-round Monte Carlo of the guest mix. The engine's `theoreticalEdge` is that mix's stake-weighted edge (8.3%), because the money sits on the long shots, not the 2.78% even-money bets.
+- **Three-card poker (B9a):** exact. Pair Plus is enumerated over the 22,100 hands (2.32% on 40-30-6-4-1, 7.28% on 40-30-6-3-1). The Ante edge for the reference strategy (play Q-6-4 or better) is the sum over all 407,170,400 disjoint (player, dealer) pairs, hardcoded as `TCP_BASE_NET` and re-derived in `tcp.test.ts` (about 10 s): −3.373% of the Ante with the 5-4-1 bonus, which is Wizard of Odds' 3.37%. A 3M-hand Monte Carlo of the engine confirms it within ±0.15%.
 
 ## Theo, hold and skill
 
@@ -41,6 +46,8 @@ The avatar's rounds book theo at the book edge with no premium.
 | Blackjack | `decks` 1/2/6/8, `h17`, `blackjackPays` 3:2/6:5, `das`, `rsa`, `surrender` none/late, `maxSplitHands` 2–4, `penetration` 0.5–0.9, limits |
 | Craps     | `odds` 1x/2x/3-4-5x/5x/10x/20x, `field12Pays` 2/3, limits                                                                                |
 | UTH       | `trips` paytable, limits                                                                                                                 |
+| Sic bo    | `triple` 150/180, `anyTriple` 24/30, `singleTriple` 2/3, limits                                                                          |
+| 3-card    | `pairPlus` 40-30-6-4-1 / 40-30-6-3-1 / 50-40-6-3-1, `anteBonus` 5-4-1 / 3-2-1, limits                                                    |
 
 ### The appeal curve
 
@@ -51,6 +58,8 @@ The avatar's rounds book theo at the book edge with no premium.
 - **Craps** (by odds): 1x 0.80, 2x 0.90, 3-4-5x 1.00, 5x 1.05, 10x 1.15, 20x 1.20. Field 3:1 adds 0.05.
 - **Slots:** linear in RTP, 1 + 4 × (RTP − 0.92). An 88% sheet reads as tight (0.84), 97% as loose (1.20).
 - **UTH:** Trips 9-7-4-3 is 1.08, 8-7-4-3 is 1.00, 8-6-5-3 is 0.97.
+- **Sic bo** (additive from 1.0): 180:1 triple ±0.04, any triple at 30 ±0.03, single-number triple at 3:1 ±0.02.
+- **Three-card poker** (multiplicative): Pair Plus 40-30-6-4-1 1.06, 50-40-6-3-1 1.00, 40-30-6-3-1 0.94; Ante bonus 5-4-1 ×1.02, 3-2-1 ×0.94.
 
 Price and limits tune who sits down: the guest's wallet must cover the opening bet (`minBet` and `costToPlay`), and the v1 table-minimum dial and `minWallet` gates still apply.
 
@@ -65,6 +74,8 @@ Price and limits tune who sits down: the guest's wallet must cover the opening b
 | Craps     | 110 rolls / (1 + 0.03 n), ÷ 3.38 rolls per pass decision | about 31 decisions an hour              |
 | UTH       | 60 / (1 + 0.15 n)                                        | 52 → 32                                 |
 | Slots     | the sheet's `spinsPerHour`                               | 400 for a stepper, 600 for video        |
+| Sic bo    | 80 / (1 + 0.12 n)                                        | about 64 → 47                           |
+| 3-card    | 75 / (1 + 0.1 n)                                         | about 62 → 50                           |
 
 A table with an assigned dealer runs at full speed. Without one it deals at `ENGINE_BALANCE.noDealerSpeed` = 0.5.
 
@@ -78,6 +89,8 @@ The forked guest AI still makes one decision per play interval, so one "play" is
 | Roulette   | 2 × $15                  | 5.26%                                   |
 | High-limit | 12 × $65                 | ~1.0%                                   |
 | Slots      | 1 spin                   | —                                       |
+| Sic bo     | 6 × $2.04 (any one bet)  | ~8.3% of the guest mix (long shots)     |
+| 3-card     | 8 × $2.65 Ante (+Pair Plus 40%) | ~4.3% of the Ante before errors |
 
 These shapes hold each game's take per play, and its swing per play, near what v1's economy (wages, upkeep, campaign goals, and P16's "a day is not a coin flip" bar) was tuned on. For a fixed take, n rounds at stake/n swing 1/√n as much. Occupancy and dealer speed scale the round count by `roundsPerHour(seated) × dealerSpeed`, with fractions rounded stochastically. Once Session 3's bankroll guests call `GameMath.playRound` per round at the table's real pace, `playShape` can retire.
 
@@ -101,4 +114,6 @@ Spot ids by game:
 | Roulette  | `straight:N`, `straight:00`, `split:a-b`, `street:a`, `corner:a`, `sixline:a`, `basket`, `column:1-3`, `dozen:1-3`, `red`, `black`, `odd`, `even`, `low`, `high` |
 | Craps     | `pass`, `dontPass`, `come`, `dontCome`, `place:N`, `hard:N`, `field`, `any7`, `anyCraps`, `yo`; odds via the `odds:<spot>` action                                |
 | UTH       | `ante`, plus optional `trips`                                                                                                                                    |
+| Sic bo    | `small`, `big`, `single:N`, `double:N`, `triple:N`, `anyTriple`, `total:4-17`, `pair:a-b`; action `roll`                                                          |
+| 3-card    | `ante`, plus optional `pairPlus`; actions `play` (a Play bet equal to the Ante) and `fold`                                                                         |
 | Slots     | `spin` (the bet is fixed by the rules)                                                                                                                           |

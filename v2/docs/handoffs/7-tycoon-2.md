@@ -22,7 +22,13 @@ Anti-goals, carried over: breaking the campaign economy without re-tuning it; go
 
 ## Tasks
 
-- [ ] **B9a. Sic bo and three-card poker.**
+- [x] **B9a. Sic bo and three-card poker.** Done 2026-11-01 (PR #22). `sim/games/sicbo/` and `sim/games/tcp/`, contract commit f65e7ae (`GameKind` += `sicbo`, `tcp`).
+  - **Sic bo:** every bet's edge enumerated over the 216 rolls (small/big 2.78%, single 7.87%, double 18.52%, triple 16.2%, any triple 13.89%, pair 16.67%, totals 9.72–18.98%), each asserted against the published figure; guest mix 8.34%; 2M-round Monte Carlo within 0.3% of the mix (SE ≈ 0.07%, long-shot heavy). Levers `triple` 150/180, `anyTriple` 24/30, `singleTriple` 2/3.
+  - **Three-card poker:** Pair Plus enumerated (2.32% / 7.28% / 50-40 table), Ante edge 3.373% summed over all 407,170,400 disjoint pairs (re-derived in `tcp.test.ts`, ~10 s) = Wizard of Odds' 3.37%; 3M-hand Monte Carlo within ±0.15%. Levers `pairPlus` (3 tables), `anteBonus` (5-4-1, 3-2-1). `GameMath` rates skill premium for it.
+  - **Take per play** (30k plays, 2% errors) vs the old tables' $1.08: sic bo $1.16 → handle tuned 1.1 → 1.02, three-card poker $1.12 → 1.06 (`ENGINE_BALANCE.playShape`: sic bo 6 rounds, 3CP 8 rounds).
+  - **Campaigns before → after, identical** (the bots never buy these two): Dusty Dime 7/7, Neon Nights 5/7, High Roller 5/7; career grid and crowd win days unchanged (e.g. House Rules grid `W3 W3 W3 W3 W5 W3 W3`, Velvet Rope grid `W13 - W7 W11 W13 - W7`). `world.tier2`, `payoutVariance` (sic bo / 3CP removed from the table checks), `engineMachines` (hold ≈ theo within 4σ over 40k plays each) and a new `ui/rulesSchema.test.ts` pass; `crowd.test.ts` timed out once under the parallel run and passes alone.
+  - **Browser:** both tables placed and played in Sandbox; the rules editor shows the new levers; Finances "By game" books handle, win, hold and theo for each. The avatar play gate (`game` in `catalog.ts`) is left alone: neither table has a player seat until A6's generic play view is merged.
+  - **Old classes:** `SicBoTable` and `ThreeCardPokerTable` are now `EngineTable` subclasses; their payout tables are gone from `balance.ts`.
 - [ ] **B9b. Pai gow and keno.**
 - [ ] **B9c. Video poker and pachinko.**
 - [ ] **B9d. Bingo and big six.**

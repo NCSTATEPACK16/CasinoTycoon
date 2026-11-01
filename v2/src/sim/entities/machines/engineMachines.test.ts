@@ -99,8 +99,8 @@ describe('engine-backed machines', () => {
   });
 
   it('v1 games without an engine report no rules', () => {
-    expect(createMachine('sic-bo', 'x')!.setRules({})).toBeNull();
-    expect(createMachine('sic-bo', 'x')!.math).toBeNull();
+    expect(createMachine('pai-gow', 'x')!.setRules({})).toBeNull();
+    expect(createMachine('pai-gow', 'x')!.math).toBeNull();
   });
 });
 

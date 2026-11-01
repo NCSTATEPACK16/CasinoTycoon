@@ -86,9 +86,8 @@ const ALL_TABLES: readonly TableSpec[] = [
   { name: 'pachinko', table: PACHINKO_BALANCE.payoutTable, rtp: 0.88 },
   { name: 'keno-lounge', table: KENO_BALANCE.payoutTable, rtp: 0.75 },
   { name: 'video-poker', table: VIDEO_POKER_BALANCE.payoutTable, rtp: 0.96 },
-  // P17 Tier 2 — all four inside the default bar, no allowances needed.
-  { name: 'sic-bo', table: SIC_BO_BALANCE.payoutTable, rtp: 0.91 },
-  { name: 'three-card-poker', table: THREE_CARD_POKER_BALANCE.payoutTable, rtp: 0.94 },
+  // P17 Tier 2 — inside the default bar, no allowances needed. Sic bo and
+  // three-card poker are engines now (B9a) and have no table to measure.
   { name: 'pai-gow', table: PAI_GOW_BALANCE.payoutTable, rtp: 0.91 },
   { name: 'bingo-hall', table: BINGO_BALANCE.payoutTable, rtp: 0.86 },
 ];
@@ -205,8 +204,8 @@ describe('catalogue differentiation', () => {
     profile('pachinko', PACHINKO_BALANCE, PACHINKO_BALANCE.payoutTable),
     profile('keno-lounge', KENO_BALANCE, KENO_BALANCE.payoutTable),
     profile('video-poker', VIDEO_POKER_BALANCE, VIDEO_POKER_BALANCE.payoutTable),
-    profile('sic-bo', SIC_BO_BALANCE, SIC_BO_BALANCE.payoutTable),
-    profile('three-card-poker', THREE_CARD_POKER_BALANCE, THREE_CARD_POKER_BALANCE.payoutTable),
+    profile('sic-bo', SIC_BO_BALANCE),
+    profile('three-card-poker', THREE_CARD_POKER_BALANCE),
     profile('pai-gow', PAI_GOW_BALANCE, PAI_GOW_BALANCE.payoutTable),
     profile('bingo-hall', BINGO_BALANCE, BINGO_BALANCE.payoutTable),
   ];
@@ -268,36 +267,5 @@ describe('catalogue differentiation', () => {
     );
     const ratio = (tbl: readonly PayoutOutcome[]) => moments(tbl).sd / moments(tbl).edge;
     expect(ratio(KENO_BALANCE.payoutTable)).toBeLessThan(ratio(PAI_GOW_BALANCE.payoutTable));
-  });
-
-  it('makes sic bo the swingiest game P17 added, still inside the bar', () => {
-    // "Swingiest" is ABSOLUTE spread, not sd/edge. Getting that wrong failed
-    // this test three times before it stated something true, so the ranking is
-    // written down here rather than assumed:
-    //
-    //   roulette 2.576 > high-limit 1.719 > SIC BO 1.256 > craps 1.176 >
-    //   big-six 1.166 > blackjack 0.971 > slots 0.945 > ...
-    //
-    // Sic bo is third in the house and first among P17's eight, which is the
-    // real claim. Roulette and high-limit are swingier and both carry variance
-    // allowances; sic bo does not, which is the point — it is the swingiest
-    // table that still clears the bar unaided.
-    //
-    // By sd/edge the ranking is different and misleading: three-card poker
-    // (11.74) and the shipped slot (11.82) both exceed sic bo's 11.42, purely
-    // because their edges are thinner.
-    // Penny slots left this list in v2: their spread is a par sheet's now.
-    const p17 = [
-      PACHINKO_BALANCE,
-      KENO_BALANCE,
-      VIDEO_POKER_BALANCE,
-      SIC_BO_BALANCE,
-      THREE_CARD_POKER_BALANCE,
-      PAI_GOW_BALANCE,
-      BINGO_BALANCE,
-    ].map((b) => moments(b.payoutTable).sd);
-    const sicBo = moments(SIC_BO_BALANCE.payoutTable);
-    expect(sicBo.sd).toBe(Math.max(...p17));
-    expect(sicBo.sd / sicBo.edge).toBeLessThan(DEFAULT_BAR);
   });
 });

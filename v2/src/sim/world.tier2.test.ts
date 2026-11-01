@@ -7,8 +7,6 @@ import {
   THREE_CARD_POKER_BALANCE,
   bingoExpectedRtp,
   paiGowExpectedRtp,
-  sicBoExpectedRtp,
-  threeCardPokerExpectedRtp,
 } from '../data/balance';
 import { getObjectDef } from '../data/objects';
 import { BingoHall } from './entities/machines/BingoHall';
@@ -125,14 +123,10 @@ describe('Tier 2 factory wiring', () => {
 describe('Tier 2 payouts over many plays', () => {
   // The tables themselves are asserted analytically in payoutVariance.test.ts.
   // This checks each machine rolls against the table it claims — the failure a
-  // copy-paste between four near-identical subclasses produces.
+  // copy-paste between near-identical subclasses produces. Sic bo and
+  // three-card poker left this list in B9a: they play real engines, and
+  // engineMachines.test.ts checks their hold against their theoretical edge.
   const cases = [
-    { id: 'sic-bo', rtp: sicBoExpectedRtp(), wager: SIC_BO_BALANCE.costToPlay },
-    {
-      id: 'three-card-poker',
-      rtp: threeCardPokerExpectedRtp(),
-      wager: THREE_CARD_POKER_BALANCE.costToPlay,
-    },
     { id: 'pai-gow', rtp: paiGowExpectedRtp(), wager: PAI_GOW_BALANCE.costToPlay },
     { id: 'bingo-hall', rtp: bingoExpectedRtp(), wager: BINGO_BALANCE.costToPlay },
   ];

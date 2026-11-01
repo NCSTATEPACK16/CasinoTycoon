@@ -345,10 +345,9 @@ export function videoPokerExpectedRtp(): number {
 // pattern of the same shape the bar got its own spec for in P10.6, not a
 // balance table. Its art is rendered and committed; the mechanic is deferred.
 
-// Sic Bo: the swingiest table in the house, and the number is deliberate. At
-// sd/edge 11.4 it sits just inside the bar — high variance is a legitimate
-// design choice, but the spec requires it be a choice with a figure attached
-// rather than an accident of picking multipliers that looked exciting.
+// Sic Bo: three dice and a layout of bets (sim/games/sicbo). The old table's
+// 10x branch is gone; the swing now comes from the long shots a guest mixes in
+// (doubles at 10:1, any triple at 30:1, pairs), each at its real odds.
 export const SIC_BO_BALANCE = {
   costToPlay: 12,
   wearPerPlay: 0.3,
@@ -356,26 +355,17 @@ export const SIC_BO_BALANCE = {
   playsMin: 5,
   playsMax: 12,
   seats: 4,
-  // RTP 0.91, sd/edge 11.3. The 10x branch is what makes a sic bo day swing, and
-  // it is fat enough to clear JACKPOT_PAYOUT_MULT so the table drives P11's
-  // strut and jackpot beats — but only 0.6% likely, because a thinner edge
-  // pushes sd/edge up and the first cut of this table (11% edge, 1.2% tail)
-  // measured 13.9, outside the bar.
-  payoutTable: [
-    { p: 0.43, multiplier: 1 },
-    { p: 0.21, multiplier: 2 },
-    { p: 0.006, multiplier: 10 },
-  ] as readonly PayoutOutcome[],
 } as const;
 
-/** Expected RTP implied by the sic bo payout table (0.91 → 9% house edge). */
+/** RTP of the guest's bet mix under the opening rules. */
 export function sicBoExpectedRtp(): number {
-  return SIC_BO_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+  return engineRtp('sic-bo');
 }
 
-// Three-Card Poker: the reliable mid table. Four seats, fast rounds, a moderate
-// edge and no tail at all — nothing about it is exciting, which is the point.
-// It is what a floor buys when it wants the day to be predictable.
+// Three-Card Poker: the reliable mid table (sim/games/tcp). Four seats, fast
+// rounds, Ante and Play with an optional Pair Plus. Nothing about it is
+// exciting, which is the point: it is what a floor buys when it wants the day
+// to be predictable.
 export const THREE_CARD_POKER_BALANCE = {
   costToPlay: 18,
   wearPerPlay: 0.22,
@@ -383,18 +373,11 @@ export const THREE_CARD_POKER_BALANCE = {
   playsMin: 5,
   playsMax: 12,
   seats: 4,
-  // RTP 0.94, sd/edge 11.7 — high only because the edge is thin, not because
-  // the spread is wide (the table's largest multiplier is 2x). Same effect that
-  // puts blackjack at 24.3; see payoutVariance.test.ts.
-  payoutTable: [
-    { p: 0.5, multiplier: 1 },
-    { p: 0.22, multiplier: 2 },
-  ] as readonly PayoutOutcome[],
 } as const;
 
-/** Expected RTP implied by the three-card-poker payout table (0.94 → 6% edge). */
+/** RTP of the Ante under the reference strategy and the opening rules. */
 export function threeCardPokerExpectedRtp(): number {
-  return THREE_CARD_POKER_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+  return engineRtp('three-card-poker');
 }
 
 // Pai Gow Poker: the steady pick. Very slow, very long sessions, and a huge
@@ -983,6 +966,8 @@ export const ENGINE_RULES: Readonly<Record<string, Record<string, unknown>>> = {
   },
   'craps-table': { minBet: 2, maxBet: 1000, odds: '3-4-5x', field12Pays: 2 },
   'poker-table': { minBet: 2, maxBet: 500, trips: '50-40-30-8-7-4-3' },
+  'sic-bo': { minBet: 2, maxBet: 200, triple: 180, anyTriple: 30, singleTriple: 3 },
+  'three-card-poker': { minBet: 2, maxBet: 500, pairPlus: '40-30-6-4-1', anteBonus: '5-4-1' },
 };
 
 export const ENGINE_BALANCE = {
@@ -1023,6 +1008,8 @@ export const ENGINE_BALANCE = {
     'high-limit-table': { rounds: 12, handle: 5.2 },
     'craps-table': { rounds: 10, handle: 3.3 },
     'poker-table': { rounds: 12, handle: 2.8 },
+    'sic-bo': { rounds: 6, handle: 1.02 },
+    'three-card-poker': { rounds: 8, handle: 1.06 },
   } as Readonly<Record<string, { rounds: number; handle: number }>>,
   /** Seated players the shapes above are quoted at. */
   referenceSeated: 2,
