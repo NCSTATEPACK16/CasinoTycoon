@@ -1,5 +1,7 @@
 # Track B, part 2: real games, staff and marketing (B9, B10, B11)
 
+**Specs, plan, test budget and the prompt for the rest (B9b onward): [9-tycoon-2-rest.md](9-tycoon-2-rest.md).**
+
 Branch `v2-tycoon-2` (cut from `origin/v2-playable` at cea8b80, which already holds Track B's ship cut, PR #20), dev port 5177, launch config `v2-tycoon-2`. The shared rules are in [NEXT-SESSION.md](NEXT-SESSION.md) and still apply (ownership table, contracts append-only in their own `contract:` commits, `gh` as `env -u GITHUB_TOKEN gh`, never merge, push only your own branch). The first part's task list, with every finding and its evidence, is [6-tycoon.md](6-tycoon.md): read its "What exists today", "Design decisions already made" and the B1–B8, B12 "Done" notes before you change anything they built.
 
 The user decided (2026-11-01): B9, B10 and B11 go now, as their own PR; **B6 (decor) waits** for Track A to merge and has its own brief, [8-decor-b6.md](8-decor-b6.md), for a separate fresh session. Do not start B6, and do not touch the `stage`, `statue`, `fountain`, `lamp-post`, `lounge-seating` or `atm` defs.
