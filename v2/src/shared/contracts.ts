@@ -220,7 +220,14 @@ export type Command =
   | { type: 'heatMap'; kind: 'mood' | 'traffic' }
   // B8: how the run ended (or stands): goals, medal and score for the end
   // card (reply type lives in worker/scenario.ts).
-  | { type: 'scenarioResult' };
+  | { type: 'scenarioResult' }
+  // B11: staff with depth. Train a member (costs money, takes them off the
+  // floor for a few hours), move them to another shift, set a role's hourly
+  // wage, and remove a guest the pit has flagged as suspicious.
+  | { type: 'train'; staffId: string }
+  | { type: 'setShift'; staffId: string; shift: 'day' | 'swing' | 'graveyard' }
+  | { type: 'setWage'; kind: string; wagePerHour: number }
+  | { type: 'removeGuest'; guestId: string };
 
 /** Reply to { type: 'stats' }. */
 export interface SimStats {
