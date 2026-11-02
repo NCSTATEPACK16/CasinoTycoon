@@ -18,7 +18,9 @@ export type GameKind =
   | 'paigow'
   | 'keno'
   | 'videopoker'
-  | 'pachinko';
+  | 'pachinko'
+  | 'bingo'
+  | 'bigsix';
 
 export interface Bet {
   /** Engine-specific spot id: 'pass', 'dontPass', 'straight:17', 'ante', 'main'... */
