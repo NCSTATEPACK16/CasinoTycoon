@@ -5,10 +5,12 @@
 import type { GameKind } from '../shared/games';
 import { ODDS_OPTIONS } from '../sim/games/craps/craps';
 import { KENO_PAYTABLES } from '../sim/games/keno/keno';
+import { PACHINKO_NAILS, PACHINKO_SPECS } from '../sim/games/pachinko/pachinko';
 import { DENOMINATIONS } from '../sim/games/slots/slots';
 import { PAR_SHEETS } from '../sim/games/slots/sheets';
 import { ANTE_BONUS_TABLES, PAIR_PLUS_TABLES } from '../sim/games/tcp/tcp';
 import { TRIPS_PAYTABLES } from '../sim/games/uth/uth';
+import { VP_PAYTABLES } from '../sim/games/videopoker/videopoker';
 
 export type RuleField =
   | { key: string; label: string; type: 'number'; min: number; max: number; step: number }
@@ -186,6 +188,30 @@ export const RULE_FIELDS: Record<GameKind, RuleField[]> = {
       label: 'Ticket paytables',
       type: 'select',
       options: Object.keys(KENO_PAYTABLES).map((k) => ({ value: k, label: k })),
+    },
+  ],
+  videopoker: [
+    ...LIMITS,
+    {
+      key: 'paytable',
+      label: 'Paytable (full house / flush)',
+      type: 'select',
+      options: Object.keys(VP_PAYTABLES).map((k) => ({ value: k, label: k })),
+    },
+  ],
+  pachinko: [
+    ...LIMITS,
+    {
+      key: 'spec',
+      label: 'Machine spec',
+      type: 'select',
+      options: Object.keys(PACHINKO_SPECS).map((k) => ({ value: k, label: k })),
+    },
+    {
+      key: 'nails',
+      label: 'Nails',
+      type: 'select',
+      options: Object.keys(PACHINKO_NAILS).map((k) => ({ value: k, label: k })),
     },
   ],
 };

@@ -175,6 +175,7 @@ export const OBJECT_3D: Record<string, Object3DDef> = {
   },
   pachinko: {
     asset: 'pachinko',
+    game: 'pachinko',
     height: 1.9,
     color: 0xd35400,
     zones: ['gaming'],

@@ -82,10 +82,7 @@ interface TableSpec {
 
 const ALL_TABLES: readonly TableSpec[] = [
   { name: 'big-six-wheel', table: BIG_SIX_BALANCE.payoutTable, rtp: 0.8 },
-  // P17 Tier 1 — inside the default bar by construction. Keno is an engine now
-  // (B9b) and has no table to measure.
-  { name: 'pachinko', table: PACHINKO_BALANCE.payoutTable, rtp: 0.88 },
-  { name: 'video-poker', table: VIDEO_POKER_BALANCE.payoutTable, rtp: 0.96 },
+  // P17 Tier 1 is all engines now: keno (B9b), video poker and pachinko (B9c).
   // P17 Tier 2 — inside the default bar, no allowances needed. Sic bo and
   // three-card poker are engines now (B9a), pai gow too (B9b), and have no
   // table to measure.
@@ -117,17 +114,6 @@ describe('every payout table in the catalogue', () => {
       expect(ratio, allowance.because).toBeLessThanOrEqual(allowance.max);
     });
   }
-
-  it('keeps video poker inside the bar despite the thinnest edge in the game', () => {
-    // The reason VIDEO_POKER_BALANCE ships without a royal-flush band. At a 4%
-    // edge a 0.0005 chance of 20x takes sd/edge from 11.1 to 15.6, and even a
-    // 0.0002 tail lands at 13.1 — so the jackpot was dropped rather than the
-    // bar bent. Blackjack, at the same edge WITH no tail, still measures 24.3;
-    // that contrast is the whole argument for how flat this table had to be.
-    const { sd, edge } = moments(VIDEO_POKER_BALANCE.payoutTable);
-    expect(sd / edge).toBeLessThan(DEFAULT_BAR);
-    expect(Math.max(...VIDEO_POKER_BALANCE.payoutTable.map((o) => o.multiplier))).toBeLessThan(5);
-  });
 });
 
 describe('catalogue differentiation', () => {
@@ -201,9 +187,9 @@ describe('catalogue differentiation', () => {
     profile('big-six-wheel', BIG_SIX_BALANCE, BIG_SIX_BALANCE.payoutTable),
     profile('high-limit-table', HIGH_LIMIT_BALANCE),
     profile('penny-slots', PENNY_SLOT_BALANCE),
-    profile('pachinko', PACHINKO_BALANCE, PACHINKO_BALANCE.payoutTable),
+    profile('pachinko', PACHINKO_BALANCE),
     profile('keno-lounge', KENO_BALANCE),
-    profile('video-poker', VIDEO_POKER_BALANCE, VIDEO_POKER_BALANCE.payoutTable),
+    profile('video-poker', VIDEO_POKER_BALANCE),
     profile('sic-bo', SIC_BO_BALANCE),
     profile('three-card-poker', THREE_CARD_POKER_BALANCE),
     profile('pai-gow', PAI_GOW_BALANCE),
@@ -243,8 +229,14 @@ describe('catalogue differentiation', () => {
     expect(VIDEO_POKER_BALANCE.playIntervalTicks).toBeLessThan(Math.min(...cadences));
   });
 
-  it('makes video poker the thinnest edge in the house', () => {
-    const edges = ALL_TABLES.map((t) => moments(t.table).edge);
-    expect(moments(VIDEO_POKER_BALANCE.payoutTable).edge).toBe(Math.min(...edges));
+  it('makes video poker the thinnest edge in the arcade', () => {
+    // Among the machines and draw games (House Rules' licence), 7/5 Jacks or
+    // Better at 3.9% undercuts every default. The dealt games' book edges
+    // (blackjack, craps' line, UTH's Ante) are thinner, which is why the claim
+    // is the arcade's, not the house's.
+    const vp = 1 - engineRtp('video-poker');
+    const arcade = ['slot-machine', 'penny-slots', 'pachinko', 'keno-lounge', 'bingo-hall'];
+    for (const p of PROFILES.filter((x) => arcade.includes(x.id)))
+      expect(1 - p.rtp, p.id).toBeGreaterThan(vp);
   });
 });

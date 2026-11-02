@@ -242,17 +242,11 @@ export const PACHINKO_BALANCE = {
   spinIntervalTicks: 6,
   spinsMin: 4,
   spinsMax: 10,
-  // RTP 0.88. sd/edge = 7.2.
-  payoutTable: [
-    { p: 0.42, multiplier: 1 },
-    { p: 0.2, multiplier: 2 },
-    { p: 0.012, multiplier: 5 },
-  ] as readonly PayoutOutcome[],
 } as const;
 
-/** Expected RTP implied by the pachinko payout table (0.88 → 12% house edge). */
+/** Payback per ball under the opening rules (sim/games/pachinko). */
 export function pachinkoExpectedRtp(): number {
-  return PACHINKO_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+  return engineRtp('pachinko');
 }
 
 // Keno lounge: cheap per hour of guest occupancy, poor per square foot. The
@@ -279,18 +273,12 @@ export function kenoExpectedRtp(): number {
   return engineRtp('keno-lounge');
 }
 
-// Video poker: the thinnest edge in the house, sold on throughput. Three
-// cabinets in one object, the fastest cadence of any game (4 ticks), and a 4%
-// edge — so it earns well with three guests on it and close to nothing with
-// one. It rewards a busy floor and punishes a quiet one, which is the only
-// earner in the catalogue whose value depends on the rest of the build.
-//
-// NO JACKPOT BAND, and that is a finding rather than an omission. At a 4% edge
-// the variance bar is brutal: a 0.0005 chance of 20x on its own takes sd/edge
-// from 11.1 to 15.6, and even a 0.0002 tail lands at 13.1. A thin edge simply
-// cannot carry a tail and still leave a day's takings meaningful — sd/edge
-// scales as 1/edge. So the royal flush is deliberately not modelled, and video
-// poker's identity is grind, not glory.
+// Video poker: Jacks or Better (sim/games/videopoker), sold on throughput.
+// Three cabinets in one object and the fastest cadence of any game (4 ticks),
+// at a 7/5 paytable's 3.85% (the chart a guest plays gives up about 0.1 more).
+// It earns well with three guests on it and close to nothing with one: it
+// rewards a busy floor and punishes a quiet one. The royal flush is real now
+// (800 for 1, about 1 hand in 37,000), so a bank's day can spike.
 export const VIDEO_POKER_BALANCE = {
   costToPlay: 5,
   wearPerPlay: 0.3,
@@ -298,16 +286,11 @@ export const VIDEO_POKER_BALANCE = {
   playsMin: 8,
   playsMax: 20,
   seats: 3, // one per cabinet in the bank
-  // RTP 0.96. sd/edge = 11.1.
-  payoutTable: [
-    { p: 0.8, multiplier: 1 },
-    { p: 0.08, multiplier: 2 },
-  ] as readonly PayoutOutcome[],
 } as const;
 
-/** Expected RTP implied by the video-poker payout table (0.96 → 4% house edge). */
+/** The strategy chart's return on the opening paytable (sim/games/videopoker). */
 export function videoPokerExpectedRtp(): number {
-  return VIDEO_POKER_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+  return engineRtp('video-poker');
 }
 
 // ---------------------------------------------------------------------------
@@ -952,6 +935,8 @@ export const ENGINE_RULES: Readonly<Record<string, Record<string, unknown>>> = {
   'three-card-poker': { minBet: 2, maxBet: 500, pairPlus: '40-30-6-4-1', anteBonus: '5-4-1' },
   'pai-gow': { minBet: 5, maxBet: 1000, commission: 0.05, jokerRule: 'semi-wild' },
   'keno-lounge': { minBet: 1, maxBet: 100, paytable: 'standard' },
+  'video-poker': { minBet: 1, maxBet: 25, paytable: '7/5' },
+  pachinko: { minBet: 1, maxBet: 50, spec: 'sweet', nails: 'standard' },
 };
 
 export const ENGINE_BALANCE = {
@@ -996,6 +981,8 @@ export const ENGINE_BALANCE = {
     'three-card-poker': { rounds: 8, handle: 1.06 },
     'pai-gow': { rounds: 8, handle: 3.3 },
     'keno-lounge': { rounds: 6, handle: 1 },
+    'video-poker': { rounds: 1, handle: 0.8 },
+    pachinko: { rounds: 1, handle: 1 },
   } as Readonly<Record<string, { rounds: number; handle: number }>>,
   /** Seated players the shapes above are quoted at. */
   referenceSeated: 2,

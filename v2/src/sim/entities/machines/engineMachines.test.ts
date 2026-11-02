@@ -68,8 +68,10 @@ describe('engine-backed machines', () => {
     };
     const fast = count(1);
     const slow = count(0.5);
-    if (m.math!.kind === 'slots')
-      expect(slow).toBe(fast); // a play is one spin, floored at 1
+    // A play of one spin, hand or cup is floored at 1 whatever the speed
+    // (and none of these has a dealer to be slow without).
+    if (['slots', 'videopoker', 'pachinko'].includes(m.math!.kind))
+      expect(slow).toBe(fast);
     else expect(slow).toBeLessThan(fast * 0.7);
   });
 

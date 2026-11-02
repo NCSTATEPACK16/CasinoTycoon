@@ -15,8 +15,10 @@ Every gambling object that used to roll an abstract `{p, multiplier}` table now 
 | `three-card-poker` | `tcp`       | Pair Plus 40-30-6-4-1, Ante bonus 5-4-1, queen-high dealer, $2–$500      |
 | `pai-gow`          | `paigow`    | 53 cards (semi-wild joker), 5% commission, house way both sides, $5–$1,000 |
 | `keno-lounge`      | `keno`      | 20 of 80, 1/4/6/8/10-spot tickets on the standard tables, $1–$100        |
+| `video-poker`      | `videopoker`| Jacks or Better 7/5, three cabinets, $1–$25                              |
+| `pachinko`         | `pachinko`  | Sweet spec (1 in 99), standard nails (88%), 125-ball cups, $1–$50        |
 
-Big six, video poker, bingo and pachinko still use v1 payout tables (B9c–B9d).
+Big six and bingo still use v1 payout tables (B9d).
 
 ## Where each edge comes from
 
@@ -32,11 +34,14 @@ Big six, video poker, bingo and pachinko still use v1 payout tables (B9c–B9d).
 - **Pai gow poker (B9b):** Monte Carlo, because the house way has no closed form a test can enumerate. Both player and banker set by the same documented house way (`setHand` in `paigow/paigow.ts`; a simple posted-style way close to the ones Wizard of Odds lists). A 10M-hand run per deck gives win 28.88% / push 40.99% / lose 30.13% with the joker and 29.66% / 39.40% / 30.94% without, hardcoded as `PAI_GOW_RATES`. The edge is then exact in the commission: P(lose) − P(win)(1 − c), so 2.69% at 5% (Wizard of Odds: about 2.7% for house way against house way) and 2.40% at 4%; 2.76% with no joker. `paigow.test.ts` re-measures 2M hands per deck within ±0.15 points and asserts the ~41% pushes.
 - **Keno (B9b):** exact. P(k catches on an n-spot ticket) = C(n,k)·C(80−n,20−k)/C(80,20), summed against each ticket's paytable (`kenoReturn`). Three sets of tables (generous / standard / tight) shaped like the live and lounge tickets Wizard of Odds surveys (Las Vegas live keno returned 65–80% in 2001), with the tops capped at lounge sizes. The standard tickets return 72–75% each (1-spot 3 for 1 is exactly 75%); the guest mix (1-spot 30%, 4-spot 40%, 6-spot 20%, 8-spot 7%, 10-spot 3%, equal stakes) is a 26.2% edge, generous 21.3%, tight 33.6%. `theoreticalEdge` is that mix.
 
+- **Video poker (B9c):** the guest plays Wizard of Odds' simple Jacks or Better chart (`holdFor`), not per-hand enumeration. The chart doesn't depend on the paytable, so a 40M-hand Monte Carlo of the final-hand frequencies (`VP_CHART_FREQ`) gives its return on every table: 9/6 99.45%, 8/5 97.20%, 7/5 96.05%, 6/5 94.90%, each 0.08–0.11 points under the published optimal returns (99.54 / 97.30 / 96.15 / 95.00). `theoreticalEdge` is the chart's: 3.95% on the default 7/5. The default is 7/5 rather than 9/6 because House Rules' 4–8% hold band leans on the bank; a 9/6 bank holds about 0.5%. `videopoker.test.ts` re-measures 2M hands (every hand's frequency within 4σ, the return within 3σ; per-hand SD is 4.4 units because of the royal).
+- **Pachinko (B9c):** not casino maths, so the par sheet is ours. A play buys a 125-ball cup; each ball finds the start pocket with `pStart`; a start hits the digital lottery with `pJackpot` and pays `jackpotBalls`; a hit carries on into another with the rush (kakuhen) chance, so a hit is worth 1 / (1 − rush) jackpots. Payback per ball is exactly pStart × pJackpot × jackpotBalls / (1 − rush), and the hall sets it with the nails (pStart): tight 85%, standard 88% (the old figure; real halls run about 85–90% on balls over a year), loose 91%. The spec sets the swing: max 1/319 × 1,500 balls, rush 65%; middle 1/199 × 1,000, 60%; sweet 1/99 × 500, 50%. The default is sweet, an arcade cabinet that pays small and often. `pachinko.test.ts` checks every spec × nails combination exactly and runs 2M cups per spec (return within 3σ, jackpot rate within 4σ).
+
 ## Theo, hold and skill
 
 `theo` for a round is Σ opening bets × each spot's edge, plus the guest's **skill premium**. Raises, doubles and odds add handle but no theo, because edges are quoted per initial wager.
 
-Guests stray from the reference strategy with probability `ENGINE_BALANCE.skillErrorByArchetype`: high roller 1%, regular 2%, biker 3%, tourist 5%. A stray picks uniformly among the other legal actions. The premium is the extra edge that produces. `GameMath.skillPremium` measures it by common-random-numbers Monte Carlo (the same deals played perfectly and with errors), cached per rule set and error rate. This follows the casino convention of rating players at an average-player edge rather than a perfect one, which is why theo predicts hold. At 2% errors the premium is about +1.0 point on blackjack and +2.3 on UTH. Roulette and slots have no decisions; craps' only decision is the zero-edge odds, which guests take with a per-archetype appetite (`ENGINE_BALANCE.oddsAppetiteByArchetype`: high roller 25%, biker 5%, regulars and tourists never). Declining odds costs nothing, so it is a variance dial, not a skill.
+Guests stray from the reference strategy with probability `ENGINE_BALANCE.skillErrorByArchetype`: high roller 1%, regular 2%, biker 3%, tourist 5%. A stray picks uniformly among the other legal actions. The premium is the extra edge that produces. `GameMath.skillPremium` measures it by common-random-numbers Monte Carlo (the same deals played perfectly and with errors), cached per rule set and error rate. This follows the casino convention of rating players at an average-player edge rather than a perfect one, which is why theo predicts hold. At 2% errors the premium is about +1.0 point on blackjack and +2.3 on UTH. Video poker has one decision a hand (the hold), so its premium is exactly linear in the error rate: measured once with every hand strayed (a random other hold gives up about 69 points) and scaled, +1.4 points at 2%. Measured directly at 2% it is noise: one royal is worth over a point across 60k hands. Roulette and slots have no decisions; craps' only decision is the zero-edge odds, which guests take with a per-archetype appetite (`ENGINE_BALANCE.oddsAppetiteByArchetype`: high roller 25%, biker 5%, regulars and tourists never). Declining odds costs nothing, so it is a variance dial, not a skill.
 
 The avatar's rounds book theo at the book edge with no premium.
 
@@ -55,6 +60,8 @@ The avatar's rounds book theo at the book edge with no premium.
 | 3-card    | `pairPlus` 40-30-6-4-1 / 40-30-6-3-1 / 50-40-6-3-1, `anteBonus` 5-4-1 / 3-2-1, limits                                                    |
 | Pai gow   | `commission` 5% / 4%, `jokerRule` semi-wild (53 cards) / none (52), limits                                                               |
 | Keno      | `paytable` generous / standard / tight, limits                                                                                           |
+| Video poker | `paytable` 9/6 / 8/5 / 7/5 / 6/5, limits                                                                                               |
+| Pachinko  | `spec` max / middle / sweet (swing), `nails` tight / standard / loose (85 / 88 / 91%), limits                                            |
 
 ### The appeal curve
 
@@ -69,6 +76,8 @@ The avatar's rounds book theo at the book edge with no premium.
 - **Three-card poker** (multiplicative): Pair Plus 40-30-6-4-1 1.06, 50-40-6-3-1 1.00, 40-30-6-3-1 0.94; Ante bonus 5-4-1 ×1.02, 3-2-1 ×0.94.
 - **Pai gow:** 4% commission ×1.05; no joker ×0.97.
 - **Keno:** generous 1.08, standard 1.00, tight 0.93. Keno players are loyal and barely price-sensitive.
+- **Video poker:** linear in the chart's return, 1 + 4 × (return − 0.96): 9/6 1.14, 7/5 1.00, 6/5 0.96. Video poker players read paytables.
+- **Pachinko:** nails loose 1.10, standard 1.00, tight 0.90 (players watch how many balls find the pocket); a max spec ×1.03 for the jackpot hunters.
 
 Price and limits tune who sits down: the guest's wallet must cover the opening bet (`minBet` and `costToPlay`), and the v1 table-minimum dial and `minWallet` gates still apply.
 
@@ -87,6 +96,8 @@ Price and limits tune who sits down: the guest's wallet must cover the opening b
 | 3-card    | 75 / (1 + 0.1 n)                                         | about 62 → 50                           |
 | Pai gow   | 36 / (1 + 0.08 n)                                        | about 33 → 24                           |
 | Keno      | 15, whoever is seated                                    | a game every 4 minutes, one draw for all |
+| Video poker | 600 per cabinet                                        | a practised player's pace               |
+| Pachinko  | 48 cups                                                  | about 100 balls a minute                 |
 
 A table with an assigned dealer runs at full speed. Without one it deals at `ENGINE_BALANCE.noDealerSpeed` = 0.5.
 
@@ -103,6 +114,8 @@ The forked guest AI still makes one decision per play interval, so one "play" is
 | Sic bo     | 6 × $2.04 (any one bet)  | ~8.3% of the guest mix (long shots)     |
 | 3-card     | 8 × $2.65 Ante (+Pair Plus 40%) | ~4.3% of the Ante before errors |
 | Pai gow    | 8 × $9 (22 × 3.3 / 8)    | 2.69%: theo $1.94 a play, the old table's $1.98 |
+| Video poker | 1 hand × $4 (5 × 0.8)   | 3.95% + 1.4 premium: theo $0.21 a play (old $0.20); SD ~$20 (the royal) against the old $2 |
+| Pachinko   | 1 cup × $5               | 12%: $0.60 a play, as before; SD ~$16 (the rush) against the old $4 |
 | Keno       | 6 × $1 tickets           | 26.2%: $1.49 a play over 30k, the old $1.50; per-play SD ~$31 (the 8- and 10-spot tops) against the old table's $4 |
 
 These shapes hold each game's take per play, and its swing per play, near what v1's economy (wages, upkeep, campaign goals, and P16's "a day is not a coin flip" bar) was tuned on. For a fixed take, n rounds at stake/n swing 1/√n as much. Occupancy and dealer speed scale the round count by `roundsPerHour(seated) × dealerSpeed`, with fractions rounded stochastically. Once Session 3's bankroll guests call `GameMath.playRound` per round at the table's real pace, `playShape` can retire.
@@ -130,5 +143,7 @@ Spot ids by game:
 | Sic bo    | `small` (or `main`), `big`, `single:N`, `double:N`, `triple:N`, `anyTriple`, `total:4-17`, `pair:a-b`; action `roll`                                                          |
 | 3-card    | `ante` (or `main`), plus optional `pairPlus`; actions `play` (a Play bet equal to the Ante) and `fold`                                                             |
 | Pai gow   | `main`; action `deal` (both hands set by the house way)                                                                                                          |
+| Video poker | `main`; actions `hold:xxxxx` (32 masks, one character per card, 1 = hold)                                                                                      |
+| Pachinko  | `main` (the cup); action `shoot`                                                                                                                                 |
 | Keno      | `spot:1`, `spot:4`, `spot:6`, `spot:8`, `spot:10` (a plain `main` is a 4-spot); action `draw`                                                                    |
 | Slots     | `spin` (the bet is fixed by the rules)                                                                                                                           |

@@ -1,12 +1,13 @@
 import { PACHINKO_BALANCE } from '../../../data/balance';
-import type { Rng } from '../../rng';
-import { CasinoGame, type PlayCadence, type PlayResult } from './CasinoGame';
+import type { PlayCadence } from './CasinoGame';
+import { EngineCabinet } from './EngineGame';
 
 // Noise as an amenity: the only game that carries a ratingBonus (set on its
-// ObjectDef, not here). Single-player, fast, thicker edge than a penny slot.
-export class PachinkoMachine extends CasinoGame {
+// ObjectDef, not here). Single-player and fast; each play buys a cup of balls
+// on a real par sheet (sim/games/pachinko).
+export class PachinkoMachine extends EngineCabinet {
   constructor(id: string, costToPlay: number = PACHINKO_BALANCE.costToPlay) {
-    super(id, 'pachinko', costToPlay);
+    super(id, 'pachinko', 'pachinko', costToPlay);
   }
 
   get cadence(): PlayCadence {
@@ -17,15 +18,7 @@ export class PachinkoMachine extends CasinoGame {
     };
   }
 
-  protected spin(rng: Rng): PlayResult {
-    return { wager: this.costToPlay, payout: this.rollPayout(rng, PACHINKO_BALANCE.payoutTable) };
-  }
-
   protected wearPerPlay(): number {
     return PACHINKO_BALANCE.wearPerPlay;
-  }
-
-  testSpin(rng: Rng): number {
-    return this.rollPayout(rng, PACHINKO_BALANCE.payoutTable);
   }
 }
