@@ -1,12 +1,14 @@
 import { BINGO_BALANCE } from '../../../data/balance';
-import type { Rng } from '../../rng';
-import type { PlayCadence, PlayResult } from './CasinoGame';
-import { SeatedCasinoGame } from './SeatedCasinoGame';
+import type { PlayCadence } from './CasinoGame';
+import { EngineTable } from './EngineGame';
 
-// A crowd draw that pays in arrivals more than in takings — twelve seats at a $4 card, carried by the largest ratingBonus on any game.
-export class BingoHall extends SeatedCasinoGame {
+// A crowd draw that pays in arrivals more than in takings — twelve seats at a
+// $4 card, carried by the largest ratingBonus on any game. Each play buys
+// cards in real 75-ball games whose prize is the hall's share of sales
+// (sim/games/bingo).
+export class BingoHall extends EngineTable {
   constructor(id: string, costToPlay: number = BINGO_BALANCE.costToPlay) {
-    super(id, 'bingo-hall', costToPlay, BINGO_BALANCE.seats);
+    super(id, 'bingo-hall', 'bingo', costToPlay, BINGO_BALANCE.seats);
   }
 
   get cadence(): PlayCadence {
@@ -17,15 +19,7 @@ export class BingoHall extends SeatedCasinoGame {
     };
   }
 
-  protected spin(rng: Rng): PlayResult {
-    return { wager: this.costToPlay, payout: this.rollPayout(rng, BINGO_BALANCE.payoutTable) };
-  }
-
   protected wearPerPlay(): number {
     return BINGO_BALANCE.wearPerPlay;
-  }
-
-  testSpin(rng: Rng): number {
-    return this.rollPayout(rng, BINGO_BALANCE.payoutTable);
   }
 }

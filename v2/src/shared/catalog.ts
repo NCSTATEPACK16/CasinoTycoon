@@ -167,6 +167,7 @@ export const OBJECT_3D: Record<string, Object3DDef> = {
   },
   'big-six-wheel': {
     asset: 'big-six',
+    game: 'bigsix',
     height: 2.6,
     color: 0xf1c40f,
     zones: GAMING,
@@ -199,6 +200,7 @@ export const OBJECT_3D: Record<string, Object3DDef> = {
   },
   'bingo-hall': {
     asset: 'bingo-hall',
+    game: 'bingo',
     height: 1.0,
     color: 0x884ea0,
     zones: ['gaming'],

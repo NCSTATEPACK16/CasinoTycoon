@@ -3,6 +3,8 @@
 // wired to the wrong math.
 
 import type { GameKind } from '../../shared/games';
+import { bigSixEngine } from './bigsix/bigsix';
+import { bingoEngine } from './bingo/bingo';
 import { blackjackEngine } from './blackjack/blackjack';
 import { crapsEngine } from './craps/craps';
 import { kenoEngine } from './keno/keno';
@@ -27,14 +29,15 @@ export const ENGINES = {
   keno: kenoEngine,
   videopoker: videoPokerEngine,
   pachinko: pachinkoEngine,
+  bingo: bingoEngine,
+  bigsix: bigSixEngine,
 } as const;
 
 // Every GameKind has an engine; checked here so a new kind fails to compile.
 const _complete: Record<GameKind, unknown> = ENGINES;
 void _complete;
 
-/** The catalog objects that play a real engine. Other v1 games keep their
- *  payout tables until they get math of their own. */
+/** The catalog objects that play a real engine: every game on the floor. */
 export const ENGINE_FOR_DEF: Readonly<Record<string, GameKind>> = {
   'slot-machine': 'slots',
   'penny-slots': 'slots',
@@ -49,6 +52,8 @@ export const ENGINE_FOR_DEF: Readonly<Record<string, GameKind>> = {
   'keno-lounge': 'keno',
   'video-poker': 'videopoker',
   pachinko: 'pachinko',
+  'bingo-hall': 'bingo',
+  'big-six-wheel': 'bigsix',
 };
 
 export function engineKindFor(defId: string): GameKind | null {

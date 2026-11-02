@@ -6,13 +6,13 @@ import { createMachine } from './factory';
 import { SlotMachine } from './SlotMachine';
 
 describe('BigSixWheel', () => {
-  it('has a 20% house edge by construction', () => {
-    expect(bigSixExpectedRtp()).toBeCloseTo(0.8, 5);
+  it('holds about 15% on the guests\' spread (sim/games/bigsix)', () => {
+    expect(bigSixExpectedRtp()).toBeGreaterThan(0.84);
+    expect(bigSixExpectedRtp()).toBeLessThan(0.86);
   });
 
-  // 100k plays, not 10k: a flat ±5% band is only ~1.8σ at 10k for a
-  // high-variance payout table, which would pass a table whose true RTP were
-  // 0.88 or 0.96. At 100k the same band is >5σ. Costs a few ms.
+  // 100k plays of several spins each: the long shots (45 to 1) make a spin
+  // swing, and ±5% of the RTP is still many standard errors at this size.
   it('pays out within 5% of the expected RTP over 100k plays', () => {
     const w = new BigSixWheel('b1');
     const rng = new Rng(999);
@@ -25,8 +25,8 @@ describe('BigSixWheel', () => {
       wagered += res.wager;
       paid += res.payout;
     }
-    expect(paid / wagered).toBeGreaterThan(0.8 * 0.95);
-    expect(paid / wagered).toBeLessThan(0.8 * 1.05);
+    expect(paid / wagered).toBeGreaterThan(bigSixExpectedRtp() * 0.95);
+    expect(paid / wagered).toBeLessThan(bigSixExpectedRtp() * 1.05);
   });
 
   it('declares an extra happiness penalty', () => {

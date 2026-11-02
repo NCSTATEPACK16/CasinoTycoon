@@ -2,23 +2,25 @@
 
 Every gambling object that used to roll an abstract `{p, multiplier}` table now plays its real game:
 
-| Object             | Engine      | Default rules                                                            |
-| ------------------ | ----------- | ------------------------------------------------------------------------ |
-| `slot-machine`     | `slots`     | Lucky Cherries (3×1 stepper, 92.1%, σ 1.27), 25¢ × 40 credits            |
-| `penny-slots`      | `slots`     | Penny Fortune (5×3, 20 lines, 88.0%), 1¢ × 200 credits                   |
-| `roulette-table`   | `roulette`  | Double zero, $5–$1,000                                                   |
-| `blackjack-table`  | `blackjack` | 6D S17 DAS 3:2, split to 4, no RSA/surrender, 75% penetration, $5–$1,000 |
-| `high-limit-table` | `blackjack` | As above plus late surrender, $25–$10,000                                |
-| `craps-table`      | `craps`     | 3-4-5x odds, field 12 pays 2:1, $2–$1,000                                |
-| `poker-table`      | `uth`       | Ultimate Texas Hold'em, Trips 50-40-30-8-7-4-3, $2–$500                  |
-| `sic-bo`           | `sicbo`     | 180:1 triples, any triple 30:1, singles 1-2-3:1, $2–$200                 |
-| `three-card-poker` | `tcp`       | Pair Plus 40-30-6-4-1, Ante bonus 5-4-1, queen-high dealer, $2–$500      |
-| `pai-gow`          | `paigow`    | 53 cards (semi-wild joker), 5% commission, house way both sides, $5–$1,000 |
-| `keno-lounge`      | `keno`      | 20 of 80, 1/4/6/8/10-spot tickets on the standard tables, $1–$100        |
-| `video-poker`      | `videopoker`| Jacks or Better 7/5, three cabinets, $1–$25                              |
-| `pachinko`         | `pachinko`  | Sweet spec (1 in 99), standard nails (88%), 125-ball cups, $1–$50        |
+| Object             | Engine       | Default rules                                                              |
+| ------------------ | ------------ | -------------------------------------------------------------------------- |
+| `slot-machine`     | `slots`      | Lucky Cherries (3×1 stepper, 92.1%, σ 1.27), 25¢ × 40 credits              |
+| `penny-slots`      | `slots`      | Penny Fortune (5×3, 20 lines, 88.0%), 1¢ × 200 credits                     |
+| `roulette-table`   | `roulette`   | Double zero, $5–$1,000                                                     |
+| `blackjack-table`  | `blackjack`  | 6D S17 DAS 3:2, split to 4, no RSA/surrender, 75% penetration, $5–$1,000   |
+| `high-limit-table` | `blackjack`  | As above plus late surrender, $25–$10,000                                  |
+| `craps-table`      | `craps`      | 3-4-5x odds, field 12 pays 2:1, $2–$1,000                                  |
+| `poker-table`      | `uth`        | Ultimate Texas Hold'em, Trips 50-40-30-8-7-4-3, $2–$500                    |
+| `sic-bo`           | `sicbo`      | 180:1 triples, any triple 30:1, singles 1-2-3:1, $2–$200                   |
+| `three-card-poker` | `tcp`        | Pair Plus 40-30-6-4-1, Ante bonus 5-4-1, queen-high dealer, $2–$500        |
+| `pai-gow`          | `paigow`     | 53 cards (semi-wild joker), 5% commission, house way both sides, $5–$1,000 |
+| `keno-lounge`      | `keno`       | 20 of 80, 1/4/6/8/10-spot tickets on the standard tables, $1–$100          |
+| `video-poker`      | `videopoker` | Jacks or Better 7/5, three cabinets, $1–$25                                |
+| `pachinko`         | `pachinko`   | Sweet spec (1 in 99), standard nails (88%), 125-ball cups, $1–$50          |
+| `bingo-hall`       | `bingo`      | 75-ball, any line, 86% payback, against 20 crowd cards, $1–$20             |
+| `big-six-wheel`    | `bigsix`     | 54 segments (standard), joker and logo 45:1, $1–$100                       |
 
-Big six and bingo still use v1 payout tables (B9d).
+Every game on the floor plays an engine (B9d retired the last v1 payout tables).
 
 ## Where each edge comes from
 
@@ -37,6 +39,9 @@ Big six and bingo still use v1 payout tables (B9d).
 - **Video poker (B9c):** the guest plays Wizard of Odds' simple Jacks or Better chart (`holdFor`), not per-hand enumeration. The chart doesn't depend on the paytable, so a 40M-hand Monte Carlo of the final-hand frequencies (`VP_CHART_FREQ`) gives its return on every table: 9/6 99.45%, 8/5 97.20%, 7/5 96.05%, 6/5 94.90%, each 0.08–0.11 points under the published optimal returns (99.54 / 97.30 / 96.15 / 95.00). `theoreticalEdge` is the chart's: 3.95% on the default 7/5. The default is 7/5 rather than 9/6 because House Rules' 4–8% hold band leans on the bank; a 9/6 bank holds about 0.5%. `videopoker.test.ts` re-measures 2M hands (every hand's frequency within 4σ, the return within 3σ; per-hand SD is 4.4 units because of the royal).
 - **Pachinko (B9c):** not casino maths, so the par sheet is ours. A play buys a 125-ball cup; each ball finds the start pocket with `pStart`; a start hits the digital lottery with `pJackpot` and pays `jackpotBalls`; a hit carries on into another with the rush (kakuhen) chance, so a hit is worth 1 / (1 − rush) jackpots. Payback per ball is exactly pStart × pJackpot × jackpotBalls / (1 − rush), and the hall sets it with the nails (pStart): tight 85%, standard 88% (the old figure; real halls run about 85–90% on balls over a year), loose 91%. The spec sets the swing: max 1/319 × 1,500 balls, rush 65%; middle 1/199 × 1,000, 60%; sweet 1/99 × 500, 50%. The default is sweet, an arcade cabinet that pays small and often. `pachinko.test.ts` checks every spec × nails combination exactly and runs 2M cups per spec (return within 3σ, jackpot rate within 4σ).
 
+- **Big six (B9d):** exact over the 54 segments: a symbol with n segments paying k to 1 has edge 1 − n(k + 1)/54. Standard wheel ($1 ×24, $2 ×15, $5 ×7, $10 ×4, $20 ×2, joker and logo ×1): $1 11.11%, $2 16.67%, $5 22.22%, $10 18.52%, $20 22.22%, joker/logo 14.81% at 45:1 (24.07% at 40:1), Wizard of Odds' figures. The Atlantic City wheel swaps a $1 for a $5 (14.81% and 11.11%). The guest mix ($1 45%, $2 20%, $5 12%, $10 8%, $20 6%, joker and logo 4.5% each) is a 15.2% edge; `theoreticalEdge` is that mix. `bigsix.test.ts` checks every bet and a 2M-spin run of the mix. The engine reports the landed segment (0–53) and its symbol; segments spread evenly round the rim, joker and logo opposite (`wheelOf`).
+- **Bingo (B9d):** not casino maths either, so the par sheet is ours and this is why. A real hall pays a share of the game's card sales back as the prize (parimutuel). Every card in a game costs the same and has the same chance to win (ties split the prize), so each card's expected return is exactly `payback` × its price and the edge is 1 − payback, by symmetry, for any pattern and any number of cards. Default 86%, the old figure, which is generous: US halls pay roughly 70–80% of sales, with 80% and 75% levers. The guest's cards play against `HOUSE_CARDS` = 20 cards bought by the hall's off-screen crowd, so a game has a real pool and a real chance of winning (about 1 in 21) at any occupancy. There is no guaranteed minimum prize, so a thin game can never cost the house more than its share. `bingo.test.ts` runs 300k line and blackout games and checks the guest's card returns the payback within 3σ and that shared wins happen.
+
 ## Theo, hold and skill
 
 `theo` for a round is Σ opening bets × each spot's edge, plus the guest's **skill premium**. Raises, doubles and odds add handle but no theo, because edges are quoted per initial wager.
@@ -49,19 +54,21 @@ The avatar's rounds book theo at the book edge with no premium.
 
 `setRules(objectId, rules)` validates and clamps every field. It replies `{ rules, issues }`, where `issues` lists every field it had to change, and the guest stake moves inside the new limits. Rules are saved with the machine.
 
-| Game      | Levers                                                                                                                                   |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Slots     | `sheet`, `denomination` (0.01/0.25/1/5), `credits` (bet = denomination × credits)                                                        |
-| Roulette  | `wheel` single/double, `laPartage` (single zero only), `minBet`, `maxBet`                                                                |
-| Blackjack | `decks` 1/2/6/8, `h17`, `blackjackPays` 3:2/6:5, `das`, `rsa`, `surrender` none/late, `maxSplitHands` 2–4, `penetration` 0.5–0.9, limits |
-| Craps     | `odds` 1x/2x/3-4-5x/5x/10x/20x, `field12Pays` 2/3, limits                                                                                |
-| UTH       | `trips` paytable, limits                                                                                                                 |
-| Sic bo    | `triple` 150/180, `anyTriple` 24/30, `singleTriple` 2/3, limits                                                                          |
-| 3-card    | `pairPlus` 40-30-6-4-1 / 40-30-6-3-1 / 50-40-6-3-1, `anteBonus` 5-4-1 / 3-2-1, limits                                                    |
-| Pai gow   | `commission` 5% / 4%, `jokerRule` semi-wild (53 cards) / none (52), limits                                                               |
-| Keno      | `paytable` generous / standard / tight, limits                                                                                           |
-| Video poker | `paytable` 9/6 / 8/5 / 7/5 / 6/5, limits                                                                                               |
-| Pachinko  | `spec` max / middle / sweet (swing), `nails` tight / standard / loose (85 / 88 / 91%), limits                                            |
+| Game        | Levers                                                                                                                                   |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Slots       | `sheet`, `denomination` (0.01/0.25/1/5), `credits` (bet = denomination × credits)                                                        |
+| Roulette    | `wheel` single/double, `laPartage` (single zero only), `minBet`, `maxBet`                                                                |
+| Blackjack   | `decks` 1/2/6/8, `h17`, `blackjackPays` 3:2/6:5, `das`, `rsa`, `surrender` none/late, `maxSplitHands` 2–4, `penetration` 0.5–0.9, limits |
+| Craps       | `odds` 1x/2x/3-4-5x/5x/10x/20x, `field12Pays` 2/3, limits                                                                                |
+| UTH         | `trips` paytable, limits                                                                                                                 |
+| Sic bo      | `triple` 150/180, `anyTriple` 24/30, `singleTriple` 2/3, limits                                                                          |
+| 3-card      | `pairPlus` 40-30-6-4-1 / 40-30-6-3-1 / 50-40-6-3-1, `anteBonus` 5-4-1 / 3-2-1, limits                                                    |
+| Pai gow     | `commission` 5% / 4%, `jokerRule` semi-wild (53 cards) / none (52), limits                                                               |
+| Keno        | `paytable` generous / standard / tight, limits                                                                                           |
+| Video poker | `paytable` 9/6 / 8/5 / 7/5 / 6/5, limits                                                                                                 |
+| Pachinko    | `spec` max / middle / sweet (swing), `nails` tight / standard / loose (85 / 88 / 91%), limits                                            |
+| Bingo       | `payback` 86 / 80 / 75%, `pattern` line / blackout (pace, not edge), limits                                                              |
+| Big six     | `jokerPays` 45 / 40, `segments` standard / atlantic-city, limits                                                                         |
 
 ### The appeal curve
 
@@ -78,6 +85,8 @@ The avatar's rounds book theo at the book edge with no premium.
 - **Keno:** generous 1.08, standard 1.00, tight 0.93. Keno players are loyal and barely price-sensitive.
 - **Video poker:** linear in the chart's return, 1 + 4 × (return − 0.96): 9/6 1.14, 7/5 1.00, 6/5 0.96. Video poker players read paytables.
 - **Pachinko:** nails loose 1.10, standard 1.00, tight 0.90 (players watch how many balls find the pocket); a max spec ×1.03 for the jackpot hunters.
+- **Bingo:** linear in payback, 1 + 2 × (payback − 0.8): 86% 1.12, 75% 0.90. Bingo regulars know what their hall pays.
+- **Big six:** joker at 40:1 ×0.95; the Atlantic City wheel ×1.03.
 
 Price and limits tune who sits down: the guest's wallet must cover the opening bet (`minBet` and `costToPlay`), and the v1 table-minimum dial and `minWallet` gates still apply.
 
@@ -85,38 +94,42 @@ Price and limits tune who sits down: the guest's wallet must cover the opening b
 
 `roundsPerHour(rules, seated)`:
 
-| Game      | Formula                                                  | Values                                  |
-| --------- | -------------------------------------------------------- | --------------------------------------- |
-| Blackjack | 400 / (n + 1)                                            | 200 heads-up, 133 at 2 players, 57 at 6 |
-| Roulette  | 112 / (1 + 0.33 n)                                       | about 84 → 38                           |
-| Craps     | 110 rolls / (1 + 0.03 n), ÷ 3.38 rolls per pass decision | about 31 decisions an hour              |
-| UTH       | 60 / (1 + 0.15 n)                                        | 52 → 32                                 |
-| Slots     | the sheet's `spinsPerHour`                               | 400 for a stepper, 600 for video        |
-| Sic bo    | 80 / (1 + 0.12 n)                                        | about 64 → 47                           |
-| 3-card    | 75 / (1 + 0.1 n)                                         | about 62 → 50                           |
-| Pai gow   | 36 / (1 + 0.08 n)                                        | about 33 → 24                           |
-| Keno      | 15, whoever is seated                                    | a game every 4 minutes, one draw for all |
-| Video poker | 600 per cabinet                                        | a practised player's pace               |
-| Pachinko  | 48 cups                                                  | about 100 balls a minute                 |
+| Game        | Formula                                                  | Values                                   |
+| ----------- | -------------------------------------------------------- | ---------------------------------------- |
+| Blackjack   | 400 / (n + 1)                                            | 200 heads-up, 133 at 2 players, 57 at 6  |
+| Roulette    | 112 / (1 + 0.33 n)                                       | about 84 → 38                            |
+| Craps       | 110 rolls / (1 + 0.03 n), ÷ 3.38 rolls per pass decision | about 31 decisions an hour               |
+| UTH         | 60 / (1 + 0.15 n)                                        | 52 → 32                                  |
+| Slots       | the sheet's `spinsPerHour`                               | 400 for a stepper, 600 for video         |
+| Sic bo      | 80 / (1 + 0.12 n)                                        | about 64 → 47                            |
+| 3-card      | 75 / (1 + 0.1 n)                                         | about 62 → 50                            |
+| Pai gow     | 36 / (1 + 0.08 n)                                        | about 33 → 24                            |
+| Keno        | 15, whoever is seated                                    | a game every 4 minutes, one draw for all |
+| Video poker | 600 per cabinet                                          | a practised player's pace                |
+| Pachinko    | 48 cups                                                  | about 100 balls a minute                 |
+| Bingo       | 20 line games, 8 blackouts, whoever is seated            | one caller for the hall                  |
+| Big six     | 40 / (1 + 0.03 n)                                        | about 39 → 34                            |
 
 A table with an assigned dealer runs at full speed. Without one it deals at `ENGINE_BALANCE.noDealerSpeed` = 0.5.
 
 The forked guest AI still makes one decision per play interval, so one "play" is a batch of small real rounds. `ENGINE_BALANCE.playShape` gives, per machine, the rounds per play (at two seated players with a dealer) and the total opening handle as a multiple of the machine's stake (`costToPlay`). Each round bets stake × handle / rounds:
 
-| Machine    | Rounds × per-round stake | Effective edge                          |
-| ---------- | ------------------------ | --------------------------------------- |
-| Blackjack  | 16 × $7.80               | ~1.4% with a regular's errors           |
-| Craps      | 10 × $5                  | ~2.7% of opening bets (line plus props) |
-| UTH        | 12 × $2.30 Ante          | ~5.3% of the Ante                       |
-| Roulette   | 2 × $15                  | 5.26%                                   |
-| High-limit | 12 × $65                 | ~1.0%                                   |
-| Slots      | 1 spin                   | —                                       |
-| Sic bo     | 6 × $2.04 (any one bet)  | ~8.3% of the guest mix (long shots)     |
-| 3-card     | 8 × $2.65 Ante (+Pair Plus 40%) | ~4.3% of the Ante before errors |
-| Pai gow    | 8 × $9 (22 × 3.3 / 8)    | 2.69%: theo $1.94 a play, the old table's $1.98 |
-| Video poker | 1 hand × $4 (5 × 0.8)   | 3.95% + 1.4 premium: theo $0.21 a play (old $0.20); SD ~$20 (the royal) against the old $2 |
-| Pachinko   | 1 cup × $5               | 12%: $0.60 a play, as before; SD ~$16 (the rush) against the old $4 |
-| Keno       | 6 × $1 tickets           | 26.2%: $1.49 a play over 30k, the old $1.50; per-play SD ~$31 (the 8- and 10-spot tops) against the old table's $4 |
+| Machine     | Rounds × per-round stake        | Effective edge                                                                                                     |
+| ----------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Blackjack   | 16 × $7.80                      | ~1.4% with a regular's errors                                                                                      |
+| Craps       | 10 × $5                         | ~2.7% of opening bets (line plus props)                                                                            |
+| UTH         | 12 × $2.30 Ante                 | ~5.3% of the Ante                                                                                                  |
+| Roulette    | 2 × $15                         | 5.26%                                                                                                              |
+| High-limit  | 12 × $65                        | ~1.0%                                                                                                              |
+| Slots       | 1 spin                          | —                                                                                                                  |
+| Sic bo      | 6 × $2.04 (any one bet)         | ~8.3% of the guest mix (long shots)                                                                                |
+| 3-card      | 8 × $2.65 Ante (+Pair Plus 40%) | ~4.3% of the Ante before errors                                                                                    |
+| Pai gow     | 8 × $9 (22 × 3.3 / 8)           | 2.69%: theo $1.94 a play, the old table's $1.98                                                                    |
+| Video poker | 1 hand × $4 (5 × 0.8)           | 3.95% + 1.4 premium: theo $0.21 a play (old $0.20); SD ~$20 (the royal) against the old $2                         |
+| Pachinko    | 1 cup × $5                      | 12%: $0.60 a play, as before; SD ~$16 (the rush) against the old $4                                                |
+| Keno        | 6 × $1 tickets                  | 26.2%: $1.49 a play over 30k, the old $1.50; per-play SD ~$31 (the 8- and 10-spot tops) against the old table's $4 |
+| Bingo       | 4 × $1 cards                    | 14%: $0.56 a play, as before                                                                                       |
+| Big six     | 7 × $1 (5 × 1.4 / 7)            | 15.2% of the mix: theo $1.09 a play over 30k (win $1.03), the old $1.00                                            |
 
 These shapes hold each game's take per play, and its swing per play, near what v1's economy (wages, upkeep, campaign goals, and P16's "a day is not a coin flip" bar) was tuned on. For a fixed take, n rounds at stake/n swing 1/√n as much. Occupancy and dealer speed scale the round count by `roundsPerHour(seated) × dealerSpeed`, with fractions rounded stochastically. Once Session 3's bankroll guests call `GameMath.playRound` per round at the table's real pace, `playShape` can retire.
 
@@ -134,16 +147,16 @@ The player has a $1,000 wallet of their own (`world.player`, saved). Their losse
 
 Spot ids by game:
 
-| Game      | Spots                                                                                                                                                            |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Blackjack | `main`                                                                                                                                                           |
-| Roulette  | `straight:N`, `straight:00`, `split:a-b`, `street:a`, `corner:a`, `sixline:a`, `basket`, `column:1-3`, `dozen:1-3`, `red`, `black`, `odd`, `even`, `low`, `high` |
-| Craps     | `pass`, `dontPass`, `come`, `dontCome`, `place:N`, `hard:N`, `field`, `any7`, `anyCraps`, `yo`; odds via the `odds:<spot>` action                                |
-| UTH       | `ante`, plus optional `trips`                                                                                                                                    |
-| Sic bo    | `small` (or `main`), `big`, `single:N`, `double:N`, `triple:N`, `anyTriple`, `total:4-17`, `pair:a-b`; action `roll`                                                          |
-| 3-card    | `ante` (or `main`), plus optional `pairPlus`; actions `play` (a Play bet equal to the Ante) and `fold`                                                             |
-| Pai gow   | `main`; action `deal` (both hands set by the house way)                                                                                                          |
-| Video poker | `main`; actions `hold:xxxxx` (32 masks, one character per card, 1 = hold)                                                                                      |
-| Pachinko  | `main` (the cup); action `shoot`                                                                                                                                 |
-| Keno      | `spot:1`, `spot:4`, `spot:6`, `spot:8`, `spot:10` (a plain `main` is a 4-spot); action `draw`                                                                    |
-| Slots     | `spin` (the bet is fixed by the rules)                                                                                                                           |
+| Game        | Spots                                                                                                                                                            |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Blackjack   | `main`                                                                                                                                                           |
+| Roulette    | `straight:N`, `straight:00`, `split:a-b`, `street:a`, `corner:a`, `sixline:a`, `basket`, `column:1-3`, `dozen:1-3`, `red`, `black`, `odd`, `even`, `low`, `high` |
+| Craps       | `pass`, `dontPass`, `come`, `dontCome`, `place:N`, `hard:N`, `field`, `any7`, `anyCraps`, `yo`; odds via the `odds:<spot>` action                                |
+| UTH         | `ante`, plus optional `trips`                                                                                                                                    |
+| Sic bo      | `small` (or `main`), `big`, `single:N`, `double:N`, `triple:N`, `anyTriple`, `total:4-17`, `pair:a-b`; action `roll`                                             |
+| 3-card      | `ante` (or `main`), plus optional `pairPlus`; actions `play` (a Play bet equal to the Ante) and `fold`                                                           |
+| Pai gow     | `main`; action `deal` (both hands set by the house way)                                                                                                          |
+| Video poker | `main`; actions `hold:xxxxx` (32 masks, one character per card, 1 = hold)                                                                                        |
+| Pachinko    | `main` (the cup); action `shoot`                                                                                                                                 |
+| Keno        | `spot:1`, `spot:4`, `spot:6`, `spot:8`, `spot:10` (a plain `main` is a 4-spot); action `draw`                                                                    |
+| Slots       | `spin` (the bet is fixed by the rules)                                                                                                                           |

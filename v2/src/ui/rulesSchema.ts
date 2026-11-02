@@ -214,4 +214,47 @@ export const RULE_FIELDS: Record<GameKind, RuleField[]> = {
       options: Object.keys(PACHINKO_NAILS).map((k) => ({ value: k, label: k })),
     },
   ],
+  bingo: [
+    ...LIMITS,
+    {
+      key: 'payback',
+      label: 'Prize pool (share of card sales)',
+      type: 'select',
+      options: [
+        { value: 0.86, label: '86%' },
+        { value: 0.8, label: '80%' },
+        { value: 0.75, label: '75%' },
+      ],
+    },
+    {
+      key: 'pattern',
+      label: 'Pattern',
+      type: 'select',
+      options: [
+        { value: 'line', label: 'Any line' },
+        { value: 'blackout', label: 'Blackout' },
+      ],
+    },
+  ],
+  bigsix: [
+    ...LIMITS,
+    {
+      key: 'jokerPays',
+      label: 'Joker and logo pay',
+      type: 'select',
+      options: [
+        { value: 45, label: '45:1' },
+        { value: 40, label: '40:1' },
+      ],
+    },
+    {
+      key: 'segments',
+      label: 'Wheel layout',
+      type: 'select',
+      options: [
+        { value: 'standard', label: 'Standard ($1 ×24, $5 ×7)' },
+        { value: 'atlantic-city', label: 'Atlantic City ($1 ×23, $5 ×8)' },
+      ],
+    },
+  ],
 };

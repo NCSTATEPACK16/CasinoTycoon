@@ -5,7 +5,6 @@ import {
   SIC_BO_BALANCE,
   TABLE_MINIMUMS,
   THREE_CARD_POKER_BALANCE,
-  bingoExpectedRtp,
 } from '../data/balance';
 import { getObjectDef } from '../data/objects';
 import { BingoHall } from './entities/machines/BingoHall';
@@ -119,29 +118,9 @@ describe('Tier 2 factory wiring', () => {
   });
 });
 
-describe('Tier 2 payouts over many plays', () => {
-  // The tables themselves are asserted analytically in payoutVariance.test.ts.
-  // This checks each machine rolls against the table it claims — the failure a
-  // copy-paste between near-identical subclasses produces. Sic bo and
-  // three-card poker left this list in B9a, pai gow in B9b: they play real engines, and
-  // engineMachines.test.ts checks their hold against their theoretical edge.
-  const cases = [
-    { id: 'bingo-hall', rtp: bingoExpectedRtp(), wager: BINGO_BALANCE.costToPlay },
-  ];
-
-  for (const { id, rtp, wager } of cases) {
-    it(`${id}: pays back its configured RTP over 40k plays`, { timeout: 60_000 }, () => {
-      const machine = createMachine(id, 'm')!;
-      const rng = new Rng(4242);
-      const n = 40_000;
-      let paid = 0;
-      for (let i = 0; i < n; i++) paid += machine.testSpin(rng);
-      // Compare against the wager the machine actually takes: rounding to whole
-      // dollars biases bingo's $4 card noticeably.
-      expect(paid / (n * wager)).toBeCloseTo(rtp, 1);
-    });
-  }
-});
+// 'Tier 2 payouts over many plays' left in B9d: all four tables play real
+// engines (sic bo and three-card poker B9a, pai gow B9b, bingo B9d), and
+// engineMachines.test.ts checks their hold against their theoretical edge.
 
 describe('Tier 2 on a live floor', () => {
   // Sized per game by cadence, as Tier 1 is: pai gow deals every 22 ticks and
@@ -166,12 +145,11 @@ describe('Tier 2 on a live floor', () => {
 
       for (let i = 0; i < TICKS[id]!; i++) world.tick();
 
-      // Positive house edge on all four, so a long run must end up ahead. Zero
-      // means it was never played; negative means the payout table is inverted.
-      expect(
-        machine!.lifetimeProfit,
-        `${id} never earned over ${TICKS[id]} ticks`,
-      ).toBeGreaterThan(0);
+      // Money moved: zero means it was never played. All four are real engines
+      // now (B9), and a short run can end behind on a jackpot or a bingo pool,
+      // so the sign is not the check: engineMachines.test.ts holds each one's
+      // hold to its theoretical edge over 40k plays.
+      expect(machine!.lifetimeProfit, `${id} never played over ${TICKS[id]} ticks`).not.toBe(0);
       // Wear accrues only on a real play — the independent check that guests
       // actually sat rather than the profit arriving from elsewhere.
       expect(machine!.reliability, `${id} was never played`).toBeLessThan(100);

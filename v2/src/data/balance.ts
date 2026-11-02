@@ -1,6 +1,5 @@
 // All gameplay balancing numbers. Tuning never requires logic edits.
 
-import type { GameKind } from '../shared/games';
 import { ENGINE_FOR_DEF, ENGINES } from '../sim/games';
 import type { CasinoEngine } from '../sim/games/types';
 
@@ -66,11 +65,6 @@ export const SECURITY_BALANCE = {
   bonusCap: 8,
 } as const;
 
-export interface PayoutOutcome {
-  p: number; // probability of this outcome per play
-  multiplier: number; // payout as a multiple of cost-to-play
-}
-
 export const SLOT_BALANCE = {
   costToPlay: 10,
   wearPerPlay: 0.5,
@@ -133,7 +127,8 @@ export function rouletteExpectedRtp(): number {
   return engineRtp('roulette-table');
 }
 
-// Big Six: cheap, fast, standing, and by far the worst odds in the house.
+// Big Six: cheap, fast, standing, and among the worst odds in the house: a
+// 54-segment money wheel (sim/games/bigsix), about 15% on the guests' spread.
 // extraHappinessOnLoss stacks on top of GUEST_BALANCE.happinessOnLoss (-1),
 // so a losing spin costs -3 happiness in total. Without it the wheel is just
 // a cheap slot with bad math and the profit-vs-happiness tension is invisible
@@ -145,15 +140,11 @@ export const BIG_SIX_BALANCE = {
   spinsMin: 3,
   spinsMax: 10,
   extraHappinessOnLoss: -2,
-  payoutTable: [
-    { p: 0.3, multiplier: 2 },
-    { p: 0.05, multiplier: 4 },
-  ] as readonly PayoutOutcome[],
 } as const;
 
-/** Expected RTP implied by the big six payout table (0.80 → 20% house edge). */
+/** RTP of the guests' spread on the opening wheel. */
 export function bigSixExpectedRtp(): number {
-  return BIG_SIX_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+  return engineRtp('big-six-wheel');
 }
 
 // The poker table deals Ultimate Texas Hold'em: house-banked, so it deals to
@@ -386,17 +377,11 @@ export const BINGO_BALANCE = {
   playsMin: 6,
   playsMax: 14,
   seats: 12,
-  // RTP 0.86, sd/edge 4.85 — thick edge on a tiny wager, so a bingo hall is
-  // reliable and nearly irrelevant as a direct earner.
-  payoutTable: [
-    { p: 0.52, multiplier: 1 },
-    { p: 0.17, multiplier: 2 },
-  ] as readonly PayoutOutcome[],
 } as const;
 
-/** Expected RTP implied by the bingo payout table (0.86 → 14% house edge). */
+/** Payback of a card under the opening rules (sim/games/bingo): the hall's share. */
 export function bingoExpectedRtp(): number {
-  return BINGO_BALANCE.payoutTable.reduce((sum, o) => sum + o.p * o.multiplier, 0);
+  return engineRtp('bingo-hall');
 }
 
 // Staff: hourly wages come out of casino cash at each hour boundary.
@@ -937,6 +922,8 @@ export const ENGINE_RULES: Readonly<Record<string, Record<string, unknown>>> = {
   'keno-lounge': { minBet: 1, maxBet: 100, paytable: 'standard' },
   'video-poker': { minBet: 1, maxBet: 25, paytable: '7/5' },
   pachinko: { minBet: 1, maxBet: 50, spec: 'sweet', nails: 'standard' },
+  'bingo-hall': { minBet: 1, maxBet: 20, payback: 0.86, pattern: 'line' },
+  'big-six-wheel': { minBet: 1, maxBet: 100, jokerPays: 45, segments: 'standard' },
 };
 
 export const ENGINE_BALANCE = {
@@ -983,6 +970,8 @@ export const ENGINE_BALANCE = {
     'keno-lounge': { rounds: 6, handle: 1 },
     'video-poker': { rounds: 1, handle: 0.8 },
     pachinko: { rounds: 1, handle: 1 },
+    'bingo-hall': { rounds: 4, handle: 1 },
+    'big-six-wheel': { rounds: 7, handle: 1.4 },
   } as Readonly<Record<string, { rounds: number; handle: number }>>,
   /** Seated players the shapes above are quoted at. */
   referenceSeated: 2,

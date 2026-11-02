@@ -15,106 +15,13 @@ import {
   engineRtp,
   THREE_CARD_POKER_BALANCE,
   VIDEO_POKER_BALANCE,
-  type PayoutOutcome,
 } from './balance';
 import { getObjectDef } from './objects';
 
-/**
- * P16 — the daily-profit coin flip is a payout-table property.
- *
- * A day's takings are the sum of a few hundred pulls, so the house edge only
- * shows through once the number of pulls is large next to the payout variance.
- * The shipped slot table had a per-pull standard deviation 21 times the edge,
- * which needs roughly 450 pulls before the edge dominates — far more than a
- * small floor sees in a day. That is why daily profit read as a coin flip and
- * why lag-1 autocorrelation sat near zero: not the modifiers, the maths.
- *
- * The fix has to leave RTP exactly where it was. Cutting variance by taking
- * money off the players is not a difficulty-curve change, it is a nerf.
- */
-function moments(table: readonly PayoutOutcome[]) {
-  const rtp = table.reduce((s, o) => s + o.p * o.multiplier, 0);
-  const pLoss = 1 - table.reduce((s, o) => s + o.p, 0);
-  const variance =
-    table.reduce((s, o) => s + o.p * (o.multiplier - rtp) ** 2, 0) + pLoss * (0 - rtp) ** 2;
-  return { rtp, sd: Math.sqrt(variance), edge: 1 - rtp, pLoss };
-}
-
-// The slot, penny slot and the dealt tables (blackjack, craps, roulette,
-// high-limit, poker) left this file in v2: their returns come from real
-// engines (sim/games), whose exact edges and par-sheet volatility are tested
-// there. What remains here are the v1 games still on payout tables.
-
-/**
- * P17 acceptance criterion 5 — "variance is deliberate".
- *
- * Every payout table in the catalogue reports sd/edge, and every value is
- * either under the default bar of 12 or carries an explicit, numbered
- * justification here. The bar exists because a table whose spread dwarfs its
- * edge needs more plays than a day provides, so the difficulty curve dissolves
- * into noise — exactly what P16 found and fixed on slots.
- *
- * Writing this test surfaced something P16 never had to confront, because it
- * only ever applied the bar to slots: **sd/edge scales as 1/edge**, so the
- * thinner a game's house edge, the harder the bar bites. Blackjack (4% edge)
- * sits at 24.3 and high-limit (6%) at 28.7 — not because their tails are wild,
- * but because there is almost no edge underneath them. Those are shipped,
- * P16-tuned, measured-winnable games; retuning four of them to satisfy a bar
- * they predate would be a balance change smuggled in as a test.
- *
- * So each exception states its measured value and why it stands. The allowance
- * is an upper bound, not a free pass: a table that drifts worse than its
- * recorded figure fails, which is what stops this list becoming a dumping
- * ground.
- *
- * Poker is absent on purpose — its return is a rake off live table population,
- * not a static payout table, so it has no per-play distribution to measure.
- */
-const DEFAULT_BAR = 12;
-
-interface TableSpec {
-  name: string;
-  table: readonly PayoutOutcome[];
-  rtp: number;
-  /** Present only for a table allowed above DEFAULT_BAR. */
-  allowance?: { max: number; because: string };
-}
-
-const ALL_TABLES: readonly TableSpec[] = [
-  { name: 'big-six-wheel', table: BIG_SIX_BALANCE.payoutTable, rtp: 0.8 },
-  // P17 Tier 1 is all engines now: keno (B9b), video poker and pachinko (B9c).
-  // P17 Tier 2 — inside the default bar, no allowances needed. Sic bo and
-  // three-card poker are engines now (B9a), pai gow too (B9b), and have no
-  // table to measure.
-  { name: 'bingo-hall', table: BINGO_BALANCE.payoutTable, rtp: 0.86 },
-];
-
-describe('every payout table in the catalogue', () => {
-  for (const { name, table, rtp, allowance } of ALL_TABLES) {
-    it(`${name}: holds its stated RTP`, () => {
-      expect(moments(table).rtp).toBeCloseTo(rtp, 6);
-    });
-
-    it(`${name}: is a well-formed distribution`, () => {
-      const { pLoss } = moments(table);
-      expect(pLoss).toBeGreaterThan(0);
-      expect(pLoss).toBeLessThan(1);
-    });
-
-    it(`${name}: variance is deliberate`, () => {
-      const { sd, edge } = moments(table);
-      const ratio = sd / edge;
-      if (!allowance) {
-        expect(ratio, `${name} has no justified allowance`).toBeLessThan(DEFAULT_BAR);
-        return;
-      }
-      // An allowance is a ceiling, not an exemption — drift past the recorded
-      // figure has to re-earn its justification.
-      expect(allowance.because.length, `${name} allowance needs a reason`).toBeGreaterThan(40);
-      expect(ratio, allowance.because).toBeLessThanOrEqual(allowance.max);
-    });
-  }
-});
+// P16 and P17 measured the v1 payout tables here: their RTP, their sd/edge
+// against a variance bar, and the catalogue's differentiation. Every game on
+// the floor plays a real engine now (B9a–B9d), whose exact edges and swing are
+// tested in sim/games, so only the differentiation rule stays.
 
 describe('catalogue differentiation', () => {
   /**
@@ -156,14 +63,10 @@ describe('catalogue differentiation', () => {
     ratingBonus: number;
   }
 
-  function profile(
-    id: string,
-    b: Record<string, unknown>,
-    table?: readonly PayoutOutcome[],
-  ): Profile {
+  function profile(id: string, b: Record<string, unknown>): Profile {
     const def = getObjectDef(id)!;
-    // Engine games carry their RTP in their rules, not a table.
-    const rtp = table ? moments(table).rtp : engineRtp(id);
+    // Every game carries its RTP in its engine's rules.
+    const rtp = engineRtp(id);
     return {
       id,
       wager: b.costToPlay as number,
@@ -184,7 +87,7 @@ describe('catalogue differentiation', () => {
     profile('blackjack-table', BLACKJACK_BALANCE),
     profile('craps-table', CRAPS_BALANCE),
     profile('roulette-table', ROULETTE_BALANCE),
-    profile('big-six-wheel', BIG_SIX_BALANCE, BIG_SIX_BALANCE.payoutTable),
+    profile('big-six-wheel', BIG_SIX_BALANCE),
     profile('high-limit-table', HIGH_LIMIT_BALANCE),
     profile('penny-slots', PENNY_SLOT_BALANCE),
     profile('pachinko', PACHINKO_BALANCE),
@@ -193,7 +96,7 @@ describe('catalogue differentiation', () => {
     profile('sic-bo', SIC_BO_BALANCE),
     profile('three-card-poker', THREE_CARD_POKER_BALANCE),
     profile('pai-gow', PAI_GOW_BALANCE),
-    profile('bingo-hall', BINGO_BALANCE, BINGO_BALANCE.payoutTable),
+    profile('bingo-hall', BINGO_BALANCE),
   ];
 
   it('differs every pair of games on at least two axes', () => {

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { eventBus } from '../../../EventBus';
+import { OBJECT_CATALOG } from '../../../data/objects';
 import { ENGINE_FOR_DEF } from '../../games';
 import { Rng } from '../../rng';
 import { CasinoWorld } from '../../world';
@@ -100,9 +101,11 @@ describe('engine-backed machines', () => {
     expect(slot.costToPlay).toBe(5);
   });
 
-  it('v1 games without an engine report no rules', () => {
-    expect(createMachine('bingo-hall', 'x')!.setRules({})).toBeNull();
-    expect(createMachine('bingo-hall', 'x')!.math).toBeNull();
+  it('every game in the catalogue plays an engine (B9 retired the v1 tables)', () => {
+    for (const def of OBJECT_CATALOG.filter((d) => d.category === 'game')) {
+      expect(ENGINE_FOR_DEF[def.id], def.id).toBeDefined();
+      expect(createMachine(def.id, 'x')!.math, def.id).not.toBeNull();
+    }
   });
 });
 
