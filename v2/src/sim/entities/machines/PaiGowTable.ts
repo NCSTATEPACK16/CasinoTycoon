@@ -1,12 +1,13 @@
 import { PAI_GOW_BALANCE } from '../../../data/balance';
-import type { Rng } from '../../rng';
-import type { PlayCadence, PlayResult } from './CasinoGame';
-import { SeatedCasinoGame } from './SeatedCasinoGame';
+import type { PlayCadence } from './CasinoGame';
+import { EngineTable } from './EngineGame';
 
-// The steady pick. Very slow, very long sessions, and the lowest per-play standard deviation of any game in the catalogue.
-export class PaiGowTable extends SeatedCasinoGame {
+// Pai gow poker: the steady pick. Seven cards set by the house way against the
+// banker's; about four hands in ten push, which is what makes a session flat
+// (sim/games/paigow).
+export class PaiGowTable extends EngineTable {
   constructor(id: string, costToPlay: number = PAI_GOW_BALANCE.costToPlay) {
-    super(id, 'pai-gow', costToPlay, PAI_GOW_BALANCE.seats);
+    super(id, 'pai-gow', 'paigow', costToPlay, PAI_GOW_BALANCE.seats);
   }
 
   get cadence(): PlayCadence {
@@ -17,15 +18,7 @@ export class PaiGowTable extends SeatedCasinoGame {
     };
   }
 
-  protected spin(rng: Rng): PlayResult {
-    return { wager: this.costToPlay, payout: this.rollPayout(rng, PAI_GOW_BALANCE.payoutTable) };
-  }
-
   protected wearPerPlay(): number {
     return PAI_GOW_BALANCE.wearPerPlay;
-  }
-
-  testSpin(rng: Rng): number {
-    return this.rollPayout(rng, PAI_GOW_BALANCE.payoutTable);
   }
 }

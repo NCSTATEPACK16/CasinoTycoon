@@ -125,6 +125,7 @@ export const OBJECT_3D: Record<string, Object3DDef> = {
   },
   'three-card-poker': {
     asset: 'table-carnival',
+    game: 'tcp',
     height: 0.8,
     color: 0x148f77,
     zones: GAMING,
@@ -138,6 +139,7 @@ export const OBJECT_3D: Record<string, Object3DDef> = {
   },
   'pai-gow': {
     asset: 'table-carnival',
+    game: 'paigow',
     height: 0.8,
     color: 0x0e6655,
     zones: GAMING,
@@ -151,6 +153,7 @@ export const OBJECT_3D: Record<string, Object3DDef> = {
   },
   'sic-bo': {
     asset: 'table-carnival',
+    game: 'sicbo',
     height: 0.85,
     color: 0x7d3c98,
     zones: GAMING,
@@ -164,6 +167,7 @@ export const OBJECT_3D: Record<string, Object3DDef> = {
   },
   'big-six-wheel': {
     asset: 'big-six',
+    game: 'bigsix',
     height: 2.6,
     color: 0xf1c40f,
     zones: GAMING,
@@ -172,6 +176,7 @@ export const OBJECT_3D: Record<string, Object3DDef> = {
   },
   pachinko: {
     asset: 'pachinko',
+    game: 'pachinko',
     height: 1.9,
     color: 0xd35400,
     zones: ['gaming'],
@@ -180,6 +185,7 @@ export const OBJECT_3D: Record<string, Object3DDef> = {
   },
   'keno-lounge': {
     asset: 'keno-lounge',
+    game: 'keno',
     height: 1.2,
     color: 0x6c3483,
     zones: ['gaming'],
@@ -194,6 +200,7 @@ export const OBJECT_3D: Record<string, Object3DDef> = {
   },
   'bingo-hall': {
     asset: 'bingo-hall',
+    game: 'bingo',
     height: 1.0,
     color: 0x884ea0,
     zones: ['gaming'],
