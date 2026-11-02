@@ -16,7 +16,9 @@ export type GameKind =
   | 'sicbo'
   | 'tcp'
   | 'paigow'
-  | 'keno';
+  | 'keno'
+  | 'videopoker'
+  | 'pachinko';
 
 export interface Bet {
   /** Engine-specific spot id: 'pass', 'dontPass', 'straight:17', 'ante', 'main'... */
