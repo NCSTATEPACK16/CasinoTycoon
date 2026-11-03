@@ -22,18 +22,20 @@ import type {
 import { button, el, escapeHtml, money, pct } from './dom';
 import type { GuestRow, ThoughtSummary } from '../worker/feedback';
 import type { FinanceHistory, LoansView } from '../worker/finance';
+import type { MarketingView } from '../worker/marketing';
 import { compButtons, compStatus, type CompKind } from './panels/comps';
 import { FinanceChart } from './panels/FinanceChart';
 import { GuestsPanel } from './panels/GuestsPanel';
 import { LoansPanel } from './panels/LoansPanel';
 import { PatronsPanel } from './panels/PatronsPanel';
+import { MarketingPanel } from './panels/MarketingPanel';
 import { PricesPanel } from './panels/PricesPanel';
 import { RatingPanel } from './panels/RatingPanel';
 import { StaffRoster } from './panels/StaffRoster';
 import { RULE_FIELDS, type RuleField } from './rulesSchema';
 
 export type PanelTab =
-  'inspect' | 'finances' | 'staff' | 'rating' | 'patrons' | 'prices' | 'guests';
+  'inspect' | 'finances' | 'staff' | 'rating' | 'patrons' | 'prices' | 'guests' | 'events';
 type Target = { objectId: string } | { agentId: number };
 
 const HIRE: { kind: string; label: string; blurb: string }[] = [
@@ -81,6 +83,8 @@ export class SidePanel {
   private guests = new GuestsPanel();
   /** B11: shifts, skill, morale, training and wages. */
   private roster = new StaffRoster();
+  /** B10: ads and events to book. */
+  private marketing = new MarketingPanel();
   /** B4: the Finances tab's P&L (patched HTML, no buttons), chart and loans. */
   private finPnl = el('div', 'fin-pnl');
   private finActions = el('div', 'fin-actions');
@@ -101,6 +105,7 @@ export class SidePanel {
       ['guests', 'Guests'],
       ['patrons', 'Club'],
       ['prices', 'Prices'],
+      ['events', 'Events'],
     ] as const) {
       const b = button(label, () => this.open(t));
       this.tabs.set(t, b);
@@ -122,6 +127,7 @@ export class SidePanel {
     this.roster.onWage = (kind, wagePerHour) =>
       void this.act({ type: 'setWage', kind, wagePerHour });
     this.roster.onFire = (staffId) => void this.act({ type: 'fire', staffId });
+    this.marketing.onRun = (eventId) => void this.act({ type: 'runEvent', eventId }, 'Booked.');
     this.finActions.append(button('Last day’s report', () => this.onReport(), 'small'));
     this.loans.onTake = (amount, days) =>
       this.sim.command({ type: 'takeLoan', amount, days }).then(() => this.refresh(false));
@@ -178,6 +184,7 @@ export class SidePanel {
     if (t === 'patrons') this.body.append(this.patrons.root);
     if (t === 'prices') this.body.append(this.prices.root);
     if (t === 'guests') this.body.append(this.guests.root);
+    if (t === 'events') this.body.append(this.marketing.root);
     if (t === 'finances')
       this.body.append(this.finActions, this.finPnl, this.chart.root, this.loans.root);
     window.clearInterval(this.timer);
@@ -219,7 +226,8 @@ export class SidePanel {
           this.sim.command<GuestRow[]>({ type: 'guestList' }),
         ]);
         this.guests.update(summary, list);
-      }
+      } else if (t === 'events')
+        this.marketing.update(await this.sim.command<MarketingView>({ type: 'marketing' }));
     } catch (err) {
       if (t === 'inspect')
         this.body.innerHTML = `<p class="dim">${escapeHtml((err as Error).message)}</p>`;

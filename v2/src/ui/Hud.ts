@@ -167,7 +167,7 @@ export class Hud {
     setText(f.today, `Today ${money(h.todayProfit)}`);
     setText(f.goal, sc);
     f.goal.title = sc;
-    this.conditions.update(h.modifiers);
+    this.conditions.update(h.modifiers, h.events);
     this.goals.update(h);
     f.goal.classList.toggle('has-goals', !!h.goals?.length);
     this.palette.setScenario(h.scenario?.id ?? null);

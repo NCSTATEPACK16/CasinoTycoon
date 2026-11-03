@@ -7,6 +7,7 @@
 // docs/superpowers/specs/2026-08-19-difficulty-curve-solvency-design.md for
 // what each one is answering. Changing one in isolation will break a guard.
 
+import { EVENTS } from '../events';
 import { OPEN_TRAFFIC, type TrafficProfile } from '../traffic';
 import type { Goal } from './goals';
 
@@ -55,6 +56,9 @@ export interface CampaignDef {
    *  and cheaters arrive. Omitted = staff cover every hour as the P16
    *  campaigns were tuned on, and nobody cheats. */
   staffDepth?: boolean;
+  /** B10: the marketing and event ids (data/events.ts) the player can book.
+   *  Omitted = none; the tutorial and the early career offer none. */
+  marketing?: readonly string[];
   /** B12: a lesson, not a contest: no goal and no clock (the run starts
    *  'endless', like Sandbox), and the title keeps it out of the career. */
   tutorial?: boolean;
@@ -165,6 +169,7 @@ export const SANDBOX: CampaignDef = {
   // B3: the daily rhythm, and a cap that grows with the floor up to 500.
   traffic: OPEN_TRAFFIC,
   staffDepth: true,
+  marketing: EVENTS.map((e) => e.id),
 };
 
 /**
@@ -287,6 +292,8 @@ export const CAREER_SCENARIOS: readonly CampaignDef[] = [
     lot: { cols: 48, rows: 32 },
     traffic: OPEN_TRAFFIC,
     staffDepth: true,
+    // B10: the high end: mail the big players, fly them in.
+    marketing: ['mailers', 'junket'],
     medals: { gold: 6, silver: 9 },
     goals: [
       { kind: 'highLimit', games: 4 },
@@ -306,6 +313,8 @@ export const CAREER_SCENARIOS: readonly CampaignDef[] = [
     loanLimit: 8000,
     traffic: OPEN_TRAFFIC,
     staffDepth: true,
+    // B10: ads to fill the room the loan bought.
+    marketing: ['billboards', 'radio', 'mailers'],
     startingLoan: { amount: 6000, days: 28 },
     medals: { gold: 8, silver: 11 },
     goals: [{ kind: 'noDebt' }, { kind: 'avgProfit', amount: 700, days: 3 }],
@@ -324,6 +333,8 @@ export const CAREER_SCENARIOS: readonly CampaignDef[] = [
     lot: { cols: 64, rows: 44 },
     traffic: OPEN_TRAFFIC,
     staffDepth: true,
+    // B10: the flagship runs every kind of event.
+    marketing: EVENTS.map((e) => e.id),
     medals: { gold: 5, silver: 8 },
     goals: [
       { kind: 'guests', count: 150 },

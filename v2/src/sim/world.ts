@@ -67,6 +67,8 @@ import {
   type Shift,
 } from './entities/staff/staffing';
 import { HOUSE_SOURCES, Ledger, type LedgerJSON } from './economy';
+import { EVENTS, getEventDef, type EventDef } from '../data/events';
+import { Marketing, type Clock, type EventRun, type MarketingJSON } from './marketing';
 import { MoodField, type MoodFieldJSON } from './MoodField';
 import { TrafficField, type TrafficFieldJSON } from './TrafficField';
 import { ModifierSystem, type ModifierSystemJSON } from './modifiers';
@@ -220,6 +222,8 @@ export interface CasinoWorldJSON {
   nextStaffNum: number;
   /** B11: per-role wage levers, $/hour (absent = the market wage). */
   wages?: Partial<Record<StaffKind, number>>;
+  /** B10: events booked and run, and recent arrivals by hour. */
+  marketing?: MarketingJSON;
   time: TimeSystemJSON;
   ledger: LedgerJSON;
   scenario: ScenarioJSON | null;
@@ -272,6 +276,8 @@ export class CasinoWorld {
   /** B11: what advantage players have taken off the house this run, on top
    *  of fair play (not saved; for tests and telemetry). */
   advantageTaken = 0;
+  /** B10: events booked and run, and arrivals by hour to measure them. */
+  marketing = new Marketing();
   /** Same reasoning again for P3: the once-a-day return draw must not shift
    *  the shared stream, or adding patrons re-rolls the whole game for a seed. */
   private patronRng: Rng;
@@ -433,6 +439,7 @@ export class CasinoWorld {
     this.dealerAssignments.clear();
     this.cashierAssignments.clear();
     this.wageLevels.clear();
+    this.marketing = new Marketing();
     this.grid.clear(cols, rows);
     this.state.reset(startingCash);
     this.refreshServiceAvailability();
@@ -535,6 +542,7 @@ export class CasinoWorld {
     this.refreshServiceAvailability();
     const t = this.time.tick();
     if (this.autoSpawn) this.maybeSpawn();
+    if (this.marketing.runs.length > 0) this.marketingTick();
     this.applyMessEffects();
     for (const guest of this.guests.values()) guest.tick(this);
     for (const [id, guest] of [...this.guests]) {
@@ -1020,6 +1028,14 @@ export class CasinoWorld {
    *  scaled cap multiplies it by cap / minCap, so a floor that holds ten
    *  times the people draws ten times the arrivals. */
   arrivalChance(): number {
+    const chance = this.unliftedArrivalChance(this.clockNow());
+    // B10: an ad or a tournament lifts its archetypes' arrivals; the mix of
+    // who comes follows in rollArchetype. Skipped outright when nothing runs.
+    if (!this.marketing.liftsArrivals(this.tickCount)) return chance;
+    return Math.min(1, chance * this.marketingLift());
+  }
+
+  private unliftedArrivalChance(at: { day: number; hour: number; fraction: number }): number {
     const base =
       spawnChance(this.rating, this.machines.size, this.reputation.value) *
       this.modifiers.spawnMult();
@@ -1027,12 +1043,11 @@ export class CasinoWorld {
     if (p.curve === 'flat') return base;
     const t = TRAFFIC_BALANCE;
     const scale = p.cap === 'scaled' ? (this.guestCap() / t.minCap) * t.fill : 1;
-    const clock =
-      hourFactor(this.time.hour, this.time.tickInHour / TICKS_PER_HOUR) * dayFactor(this.time.day);
+    const clock = hourFactor(at.hour, at.fraction) * dayFactor(at.day);
     return Math.min(1, base * scale * clock);
   }
 
-  spawnGuest(archetypeOverride?: GuestArchetype): Guest {
+  spawnGuest(archetypeOverride?: GuestArchetype, walletMult = 1): Guest {
     const id = `g-${this.nextGuestNum++}`;
     // A1b: a patron drawn for today takes the next arrival rather than being
     // spawned on a schedule of their own. Returning through the same door
@@ -1047,7 +1062,7 @@ export class CasinoWorld {
         : this.rng.int(GUEST_BALANCE.walletMin, GUEST_BALANCE.walletMax);
     // Floored at 1 so a stacked wallet penalty can never spawn a guest who is
     // broke on arrival and walks straight back out.
-    const wallet = Math.max(1, Math.round(baseWallet * this.modifiers.walletMult()));
+    const wallet = Math.max(1, Math.round(baseWallet * this.modifiers.walletMult() * walletMult));
     const guest = new Guest(
       id,
       wallet,
@@ -1064,6 +1079,7 @@ export class CasinoWorld {
       guest.leaveAtTick =
         this.tickCount + this.rng.int(h.min * TICKS_PER_HOUR, h.max * TICKS_PER_HOUR);
     }
+    if (this.marketing.runs.length > 0) this.marketingArrival(guest);
     this.guests.set(id, guest);
     eventBus.emit('guestSpawned', { id, archetype: guest.archetype });
     if (patron) this.announcePatronArrival(patron, id);
@@ -1149,11 +1165,268 @@ export class CasinoWorld {
     // 'regular' degrades smoothly instead of vanishing at a cliff.
     const total = highRoller + biker + tourist;
     const scale = total > 1 ? 1 / total : 1;
+    if (this.marketing.liftsArrivals(this.tickCount))
+      return this.rollLiftedArchetype(highRoller * scale, biker * scale, tourist * scale);
     const roll = this.archetypeRng.next();
     if (roll < highRoller * scale) return 'highRoller';
     if (roll < (highRoller + biker) * scale) return 'biker';
     if (roll < (highRoller + biker + tourist) * scale) return 'tourist';
     return 'regular';
+  }
+
+  /** B10: the same roll with each archetype's share times its marketing
+   *  lift, renormalised, so an ad brings more of its own people and nobody
+   *  else's. The one draw on archetypeRng is unchanged. */
+  private rollLiftedArchetype(highRoller: number, biker: number, tourist: number): GuestArchetype {
+    const shares = this.liftedShares(highRoller, biker, tourist);
+    let roll = this.archetypeRng.next();
+    for (const [archetype, share] of shares) {
+      if (roll < share) return archetype;
+      roll -= share;
+    }
+    return 'regular';
+  }
+
+  /** B10: who arrives, as shares of 1, with any marketing lift applied. */
+  private liftedShares(
+    highRoller: number,
+    biker: number,
+    tourist: number,
+  ): [GuestArchetype, number][] {
+    const raw: [GuestArchetype, number][] = [
+      ['highRoller', highRoller],
+      ['biker', biker],
+      ['tourist', tourist],
+      ['regular', Math.max(0, 1 - highRoller - biker - tourist)],
+    ];
+    const lifted = raw.map(([a, w]): [GuestArchetype, number] => [
+      a,
+      w * this.marketing.lift(a, this.tickCount),
+    ]);
+    const total = lifted.reduce((sum, [, w]) => sum + w, 0);
+    return lifted.map(([a, w]) => [a, w / total]);
+  }
+
+  /** B10: arrival shares by archetype right now, before marketing. */
+  archetypeShares(): Record<GuestArchetype, number> {
+    const b = ARCHETYPE_BALANCE;
+    const bias = (a: GuestArchetype) =>
+      this.modifiers.archetypeBias(a) * this.reputation.archetypeMultiplier(a);
+    const hr = b.highRollerChance * bias('highRoller');
+    const bk = b.bikerChance * bias('biker');
+    const tr = b.touristChance * bias('tourist');
+    const scale = hr + bk + tr > 1 ? 1 / (hr + bk + tr) : 1;
+    return {
+      highRoller: hr * scale,
+      biker: bk * scale,
+      tourist: tr * scale,
+      regular: Math.max(0, 1 - (hr + bk + tr) * scale),
+    };
+  }
+
+  /** B10: how much marketing multiplies arrivals in all: each archetype's
+   *  lift weighted by its share of who comes. */
+  private marketingLift(): number {
+    let lift = 0;
+    for (const [a, share] of Object.entries(this.archetypeShares()) as [GuestArchetype, number][])
+      lift += share * this.marketing.lift(a, this.tickCount);
+    return lift;
+  }
+
+  // ---------- marketing (B10) ----------
+
+  private clock(): Clock {
+    return {
+      tick: this.tickCount,
+      day: this.time.day,
+      hour: this.time.hour,
+      tickInHour: this.time.tickInHour,
+    };
+  }
+
+  /** Hook: the event ids this scenario offers (none outside a scenario). */
+  get marketingOffered(): readonly string[] {
+    return this.scenario?.def.marketing ?? [];
+  }
+
+  /** Hook: why this event can't be booked now, or null if it can. */
+  eventBlocked(def: EventDef): string | null {
+    if (!this.marketingOffered.includes(def.id)) return 'Not offered here';
+    if (def.requiresObject && !this.state.allObjects().some((o) => o.defId === def.requiresObject))
+      return `Needs a ${def.requiresObject.replace(/-/g, ' ')}`;
+    if (def.requires) {
+      const ids = new Set(def.requires.defIds);
+      let n = 0;
+      for (const o of this.state.allObjects()) if (ids.has(o.defId)) n++;
+      if (n < def.requires.count) return def.requires.label;
+    }
+    if (this.marketing.current(def.id, this.tickCount)) return 'Already booked';
+    const ready = this.marketing.readyAt(def);
+    if (ready > this.tickCount) {
+      const days = Math.ceil((ready - this.tickCount) / (HOURS_PER_DAY * TICKS_PER_HOUR));
+      return `Ready in ${days} day${days === 1 ? '' : 's'}`;
+    }
+    if (this.state.cash < def.cost) return 'Not enough cash';
+    return null;
+  }
+
+  /** Hook: book an event. Pays its price now; returns the run, or throws
+   *  with the reason it can't run. */
+  runEvent(id: string): EventRun {
+    const def = getEventDef(id);
+    if (!def) throw new Error(`Unknown event ${id}`);
+    const blocked = this.eventBlocked(def);
+    if (blocked) throw new Error(blocked);
+    const run = this.marketing.book(def, this.clock());
+    this.state.cash -= def.cost;
+    this.ledger.addExpense(def.cost);
+    this.ledger.accrue(HOUSE_SOURCES.marketing.id, HOUSE_SOURCES.marketing.defId, {
+      upkeep: def.cost,
+    });
+    eventBus.emit('moneyChanged', { cash: this.state.cash, delta: -def.cost });
+    const text = `${def.name} booked for ${formatDollarAmount(def.cost)}.`;
+    this.ledger.note(text);
+    eventBus.emit('tickerMessage', { text });
+    return run;
+  }
+
+  /** Hook: guests this event should bring, from the curve and the floor as
+   *  they stand now (ignoring the cap; the panel says so). */
+  expectedExtra(def: EventDef): number {
+    const e = def.effect;
+    if (e.type === 'group') return e.count;
+    const { start, end } = this.marketing.window(def, this.clock());
+    const shares = this.archetypeShares();
+    const share = e.archetypes.reduce((sum, a) => sum + shares[a], 0);
+    let extra = 0;
+    // Hour by hour across the window, from the clock it will be then.
+    const startOffset = this.time.tickInHour + (start - this.tickCount);
+    for (let t = 0; t < end - start; t += TICKS_PER_HOUR) {
+      const hoursAhead = Math.floor((startOffset + t) / TICKS_PER_HOUR);
+      const abs = (this.time.day - 1) * HOURS_PER_DAY + this.time.hour + hoursAhead;
+      const ticks = Math.min(TICKS_PER_HOUR, end - start - t);
+      const at = {
+        day: Math.floor(abs / HOURS_PER_DAY) + 1,
+        hour: abs % HOURS_PER_DAY,
+        fraction: 0.5,
+      };
+      extra += this.unliftedArrivalChance(at) * ticks * share * (e.mult - 1);
+    }
+    return Math.round(extra);
+  }
+
+  /** B10, every tick while any event is on the books: bring in a junket
+   *  that is due, and close out the runs that just ended. */
+  private marketingTick(): void {
+    for (const run of this.marketing.dueGroups(this.tickCount)) {
+      run.groupDone = true;
+      const e = getEventDef(run.id)?.effect;
+      if (e?.type !== 'group') continue;
+      for (let i = 0; i < e.count; i++) {
+        const guest = this.spawnGuest(e.archetype, e.walletMult);
+        guest.leaveAtTick = this.tickCount + e.stayHours * TICKS_PER_HOUR;
+      }
+      const text = `The ${run.name.toLowerCase()} is here: ${e.count} guests through the door.`;
+      eventBus.emit('tickerMessage', { text });
+    }
+    const active = this.marketing.active(this.tickCount);
+    if (active.length > 0) {
+      const full = this.guests.size >= this.guestCap();
+      const chance = full ? 0 : this.unliftedArrivalChance(this.clockNow());
+      const shares = full ? null : this.archetypeShares();
+      for (const run of active) {
+        run.ticks++;
+        if (full) run.fullTicks++;
+        const e = getEventDef(run.id)?.effect;
+        if (!shares || e?.type !== 'arrivals') continue;
+        const share = e.archetypes.reduce((sum, a) => sum + shares[a], 0);
+        run.lifted += Math.min(1, chance * (1 + share * (e.mult - 1))) - chance;
+      }
+    }
+    for (const run of this.marketing.runs) {
+      if (run.result !== undefined || this.tickCount < run.endTick) continue;
+      this.closeEventRun(run);
+    }
+  }
+
+  private clockNow(): { day: number; hour: number; fraction: number } {
+    return {
+      day: this.time.day,
+      hour: this.time.hour,
+      fraction: this.time.tickInHour / TICKS_PER_HOUR,
+    };
+  }
+
+  private closeEventRun(run: EventRun): void {
+    const def = getEventDef(run.id);
+    const parts: string[] = [];
+    if (def?.effect.type === 'group') {
+      run.extra = def.effect.count;
+      parts.push(`${def.effect.count} guests flew in`);
+    } else {
+      run.extra = Math.round(run.lifted);
+      const full = run.ticks > 0 ? Math.round((100 * run.fullTicks) / run.ticks) : 0;
+      parts.push(
+        `${run.arrivals} arrivals while it ran, about ${run.extra} more than the same hours without it` +
+          (full > 0 ? ` (the floor was full ${full}% of the time)` : ''),
+      );
+    }
+    if (def?.kind === 'tournament')
+      parts.push(`${run.entrants} entrants paid ${formatDollarAmount(run.fees)}`);
+    run.result = parts.join('; ');
+    // The day report lists it from the run (worker/finance.ts dayReport).
+    const text = `${run.name} ended: ${run.result}.`;
+    eventBus.emit('tickerMessage', { text });
+  }
+
+  /** B10: a guest through the door while events are on the books: count
+   *  them against what's running, and sign them up for a tournament. */
+  private marketingArrival(guest: Guest): void {
+    this.marketing.countArrival(this.tickCount);
+    const t = this.marketing.tournament(this.tickCount);
+    if (!t || t.def.effect.type !== 'arrivals') return;
+    if (!t.def.effect.archetypes.includes(guest.archetype)) return;
+    const fee = t.def.entryFee ?? 0;
+    if (guest.wallet <= fee * 2) return;
+    guest.tournament = true;
+    guest.wallet -= fee;
+    t.run.entrants++;
+    t.run.fees += fee;
+    if (fee === 0) return;
+    this.state.cash += fee;
+    this.ledger.addRevenue(fee);
+    this.ledger.accrue(HOUSE_SOURCES.marketing.id, HOUSE_SOURCES.marketing.defId, {
+      revenue: fee,
+    });
+  }
+
+  /** Hook: what's booked or running now, for the HUD and the panel. */
+  eventsNow(): { id: string; name: string; status: string }[] {
+    const out: { id: string; name: string; status: string }[] = [];
+    for (const run of this.marketing.runs) {
+      if (this.tickCount >= run.endTick) continue;
+      const running = this.tickCount >= run.startTick;
+      const at = (tick: number) => {
+        const abs =
+          (this.time.day - 1) * HOURS_PER_DAY +
+          this.time.hour +
+          Math.floor((this.time.tickInHour + tick - this.tickCount) / TICKS_PER_HOUR);
+        const day = Math.floor(abs / HOURS_PER_DAY) + 1;
+        const hour = String(abs % HOURS_PER_DAY).padStart(2, '0');
+        return day === this.time.day ? `${hour}:00` : `day ${day} ${hour}:00`;
+      };
+      out.push({
+        id: run.id,
+        name: run.name,
+        status: running ? `until ${at(run.endTick)}` : `from ${at(run.startTick)}`,
+      });
+    }
+    return out;
+  }
+
+  /** Every event this world knows, for the panel. */
+  get eventDefs(): readonly EventDef[] {
+    return EVENTS;
   }
 
   // ---------- staff ----------
@@ -2179,6 +2452,7 @@ export class CasinoWorld {
       })),
       nextMessNum: this.nextMessNum,
       wages: Object.fromEntries(this.wageLevels),
+      marketing: this.marketing.toJSON(),
       staff: [...this.staff.values()].map((s) => ({
         skill: s.skill,
         morale: s.morale,
@@ -2272,6 +2546,7 @@ export class CasinoWorld {
       this.staff.set(s.id, member);
     }
     this.wageLevels = new Map(Object.entries(data.wages ?? {}) as [StaffKind, number][]);
+    this.marketing = Marketing.fromJSON(data.marketing);
     this.nextStaffNum = data.nextStaffNum;
     this.nextGuestNum = 1; // guests are transient — never saved
     this.time = TimeSystem.fromJSON(data.time);

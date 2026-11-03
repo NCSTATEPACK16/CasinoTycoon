@@ -25,6 +25,7 @@ import {
 } from './inspect';
 import { guestList, heatMap, thoughtSummary } from './feedback';
 import { dayReport, financeHistory, loansView } from './finance';
+import { marketingView } from './marketing';
 import { scenarioResult } from './scenario';
 import type { SnapshotBuilder } from './snapshot';
 
@@ -275,6 +276,15 @@ export function runCommand(world: CasinoWorld, snap: SnapshotBuilder, cmd: Comma
       return world.removeGuest(cmd.guestId)
         ? { ok: true }
         : { ok: false, error: 'not a suspicious guest' };
+    case 'marketing':
+      return { ok: true, data: marketingView(world) };
+    case 'runEvent':
+      try {
+        world.runEvent(cmd.eventId);
+        return { ok: true, data: marketingView(world) };
+      } catch (e) {
+        return { ok: false, error: (e as Error).message };
+      }
     default:
       return { ok: false, error: `${(cmd as Command).type} not implemented` };
   }

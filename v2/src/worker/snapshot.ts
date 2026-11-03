@@ -203,8 +203,16 @@ export class SnapshotBuilder {
         name: m.name,
         blurb: m.blurb,
       })),
+      ...hudEvents(world),
     };
   }
+}
+
+/** B10: what's booked or running, only when something is. */
+function hudEvents(world: CasinoWorld): { events?: HudView['events'] } {
+  if (world.marketing.runs.length === 0) return {};
+  const events = world.eventsNow();
+  return events.length > 0 ? { events } : {};
 }
 
 /** A ticker line for the wire, placed where its subject is right now: the

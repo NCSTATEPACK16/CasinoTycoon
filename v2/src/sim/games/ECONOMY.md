@@ -145,6 +145,18 @@ Numbers in `STAFF_DEPTH` and `ADVANTAGE_BALANCE` (`data/balance.ts`); the curves
 
 **Re-tune, on purpose.** Mis-pays were first set at 0.6% of rounds at skill 0: that ate a quarter of blackjack's win and took High Roller from 5/7 to 1/7, so they're now 0.1%. With shifts on, the career bot staffs three crews per post and a pit boss per shift once there are three tables. Clean Slate's plan now opens with slots, which need no dealer crew, before blackjack.
 
+## Marketing and events (B10)
+
+Defs in `data/events.ts`; the book in `sim/marketing.ts`; the world applies them (`runEvent`, `arrivalChance`, `rollArchetype`, `marketingTick`). A scenario offers the ids in `CampaignDef.marketing`: Sandbox and The Strip all, Clean Slate the three ads, The Salon mailers and the junket, nothing earlier.
+
+- **Ads** (billboards: tourists ×2.5; mailers: high rollers ×1.5; radio: regulars ×1.2; 3 days, 4-day cooldown) multiply their archetypes' arrivals inside the normal path: the arrival chance by `Σ share × lift`, and the archetype roll by each lift, renormalised. The cap still binds; nothing spawns outside `maybeSpawn`.
+- **Slot tournament** (19:00–23:00, needs 6 slots): regulars and tourists ×2; arrivals in the window pay a $10 entry fee (house revenue, `house:marketing`) and like the slots twice as much (`utility.ts`).
+- **Junket** (20:00): 8 high rollers with 3× wallets, staying 8 hours, spawned as a group. The only event that spawns.
+- **Concert**: `requiresObject: 'stage'`, shown disabled until B6 adds one.
+- **Measured effect:** each tick an ad runs with room on the floor, the arrival chance with its lift less the chance without it. A tick at the cap adds nothing. Shown in the Events tab, the day report and the finance chart's shaded hours.
+- **Prices:** a visit is worth $13–15 of theo on a 36-slot, 3-table Sandbox floor (seeds 3/7/11/13, three days, any archetype). Radio brings ~80 regulars over its 3 days there (~$1,100 for $900), and billboards ~70 tourists (~$950 for $600). That is a little better than even with room, more on a big floor, and a loss at the cap: the "a full floor" test averages −$1,170 over 3 seeds against not booking. The brief's 1.3× for billboards was raised to 2.5× because tourists are 5–10% of arrivals.
+- **Without marketing nothing moves:** with no event on the books the marketing code is skipped (`liftsArrivals` is false; nothing is drawn). Lucky Strike (seed 1234) and Neon Nights (`managed`) give the same day totals as 31a8a7c, pinned in `world.b10.test.ts`.
+
 ## Books
 
 `Ledger` rows, per object per day and per hour (the last 24 hours), carry handle (`wagered`), paid (`won`), win (`revenue`), `theo`, `rounds` and seat occupancy (`occupiedTicks / capacityTicks`). Wages are charged hourly; F&B and comps already had their own rows.

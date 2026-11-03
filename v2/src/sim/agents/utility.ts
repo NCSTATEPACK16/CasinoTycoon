@@ -11,6 +11,7 @@ import { SeatedCasinoGame } from '../entities/machines/SeatedCasinoGame';
 import type { Cell } from '../grid/astar';
 import type { CasinoWorld } from '../world';
 import { AI, ARCHETYPE_AI } from './aiBalance';
+import { TOURNAMENT_SLOT_PREF } from '../../data/events';
 import type { BankrollProfile } from './bankroll';
 import { queueLength } from './queue';
 
@@ -32,6 +33,8 @@ export interface GuestView {
   usedCashAdvance: boolean;
   /** May path into High-Limit (bankroll at or above AI.highLimitBankroll). */
   highLimitOk: boolean;
+  /** B10: entered tonight's slot tournament: the slots come first. */
+  tournament?: boolean;
 }
 
 /**
@@ -68,7 +71,8 @@ export function scoreGame(world: CasinoWorld, g: GuestView, machineId: string): 
     crowding = 1 - (0.35 * machine.seatedCount) / Math.max(1, machine.seatCount);
   }
   const kind = get3D(machine.defId).game ?? 'other';
-  const pref = ARCHETYPE_AI[g.archetype].prefs[kind] ?? 0.5;
+  let pref = ARCHETYPE_AI[g.archetype].prefs[kind] ?? 0.5;
+  if (g.tournament && kind === 'slots') pref *= TOURNAMENT_SLOT_PREF;
   const fp = footprintOf(po.defId, po.rot);
   const d = Math.hypot(
     po.col + fp.w / 2 - (g.pos.col + 0.5),

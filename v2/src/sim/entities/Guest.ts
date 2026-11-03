@@ -104,6 +104,8 @@ export class Guest extends Walker {
   advRounds = 0;
   advNet = 0;
   advGame: string | null = null;
+  /** B10: entered a slot tournament on arrival (paid the fee; prefers slots). */
+  tournament = false;
   raging = false;
   celebrating = false;
   waitingForDrink = false;
@@ -439,6 +441,7 @@ export class Guest extends Walker {
       profile: this.profile,
       usedCashAdvance: this.usedCashAdvance,
       highLimitOk: this.wallet >= AI.highLimitBankroll,
+      tournament: this.tournament,
     };
   }
 
