@@ -90,7 +90,7 @@ export class SnapshotBuilder {
       );
     }
     for (const s of world.staff.values()) {
-      if (s.state === 'carried') continue;
+      if (s.state === 'carried' || s.state === 'off') continue;
       const p = s.renderPose();
       const kind = STAFF_KIND[s.kind] ?? AgentKind.Staff;
       this.write(i++, p.x, p.z, p.heading, s.anim, kind, 0, 1, idNum(s.id));

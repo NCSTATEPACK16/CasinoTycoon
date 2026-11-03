@@ -50,6 +50,10 @@ export class GuestsPanel {
   readonly root = el('div', 'guests-panel');
   onLocate: (agentId: number) => void = () => {};
   onFollow: (agentId: number, name: string) => void = () => {};
+  /** B11: walk out a guest the pit has flagged. */
+  onRemove: (guestId: string) => void = () => {};
+  /** B11: show only the guests the pit has flagged. */
+  private suspiciousOnly = false;
   private head = el('p', 'small dim');
   private thoughtList = el('div', 'thought-list');
   private thoughtRows = new Map<string, HTMLElement>();
@@ -174,6 +178,19 @@ export class GuestsPanel {
   private renderList(): void {
     const f = this.thoughtFilter;
     this.filterBar.replaceChildren();
+    const flagged = this.last.filter((r) => r.suspicious).length;
+    if (flagged || this.suspiciousOnly) {
+      const b = button(
+        this.suspiciousOnly ? 'Show everyone' : `⚠ Suspicious (${flagged})`,
+        () => {
+          this.suspiciousOnly = !this.suspiciousOnly;
+          this.renderList();
+        },
+        `small ${this.suspiciousOnly ? '' : 'warn-btn'}`,
+      );
+      b.title = 'Guests the pit has flagged as card counters or cheats';
+      this.filterBar.append(b);
+    }
     if (f) {
       this.filterBar.append(
         el('span', 'small', `Showing guests who thought ${escapeHtml(f.text)}`),
@@ -182,7 +199,10 @@ export class GuestsPanel {
     }
     const q = this.search.value.trim().toLowerCase();
     const shown = this.last.filter(
-      (r) => (!f || r.thoughtIds.includes(f.id)) && (!q || r.name.toLowerCase().includes(q)),
+      (r) =>
+        (!f || r.thoughtIds.includes(f.id)) &&
+        (!this.suspiciousOnly || r.suspicious) &&
+        (!q || r.name.toLowerCase().includes(q)),
     );
     const { key, desc } = this.sort;
     shown.sort((a, b) => {
@@ -226,6 +246,10 @@ export class GuestsPanel {
     );
     acts.firstElementChild!.setAttribute('title', 'Find: take the camera to them and inspect');
     acts.lastElementChild!.setAttribute('title', 'Follow: keep the camera on them');
+    const remove = button('Remove', () => this.onRemove(r.id), 'danger small g-remove');
+    remove.title = 'Have security walk them out';
+    remove.hidden = true;
+    acts.append(remove);
     tr.append(acts);
     return tr;
   }
@@ -240,8 +264,13 @@ export class GuestsPanel {
     const thought = r.thought
       ? `<small class="dim">${r.thought.glyph} ${escapeHtml(r.thought.text)}</small>`
       : '';
+    const sus = r.suspicious
+      ? ` <span class="sus-badge">⚠ ${escapeHtml(r.suspicious.label)}</span><small class="bad">${escapeHtml(r.suspicious.game)}: ${r.suspicious.rounds} rounds, ${money(r.suspicious.net)} taken</small>`
+      : '';
     cell('.g-name').innerHTML =
-      `${escapeHtml(r.name)}${tier}<small class="dim">${escapeHtml(r.archetype)} · ${escapeHtml(doing)}${need}</small>${thought}`;
+      `${escapeHtml(r.name)}${tier}${sus}<small class="dim">${escapeHtml(r.archetype)} · ${escapeHtml(doing)}${need}</small>${thought}`;
+    tr.querySelector<HTMLElement>('.g-remove')!.hidden = !r.suspicious || r.state === 'leaving';
+    tr.classList.toggle('suspicious', !!r.suspicious);
     const mood = Math.round(r.happiness);
     cell('.g-mood').innerHTML =
       `<span class="${mood >= 60 ? 'good' : mood >= 35 ? 'warn' : 'bad'}">${mood}</span>`;

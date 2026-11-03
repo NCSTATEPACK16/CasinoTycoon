@@ -158,13 +158,16 @@ export function runCareer(
     )
       if (cash() >= 400 + plan.reserve / 2 || count((d) => d === 'food-stall') === 0)
         put('food-stall');
+    // B11: the career runs shifts, so every post needs a crew per shift. Three
+    // eight-hour hires cost what one round-the-clock hire did.
+    const crews = world.staffDepth ? 3 : 1;
     if (games > 0) {
-      if (staffOf('mechanic') < Math.max(1, Math.ceil(games / 25)) && cash() >= 400)
+      if (staffOf('mechanic') < crews * Math.max(1, Math.ceil(games / 25)) && cash() >= 400)
         world.hireStaff('mechanic');
-      if (staffOf('janitor') < Math.max(1, Math.ceil(guests / 40)) && cash() >= 400)
+      if (staffOf('janitor') < crews * Math.max(1, Math.ceil(guests / 40)) && cash() >= 400)
         world.hireStaff('janitor');
       const tables = [...world.machines.values()].filter((m) => m.needsDealer).length;
-      if (tables > staffOf('dealer') && cash() >= 200) world.hireStaff('dealer');
+      if (crews * tables > staffOf('dealer') && cash() >= 200) world.hireStaff('dealer');
     }
     if (strategy === 'minimal') {
       done =
@@ -175,7 +178,12 @@ export function runCareer(
         staffOf('janitor') > 0;
       return;
     }
-    if (guests > 40 && staffOf('security') === 0 && cash() >= 600) world.hireStaff('security');
+    if (guests > 40 && staffOf('security') < crews && cash() >= 600) world.hireStaff('security');
+    // B11: a pit boss per shift once there's a pit to watch, so counters and
+    // past-posters are read and stopped.
+    const pit = [...world.machines.values()].filter((m) => m.needsDealer).length;
+    if (world.staffDepth && pit >= 3 && staffOf('pitBoss') < crews && cash() >= 600)
+      world.hireStaff('pitBoss');
     if (plan.repayAfter !== undefined && games >= plan.repayAfter) {
       for (const loan of [...world.loans.loans]) {
         const spare = cash() - plan.reserve;
@@ -272,7 +280,7 @@ export const CAREER_PLANS: Record<string, CareerPlan> = {
     },
   },
   'clean-slate': {
-    ladder: ['blackjack-table', 'slot-machine', 'roulette-table'],
+    ladder: ['slot-machine', 'blackjack-table', 'roulette-table'],
     reserve: 800,
     repayAfter: 8,
   },

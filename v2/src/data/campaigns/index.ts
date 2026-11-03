@@ -51,6 +51,10 @@ export interface CampaignDef {
   unlocks?: readonly string[];
   /** B8: the run opens owing this to the bank (already in startingCash). */
   startingLoan?: { amount: number; days: number };
+  /** B11: staff work shifts and tire (fatigue, breaks), and advantage players
+   *  and cheaters arrive. Omitted = staff cover every hour as the P16
+   *  campaigns were tuned on, and nobody cheats. */
+  staffDepth?: boolean;
   /** B12: a lesson, not a contest: no goal and no clock (the run starts
    *  'endless', like Sandbox), and the title keeps it out of the career. */
   tutorial?: boolean;
@@ -160,6 +164,7 @@ export const SANDBOX: CampaignDef = {
   lot: { cols: 96, rows: 64 },
   // B3: the daily rhythm, and a cap that grows with the floor up to 500.
   traffic: OPEN_TRAFFIC,
+  staffDepth: true,
 };
 
 /**
@@ -204,6 +209,7 @@ export const CAREER_SCENARIOS: readonly CampaignDef[] = [
     loanLimit: 3000,
     lot: { cols: 32, rows: 24 },
     traffic: OPEN_TRAFFIC,
+    staffDepth: true,
     medals: { gold: 4, silver: 6 },
     goals: [
       { kind: 'guests', count: 50 },
@@ -223,6 +229,7 @@ export const CAREER_SCENARIOS: readonly CampaignDef[] = [
     creditLimit: 1500,
     loanLimit: 4000,
     traffic: OPEN_TRAFFIC,
+    staffDepth: true,
     medals: { gold: 8, silver: 11 },
     goals: [
       { kind: 'patrons', tier: 'silver', count: 6 },
@@ -244,6 +251,7 @@ export const CAREER_SCENARIOS: readonly CampaignDef[] = [
     loanLimit: 3500,
     lot: { cols: 36, rows: 26 },
     traffic: OPEN_TRAFFIC,
+    staffDepth: true,
     allowedObjects: [
       'slot-machine',
       'penny-slots',
@@ -278,6 +286,7 @@ export const CAREER_SCENARIOS: readonly CampaignDef[] = [
     loanLimit: 5000,
     lot: { cols: 48, rows: 32 },
     traffic: OPEN_TRAFFIC,
+    staffDepth: true,
     medals: { gold: 6, silver: 9 },
     goals: [
       { kind: 'highLimit', games: 4 },
@@ -296,6 +305,7 @@ export const CAREER_SCENARIOS: readonly CampaignDef[] = [
     creditLimit: 2000,
     loanLimit: 8000,
     traffic: OPEN_TRAFFIC,
+    staffDepth: true,
     startingLoan: { amount: 6000, days: 28 },
     medals: { gold: 8, silver: 11 },
     goals: [{ kind: 'noDebt' }, { kind: 'avgProfit', amount: 700, days: 3 }],
@@ -313,6 +323,7 @@ export const CAREER_SCENARIOS: readonly CampaignDef[] = [
     loanLimit: 10000,
     lot: { cols: 64, rows: 44 },
     traffic: OPEN_TRAFFIC,
+    staffDepth: true,
     medals: { gold: 5, silver: 8 },
     goals: [
       { kind: 'guests', count: 150 },

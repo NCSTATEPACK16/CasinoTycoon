@@ -83,6 +83,16 @@ export interface StaffInspect {
   state: string;
   wagePerHour: number;
   assignedTo: string | null;
+  // B11
+  skill?: number;
+  morale?: number;
+  fatigue?: number;
+  shift?: 'day' | 'swing' | 'graveyard';
+  onShift?: boolean;
+  away?: 'training' | 'break' | null;
+  awayHours?: number;
+  misPays?: number;
+  misPaid?: number;
 }
 
 export type InspectResult = MachineInspect | GuestInspect | StaffInspect;
@@ -169,11 +179,23 @@ function staffView(s: CasinoWorld['staff'] extends Map<string, infer S> ? S : ne
     state: s.state,
     wagePerHour: s.wagePerHour,
     assignedTo: s.assignedTableId ?? s.assignedBarId ?? s.assignedCageId ?? s.jobId,
+    skill: s.skill,
+    morale: Math.round(s.morale),
+    fatigue: Math.round(s.fatigue),
+    shift: s.shift,
+    onShift: s.state !== 'off',
+    away: s.awayFor,
+    awayHours: s.awayHours,
+    misPays: s.misPays,
+    misPaid: Math.round(s.misPaid),
   };
 }
 
 export function staffList(world: CasinoWorld): StaffInspect[] {
-  return [...world.staff.values()].map(staffView);
+  return [...world.staff.values()].map((s) => ({
+    ...staffView(s),
+    wagePerHour: world.wageFor(s.kind),
+  }));
 }
 
 export function financials(

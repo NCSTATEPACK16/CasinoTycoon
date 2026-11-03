@@ -3,7 +3,9 @@
 // Pure functions of the world, like inspect.ts and finance.ts.
 
 import { TICKS_PER_HOUR } from '../config';
+import { getObjectDef } from '../data/objects';
 import { THOUGHT_EMOJI } from '../data/thoughts';
+import { ADVANTAGE_LABEL } from '../sim/entities/Guest';
 import type { CasinoWorld } from '../sim/world';
 
 /** Thoughts this recent count; the trend compares its two halves. */
@@ -125,6 +127,8 @@ export interface GuestRow {
   /** Thought ids within the summary's window, for its filter. */
   thoughtIds: string[];
   hoursOnFloor: number;
+  /** B11: the pit has flagged them, with the evidence. Absent until then. */
+  suspicious?: { label: string; game: string; net: number; rounds: number };
 }
 
 const NEEDS = ['energy', 'bladder', 'hunger', 'thirst'] as const;
@@ -154,6 +158,16 @@ export function guestList(world: CasinoWorld): GuestRow[] {
         : null,
       thoughtIds: [...new Set(g.thoughts.filter((t) => t.atTick >= from).map((t) => t.id))],
       hoursOnFloor: (world.tickCount - g.arrivedTick) / TICKS_PER_HOUR,
+      ...(g.suspicious && g.advantage
+        ? {
+            suspicious: {
+              label: ADVANTAGE_LABEL[g.advantage],
+              game: getObjectDef(g.advGame ?? '')?.name ?? '—',
+              net: Math.round(g.advNet),
+              rounds: g.advRounds,
+            },
+          }
+        : {}),
     };
   });
 }

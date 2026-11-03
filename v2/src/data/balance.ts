@@ -398,6 +398,79 @@ export const STAFF_BALANCE = {
   cashier: { wagePerHour: 4 },
 } as const;
 
+// B11: staff with depth. Skill, morale, fatigue and shifts (the model is in
+// sim/entities/staff/staffing.ts; ECONOMY.md's "Staff" section says why).
+export const STAFF_DEPTH = {
+  /** A new hire's skill, uniform (seeded). */
+  hireSkill: { min: 30, max: 50 },
+  /** Training: this much skill per session, for this much, off the floor
+   *  for this many game hours. */
+  train: { skill: 10, cost: 200, hours: 4 },
+  /** Dealer pace from skill: rounds per hour × at0 … at100. */
+  dealerSpeed: { at0: 0.8, at100: 1.15 },
+  /** Dealer mis-pays: per round, the chance a losing bet is paid as a win.
+   *  At a new hire's 40, 0.06% of rounds: about 4% of a blackjack table's
+   *  win. (Tried at 0.6%: it ate a quarter of blackjack's 1.4% and High
+   *  Roller fell from 5/7 to 1/7.) */
+  misPay: { at0: 0.001, at100: 0 },
+  /** Mechanic repair time × at0 … at100. */
+  repairTime: { at0: 1.4, at100: 0.7 },
+  /** Janitor: also sweeps messes this many tiles (Chebyshev) around a clean,
+   *  at0 … at100, rounded down. */
+  cleanRadius: { at0: 0, at100: 3 },
+  /** Shifts, [start, end) in game hours. Day 08–16, swing 16–24, graveyard
+   *  00–08: the swing shift covers the evening peak of the B3 curve. */
+  shifts: { day: [8, 16], swing: [16, 24], graveyard: [0, 8] },
+  /** Fatigue per on-shift hour, and more when the role is understaffed. */
+  fatiguePerHour: 6,
+  fatigueUnderstaffed: 6,
+  /** Morale drifts this share of the way to its target every on-shift hour. */
+  moraleDrift: 0.15,
+  /** The target: base, plus slope × (wage / market − 1), minus the penalties. */
+  moraleBase: 70,
+  moraleWageSlope: 80,
+  moraleUnderstaffed: 20,
+  /** Fatigue above this lowers the target point for point. */
+  fatigueComfort: 40,
+  /** Low morale: below this, work slows and a member may quit at midnight. */
+  lowMorale: 30,
+  lowMoraleSlowdown: 0.8,
+  /** Daily quit chance at morale 0, falling linearly to nothing at lowMorale. */
+  quitAtZero: 0.4,
+  /** A role's wage lever runs from this share of the market wage to this. */
+  wageRange: [0.5, 2],
+  /** A fatigued member takes an hour's break at a service that rests staff. */
+  breakAtFatigue: 70,
+  /** Understaffed: dealers on shift < dealt tables open; mechanics on shift ×
+   *  this < broken machines; janitors on shift × this < messes. */
+  messesPerJanitor: 6,
+  brokenPerMechanic: 2,
+} as const;
+
+// B11: advantage players and cheaters, and the pit that catches them.
+export const ADVANTAGE_BALANCE = {
+  /** Share of arrivals with an advantage, where the scenario allows them. */
+  share: 0.015,
+  /** Of those, the split by kind. */
+  kinds: { counter: 0.5, pastPoster: 0.3, slotCheat: 0.2 },
+  /** A counter's edge over the house at blackjack (the house's edge on their
+   *  rounds is minus this): −0.5 to −1% in the literature; we use 0.75%. */
+  counterEdge: 0.0075,
+  /** A past-poster's illegal win: per play, this chance of a win of this
+   *  many stakes (about 10% of their handle). */
+  pastPost: { chance: 0.02, stakes: 5 },
+  /** A slot cheat drains a cabinet: this share of the wager back on top, every play. */
+  slotDrain: 0.3,
+  /** A pit boss watches this many tiles (Euclidean) around them: a pit of
+   *  four to six tables. */
+  pitRadius: 12,
+  /** Chance per game hour a pit boss spots an advantage player in range:
+   *  at0 … at100 skill. A good boss reads a counter inside the hour. */
+  detect: { at0: 0.2, at100: 1 },
+  /** Security walks a suspicious guest out on its own at this skill or above. */
+  autoRemoveSkill: 60,
+} as const;
+
 // Cashier + Cage: a cashier stationed at a cage lets guests running low on
 // cash (but not yet broke) get a one-time wallet top-up for a fee — same
 // "staffed booth, presence-gated" shape as the bar. No production timer
