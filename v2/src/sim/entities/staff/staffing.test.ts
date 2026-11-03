@@ -14,18 +14,19 @@ import {
 } from './staffing';
 
 describe('skill effects', () => {
-  it('dealers deal 0.8× at skill 0 to 1.15× at 100, and mis-pay less', () => {
-    expect(dealerSkillSpeed(0)).toBeCloseTo(0.8, 12);
-    expect(dealerSkillSpeed(100)).toBeCloseTo(1.15, 12);
-    expect(dealerSkillSpeed(40)).toBeCloseTo(0.94, 12);
-    expect(dealerSkillSpeed(150)).toBeCloseTo(1.15, 12); // clamped
-    expect(misPayChance(0)).toBeCloseTo(0.001, 12);
-    expect(misPayChance(40)).toBeCloseTo(0.0006, 12);
+  it('dealers deal 0.88× at skill 0 to 1.18× at 100 (1.0 at a hire’s 40), and mis-pay less', () => {
+    expect(dealerSkillSpeed(0)).toBeCloseTo(0.88, 12);
+    expect(dealerSkillSpeed(100)).toBeCloseTo(1.18, 12);
+    expect(dealerSkillSpeed(40)).toBeCloseTo(1, 12);
+    expect(dealerSkillSpeed(150)).toBeCloseTo(1.18, 12); // clamped
+    expect(misPayChance(0)).toBeCloseTo(0.0005, 12);
+    expect(misPayChance(40)).toBeCloseTo(0.0003, 12);
     expect(misPayChance(100)).toBe(0);
   });
 
   it('mechanics repair faster and janitors sweep wider with skill', () => {
-    expect(repairTimeFactor(0)).toBeCloseTo(1.4, 12);
+    expect(repairTimeFactor(0)).toBeCloseTo(1.2, 12);
+    expect(repairTimeFactor(40)).toBeCloseTo(1, 12);
     expect(repairTimeFactor(100)).toBeCloseTo(0.7, 12);
     expect(cleanRadius(0)).toBe(0);
     expect(cleanRadius(40)).toBe(1);

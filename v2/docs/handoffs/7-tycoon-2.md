@@ -104,7 +104,36 @@ Anti-goals, carried over: breaking the campaign economy without re-tuning it; go
   - The **concert** is B6's (it needs the `stage`): make events defs in data (`data/events.ts` or similar) that can require an object, so adding it later is one def.
   - **Evidence:** unit tests for the effects; a sim test that an ad lifts arrivals for its days only and costs what it says; the campaign suites green with before → after numbers (campaigns that don't offer marketing must be unchanged); a browser check that a campaign visibly lifts arrivals in the charts, with screenshots.
 
-- [ ] **B14. Finish.**
+- [x] **B14. Finish.** Done 2026-11-03 (PR #22).
+  - **Merge:** `origin/v2-playable` is at 4db561c (Track A's PR #21), already in this branch since B9b. Nothing to merge.
+  - **The first full suite found 8 real failures, all from B11 landing on worlds it shouldn't touch or costing too much.** The failures:
+    - catalogue "a cheap volume floor is a real strategy";
+    - difficulty "rewards holding a reserve";
+    - P16 crowd High Roller "wins most runs";
+    - career Velvet Rope on the grid and on the crowd;
+    - career Salon, Clean Slate and The Strip on the crowd.
+  - **Fixes, on purpose. No goal changed.**
+    - **Depth gating:** `Staff.depth`, set from `staffDepth` at hire and on load. Outside a depth scenario a dealer deals at the pre-B11 pace (1.0), never mis-pays, a mechanic repairs in the base time, a janitor sweeps one tile, and morale doesn't slow anyone. The P16 campaigns, the tutorial and catalogue bots play exactly as before B11.
+    - **Defaults re-tuned so a new hire (skill 40) is neutral:** dealer speed 0.8–1.15 → 0.88–1.18 (1.0 at 40); mis-pay at skill 0 0.1% → 0.05%; repair time 1.4–0.7 → 1.2–0.7 (1.0 at 40). Advantage players 1.5% → 1% of arrivals, past-post chance 2% → 1%, slot-cheat drain 0.3 → 0.12 of the wager. At the old numbers advantage play alone cost The Salon two wins in seven and The Strip three on the crowd.
+    - **Test plan (`__testkit__/career.ts`):** hire the whole dealer crew at once (a `while`, not one per hour), one pit boss rather than one per shift, and Velvet Rope's reserve 500 → 200 with the high-limit room after 1 table (was 2). Every plan still has to win 4 of 7 on seeds it doesn't choose.
+  - **Career, before → after** (grid / crowd, 7 seeds each, wins need 4):
+
+    | Scenario     | Before (grid) | Before (crowd) | After (grid)              | After (crowd)              |
+    | ------------ | ------------- | -------------- | ------------------------- | -------------------------- |
+    | Lucky Strike | 5/7           | 5/7            | 5/7 `W7 - W2 W4 - W5 W10` | 7/7                        |
+    | Velvet Rope  | 1/7 ✗         | 0/7 ✗          | 4/7 `- W7 W6 W9 - W7 -`   | 4/7 `- W10 W9 W6 W14 - -`  |
+    | House Rules  | 6/7           | 7/7            | 5/7                       | 7/7                        |
+    | The Salon    | 4/7           | 1/7 ✗          | 6/7                       | 4/7 `- W7 W4 W6 - - W5`    |
+    | Clean Slate  | 5/7           | 2/7 ✗          | 6/7                       | 4/7 `W12 - - W14 W4 W11 -` |
+    | The Strip    | 7/7           | 1/7 ✗          | 7/7                       | 5/7 `W10 W9 W3 - - W2 W5`  |
+
+    Walking away while booking every offered event wins 0/7 on The Salon, Clean Slate and The Strip, grid and crowd. P16 on the grid: Dusty Dime 7/7, Neon Nights 5/7, High Roller 5/7. P16 crowd: 6/6 tests. **Thin margins to watch:** Velvet Rope (4/7 on both) and the Salon and Clean Slate crowds (4/7).
+
+  - **The rest of the suite:** the second full run failed 21 tests, every one a timeout but the B10 golden. The golden moved because the testkit hires crews at once; it was re-recorded and checked by hand against the change. The machine's load average sat at 25–110 for hours (disk 97% full, almost no free RAM, so parallel workers swapped). Each timed-out file then ran alone with one worker and per-test timeouts raised in a throwaway copy (originals untouched): roulette 7/7, three-card poker 20/20, keno 10/10, pachinko 7/7, blackjack MC 4/4, crowd campaigns 6/6, bingo 8/8, engine machines 36/36, catalogue 14/14, difficulty 11/11, pai gow 11/11, UTH 9/9, video poker 8/8, world.b2 12/12, world.feedback 3/3, crowd stress 1/1, and career 35/35 (the table above, grid and crowd in one run). Every file in the suite has now passed since the B14 changes. With a core free, bingo runs ~80 µs a round, so the 300k-game Monte Carlo takes ~24 s against its 120 s limit. Its 378 s under load was contention.
+  - **Build:** `npm run build` passes (built in 738 ms). tsc is clean. eslint on the touched files shows only the existing `_` at world.ts `loadJSON` (not B's).
+  - **Stress scene** (`sandbox.stress`, `NAV_PERF=1`, alternated with `origin/v2-playable` on the same machine, load 22–37): base tick mean 7.26 / 7.53 ms, p95 12.3 / 12.6 ms; now 5.50 / 6.04 ms, p95 8.9 / 9.8 ms. Budget 24 ms. Crowd step 4.6–4.8 → 3.8–4.2 ms; repaths 3,041 → 2,832, teleports 52 → 86. One "now" run read a 295 ms mean with a 12.9 ms p95: a few stalled ticks from the machine swapping. The rerun read 6.04.
+  - **Screenshots** (1280×800, Sandbox): all eight B9 games placed on the floor; each new game's rules editor renders its fields (big six's shown); the Staff panel (arrival curve against on-shift staff, wages, roster); the Events tab, the chart's shaded event hours and the day report's Events row; and a guest flagged suspicious in the Guests tab, with Remove.
+  - **New `world.ts` lines in B14:** `hireStaff` sets `member.depth`; `loadJSON` re-applies it; the mis-pay roll and janitor radius check `depth`; `dealerSpeedFor` returns 1 without depth.
   1. Merge `origin/v2-playable` if it moved (it will have Track A's PR #21 if the user merged it).
   2. Full suite under `caffeinate -i` and `npm run build`; the stress scene (`sim/agents/sandbox.stress.test.ts` with `NAV_PERF=1`): alternate with the previous commit on the same machine when the load average is high, as B13 did.
   3. Screenshots: each new game in the rules editor and on the floor, the new Staff panel, the marketing panel, a suspicious-guest flag.

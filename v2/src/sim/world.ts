@@ -1435,6 +1435,7 @@ export class CasinoWorld {
     const member = new Staff(`s-${this.nextStaffNum++}`, kind, this.entranceTile);
     member.skill = this.staffRng.int(STAFF_DEPTH.hireSkill.min, STAFF_DEPTH.hireSkill.max);
     member.shift = this.shiftForHire(kind);
+    member.depth = this.staffDepth;
     this.staff.set(member.id, member);
     if (this.staffDepth && !onShiftAt(member.shift, this.time.hour))
       member.clockOut(this, this.entranceTile);
@@ -1662,7 +1663,7 @@ export class CasinoWorld {
     const dealer = machine.needsDealer
       ? this.staff.get(this.dealerAssignments.get(machineId) ?? '')
       : undefined;
-    if (dealer) {
+    if (dealer && dealer.depth) {
       const p = misPayChance(dealer.skill);
       for (let i = 0; i < rounds; i++) {
         if (!this.staffRng.chance(p)) continue;
@@ -1816,7 +1817,7 @@ export class CasinoWorld {
     const at = this.messes.get(member.jobId);
     this.cleanMess(member.jobId);
     // B11: a skilled janitor sweeps what's around the job too.
-    const r = cleanRadius(member.skill);
+    const r = member.depth ? cleanRadius(member.skill) : 0;
     if (!at || r === 0) return;
     for (const mess of [...this.messes.values()])
       if (
@@ -2132,7 +2133,8 @@ export class CasinoWorld {
     const dealer = this.staff.get(this.dealerAssignments.get(machineId) ?? '');
     // B11: a dealer's skill sets the pace (0.8× at 0 to 1.15× at 100), and
     // low morale slows it.
-    return dealer ? dealerSkillSpeed(dealer.skill) * dealer.speed : ENGINE_BALANCE.noDealerSpeed;
+    if (!dealer) return ENGINE_BALANCE.noDealerSpeed;
+    return dealer.depth ? dealerSkillSpeed(dealer.skill) * dealer.speed : 1;
   }
 
   /** Hook: seat occupancy for the books — occupied and available seat-ticks. */
@@ -2552,6 +2554,7 @@ export class CasinoWorld {
     this.time = TimeSystem.fromJSON(data.time);
     this.ledger = Ledger.fromJSON(data.ledger);
     this.scenario = data.scenario ? ScenarioManager.fromJSON(data.scenario) : null;
+    for (const member of this.staff.values()) member.depth = this.staffDepth;
     this.modifiers = ModifierSystem.fromJSON(data.modifiers);
     this.reputation = Reputation.fromJSON(data.reputation);
     this.patrons = PatronRegistry.fromJSON(data.patrons);

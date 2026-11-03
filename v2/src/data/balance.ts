@@ -406,15 +406,18 @@ export const STAFF_DEPTH = {
   /** Training: this much skill per session, for this much, off the floor
    *  for this many game hours. */
   train: { skill: 10, cost: 200, hours: 4 },
-  /** Dealer pace from skill: rounds per hour × at0 … at100. */
-  dealerSpeed: { at0: 0.8, at100: 1.15 },
+  /** Dealer pace from skill: rounds per hour × at0 … at100. A new hire's
+   *  40 deals at exactly the old pace (1.0): skill is the upside training
+   *  buys, not a tax on every table. (B14: at 0.8–1.15 a new hire dealt ~5%
+   *  slower, and with the other B11 costs Velvet Rope fell to 1/7.) */
+  dealerSpeed: { at0: 0.88, at100: 1.18 },
   /** Dealer mis-pays: per round, the chance a losing bet is paid as a win.
-   *  At a new hire's 40, 0.06% of rounds: about 4% of a blackjack table's
+   *  At a new hire's 40, 0.03% of rounds: about 2% of a blackjack table's
    *  win. (Tried at 0.6%: it ate a quarter of blackjack's 1.4% and High
    *  Roller fell from 5/7 to 1/7.) */
-  misPay: { at0: 0.001, at100: 0 },
-  /** Mechanic repair time × at0 … at100. */
-  repairTime: { at0: 1.4, at100: 0.7 },
+  misPay: { at0: 0.0005, at100: 0 },
+  /** Mechanic repair time × at0 … at100: 1.0 at a new hire's 40. */
+  repairTime: { at0: 1.2, at100: 0.7 },
   /** Janitor: also sweeps messes this many tiles (Chebyshev) around a clean,
    *  at0 … at100, rounded down. */
   cleanRadius: { at0: 0, at100: 3 },
@@ -450,17 +453,19 @@ export const STAFF_DEPTH = {
 // B11: advantage players and cheaters, and the pit that catches them.
 export const ADVANTAGE_BALANCE = {
   /** Share of arrivals with an advantage, where the scenario allows them. */
-  share: 0.015,
-  /** Of those, the split by kind. */
+  share: 0.01,
+  /** Of those, the split by kind. (B14: from 1.5%, with the cuts below.) */
   kinds: { counter: 0.5, pastPoster: 0.3, slotCheat: 0.2 },
   /** A counter's edge over the house at blackjack (the house's edge on their
    *  rounds is minus this): −0.5 to −1% in the literature; we use 0.75%. */
   counterEdge: 0.0075,
   /** A past-poster's illegal win: per play, this chance of a win of this
    *  many stakes (about 10% of their handle). */
-  pastPost: { chance: 0.02, stakes: 5 },
-  /** A slot cheat drains a cabinet: this share of the wager back on top, every play. */
-  slotDrain: 0.3,
+  pastPost: { chance: 0.01, stakes: 5 },
+  /** A slot cheat drains a cabinet: this share of the wager back on top,
+   *  every play. (B14: 0.3 with a 1.5% share cost The Salon two wins in
+   *  seven and The Strip three on the crowd.) */
+  slotDrain: 0.12,
   /** A pit boss watches this many tiles (Euclidean) around them: a pit of
    *  four to six tables. */
   pitRadius: 12,

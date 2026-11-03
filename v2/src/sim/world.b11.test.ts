@@ -165,12 +165,19 @@ describe('dealers', () => {
     const d = world.hireStaff('dealer');
     for (let i = 0; i < 200 && d.state !== 'stationed'; i++) world.tick();
     expect(d.assignedTableId).toBe(t.id);
+    // No scenario here, so no staff depth: skill changes nothing.
     d.skill = 0;
-    expect(world.dealerSpeedFor(t.id)).toBeCloseTo(0.8, 12);
+    expect(world.dealerSpeedFor(t.id)).toBe(1);
+    // As in a scenario with staff depth:
+    d.depth = true;
+    expect(world.dealerSpeedFor(t.id)).toBeCloseTo(STAFF_DEPTH.dealerSpeed.at0, 12);
     d.skill = 100;
-    expect(world.dealerSpeedFor(t.id)).toBeCloseTo(1.15, 12);
+    expect(world.dealerSpeedFor(t.id)).toBeCloseTo(STAFF_DEPTH.dealerSpeed.at100, 12);
     d.morale = 10;
-    expect(world.dealerSpeedFor(t.id)).toBeCloseTo(1.15 * 0.8, 12);
+    expect(world.dealerSpeedFor(t.id)).toBeCloseTo(
+      STAFF_DEPTH.dealerSpeed.at100 * STAFF_DEPTH.lowMoraleSlowdown,
+      12,
+    );
     d.skill = 0;
     const g = world.spawnGuest();
     let rounds = 0;
@@ -179,6 +186,27 @@ describe('dealers', () => {
     const p = STAFF_DEPTH.misPay.at0;
     expect(Math.abs(d.misPays - p * rounds)).toBeLessThan(4 * Math.sqrt(p * rounds));
     expect(d.misPaid).toBeGreaterThan(0);
+  });
+});
+
+describe('without staff depth (P16)', () => {
+  it('skill, morale and mis-pays change nothing', () => {
+    const world = new CasinoWorld({ seed: 5, autoSpawn: false });
+    world.startScenario(CAMPAIGNS[1]!);
+    world.state.cash = 100_000;
+    const t = world.place('blackjack-table', 6, 6)!;
+    const d = world.hireStaff('dealer');
+    expect(d.depth).toBe(false);
+    for (let i = 0; i < 200 && d.state !== 'stationed'; i++) world.tick();
+    d.skill = 0;
+    d.morale = 5;
+    expect(world.dealerSpeedFor(t.id)).toBe(1);
+    const g = world.spawnGuest();
+    for (let i = 0; i < 3000; i++) world.playMachine(t.id, g.id);
+    expect(d.misPays).toBe(0);
+    const m = world.hireStaff('mechanic');
+    m.skill = 0;
+    expect(m.workDurationTicks).toBe(STAFF_BALANCE.mechanic.repairTicks);
   });
 });
 
@@ -194,6 +222,7 @@ describe('janitors', () => {
       ])
         world.dropMess(c!, r!, 'trash');
       const j = world.hireStaff('janitor');
+      j.depth = true;
       j.skill = skill;
       for (let i = 0; i < 400 && world.messes.size === 4; i++) world.tick();
       return 4 - world.messes.size;

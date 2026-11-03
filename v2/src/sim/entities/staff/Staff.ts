@@ -61,6 +61,10 @@ export class Staff extends Walker {
   targetGuestId: string | null = null;
   private chaseTimer = 0;
   /** B11: 0–100. What the member is good at (see staffing.ts). */
+  /** B11: skill, morale and fatigue change the work only in a scenario
+   *  with staff depth; elsewhere every hire works as staff did before it,
+   *  so the P16 campaigns keep the numbers they were tuned on. */
+  depth = false;
   skill = 40;
   /** B11: 0–100. Low morale slows work and risks a quit. */
   morale = 70;
@@ -82,7 +86,7 @@ export class Staff extends Walker {
 
   /** B11: work-speed multiplier from morale. */
   get speed(): number {
-    return moraleSpeed(this.morale);
+    return this.depth ? moraleSpeed(this.morale) : 1;
   }
 
   get moveTicksPerTile(): number {
@@ -115,6 +119,11 @@ export class Staff extends Walker {
   }
 
   get workDurationTicks(): number {
+    if (!this.depth) {
+      if (this.kind === 'mechanic') return STAFF_BALANCE.mechanic.repairTicks;
+      if (this.kind === 'waitress') return STAFF_BALANCE.waitress.deliverTicks;
+      return STAFF_BALANCE.janitor.cleanTicks;
+    }
     if (this.kind === 'mechanic')
       return Math.round(
         (STAFF_BALANCE.mechanic.repairTicks * repairTimeFactor(this.skill)) / this.speed,

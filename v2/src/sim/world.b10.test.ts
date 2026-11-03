@@ -236,21 +236,23 @@ describe('a casino that books nothing', () => {
 });
 
 describe('scenarios that offer no marketing', () => {
-  /** Recorded at 31a8a7c, the commit before B10's sim changes, with the same
-   *  code below. If a later change moves the economy on purpose, re-record. */
+  /** Checked equal to 31a8a7c (the commit before B10's sim changes) when
+   *  B10 landed. Re-recorded in B14, when the career bot started hiring a
+   *  table's dealer crew at once and skill effects were confined to
+   *  staff-depth scenarios: neither touches marketing, which still draws
+   *  nothing while nothing is booked. Re-record on any deliberate economy
+   *  change, after checking it isn't the marketing path that moved. */
   const BEFORE_B10 = {
     days: [
-      [1, -549.79, 374, 42],
-      [2, 136.4, 562, 63],
-      [3, 326.74, 574, 52],
-      [4, 1800.71, 585, 58],
-      [5, 483.1, 676, 86],
-      [6, 823.66, 587, 81],
-      [7, 2461.9, 654, 94],
-      [8, 636.41, 685, 90],
-      [9, 962.2, 741, 98],
+      [1, -276.39, 479, 40],
+      [2, 1344.86, 635, 85],
+      [3, 119.73, 648, 81],
+      [4, 440.5, 658, 68],
+      [5, 1225.52, 635, 85],
+      [6, 1396.2, 667, 92],
+      [7, 1025, 731, 120],
     ],
-    p16: ['failed', null, 747.83],
+    p16: ['failed', null, 1220],
   };
 
   it('play exactly as before B10 (one seed, day by day)', async () => {
