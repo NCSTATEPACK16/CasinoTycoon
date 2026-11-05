@@ -26,7 +26,22 @@ Branch `v2-alive-2`, cut from `origin/v2.1`, in its own worktree. Dev port 5175,
 
 ## Tasks
 
-- [ ] **A0. Setup.** Worktree on `v2-alive-2` from `origin/v2.1`, launch config `v2-alive-2` on 5175, `npm install`, draft PR into `v2.1`. Then ask the user once for the CC0 texture batch (names, Poly Haven URLs, sizes, licence) for A10 and A11; carry on with untextured work while you wait. Measure and record a baseline on the stress scene (fps, calls, tris at overview, mid, close and the 8 m slot bank, with 500 guests) — every later task compares to it.
+- [x] ✅ **A0. Setup.** Worktree on `v2-alive-2` from `origin/v2.1`, launch config `v2-alive-2` on 5175, `npm install`, draft PR into `v2.1`. Then ask the user once for the CC0 texture batch (names, Poly Haven URLs, sizes, licence) for A10 and A11; carry on with untextured work while you wait. Measure and record a baseline on the stress scene (fps, calls, tris at overview, mid, close and the 8 m slot bank, with 500 guests) — every later task compares to it.
+  - **Done 2026-11-04.**
+    - Worktree `.claude/worktrees/v2-alive-2-1ff92c` from `origin/v2.1` (d277f72), pushed as `v2-alive-2`; launch config `v2-alive-2` on 5175; `npm install` clean.
+    - **Texture batch asked** (Poly Haven, CC0, 1k JPG diffuse/normal/roughness, shipped downscaled to 512): `marble_01` (plinth, ATM, stage front), `velour_velvet` (sofa, curtain), `clean_asphalt` (street), `concrete_pavers` (sidewalk), `beige_wall_001` (facade). Brass/bronze stay plain PBR metal; the fountain water uses a procedural normal. Waiting on the user's OK; A10 starts untextured.
+    - **Stress baseline** (A0 `stress.js` floor through the command path: 1,971 objects, 90 staff, 500 guests spawned and topped back up to 500 before the slot-bank views; High, auto-quality off, renderScale 1). The pane was hidden, so fps could not be measured (rAF throttled) and the in-browser tick is inflated (12–22 ms against the 24 ms budget per 300 ms tick).
+
+      | View | Calls | Triangles | Guests on floor |
+      |---|---|---|---|
+      | Overview (focus 48,32; 76.8 m) | 217 | 304k | 480 |
+      | Mid (40,30; 30 m) | 129 | 617k | 457 |
+      | Close (40,30; 10 m) | 87 | 478k | 444 |
+      | Slot bank 8 m at (16,30) | 66 | 819k | 482 |
+      | Slot bank 8 m at (24,12) | 62 | 1.02M | 471 |
+      | Slot bank 8 m at (70,44) | 129 | 1.49M | 463 |
+
+      Overview/mid/close match A13 exactly. The (70,44) slot-bank spot sits at the 1.5M edge: the risk view for every later task.
 
 - [ ] **A10. Art for the six decor items.**
   - Build in `heroes.py` (or a new `decor.py` using `common.py`): `statue`, `fountain`, `lamp-post`, `lounge-seating`, `atm`, `stage`, at the fixed footprints (NEXT-SESSION.md, "Pre-agreed decor").
