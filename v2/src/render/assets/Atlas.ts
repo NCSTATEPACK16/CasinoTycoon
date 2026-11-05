@@ -1317,7 +1317,9 @@ function water(g: CanvasRenderingContext2D, w: number, h: number) {
       img.data[i + 2] = 150 + 100 * c;
       img.data[i + 3] = 255;
     }
-  g.putImageData(img, 0, 0);
+  // putImageData ignores the painter's translate, so place it at the slot ourselves.
+  const t = g.getTransform();
+  g.putImageData(img, t.e, t.f);
 }
 
 function atmScreen(g: CanvasRenderingContext2D, w: number, h: number) {
@@ -1326,11 +1328,12 @@ function atmScreen(g: CanvasRenderingContext2D, w: number, h: number) {
   grad.addColorStop(1, '#06204a');
   g.fillStyle = grad;
   g.fillRect(0, 0, w, h);
-  text(g, 'WELCOME', w / 2, 30, 22, '#ffffff', SIGN_FONT);
-  text(g, 'Insert card', w / 2, 58, 16, '#9fd4ff', SIGN_FONT, 'normal');
+  // The fascia's lip covers the top fifth of the screen, so the content sits low.
+  text(g, 'WELCOME', w / 2, 44, 20, '#ffffff', SIGN_FONT);
+  text(g, 'Insert card', w / 2, 68, 15, '#9fd4ff', SIGN_FONT, 'normal');
   g.fillStyle = '#ffd24d';
-  g.fillRect(16, 82, w - 32, 30);
-  text(g, 'CASH  $20 · $100', w / 2, 98, 15, '#3a2400', SIGN_FONT);
+  g.fillRect(16, 86, w - 32, 28);
+  text(g, 'CASH  $20 · $100', w / 2, 101, 14, '#3a2400', SIGN_FONT);
 }
 
 function atmSign(g: CanvasRenderingContext2D, w: number, h: number) {

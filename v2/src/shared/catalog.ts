@@ -280,7 +280,7 @@ export const OBJECT_3D: Record<string, Object3DDef> = {
     glow: 0x7fd8ff,
     seats: [{ x: 0.5, z: 1.12, facing: Math.PI }],
   },
-  stage: { asset: 'stage', height: 4.1, color: 0x6b3a1e, zones: [], glow: 0xffe7b8 },
+  stage: { asset: 'stage', height: 3.3, color: 0x6b3a1e, zones: [], glow: 0xffe7b8 },
 };
 
 export function get3D(defId: string): Object3DDef {

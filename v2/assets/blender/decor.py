@@ -246,7 +246,7 @@ def atm(g, d):
     # Sloped fascia with the screen.
     g.box(0.66, 0.42, 0.06, 0.5, 1.02, 0.67, 'blackGloss', bevel=b, rx=-0.32)
     if d < 2:
-        g.decal_front(0.46, 0.3, 0.5, 1.24, 0.715, 'decal_atmScreen', tilt=0.32)
+        g.decal_front(0.44, 0.27, 0.5, 1.19, 0.728, 'decal_atmScreen', tilt=0.32)
         # Keypad shelf, keys, card slot and cash slot.
         g.box(0.6, 0.04, 0.2, 0.5, 0.96, 0.76, 'stainless', bevel=0.01 if d == 0 else 0)
         if d == 0:
@@ -264,7 +264,8 @@ def atm(g, d):
 
 
 def stage(g, d):
-    """4x3 raised stage: wood deck, marble apron, velvet curtain, lighting truss."""
+    """4x3 raised stage: wood deck, marble apron, velvet curtain, lighting truss.
+    Everything stays under the 3.4 m ceiling FloorLayer draws in avatar view."""
     b = 0.02 if d == 0 else 0
     mk = 'decal_texMarble'
     t = g.box(4.0, 0.5, 2.5, 2.0, 0, 1.25, mk, bevel=b)  # apron / riser
@@ -286,35 +287,35 @@ def stage(g, d):
             z = 0.2 + 0.07 * math.sin(i / 4 * TAU)
             front.append((x, z + 0.025))
             back.append((x, z - 0.025))
-        cur = g.slab(front + list(reversed(back)), 0.54, 3.3, 'decal_texVelvet')
+        cur = g.slab(front + list(reversed(back)), 0.54, 2.85, 'decal_texVelvet')
         tex_uv(g, cur)
-        val = g.box(3.9, 0.4, 0.1, 2.0, 3.1, 0.3, 'decal_texVelvet', bevel=b)
+        val = g.box(3.9, 0.32, 0.1, 2.0, 2.6, 0.3, 'decal_texVelvet', bevel=b)
         tex_uv(g, val)
-        g.box(3.92, 0.05, 0.12, 2.0, 3.06, 0.32, 'gold')
+        g.box(3.92, 0.05, 0.12, 2.0, 2.56, 0.32, 'gold')
     else:
-        cur = g.box(3.8, 2.8, 0.1, 2.0, 0.5, 0.2, 'decal_texVelvet')
+        cur = g.box(3.8, 2.4, 0.1, 2.0, 0.5, 0.2, 'decal_texVelvet')
         tex_uv(g, cur)
     # Truss: two posts and a box-section bar over the front of the deck, four spot heads.
     lights = []
     tz = 1.9
     for x in (0.1, 3.9):
-        g.box(0.12, 3.6, 0.12, x, 0.5, tz, 'gunmetal')
-    g.box(3.92, 0.14, 0.14, 2.0, 3.96, tz, 'gunmetal')
+        g.box(0.12, 2.62, 0.12, x, 0.5, tz, 'gunmetal')
+    g.box(3.92, 0.14, 0.14, 2.0, 3.12, tz, 'gunmetal')
     if d == 0:
         # Lattice on the bar.
         for i in range(16):
             x0 = 0.1 + i * 0.238
-            limb(g, (x0, 3.97, tz + 0.07), (x0 + 0.238, 4.09, tz + 0.07), 0.008, 0.008, 'chrome', 4)
-            limb(g, (x0, 3.97, tz - 0.07), (x0 + 0.238, 4.09, tz - 0.07), 0.008, 0.008, 'chrome', 4)
+            limb(g, (x0, 3.13, tz + 0.07), (x0 + 0.238, 3.25, tz + 0.07), 0.008, 0.008, 'chrome', 4)
+            limb(g, (x0, 3.13, tz - 0.07), (x0 + 0.238, 3.25, tz - 0.07), 0.008, 0.008, 'chrome', 4)
     heads = [0.7, 1.55, 2.45, 3.3]
     for i, x in enumerate(heads):
         if d < 2:
-            g.box(0.03, 0.14, 0.03, x, 3.82, tz, 'gunmetal')
+            g.box(0.03, 0.14, 0.03, x, 2.98, tz, 'gunmetal')
             # Can light aimed down at the deck, lens toward the stage.
-            limb(g, (x, 3.8, tz + 0.08), (x, 3.62, tz - 0.12), 0.09, 0.09, 'blackMatte', seg(d, 12, 6))
-            g.p.cyl(0.075, 0.075, 0.01, bl(x, 3.61, tz - 0.13), 'spotHead__flash', seg=seg(d, 12, 6),
+            limb(g, (x, 2.96, tz + 0.08), (x, 2.78, tz - 0.12), 0.09, 0.09, 'blackMatte', seg(d, 12, 6))
+            g.p.cyl(0.075, 0.075, 0.01, bl(x, 2.77, tz - 0.13), 'spotHead__flash', seg=seg(d, 12, 6),
                     rot=(math.pi / 2 - 0.84, 0, 0))
-        lights.append((x, 3.6, tz - 0.14, [0xFFE7B8, 0xFF7AC8, 0x7FD0FF, 0xFFE7B8][i], 5.0))
+        lights.append((x, 2.76, tz - 0.14, [0xFFE7B8, 0xFF7AC8, 0x7FD0FF, 0xFFE7B8][i], 5.0))
     return [], lights
 
 

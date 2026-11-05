@@ -43,7 +43,7 @@ Branch `v2-alive-2`, cut from `origin/v2.1`, in its own worktree. Dev port 5175,
 
       Overview/mid/close match A13 exactly. The (70,44) slot-bank spot sits at the 1.5M edge: the risk view for every later task.
 
-- [ ] **A10. Art for the six decor items.**
+- [x] ✅ **A10. Art for the six decor items.**
   - Build in `heroes.py` (or a new `decor.py` using `common.py`): `statue`, `fountain`, `lamp-post`, `lounge-seating`, `atm`, `stage`, at the fixed footprints (NEXT-SESSION.md, "Pre-agreed decor").
     - Statue: bronze figure on a marble plinth.
     - Fountain: basin with UV-scrolling water and a soft splash sound (positional, through the existing audio system).
@@ -55,6 +55,28 @@ Branch `v2-alive-2`, cut from `origin/v2.1`, in its own worktree. Dev port 5175,
   - Catalog: add entries with real `asset` keys. Track B adds the `data/objects.ts` defs in B6; on merge keep your art fields and B's zones/prices.
   - **Evidence:** a render-lab screenshot of each (`src/render/lab/`); LOD triangle counts and GLB sizes (stay inside the 6 MB total); once B6's defs are in your branch, each placed on the floor.
   - **Checkpoint 1:** publish the screenshots as a private Artifact page, report the link, and **stop until the user signs off.**
+  - **Done 2026-11-05.**
+    - **`assets/blender/decor.py`** (new; imports `heroes.py`'s game-space builder, whose `main()` is now guarded). Run: `Blender -b --factory-startup --python assets/blender/decor.py -- [key ...]`.
+
+      | Asset | Footprint | LOD0 / LOD1 / LOD2 tris | GLB | Seats | Lights |
+      |---|---|---|---|---|---|
+      | `statue`: bronze Lady Luck raising a star, marble plinth, brass plaque | 1×1 | 1,848 / 456 / 128 | 75 KB | — | — |
+      | `fountain`: marble basin, two-tier bronze centrepiece, falling sheets, scrolling water | 3×3 | 2,906 / 878 / 218 | 104 KB | — | — |
+      | `lamp-post`: brass post, three warm globes and a crown globe | 1×1 | 1,756 / 636 / 156 | 53 KB | — | 1 (warm, 4.5 m) |
+      | `lounge-seating`: tufted velvet sofa, brass feet | 2×1 | 1,204 / 164 / 48 | 70 KB | 2, facing +z | — |
+      | `atm`: gunmetal kiosk, lit screen and ATM sign, keypad | 1×1 | 724 / 88 / 50 | 62 KB | 1 (standing, front) | 1 (cyan, 2 m) |
+      | `stage`: marble riser, wood deck, steps, pleated velvet curtain, truss with four can lights | 4×3 | 1,868 / 588 / 72 | 110 KB | — | 4 (warm, pink, blue, warm; 5 m) |
+
+      All under the 6k/1.5k LOD budgets. GLBs now total 2.38 MB of 6 MB. Everything stays under the 3.4 m avatar-view ceiling (the stage was first drawn at 4.1 m and pushed its truss through it; lowered).
+    - **Practical lights:** `light_<n>` empties with `color`/`radius` custom properties, exported as glTF extras (`common.export_glb(extras=True)`); `AssetLibrary` reads them into `Asset.lights` (checked in the browser: lamp 1, ATM 1, stage 4). Not added to the existing chandelier/bar/slot GLBs yet; A8 decides whether it needs them there or derives pools from emissive surfaces.
+    - **Textures:** the CC0 marble and velvet become atlas tiles (`texMarble`, `texVelvet`, `Atlas.loadImages()` paints the 512 px photos over procedural stand-ins once they load). `decor.py`'s `tex_uv` box-projects UVs inside 0..1 because atlas tiles can't wrap. Normal/roughness maps aren't used: the single object material has no normal map (kept for A11's exterior).
+    - **Water:** `decal_water__scroll` → new `SurfaceFlag.Scroll` (16); `ObjectMaterial` scrolls two copies of a seamless water tile against each other inside `uWaterRect`. (Found and fixed while verifying: the water painter's `putImageData` ignored the atlas translate and wrote over the atlas corner.)
+    - **Splash sound:** a fifth ambience bed, `fountain` (`amb-fountain`, already in the repo from part 1's batch, unused until now). `AmbienceFeed` weighs fountains from their rim (squared falloff over 9 m); the mix fades it with camera height. Tests in `ambience.test.ts`.
+    - **Catalog:** six entries with real `asset` keys, `height`, `color`, `glow`, seats; `zones: []` for Track B to set in B6. Until B6's defs exist, `render/assets/decor.ts` gives the agreed footprints to the renderer and the ambience.
+    - **Render lab:** `?decor` swaps the south slot bank for a decor gallery; shots `decor`, `statue`, `fountain`, `lamppost`, `lounge`, `atm`, `stage`.
+    - **Checks:** `tsc` clean; `src/audio` + `catalog.test.ts` 32/32, `src/render` 44/44. No `src/sim` change, so no economics guard.
+    - **Stress scene** (same method as A0; pane hidden, so no fps): overview 211 calls / 300k tris, mid 119 / 582k, close 83 / 462k, slot bank 8 m 65 / 816k, 62 / 1.02M, 116 / 1.43M (A0: 217/304k, 129/617k, 87/478k, 66/819k, 62/1.02M, 129/1.49M). Same within guest-position noise: the stress floor has no decor, and the water branch only runs on Scroll surfaces.
+    - **Not yet possible:** placing them on a real floor needs B6's `data/objects.ts` defs; do it once they merge into `v2.1`. Also check then that a guest's sit clip looks right on the sofa's 0.46 m seat.
 
 - [ ] **A8. Light you can see, and a graphics setting.**
   - **Baked light pools:** a per-chunk light texture (or equivalent) splatted onto the carpet from practical lights and emissive fixtures — chandeliers, lamp posts, table lamps, slot banks, neon (coloured spill) — rebuilt on `objectsVersion`/`floorVersion`. This is the god-view look.
