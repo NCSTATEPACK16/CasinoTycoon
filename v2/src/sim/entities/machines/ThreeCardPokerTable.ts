@@ -1,12 +1,12 @@
 import { THREE_CARD_POKER_BALANCE } from '../../../data/balance';
-import type { Rng } from '../../rng';
-import type { PlayCadence, PlayResult } from './CasinoGame';
-import { SeatedCasinoGame } from './SeatedCasinoGame';
+import type { PlayCadence } from './CasinoGame';
+import { EngineTable } from './EngineGame';
 
-// The reliable mid table. Four seats, fast rounds, a moderate edge and no tail at all — nothing about it is exciting, which is the point.
-export class ThreeCardPokerTable extends SeatedCasinoGame {
+// Three Card Poker: house-banked, so one guest is enough to deal. costToPlay
+// scales the Ante; the Play bet matches it and Pair Plus is the side bet.
+export class ThreeCardPokerTable extends EngineTable {
   constructor(id: string, costToPlay: number = THREE_CARD_POKER_BALANCE.costToPlay) {
-    super(id, 'three-card-poker', costToPlay, THREE_CARD_POKER_BALANCE.seats);
+    super(id, 'three-card-poker', 'tcp', costToPlay, THREE_CARD_POKER_BALANCE.seats);
   }
 
   get cadence(): PlayCadence {
@@ -17,15 +17,7 @@ export class ThreeCardPokerTable extends SeatedCasinoGame {
     };
   }
 
-  protected spin(rng: Rng): PlayResult {
-    return { wager: this.costToPlay, payout: this.rollPayout(rng, THREE_CARD_POKER_BALANCE.payoutTable) };
-  }
-
   protected wearPerPlay(): number {
     return THREE_CARD_POKER_BALANCE.wearPerPlay;
-  }
-
-  testSpin(rng: Rng): number {
-    return this.rollPayout(rng, THREE_CARD_POKER_BALANCE.payoutTable);
   }
 }

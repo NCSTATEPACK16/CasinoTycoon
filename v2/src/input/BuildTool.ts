@@ -1,106 +1,83 @@
-// Skeleton build tool: raycast the ground, snap to the grid, show a ghost
-// tinted by placeability, click to place, X toggles bulldoze. Session 2 owns
-// the full tool set (drag-paint, rotation, walls).
+// The build-mode façade the HUD talks to. It keeps the skeleton's surface
+// (select(defId), defId, bulldoze, onMessage) and maps it onto the
+// ToolManager, so the palette can arm a placement without knowing about
+// tools. X toggles bulldoze; Esc (handled by the manager) drops the tool.
 
-import * as THREE from 'three';
-import { getObjectDef } from '../data/objects';
-import { get3D } from '../shared/catalog';
-import type { SimClient } from '../client/SimClient';
-import type { Stage } from '../render/Stage';
+import type { FloorType, Zone } from '../shared/contracts';
+import { isTyping } from './Keys';
+import { BulldozeTool } from './tools/BulldozeTool';
+import { PaintTool } from './tools/PaintTool';
+import { PlaceTool } from './tools/PlaceTool';
+import type { ToolManager } from './tools/Tool';
+import { WallTool } from './tools/WallTool';
 
-export class BuildTool {
-  defId: string | null = null;
-  bulldoze = false;
-  private ray = new THREE.Raycaster();
-  private ndc = new THREE.Vector2();
-  private cell: { col: number; row: number } | null = null;
-  private checkSeq = 0;
+export class BuildTool extends EventTarget {
+  floorType: FloorType = 'carpet-red';
+  zone: Zone = 'gaming';
   onMessage: (text: string) => void = () => {};
 
-  constructor(
-    private dom: HTMLElement,
-    private stage: Stage,
-    private sim: SimClient,
-    private camera: () => THREE.Camera,
-  ) {
-    dom.addEventListener('pointermove', (e) => this.hover(e));
-    dom.addEventListener('pointerdown', (e) => {
-      if (e.button === 0) void this.click(e);
-    });
+  constructor(private tools: ToolManager) {
+    super();
+    tools.addEventListener('change', () => this.dispatchEvent(new Event('change')));
     window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') this.select(null);
-      if (e.key.toLowerCase() === 'x') {
-        this.select(null);
-        this.bulldoze = !this.bulldoze;
-      }
+      if (isTyping(e) || !tools.enabled || e.code !== 'KeyX') return;
+      this.bulldoze = !this.bulldoze;
     });
   }
 
-  select(defId: string | null): void {
-    this.defId = defId;
-    this.bulldoze = false;
-    this.stage.ghost.visible = false;
+  /** Id of the active tool ('place', 'paintFloor', 'paintZone', 'wall', 'bulldoze') or null. */
+  get toolId(): string | null {
+    return this.tools.active?.id ?? null;
   }
 
-  private setNdc(e: PointerEvent): void {
-    const r = this.dom.getBoundingClientRect();
-    this.ndc.set(
-      ((e.clientX - r.left) / r.width) * 2 - 1,
-      -((e.clientY - r.top) / r.height) * 2 + 1,
-    );
-    this.ray.setFromCamera(this.ndc, this.camera());
+  /** The def being placed, if the place tool is active. */
+  get defId(): string | null {
+    const t = this.tools.active;
+    return t instanceof PlaceTool ? t.defId : null;
   }
 
-  private hover(e: PointerEvent): void {
-    if (!this.defId) return;
-    this.setNdc(e);
-    const hit = this.ray.intersectObject(this.stage.ground)[0];
-    if (!hit) return void (this.stage.ghost.visible = false);
-    const def = getObjectDef(this.defId);
-    const w = def?.footprint.w ?? 1;
-    const h = def?.footprint.h ?? 1;
-    const col = Math.floor(hit.point.x - w / 2 + 0.5);
-    const row = Math.floor(hit.point.z - h / 2 + 0.5);
-    const g = this.stage.ghost;
-    g.visible = true;
-    g.position.set(col, 0, row);
-    g.scale.set(w, get3D(this.defId).height, h);
-    if (this.cell?.col === col && this.cell?.row === row) return;
-    this.cell = { col, row };
-    const seq = ++this.checkSeq;
-    void this.sim
-      .command<{ ok: boolean }>({ type: 'canPlace', defId: this.defId, col, row, rot: 0 })
-      .then((r) => {
-        if (seq === this.checkSeq)
-          (g.material as THREE.MeshBasicMaterial).color.setHex(r.ok ? 0x2ecc71 : 0xe74c3c);
-      });
+  get bulldoze(): boolean {
+    return this.tools.active instanceof BulldozeTool;
   }
 
-  private async click(e: PointerEvent): Promise<void> {
-    this.setNdc(e);
-    if (this.bulldoze) {
-      const hit = this.ray
-        .intersectObjects(this.stage.scene.children, true)
-        .find((h) => h.object.userData.objectId);
-      if (!hit) return;
-      const refund = await this.sim
-        .command<number>({ type: 'sell', objectId: hit.object.userData.objectId as string })
-        .catch(() => null);
-      if (refund !== null) this.onMessage(`Sold for $${refund.toLocaleString()}`);
+  set bulldoze(on: boolean) {
+    if (on !== this.bulldoze) this.select(null, on ? 'bulldoze' : undefined);
+  }
+
+  /** Arm placement of `defId`, or with null clear the tool (or switch to `other`). */
+  select(defId: string | null, other?: 'bulldoze'): void {
+    const ctx = this.tools.context();
+    if (defId) {
+      // Re-arming the same def keeps its rotation, as RCT does.
+      const cur = this.tools.active;
+      if (cur instanceof PlaceTool && cur.defId === defId) return;
+      const t = new PlaceTool(ctx, defId);
+      if (cur instanceof PlaceTool) t.rot = cur.rot;
+      this.tools.set(t);
+    } else this.tools.set(other === 'bulldoze' ? new BulldozeTool(ctx) : null);
+  }
+
+  paintFloor(floor: FloorType): void {
+    this.floorType = floor;
+    this.setPaint({ kind: 'floor', value: floor });
+  }
+
+  paintZone(zone: Zone): void {
+    this.zone = zone;
+    this.setPaint({ kind: 'zone', value: zone });
+  }
+
+  walls(): void {
+    this.tools.set(new WallTool(this.tools.context()));
+  }
+
+  private setPaint(target: PaintTool['target']): void {
+    const cur = this.tools.active;
+    if (cur instanceof PaintTool && cur.target.kind === target.kind) {
+      cur.target = target; // switch swatch mid-tool without losing the hover preview
+      this.dispatchEvent(new Event('change'));
       return;
     }
-    if (!this.defId || !this.cell) return;
-    try {
-      await this.sim.command({
-        type: 'place',
-        defId: this.defId,
-        col: this.cell.col,
-        row: this.cell.row,
-        rot: 0,
-      });
-      this.cell = null; // force a fresh validity check under the cursor
-    } catch (err) {
-      this.onMessage(`Can't build: ${(err as Error).message}`);
-    }
+    this.tools.set(new PaintTool(this.tools.context(), target));
   }
 }

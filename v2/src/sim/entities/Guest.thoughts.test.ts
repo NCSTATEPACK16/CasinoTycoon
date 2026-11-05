@@ -4,7 +4,6 @@ import { POKER_BALANCE } from '../../data/balance';
 import { EVENT_THOUGHT_IDS, THOUGHTS, THOUGHT_EMOJI } from '../../data/thoughts';
 import type { ThoughtContext, ThoughtDef } from '../../data/thoughts';
 import { CasinoWorld } from '../world';
-import type { PokerTable } from './machines/PokerTable';
 
 afterEach(() => eventBus.clear());
 
@@ -134,71 +133,23 @@ describe('win/loss streaks', () => {
   });
 });
 
-describe('poker sit-and-wait', () => {
-  it('holds the seat while the table is short of players instead of churning', () => {
+describe('poker seating', () => {
+  // v2: the poker table deals house-banked Ultimate Texas Hold'em, so the v1
+  // sit-and-wait mechanic (a lone guest holding a seat until a second
+  // arrives) no longer has a table to apply to. What remains is the claim
+  // that matters to a guest: sitting alone at poker means being dealt to.
+  it('deals to a lone guest at the poker table without waiting', () => {
     const world = new CasinoWorld({ seed: 45, autoSpawn: false });
     world.state.cash = 100000;
-    const po = world.place('poker-table', 6, 6)!;
-    const table = world.machines.get(po.id) as PokerTable;
-    const guest = world.spawnGuest();
-    guest.wallet = 5000;
-    // seatedCount counts reservations, so wait for the guest to actually
-    // arrive and start playing rather than for the seat to be claimed.
-    expect(tickUntil(world, () => guest.state === 'play')).toBe(true);
-
-    // Before this change the lone guest vacated within one play interval.
-    // It must now still be in the same seat well past that.
-    for (let i = 0; i < POKER_BALANCE.playIntervalTicks * 3; i++) world.tick();
-    expect(table.seatedCount).toBe(1);
-    expect(guest.state).toBe('play');
-    expect(guest.waitingForPlayersTicks).toBeGreaterThan(POKER_BALANCE.playIntervalTicks);
-  });
-
-  it('bounds the wait at maxWaitTicks', () => {
-    const world = new CasinoWorld({ seed: 45, autoSpawn: false });
-    world.state.cash = 100000;
-    const po = world.place('poker-table', 6, 6)!;
-    const table = world.machines.get(po.id) as PokerTable;
-    const guest = world.spawnGuest();
-    guest.wallet = 5000;
-    expect(tickUntil(world, () => guest.state === 'play')).toBe(true);
-    // Long enough for several full wait windows to expire.
-    let maxSeen = 0;
-    for (let i = 0; i < POKER_BALANCE.maxWaitTicks * 4; i++) {
-      world.tick();
-      expect(guest.waitingForPlayersTicks).toBeLessThanOrEqual(POKER_BALANCE.maxWaitTicks);
-      maxSeen = Math.max(maxSeen, guest.waitingForPlayersTicks);
-    }
-    // The counter must actually climb — the attempt that reaches maxWaitTicks
-    // gives the seat up and zeroes it in the same call, so the largest value
-    // an outside observer can see is one play interval short of the cap.
-    expect(maxSeen).toBe(POKER_BALANCE.maxWaitTicks - POKER_BALANCE.playIntervalTicks);
-    // The table never dealt a hand, so it never wore down or earned.
-    expect(table.reliability).toBe(100);
-    expect(table.lifetimeProfit).toBe(0);
-  });
-
-  it('deals for both once a second guest sits down', () => {
-    const world = new CasinoWorld({ seed: 46, autoSpawn: false });
-    world.state.cash = 100000;
-    const po = world.place('poker-table', 6, 6)!;
-    const table = world.machines.get(po.id) as PokerTable;
+    world.place('poker-table', 6, 6);
     let plays = 0;
     eventBus.on('machinePlayed', () => plays++);
-
-    const a = world.spawnGuest();
-    a.wallet = 5000;
-    expect(tickUntil(world, () => a.state === 'play')).toBe(true);
-    for (let i = 0; i < POKER_BALANCE.playIntervalTicks * 2; i++) world.tick();
-    expect(plays).toBe(0);
-
-    const b = world.spawnGuest();
-    b.wallet = 5000;
-    expect(tickUntil(world, () => b.state === 'play')).toBe(true);
-    expect(table.canDeal).toBe(true);
+    const guest = world.spawnGuest();
+    guest.wallet = 5000;
+    expect(tickUntil(world, () => guest.state === 'play')).toBe(true);
     for (let i = 0; i < POKER_BALANCE.playIntervalTicks * 3; i++) world.tick();
     expect(plays).toBeGreaterThan(0);
-    expect(a.waitingForPlayersTicks).toBe(0);
+    expect(guest.waitingForPlayersTicks).toBe(0);
   });
 
   it('does not make a guest at an ordinary game wait', () => {

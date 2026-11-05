@@ -33,7 +33,11 @@ const NOISE_FLOOR = 0.4;
  * hundred guests walked through.
  */
 export class TrafficField {
-  private visits = new TileField();
+  private visits: TileField;
+
+  constructor(cols?: number, rows?: number) {
+    this.visits = new TileField(cols, rows);
+  }
 
   /** One guest stepped onto this tile. */
   enter(col: number, row: number): void {
@@ -54,6 +58,12 @@ export class TrafficField {
   visitsAt(col: number, row: number): number | null {
     const v = this.visits.valueAt(col, row);
     return v < this.noiseFloor ? null : v;
+  }
+
+  /** B5: the decayed count on a tile with no noise floor, for an overlay
+   *  that sets its own scale. */
+  rawAt(col: number, row: number): number {
+    return this.visits.valueAt(col, row);
   }
 
   /** Busiest tile on the floor — the top of the overlay's scale. */

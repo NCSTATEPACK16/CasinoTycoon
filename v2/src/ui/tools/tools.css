@@ -1,0 +1,189 @@
+/* Session 2 tool UI: build toolbar, cursor tag, tool hint, eye-level prompts. */
+.build-toolbar {
+  position: absolute;
+  top: 70px;
+  left: 12px;
+  width: 150px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  transition:
+    opacity 0.25s,
+    transform 0.25s;
+}
+.build-toolbar.hidden,
+.tool-hint.hidden {
+  opacity: 0;
+  transform: translateX(-12px);
+  pointer-events: none;
+}
+.tool-btn {
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.tool-btn small {
+  color: var(--dim);
+  font-size: 11px;
+}
+.tool-btn.active {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px var(--gold) inset;
+}
+.tool-btn.walk {
+  margin-top: 6px;
+  border-color: rgba(102, 224, 255, 0.45);
+}
+.swatches {
+  display: none;
+  flex-direction: column;
+  gap: 3px;
+  padding-left: 6px;
+}
+.swatches.open {
+  display: flex;
+}
+.swatch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  text-align: left;
+}
+.swatch i {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+.swatch small {
+  margin-left: auto;
+  color: var(--gold);
+}
+.swatch.active {
+  border-color: var(--gold);
+}
+.tool-hint {
+  position: absolute;
+  bottom: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--dim);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+}
+.tool-hint.show {
+  opacity: 1;
+}
+kbd {
+  display: inline-block;
+  min-width: 1.4em;
+  padding: 0 5px;
+  margin: 0 2px;
+  border-radius: 4px;
+  text-align: center;
+  font: 600 12px/1.6 inherit;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+#ui > .cursor-tag {
+  position: fixed;
+  left: 0;
+  top: 0;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  background: rgba(14, 10, 24, 0.9);
+  border: 1px solid var(--line);
+  color: var(--gold);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s;
+  white-space: nowrap;
+}
+#ui > .cursor-tag.show {
+  opacity: 1;
+}
+.cursor-tag[data-tone='ok'] {
+  color: #7dffb0;
+  border-color: rgba(46, 204, 113, 0.6);
+}
+.cursor-tag[data-tone='bad'] {
+  color: #ff9a8f;
+  border-color: rgba(231, 76, 60, 0.7);
+}
+.cursor-tag span {
+  font-weight: 400;
+  margin-left: 6px;
+}
+#ui > .interact-prompt {
+  position: absolute;
+  bottom: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+#ui > .interact-prompt.show {
+  opacity: 1;
+}
+.interact-prompt kbd {
+  margin-right: 8px;
+  color: var(--gold);
+}
+#ui > .mode-hint {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--dim);
+  background: var(--panel);
+  border-radius: 8px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+#ui > .mode-hint.show {
+  opacity: 1;
+}
+#ui > .crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  pointer-events: none;
+}
+#ui > .crosshair.show {
+  opacity: 1;
+}

@@ -1,18 +1,12 @@
 import { POKER_BALANCE } from '../../../data/balance';
-import type { Rng } from '../../rng';
-import type { PlayCadence, PlayResult } from './CasinoGame';
-import { SeatedCasinoGame } from './SeatedCasinoGame';
+import type { PlayCadence } from './CasinoGame';
+import { EngineTable } from './EngineGame';
 
-// The only game where guests play each other rather than the house. Each
-// seated guest wagers costToPlay and wins the whole pot with probability
-// 1/seatedCount, so expected payout per guest is costToPlay * (1 - rake) for
-// any table population: the house take is roughly the rake, while the swing a
-// guest feels grows with how crowded the table is. "Roughly" because potFor
-// rounds the pot to whole chips — exact at even N, and up to 0.56pp under the
-// rake at odd N (always in the players' favour).
-export class PokerTable extends SeatedCasinoGame {
+// Ultimate Texas Hold'em: house-banked poker, so one guest is enough to deal.
+// costToPlay is the Ante; the Blind matches it and the Play bet raises it.
+export class PokerTable extends EngineTable {
   constructor(id: string, costToPlay: number = POKER_BALANCE.costToPlay) {
-    super(id, 'poker-table', costToPlay, POKER_BALANCE.seats);
+    super(id, 'poker-table', 'uth', costToPlay, POKER_BALANCE.seats);
   }
 
   get cadence(): PlayCadence {
@@ -23,38 +17,7 @@ export class PokerTable extends SeatedCasinoGame {
     };
   }
 
-  /** A hand needs opponents — a lone guest sits and waits rather than playing. */
-  get canDeal(): boolean {
-    return this.seatedCount >= POKER_BALANCE.minPlayers;
-  }
-
-  protected spin(rng: Rng): PlayResult {
-    if (!this.canDeal) return { wager: 0, payout: 0 };
-    const players = this.seatedCount;
-    const pot = this.potFor(players);
-    return {
-      wager: this.costToPlay,
-      payout: rng.chance(1 / players) ? pot : 0,
-    };
-  }
-
-  // CasinoGame.play() calls applyWear() unconditionally after spin(). An
-  // under-populated table dealt no hand, so it must not degrade — otherwise a
-  // table with one lonely guest wears down to broken without ever earning.
-  // Reads the same seatedCount spin() just read, within the same play().
   protected wearPerPlay(): number {
-    return this.canDeal ? POKER_BALANCE.wearPerPlay : 0;
-  }
-
-  testSpin(rng: Rng): number {
-    // Free Play in the Machine Inspector: show a representative pot even when
-    // the table is empty, so the operator sees what a real hand pays.
-    const players = Math.max(this.seatedCount, POKER_BALANCE.minPlayers);
-    return rng.chance(1 / players) ? this.potFor(players) : 0;
-  }
-
-  /** The whole table's wagers less the house rake. */
-  private potFor(players: number): number {
-    return Math.round(this.costToPlay * players * (1 - POKER_BALANCE.rake));
+    return POKER_BALANCE.wearPerPlay;
   }
 }

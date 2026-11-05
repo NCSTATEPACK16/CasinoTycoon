@@ -130,8 +130,12 @@ describe('CasinoWorld', () => {
     for (let i = 0; i < HOURS_PER_DAY * TICKS_PER_HOUR * 10; i++) world.tick();
     expect(plays).toBeGreaterThan(3000);
     expect(jackpots).toBeGreaterThan(0);
-    // The ledger counted every one of them, which is the actual claim.
-    const counted = world.ledger.history.reduce((n, r) => n + r.jackpotCount, 0);
+    // The ledger counted every one of them, which is the actual claim — the
+    // closed days plus the day still in progress, since ten days of ticks from
+    // a mid-morning start end before the tenth midnight.
+    const counted =
+      world.ledger.history.reduce((n, r) => n + r.jackpotCount, 0) +
+      (world.ledger.toJSON().dayJackpotCount ?? 0);
     expect(counted).toBe(jackpots);
   });
 

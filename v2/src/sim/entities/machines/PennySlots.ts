@@ -1,12 +1,12 @@
 import { PENNY_SLOT_BALANCE } from '../../../data/balance';
-import type { Rng } from '../../rng';
-import { CasinoGame, type PlayCadence, type PlayResult } from './CasinoGame';
+import type { PlayCadence } from './CasinoGame';
+import { EngineCabinet } from './EngineGame';
 
-// The cheapest way to occupy a tile: a $2 wager, the flattest payout table in
-// the house, and long sessions. Single-player, like the full-size slot.
-export class PennySlots extends CasinoGame {
-  constructor(id: string, costToPlay: number = PENNY_SLOT_BALANCE.costToPlay) {
-    super(id, 'penny-slots', costToPlay);
+// The cheapest way to occupy a tile: 200 credits at a penny on an 88% sheet,
+// and long sessions. Single-player, like the full-size slot.
+export class PennySlots extends EngineCabinet {
+  constructor(id: string, costToPlay?: number) {
+    super(id, 'penny-slots', 'slots', costToPlay);
   }
 
   get cadence(): PlayCadence {
@@ -17,18 +17,7 @@ export class PennySlots extends CasinoGame {
     };
   }
 
-  protected spin(rng: Rng): PlayResult {
-    return {
-      wager: this.costToPlay,
-      payout: this.rollPayout(rng, PENNY_SLOT_BALANCE.payoutTable),
-    };
-  }
-
   protected wearPerPlay(): number {
     return PENNY_SLOT_BALANCE.wearPerPlay;
-  }
-
-  testSpin(rng: Rng): number {
-    return this.rollPayout(rng, PENNY_SLOT_BALANCE.payoutTable);
   }
 }

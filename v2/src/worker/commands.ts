@@ -1,24 +1,107 @@
 // Command dispatch for the sim worker. Kept apart from the Worker global so
 // tests can drive a world exactly the way the UI does.
 
-import { CAMPAIGNS } from '../data/campaigns';
-import type { Command } from '../shared/contracts';
+import { COMPS, DEBT, LOANS, type CompKind } from '../data/balance';
+import { getCampaign } from '../data/campaigns';
+import type { Command, SimStats } from '../shared/contracts';
+import {
+  buildWallLine,
+  paintFloorRect,
+  paintZoneRect,
+  toggleDoor,
+  type FloorBuildResult,
+} from '../sim/build';
 import type { StaffKind } from '../sim/entities/staff/Staff';
 import type { CasinoWorld, CasinoWorldJSON } from '../sim/world';
+import {
+  financials,
+  inspectAgent,
+  inspectObject,
+  patronList,
+  priceList,
+  ratingReport,
+  scenarioList,
+  staffList,
+} from './inspect';
+import { guestList, heatMap, thoughtSummary } from './feedback';
+import { dayReport, financeHistory, loansView } from './finance';
+import { marketingView } from './marketing';
+import { scenarioResult } from './scenario';
 import type { SnapshotBuilder } from './snapshot';
 
 export type CommandResult = { ok: true; data?: unknown } | { ok: false; error: string };
 
+/** Floor edits share one tail: report, and tell the world which cells moved. */
+function floorEdit(
+  world: CasinoWorld,
+  r: FloorBuildResult,
+  rect: { col0: number; row0: number; col1: number; row1: number },
+): CommandResult {
+  if (!r.ok) return { ok: false, error: r.error };
+  if (r.changed > 0) world.onFloorEdited(rect);
+  return { ok: true, data: { cost: r.cost, changed: r.changed } };
+}
+
 export function runCommand(world: CasinoWorld, snap: SnapshotBuilder, cmd: Command): CommandResult {
   switch (cmd.type) {
     case 'place': {
-      const check = world.canPlace(cmd.defId, cmd.col, cmd.row);
+      const check = world.canPlace(cmd.defId, cmd.col, cmd.row, cmd.rot);
       if (!check.ok) return { ok: false, error: check.reason };
-      const placed = world.place(cmd.defId, cmd.col, cmd.row);
+      const placed = world.place(cmd.defId, cmd.col, cmd.row, cmd.rot);
       return placed ? { ok: true, data: placed } : { ok: false, error: 'blocked' };
     }
     case 'canPlace':
-      return { ok: true, data: world.canPlace(cmd.defId, cmd.col, cmd.row) };
+      return { ok: true, data: world.canPlace(cmd.defId, cmd.col, cmd.row, cmd.rot) };
+    case 'paintFloor':
+      return floorEdit(
+        world,
+        paintFloorRect(
+          world.state,
+          world.grid,
+          world.floor,
+          cmd.rect,
+          cmd.floor,
+          world.creditLimit,
+        ),
+        cmd.rect,
+      );
+    case 'paintZone':
+      return floorEdit(
+        world,
+        paintZoneRect(world.state, world.grid, world.floor, cmd.rect, cmd.zone, world.creditLimit),
+        cmd.rect,
+      );
+    case 'wall': {
+      const r = buildWallLine(
+        world.state,
+        world.grid,
+        world.floor,
+        cmd.from,
+        cmd.to,
+        cmd.remove,
+        world.creditLimit,
+      );
+      const rect = {
+        col0: Math.min(cmd.from.col, cmd.to.col) - 1,
+        row0: Math.min(cmd.from.row, cmd.to.row) - 1,
+        col1: Math.max(cmd.from.col, cmd.to.col),
+        row1: Math.max(cmd.from.row, cmd.to.row),
+      };
+      return floorEdit(world, r, rect);
+    }
+    case 'door': {
+      const r = toggleDoor(
+        world.state,
+        world.grid,
+        world.floor,
+        cmd.col,
+        cmd.row,
+        cmd.edge,
+        world.creditLimit,
+      );
+      const rect = { col0: cmd.col - 1, row0: cmd.row - 1, col1: cmd.col, row1: cmd.row };
+      return floorEdit(world, r, rect);
+    }
     case 'sell': {
       const refund = world.sell(cmd.objectId);
       return refund === null ? { ok: false, error: 'not sellable' } : { ok: true, data: refund };
@@ -27,24 +110,197 @@ export function runCommand(world: CasinoWorld, snap: SnapshotBuilder, cmd: Comma
       snap.speed = cmd.speed;
       return { ok: true };
     case 'startScenario': {
-      const def = cmd.scenarioId ? CAMPAIGNS.find((c) => c.id === cmd.scenarioId) : null;
+      const def = cmd.scenarioId ? getCampaign(cmd.scenarioId) : null;
       if (cmd.scenarioId && !def) return { ok: false, error: `unknown scenario ${cmd.scenarioId}` };
+      // The world bumps floorRevision itself; the snapshot sends the new plan.
       world.startScenario(def ?? null);
-      snap.floorVersion++;
       return { ok: true };
     }
     case 'hire':
       return { ok: true, data: world.hireStaff(cmd.kind as StaffKind).id };
     case 'fire':
       return world.fireStaff(cmd.staffId) ? { ok: true } : { ok: false, error: 'no such staff' };
+    case 'debugSpawn': {
+      const n = Math.max(0, Math.min(1000, Math.floor(cmd.count)));
+      for (let i = 0; i < n; i++) world.spawnGuest(cmd.archetype);
+      return { ok: true, data: world.guests.size };
+    }
+    case 'debugTicks': {
+      const n = Math.max(0, Math.min(5000, Math.floor(cmd.count)));
+      const times: number[] = [];
+      for (let i = 0; i < n; i++) {
+        const t0 = performance.now();
+        world.tick();
+        times.push(performance.now() - t0);
+        snap.recordTick(times[i]!);
+      }
+      times.sort((a, b) => a - b);
+      const mean = times.reduce((a, b) => a + b, 0) / Math.max(1, n);
+      return {
+        ok: true,
+        data: {
+          ticks: n,
+          meanMs: mean,
+          p95Ms: times[Math.floor(n * 0.95)] ?? 0,
+          maxMs: times[n - 1] ?? 0,
+          guests: world.guests.size,
+          crowdAgents: world.nav?.activeAgents ?? 0,
+        },
+      };
+    }
+    case 'stats': {
+      const t = snap.tickTimes;
+      const stats: SimStats = {
+        guests: world.guests.size,
+        staff: world.staff.size,
+        crowdAgents: world.nav?.activeAgents ?? 0,
+        tickMeanMs: t.length ? t.reduce((a, b) => a + b, 0) / t.length : 0,
+        tickMaxMs: t.length ? Math.max(...t) : 0,
+        nav: world.nav ? { ...world.nav.stats, lastRebakeMs: world.nav.sys.lastRebakeMs } : null,
+      };
+      return { ok: true, data: stats };
+    }
     case 'save':
       return { ok: true, data: world.toJSON() };
     case 'load':
       world.loadJSON(cmd.json as CasinoWorldJSON);
-      snap.floorVersion++;
       return { ok: true };
+    // Session 4 (casino math). setRules replies { rules, issues }: the rules as
+    // applied, and every field that had to be clamped or rejected.
+    case 'setRules': {
+      const applied = world.setMachineRules(cmd.objectId, cmd.rules);
+      return applied
+        ? { ok: true, data: applied }
+        : { ok: false, error: 'no game rules on that object' };
+    }
+    // Avatar play. Both reply { options, view, wallet, onTable }, plus `result` (the
+    // RoundResult with its theo) once the round has settled.
+    case 'sit': {
+      const reply = world.seatPlayer(cmd.objectId);
+      return reply === true ? { ok: true } : { ok: false, error: reply };
+    }
+    case 'stand':
+      world.unseatPlayer();
+      return { ok: true };
+    case 'roundBegin': {
+      const reply = world.beginPlayerRound(cmd.objectId, cmd.bets);
+      return typeof reply === 'string' ? { ok: false, error: reply } : { ok: true, data: reply };
+    }
+    case 'roundAct': {
+      const reply = world.actPlayerRound(cmd.objectId, cmd.action);
+      return typeof reply === 'string' ? { ok: false, error: reply } : { ok: true, data: reply };
+    }
+    case 'inspect': {
+      const t = cmd.target;
+      const view =
+        'objectId' in t ? inspectObject(world, t.objectId) : inspectAgent(world, t.agentId);
+      return view ? { ok: true, data: view } : { ok: false, error: 'nothing there' };
+    }
+    case 'financials':
+      return { ok: true, data: financials(world) };
+    case 'staffList':
+      return { ok: true, data: staffList(world) };
+    case 'scenarios':
+      return { ok: true, data: scenarioList() };
+    case 'continueScenario':
+      world.scenario?.continue();
+      return { ok: true };
+    case 'setInterest':
+      snap.interest = new Set(cmd.objectIds);
+      return { ok: true };
+    case 'rating':
+      return { ok: true, data: ratingReport(world) };
+    case 'patrons':
+      return { ok: true, data: patronList(world) };
+    case 'prices':
+      return { ok: true, data: priceList(world) };
+    case 'sendComp':
+      return world.sendComp(cmd.guestId, cmd.kind)
+        ? { ok: true, data: inspectAgentById(world, cmd.guestId) }
+        : { ok: false, error: compRefusal(world, cmd.guestId, cmd.kind) };
+    case 'setPrice': {
+      const applied = world.setPrice(cmd.objectId, cmd.itemId, cmd.price);
+      return applied === null
+        ? { ok: false, error: 'nothing to price there' }
+        : { ok: true, data: applied };
+    }
+    case 'financeHistory':
+      return { ok: true, data: financeHistory(world) };
+    case 'dayReport': {
+      const report = dayReport(world, cmd.day);
+      return report ? { ok: true, data: report } : { ok: false, error: 'No day has closed yet.' };
+    }
+    case 'loans':
+      return { ok: true, data: loansView(world, DEBT.dailyInterestRate) };
+    case 'takeLoan': {
+      const loan = world.takeLoan(cmd.amount, cmd.days);
+      return loan
+        ? { ok: true, data: loan }
+        : {
+            ok: false,
+            error: `The bank won't lend that: up to $${world.loanLimit.toLocaleString('en-US')} in all, and no less than $${LOANS.step}.`,
+          };
+    }
+    case 'repayLoan': {
+      const paid = world.repayLoan(cmd.loanId, cmd.amount);
+      return paid > 0
+        ? { ok: true, data: paid }
+        : {
+            ok: false,
+            error: !world.loans.loans.some((l) => l.id === cmd.loanId)
+              ? 'That loan is already paid off.'
+              : 'No cash on hand to repay with.',
+          };
+    }
+    case 'thoughts':
+      return { ok: true, data: thoughtSummary(world) };
+    case 'guestList':
+      return { ok: true, data: guestList(world) };
+    case 'heatMap':
+      return { ok: true, data: heatMap(world, cmd.kind) };
+    case 'scenarioResult':
+      return { ok: true, data: scenarioResult(world) };
+    case 'train':
+      return world.trainStaff(cmd.staffId)
+        ? { ok: true }
+        : { ok: false, error: 'cannot train now' };
+    case 'setShift':
+      return world.setStaffShift(cmd.staffId, cmd.shift)
+        ? { ok: true }
+        : { ok: false, error: 'no such staff' };
+    case 'setWage': {
+      const wage = world.setWage(cmd.kind as StaffKind, cmd.wagePerHour);
+      return wage === null ? { ok: false, error: 'bad wage' } : { ok: true, data: wage };
+    }
+    case 'removeGuest':
+      return world.removeGuest(cmd.guestId)
+        ? { ok: true }
+        : { ok: false, error: 'not a suspicious guest' };
+    case 'marketing':
+      return { ok: true, data: marketingView(world) };
+    case 'runEvent':
+      try {
+        world.runEvent(cmd.eventId);
+        return { ok: true, data: marketingView(world) };
+      } catch (e) {
+        return { ok: false, error: (e as Error).message };
+      }
     default:
-      // paintFloor/paintZone/wall/door → session 3 (sim/floor); setRules/round* → session 4 (sim/games).
-      return { ok: false, error: `${cmd.type} not implemented yet` };
+      return { ok: false, error: `${(cmd as Command).type} not implemented` };
   }
+}
+
+/** The guest's inspector view after a comp, so the panel can redraw at once. */
+function inspectAgentById(world: CasinoWorld, guestId: string): unknown {
+  return inspectAgent(world, Number(guestId.replace(/\D+/g, '')) || 0);
+}
+
+/** Why a comp was refused, in the player's terms. */
+function compRefusal(world: CasinoWorld, guestId: string, kind: CompKind): string {
+  const g = world.guests.get(guestId);
+  if (!g || g.state === 'gone') return 'They have already left.';
+  if (!g.compEligible) return 'Not yet: they have to play a while before a comp means anything.';
+  if (COMPS.compUnit[kind] > g.compHeadroom())
+    return 'They have had all the comps this visit allows.';
+  return 'The comp could not be given.';
 }

@@ -190,10 +190,14 @@ export function runCampaign(
    *  measuring whether it is still a going concern asks the question criterion
    *  4 is actually for: is this thing worth buying? */
   ladderOverride?: readonly string[],
+  /** B7a: a world already started on `def` (for example with the Recast crowd
+   *  attached, which needs an async bake); omitted = a fresh grid-mode world,
+   *  as the tournament has always run. */
+  prepared?: CasinoWorld,
 ): CampaignRun {
   eventBus.clear();
-  const world = new CasinoWorld({ seed, autoSpawn: true });
-  world.startScenario(def);
+  const world = prepared ?? new CasinoWorld({ seed, autoSpawn: true });
+  if (!prepared) world.startScenario(def);
 
   let outcome: 'won' | 'failed' | null = null;
   let wonOnDay: number | null = null;
@@ -367,6 +371,15 @@ export function runCampaign(
     }
     if (hires && world.machines.size > 0 && !kinds.includes('janitor') && world.state.cash >= 400) {
       world.hireStaff('janitor');
+    }
+    // v2: a dealt table without a dealer runs at ENGINE_BALANCE.noDealerSpeed,
+    // half the hands, so staffing every table is part of operating one — the
+    // v1 bot never hired dealers because v1 dealers were only a rating bonus.
+    // One hire per pass, so a table bought on the last dollar waits for cash.
+    if (hires) {
+      const tables = [...world.machines.values()].filter((m) => m.needsDealer).length;
+      const dealers = kinds.filter((k) => k === 'dealer').length;
+      if (tables > dealers && world.state.cash >= 400) world.hireStaff('dealer');
     }
     if (expands) {
       while (buyGame(buffer)) {

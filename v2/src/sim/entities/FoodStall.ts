@@ -30,7 +30,20 @@ export class FoodStall {
     if (!item) return;
     const min = item.baseCost * FOOD_BALANCE.priceFloorFactor;
     const max = item.baseCost * FOOD_BALANCE.priceCeilFactor;
-    item.currentPrice = Math.min(max, Math.max(min, price));
+    item.currentPrice = Math.round(Math.min(max, Math.max(min, price)) * 100) / 100;
+  }
+
+  /** Mean price over the default across the items on sale: 1 untouched. */
+  get priceIndex(): number {
+    let sum = 0;
+    let n = 0;
+    for (const m of this.items) {
+      if (!m.isUnlocked) continue;
+      const ref = getDefaultMenuItem(m.id)?.currentPrice ?? m.currentPrice;
+      sum += m.currentPrice / ref;
+      n++;
+    }
+    return n ? sum / n : 1;
   }
 
   toggle(itemId: string): void {

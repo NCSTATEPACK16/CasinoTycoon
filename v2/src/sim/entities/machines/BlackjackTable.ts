@@ -1,13 +1,12 @@
 import { BLACKJACK_BALANCE } from '../../../data/balance';
-import type { Rng } from '../../rng';
-import type { PlayCadence, PlayResult } from './CasinoGame';
-import { SeatedCasinoGame } from './SeatedCasinoGame';
+import type { PlayCadence } from './CasinoGame';
+import { EngineTable } from './EngineGame';
 
-// Communal table: up to 4 guests hold seats and auto-play simplified rounds.
-// The round is a house-edge payout roll, not player-facing cards.
-export class BlackjackTable extends SeatedCasinoGame {
+// Communal blackjack: a six-deck shoe with a cut card, dealt to up to four
+// seats. Guests play basic strategy at their archetype's error rate.
+export class BlackjackTable extends EngineTable {
   constructor(id: string, costToPlay: number = BLACKJACK_BALANCE.costToPlay) {
-    super(id, 'blackjack-table', costToPlay, BLACKJACK_BALANCE.seats);
+    super(id, 'blackjack-table', 'blackjack', costToPlay, BLACKJACK_BALANCE.seats);
   }
 
   get cadence(): PlayCadence {
@@ -18,15 +17,7 @@ export class BlackjackTable extends SeatedCasinoGame {
     };
   }
 
-  protected spin(rng: Rng): PlayResult {
-    return { wager: this.costToPlay, payout: this.rollPayout(rng, BLACKJACK_BALANCE.payoutTable) };
-  }
-
   protected wearPerPlay(): number {
     return BLACKJACK_BALANCE.wearPerPlay;
-  }
-
-  testSpin(rng: Rng): number {
-    return this.rollPayout(rng, BLACKJACK_BALANCE.payoutTable);
   }
 }
