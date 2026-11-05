@@ -3,6 +3,8 @@ import {
   ambienceMix,
   BEDS,
   crowdDensity,
+  FOUNTAIN_M,
+  fountainWeight,
   heightFactor,
   PAUSE_DUCK,
   type AmbienceInput,
@@ -35,7 +37,9 @@ describe('ambience mix', () => {
     const god = mix({ camY: 60 });
     expect(heightFactor(1.6)).toBe(0);
     expect(heightFactor(60)).toBe(1);
-    for (const b of BEDS) expect(god[b]).toBeLessThan(eye[b]);
+    // Every bed that sounds at eye level is quieter from above (no fountain near here).
+    for (const b of BEDS) if (eye[b] > 0) expect(god[b]).toBeLessThan(eye[b]);
+    expect(eye.fountain).toBe(0);
     expect(god.murmur).toBe(0);
     expect(eye.cutoff).toBeCloseTo(16000, 3);
     expect(god.cutoff).toBeCloseTo(2500, 3);
@@ -65,6 +69,21 @@ describe('ambience mix', () => {
     for (const b of BEDS) expect(paused[b]).toBeCloseTo(run[b] * PAUSE_DUCK, 9);
     expect(paused.cutoff).toBe(run.cutoff);
     expect(mix({ speed: 4 }).slots).toBe(run.slots);
+  });
+
+  it('hears a fountain only close by, and barely from the god view', () => {
+    expect(fountainWeight(0)).toBe(1);
+    expect(fountainWeight(FOUNTAIN_M)).toBe(0);
+    expect(fountainWeight(FOUNTAIN_M * 2)).toBe(0);
+    expect(fountainWeight(2)).toBeGreaterThan(fountainWeight(5));
+    const atRim = mix({ near: { ...slotFloor, fountain: 1 } });
+    const across = mix({ near: { ...slotFloor, fountain: fountainWeight(6) } });
+    const above = mix({ near: { ...slotFloor, fountain: 1 }, camY: 60 });
+    expect(atRim.fountain).toBeGreaterThan(0.4);
+    expect(across.fountain).toBeLessThan(atRim.fountain / 4);
+    expect(above.fountain).toBeLessThan(atRim.fountain * 0.2);
+    // Two fountains side by side don't go past unity gain.
+    expect(mix({ near: { ...slotFloor, fountain: 2 } }).fountain).toBeLessThanOrEqual(1);
   });
 
   it('plays no music when it is switched off', () => {
@@ -100,6 +119,8 @@ describe('what the ears hear around them', () => {
     expect(soundKind('bar')).toBe('lounge');
     expect(soundKind('food-stall')).toBe('lounge');
     expect(soundKind('plant')).toBeNull();
+    expect(soundKind('fountain')).toBe('fountain');
+    expect(soundKind('statue')).toBeNull();
   });
 
   it('weighs what is near the ears more, and nothing past 12 m', () => {
@@ -115,5 +136,18 @@ describe('what the ears hear around them', () => {
     expect(near.tables).toBe(0);
     expect(near.lounge).toBeGreaterThan(0);
     expect(near.lounge).toBeLessThan(1);
+    expect(near.fountain).toBe(0);
+  });
+
+  it('hears a fountain from its rim, using the agreed 3x3 footprint before B6', () => {
+    // Fountain at cells 10..12 → centre (11.5, 11.5), rim about 1.5 m out.
+    const at = (x: number) => {
+      const f = feed({ x, z: 11.5 });
+      f.setObjects([obj('f', 'fountain', 10, 10)]);
+      return f.surroundings().fountain ?? 0;
+    };
+    expect(at(13)).toBeCloseTo(1, 6); // standing at the rim
+    expect(at(17)).toBeCloseTo(fountainWeight(4), 6);
+    expect(at(11.5 + 1.5 + FOUNTAIN_M + 1)).toBe(0);
   });
 });

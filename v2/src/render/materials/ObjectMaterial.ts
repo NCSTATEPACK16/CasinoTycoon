@@ -22,7 +22,26 @@ export const objectUniforms = {
   uStripRect: { value: new THREE.Vector4() },
   uStripGrid: { value: new THREE.Vector2(1, 1) },
   uSheets: { value: Array.from({ length: 8 }, () => new THREE.Vector4(3, 16, 1, 0)) },
+  // Fountain water (A10): the 'water' tile's rect; SurfaceFlag.Scroll surfaces scroll through it.
+  uWaterRect: { value: new THREE.Vector4() },
 };
+
+/** Water: two copies of the seamless water tile drifting apart, so it ripples. */
+const WATER_FRAGMENT = /* glsl */ `
+  uniform vec4 uWaterRect;
+  vec4 waterTap(vec2 loc, vec2 gx, vec2 gy) {
+    vec2 f = fract(loc);
+    return textureGrad(map, vec2(mix(uWaterRect.x, uWaterRect.z, f.x), mix(uWaterRect.y, uWaterRect.w, f.y)), gx, gy);
+  }
+  vec4 waterColor(vec2 uv) {
+    vec2 size = uWaterRect.zw - uWaterRect.xy;
+    vec2 loc = (uv - uWaterRect.xy) / size * 2.0;
+    vec2 gx = dFdx(uv) * 2.0;
+    vec2 gy = dFdy(uv) * 2.0;
+    vec4 a = waterTap(loc + vec2(uTime * 0.045, uTime * 0.03), gx, gy);
+    vec4 b = waterTap(loc * 1.37 + vec2(-uTime * 0.035, uTime * 0.05), gx * 1.37, gy * 1.37);
+    return vec4(min(a.rgb, b.rgb) * 0.6 + max(a.rgb, b.rgb) * 0.5, 1.0);
+  }`;
 
 /** The reel surfaces' colour: the decal's frame, and inside its window the
  *  instance's reels scrolled through the atlas strips (see fx/reels.ts). */
@@ -147,11 +166,12 @@ function patch(
       varying vec4 vState;
       varying float vChaseX;`,
     )
-    .replace('#include <map_pars_fragment>', `#include <map_pars_fragment>\n${REEL_FRAGMENT}`)
+    .replace('#include <map_pars_fragment>', `#include <map_pars_fragment>\n${REEL_FRAGMENT}\n${WATER_FRAGMENT}`)
     .replace(
       '#include <map_fragment>',
       `#ifdef USE_MAP
-        vec4 sampledDiffuseColor = mod(floor(vPbr.w / 8.0), 2.0) == 1.0 ? reelColor(vMapUv) : texture2D(map, vMapUv);
+        vec4 sampledDiffuseColor = mod(floor(vPbr.w / 8.0), 2.0) == 1.0 ? reelColor(vMapUv)
+          : mod(floor(vPbr.w / 16.0), 2.0) == 1.0 ? waterColor(vMapUv) : texture2D(map, vMapUv);
         diffuseColor *= sampledDiffuseColor;
       #endif`,
     )

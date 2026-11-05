@@ -2,6 +2,7 @@
 // the sim. It is the graphics acceptance harness — 2,000 objects, 500 agents,
 // fps / draw calls / GPU time on screen, fixed camera shots for screenshots.
 //   /src/render/lab/index.html?objects=2000&agents=500&quality=high&shot=overview&clean
+//   ?decor swaps the south slot bank for a gallery of the A10 decor (shots decor, statue, …).
 // window.lab exposes { stage, shot(name), setCam(px,py,pz, tx,ty,tz), metrics() }.
 
 import * as THREE from 'three';
@@ -128,7 +129,18 @@ function buildObjects(): { views: ObjectView[]; seats: Seat[] } {
   };
   bank(2, 46, 2, 36, false);
   bank(2, 75, 42, 80, true);
-  bank(2, 99, 82, 95, false);
+  if (q.has('decor')) {
+    // A10 decor gallery on the south floor, fronts facing +z.
+    add('statue', 4, 84);
+    add('fountain', 8, 84);
+    add('lamp-post', 14, 84);
+    add('lounge-seating', 18, 85);
+    add('atm', 24, 84);
+    add('stage', 30, 84);
+    for (const [c, r] of [[7, 88], [11, 88], [7, 83], [11, 83]] as const) add('lamp-post', c, r);
+    add('lounge-seating', 18, 88);
+    add('statue', 36, 86);
+  } else bank(2, 99, 82, 95, false);
   // Table pit.
   const tables = ['blackjack-table', 'roulette-table', 'craps-table', 'poker-table', 'three-card-poker', 'blackjack-table'];
   let t = 0;
@@ -319,6 +331,14 @@ const SHOTS: Record<string, [number, number, number, number, number, number, num
   eye: [40, 1.65, 39, 20, 1.5, 38, 70],
   food: [86, 9, 76, 86, 0, 58],
   entrance: [104, 4, 38, 90, 1, 38],
+  // ?decor gallery (A10).
+  decor: [19, 6.5, 97, 19, 0.8, 85],
+  statue: [4.5, 1.9, 87.4, 4.5, 1.4, 84.5],
+  fountain: [9.5, 3.2, 90.6, 9.5, 0.8, 85.5],
+  lamppost: [14.5, 2.2, 88.6, 14.5, 1.9, 84.5],
+  lounge: [19, 1.4, 88.2, 19, 0.45, 85.5],
+  atm: [24.5, 1.6, 86.8, 24.5, 1.15, 84.5],
+  stage: [32, 2.6, 92.5, 32, 1.6, 85.5],
 };
 
 function shot(name: string): void {

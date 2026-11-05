@@ -8,7 +8,8 @@ import { getObjectDef } from '../data/objects';
 import { get3D } from '../shared/catalog';
 import { ZONES, type FloorPlanView, type ObjectView } from '../shared/contracts';
 import type { AudioEngine } from './AudioEngine';
-import { ambienceMix, type AmbienceMix, type Surroundings } from './ambience';
+import { DECOR_FOOTPRINTS } from '../render/assets/decor';
+import { ambienceMix, fountainWeight, FOUNTAIN_M, type AmbienceMix, type Surroundings } from './ambience';
 
 /** What counts within this distance of the ears, fading linearly to it. */
 const NEAR_M = 12;
@@ -19,11 +20,12 @@ const FOOD_COURT = ZONES.indexOf('foodCourt');
 /** Recomputed this often (s); the engine glides between mixes. */
 const EVERY_S = 0.25;
 
-type Kind = keyof Surroundings;
+type Kind = Exclude<keyof Surroundings, 'fountain'> | 'fountain';
 
 /** How an object colours the room's sound, if it does. */
 export function soundKind(defId: string): Kind | null {
   if (LOUNGE.has(defId)) return 'lounge';
+  if (defId === 'fountain') return 'fountain';
   if (getObjectDef(defId)?.category !== 'game') return null;
   return (get3D(defId).seats?.length ?? 0) > 1 ? 'tables' : 'machines';
 }
@@ -45,9 +47,9 @@ export class AmbienceFeed {
     for (const o of objects) {
       const kind = soundKind(o.defId);
       if (!kind) continue;
-      const def = getObjectDef(o.defId);
-      const w = def?.footprint.w ?? 1;
-      const h = def?.footprint.h ?? 1;
+      const fp = getObjectDef(o.defId)?.footprint ?? DECOR_FOOTPRINTS[o.defId];
+      const w = fp?.w ?? 1;
+      const h = fp?.h ?? 1;
       const odd = o.rot % 2 === 1;
       this.placed.push({
         x: o.col + (odd ? h : w) / 2,
@@ -84,10 +86,13 @@ export class AmbienceFeed {
   /** Distance-weighted counts of what stands around the ears' floor point. */
   surroundings(): Surroundings {
     const ear = this.audio.earPoint;
-    const out: Surroundings = { machines: 0, tables: 0, lounge: 0 };
+    const out: Required<Surroundings> = { machines: 0, tables: 0, lounge: 0, fountain: 0 };
     for (const p of this.placed) {
       const d = Math.hypot(p.x - ear.x, p.z - ear.z);
-      if (d < NEAR_M) out[p.kind] += 1 - d / NEAR_M;
+      // A fountain's sound comes from its rim, about 1.5 m out from the centre.
+      if (p.kind === 'fountain') {
+        if (d < FOUNTAIN_M + 1.5) out.fountain += fountainWeight(Math.max(0, d - 1.5));
+      } else if (d < NEAR_M) out[p.kind] += 1 - d / NEAR_M;
     }
     const f = this.floor;
     if (f && FOOD_COURT >= 0) {

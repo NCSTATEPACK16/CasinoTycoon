@@ -656,4 +656,6 @@ def main():
         build(k)
 
 
-main()
+# decor.py imports this module for G and its helpers; only run when executed.
+if __name__ == '__main__':
+    main()

@@ -8,6 +8,12 @@ import * as THREE from 'three';
 import { PAR_SHEETS } from '../../sim/games/slots/sheets';
 import { MAX_REELS, REEL_CELL, SHEET_ORDER, STRIP_MAX } from '../fx/reels';
 import { AMERICAN, EUROPEAN } from '../fx/wheel';
+import marbleUrl from '../../../assets/textures/marble_01_diff_512.jpg?url';
+import velvetUrl from '../../../assets/textures/velour_velvet_diff_512.jpg?url';
+
+/** Atlas tiles painted from CC0 photo textures (assets/CREDITS.md) once they load;
+ *  until then (and in tests) the procedural stand-in shows. */
+const TEX_IMAGES: Record<string, string> = { texMarble: marbleUrl, texVelvet: velvetUrl };
 
 export interface UvRect {
   u0: number;
@@ -72,12 +78,19 @@ const DECALS: Record<string, DecalSpec> = {
   wallpaper: { w: 256, h: 256, paint: wallpaper },
   carpetRed: { w: 256, h: 256, paint: (g, w, h) => carpet(g, w, h, CARPETS.red) },
   carpetBlue: { w: 256, h: 256, paint: (g, w, h) => carpet(g, w, h, CARPETS.blue) },
-  marble: { w: 256, h: 256, paint: marble },
+  marble: { w: 256, h: 256, paint: (g, w, h) => marble(g, w, h) },
   wood: { w: 256, h: 256, paint: woodFloor },
   tile: { w: 256, h: 256, paint: tileFloor },
   // All 52 faces, rank across (2…A) and suit down (♣ ♦ ♥ ♠), then the back
   // at the start of a fifth row: the dealt cards on the felt (render/fx/felt.ts).
   cardFaces: { w: 13 * CARD_CELL_W, h: 5 * CARD_CELL_H, paint: cardFaces },
+  // A10 decor. tex* tiles are photo textures (TEX_IMAGES) over a stand-in.
+  texMarble: { w: 256, h: 256, paint: (g, w, h) => marble(g, w, h, false) },
+  texVelvet: { w: 256, h: 256, paint: velvetStandIn },
+  // Fountain water; tiles seamlessly because the shader scrolls it (SurfaceFlag.Scroll).
+  water: { w: 256, h: 256, paint: water },
+  atmScreen: { w: 192, h: 128, paint: atmScreen },
+  atmSign: { w: 256, h: 96, paint: atmSign },
 };
 
 export class DecalAtlas {
@@ -86,6 +99,7 @@ export class DecalAtlas {
   readonly white: UvRect;
   readonly height: number;
   private rects = new Map<string, UvRect>();
+  private px = new Map<string, { x: number; y: number; w: number; h: number }>();
 
   constructor() {
     // Shelf-pack tallest first; the canvas is as tall as the packing needs.
@@ -128,6 +142,7 @@ export class DecalAtlas {
       }
       bleed(g, sx, sy, d.w, d.h * rows);
       this.rects.set(key, this.toUv(sx, sy, d.w, d.h, rows));
+      this.px.set(key, { x: sx, y: sy, w: d.w, h: d.h * rows });
     }
     const tex = new THREE.CanvasTexture(canvas as HTMLCanvasElement);
     tex.colorSpace = THREE.SRGBColorSpace;
@@ -144,6 +159,27 @@ export class DecalAtlas {
       return this.white;
     }
     return r;
+  }
+
+  /** Paint the photo-texture tiles (TEX_IMAGES) over their stand-ins. Browser only. */
+  async loadImages(): Promise<void> {
+    if (typeof createImageBitmap === 'undefined' || typeof fetch === 'undefined') return;
+    const g = this.canvas.getContext('2d') as CanvasRenderingContext2D;
+    await Promise.all(
+      Object.entries(TEX_IMAGES).map(async ([key, url]) => {
+        const r = this.px.get(key);
+        if (!r) return;
+        try {
+          const img = await createImageBitmap(await (await fetch(url)).blob());
+          g.drawImage(img, r.x, r.y, r.w, r.h);
+          img.close();
+          bleed(g, r.x, r.y, r.w, r.h);
+          this.texture.needsUpdate = true;
+        } catch (e) {
+          console.warn(`DecalAtlas: ${key} image failed`, e);
+        }
+      }),
+    );
   }
 
   has(key: string): boolean {
@@ -1092,7 +1128,7 @@ function carpet(g: CanvasRenderingContext2D, w: number, h: number, p: (typeof CA
   noise(g, w, h, 0.08, 3);
 }
 
-function marble(g: CanvasRenderingContext2D, w: number, h: number) {
+function marble(g: CanvasRenderingContext2D, w: number, h: number, seams = true) {
   g.fillStyle = '#ece6dc';
   g.fillRect(0, 0, w, h);
   let s = 11;
@@ -1111,6 +1147,7 @@ function marble(g: CanvasRenderingContext2D, w: number, h: number) {
     }
     g.stroke();
   }
+  if (!seams) return;
   // Tile seams every half metre with a darker inlay at the corner.
   g.strokeStyle = 'rgba(80,70,60,0.35)';
   g.lineWidth = 1.5;
@@ -1249,4 +1286,58 @@ function cardFaces(g: CanvasRenderingContext2D) {
     g.stroke();
   }
   g.restore();
+}
+
+// ---------- A10 decor ----------
+
+function velvetStandIn(g: CanvasRenderingContext2D, w: number, h: number) {
+  g.fillStyle = '#7d0c22';
+  g.fillRect(0, 0, w, h);
+  noise(g, w, h, 0.08, 7);
+}
+
+/** Seamless water: integer-period ripples so a scrolled copy tiles without a seam. */
+function water(g: CanvasRenderingContext2D, w: number, h: number) {
+  const img = g.createImageData(w, h);
+  const T = Math.PI * 2;
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      const u = x / w;
+      const v = y / h;
+      const r =
+        Math.sin(T * (3 * u + 2 * v)) +
+        Math.sin(T * (5 * u - 3 * v) + 1.3) * 0.7 +
+        Math.sin(T * (-2 * u + 7 * v) + 2.1) * 0.5 +
+        Math.sin(T * (9 * u + 4 * v) + 0.4) * 0.3;
+      // Caustic highlights where the ripples crest.
+      const c = Math.pow(Math.max(0, r / 2.5), 3);
+      const i = (y * w + x) * 4;
+      img.data[i] = 30 + 200 * c;
+      img.data[i + 1] = 120 + 120 * c;
+      img.data[i + 2] = 150 + 100 * c;
+      img.data[i + 3] = 255;
+    }
+  g.putImageData(img, 0, 0);
+}
+
+function atmScreen(g: CanvasRenderingContext2D, w: number, h: number) {
+  const grad = g.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, '#0d3a7a');
+  grad.addColorStop(1, '#06204a');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, w, h);
+  text(g, 'WELCOME', w / 2, 30, 22, '#ffffff', SIGN_FONT);
+  text(g, 'Insert card', w / 2, 58, 16, '#9fd4ff', SIGN_FONT, 'normal');
+  g.fillStyle = '#ffd24d';
+  g.fillRect(16, 82, w - 32, 30);
+  text(g, 'CASH  $20 · $100', w / 2, 98, 15, '#3a2400', SIGN_FONT);
+}
+
+function atmSign(g: CanvasRenderingContext2D, w: number, h: number) {
+  g.fillStyle = '#0a1a30';
+  g.fillRect(0, 0, w, h);
+  g.strokeStyle = '#ffd24d';
+  g.lineWidth = 4;
+  g.strokeRect(5, 5, w - 10, h - 10);
+  text(g, 'ATM', w / 2, h / 2 + 2, 58, '#7fe0ff', SIGN_FONT);
 }

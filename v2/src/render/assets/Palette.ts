@@ -28,6 +28,8 @@ export const SurfaceFlag = {
   Chase: 4,
   /** A reel window or video screen: the shader draws live reels in it (render/fx/reels.ts). */
   Reel: 8,
+  /** Water: the decal scrolls within its tile (fountain, render/materials/ObjectMaterial.ts). */
+  Scroll: 16,
 } as const;
 
 /** Decals the reels are drawn into. */
@@ -68,6 +70,7 @@ export const PALETTE = {
   plantLeafDark: { color: 0x1d5e2a, rough: 0.65, metal: 0 },
   soil: { color: 0x2a1c12, rough: 1, metal: 0 },
   velvet: { color: 0x9c0f2a, rough: 0.9, metal: 0 },
+  bronze: { color: 0x8a5a2e, rough: 0.32, metal: 1 },
   // Emissive surfaces.
   bulbWarm: { color: 0xffd27a, rough: 0.4, metal: 0, emit: 3.2, flags: SurfaceFlag.Flash },
   bulbChase: {
