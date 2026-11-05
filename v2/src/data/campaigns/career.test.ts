@@ -114,11 +114,24 @@ describe('the career (B8)', () => {
   });
 });
 
-async function wins(def: CampaignDef, strategy: CareerStrategy, crowd: boolean): Promise<string> {
+async function wins(
+  def: CampaignDef,
+  strategy: CareerStrategy,
+  crowd: boolean,
+  /** B10: book every event the scenario offers whenever it can be. */
+  marketing = false,
+): Promise<string> {
   const out: string[] = [];
   for (const seed of TOURNAMENT_SEEDS) {
     eventBus.clear();
     const world = await careerWorld(def, seed, crowd);
+    if (marketing)
+      eventBus.on('hourPassed', () => {
+        for (const id of world.marketingOffered) {
+          const ev = world.eventDefs.find((e) => e.id === id)!;
+          if (!world.eventBlocked(ev)) world.runEvent(id);
+        }
+      });
     const r = runCareer(def, world, strategy, CAREER_PLANS[def.id]!);
     out.push(r.outcome === 'won' ? `W${r.day}` : '-');
   }
@@ -141,6 +154,16 @@ for (const crowd of [false, true]) {
           expect(count(await wins(def, 'minimal', crowd))).toBe(0);
         },
       );
+      if ((def.marketing ?? []).length > 0)
+        it(
+          `${def.name}: walking away and booking every ad never wins`,
+          { timeout: 600_000 },
+          async () => {
+            const runs = await wins(def, 'minimal', crowd, true);
+            console.log(`${def.name} ${crowd ? 'crowd' : 'grid'} minimal+marketing: ${runs}`);
+            expect(count(runs)).toBe(0);
+          },
+        );
     }
   });
 }

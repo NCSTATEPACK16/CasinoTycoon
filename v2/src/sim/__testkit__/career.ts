@@ -158,13 +158,18 @@ export function runCareer(
     )
       if (cash() >= 400 + plan.reserve / 2 || count((d) => d === 'food-stall') === 0)
         put('food-stall');
+    // B11: the career runs shifts, so every post needs a crew per shift. Three
+    // eight-hour hires cost what one round-the-clock hire did.
+    const crews = world.staffDepth ? 3 : 1;
     if (games > 0) {
-      if (staffOf('mechanic') < Math.max(1, Math.ceil(games / 25)) && cash() >= 400)
+      if (staffOf('mechanic') < crews * Math.max(1, Math.ceil(games / 25)) && cash() >= 400)
         world.hireStaff('mechanic');
-      if (staffOf('janitor') < Math.max(1, Math.ceil(guests / 40)) && cash() >= 400)
+      if (staffOf('janitor') < crews * Math.max(1, Math.ceil(guests / 40)) && cash() >= 400)
         world.hireStaff('janitor');
       const tables = [...world.machines.values()].filter((m) => m.needsDealer).length;
-      if (tables > staffOf('dealer') && cash() >= 200) world.hireStaff('dealer');
+      // A dealt table needs its crew before it opens: hire them all now,
+      // not one an hour (with three shifts the backlog triples).
+      while (crews * tables > staffOf('dealer') && cash() >= 200) world.hireStaff('dealer');
     }
     if (strategy === 'minimal') {
       done =
@@ -175,7 +180,13 @@ export function runCareer(
         staffOf('janitor') > 0;
       return;
     }
-    if (guests > 40 && staffOf('security') === 0 && cash() >= 600) world.hireStaff('security');
+    if (guests > 40 && staffOf('security') < crews && cash() >= 600) world.hireStaff('security');
+    // B11: one pit boss once there's a pit to watch. The first hire lands on
+    // the swing shift (the evening peak, when most counters play); one per
+    // shift cost more in wages than the cheats took (B14).
+    const pit = [...world.machines.values()].filter((m) => m.needsDealer).length;
+    if (world.staffDepth && pit >= 3 && staffOf('pitBoss') < 1 && cash() >= 600)
+      world.hireStaff('pitBoss');
     if (plan.repayAfter !== undefined && games >= plan.repayAfter) {
       for (const loan of [...world.loans.loans]) {
         const spare = cash() - plan.reserve;
@@ -249,12 +260,15 @@ export const CAREER_PLANS: Record<string, CareerPlan> = {
   },
   'velvet-rope': {
     ladder: ['blackjack-table', 'roulette-table', 'craps-table', 'slot-machine'],
-    reserve: 500,
+    // B14: 200 and the high-limit room after the first game (were 500 and
+    // 2). Under B11's shifts the old plan won 3/7 on the crowd; the club
+    // needs its big players seated sooner.
+    reserve: 200,
     comps: true,
     highLimit: {
       rect: { col0: 20, row0: 19, col1: 33, row1: 25 },
       games: ['high-limit-table'],
-      after: 2,
+      after: 1,
     },
   },
   'house-rules': {
@@ -272,7 +286,7 @@ export const CAREER_PLANS: Record<string, CareerPlan> = {
     },
   },
   'clean-slate': {
-    ladder: ['blackjack-table', 'slot-machine', 'roulette-table'],
+    ladder: ['slot-machine', 'blackjack-table', 'roulette-table'],
     reserve: 800,
     repayAfter: 8,
   },

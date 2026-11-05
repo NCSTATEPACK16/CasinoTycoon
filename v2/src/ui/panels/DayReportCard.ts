@@ -146,6 +146,7 @@ export class DayReportCard {
           ${people('Heaviest losers ', r.losers)}
           <div><span class="dim">Jackpots</span> ${r.jackpots} · <span class="dim">rage-quits</span> ${r.rageQuits} · <span class="dim">comps</span> ${money(r.comps)}</div>
           ${r.conditions.length ? `<div><span class="dim">Conditions</span> ${r.conditions.map(escapeHtml).join(', ')}</div>` : ''}
+          ${r.events?.length ? `<div><span class="dim">Events</span> ${r.events.map((e) => escapeHtml(e.result ? `${e.name}: ${e.result}` : `${e.name} (running)`)).join('; ')}</div>` : ''}
           ${r.notes.length ? `<ul>${r.notes.map((n) => `<li>${escapeHtml(n)}</li>`).join('')}</ul>` : ''}
         </section>
       </div>`;

@@ -65,6 +65,14 @@ const COMP_THOUGHT: Record<CompKind, string> = {
   matchPlay: 'Free chips! One more round.',
 };
 
+/** B11: how an advantage player or cheater beats the house. */
+export type AdvantageKind = 'counter' | 'pastPoster' | 'slotCheat';
+export const ADVANTAGE_LABEL: Readonly<Record<AdvantageKind, string>> = {
+  counter: 'counting cards',
+  pastPoster: 'past-posting',
+  slotCheat: 'cheating a slot',
+};
+
 export class Guest extends Walker {
   readonly id: string;
   wallet: number;
@@ -87,6 +95,17 @@ export class Guest extends Walker {
   /** Running total of payout − wager across every play this guest has made
    *  since the last time the session folded into the day's report. */
   netResult = 0;
+  /** B11: an advantage player or cheater (set at arrival), or null. */
+  advantage: AdvantageKind | null = null;
+  /** B11: a pit boss has spotted them. */
+  suspicious = false;
+  /** B11: the evidence — rounds played with the advantage, what it won
+   *  them on top of fair play, and the game. */
+  advRounds = 0;
+  advNet = 0;
+  advGame: string | null = null;
+  /** B10: entered a slot tournament on arrival (paid the fee; prefers slots). */
+  tournament = false;
   raging = false;
   celebrating = false;
   waitingForDrink = false;
@@ -422,6 +441,7 @@ export class Guest extends Walker {
       profile: this.profile,
       usedCashAdvance: this.usedCashAdvance,
       highLimitOk: this.wallet >= AI.highLimitBankroll,
+      tournament: this.tournament,
     };
   }
 

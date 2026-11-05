@@ -44,6 +44,8 @@ export const HOUSE_SOURCES = {
   comps: { id: 'house:comps', defId: 'comps' },
   fines: { id: 'house:fines', defId: 'fines' },
   interest: { id: 'house:interest', defId: 'interest' },
+  /** B10: ads and events booked, less tournament entry fees. */
+  marketing: { id: 'house:marketing', defId: 'marketing' },
 } as const;
 
 const emptyTotals = (): SourceTotals => ({

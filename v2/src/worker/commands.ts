@@ -25,6 +25,7 @@ import {
 } from './inspect';
 import { guestList, heatMap, thoughtSummary } from './feedback';
 import { dayReport, financeHistory, loansView } from './finance';
+import { marketingView } from './marketing';
 import { scenarioResult } from './scenario';
 import type { SnapshotBuilder } from './snapshot';
 
@@ -259,6 +260,31 @@ export function runCommand(world: CasinoWorld, snap: SnapshotBuilder, cmd: Comma
       return { ok: true, data: heatMap(world, cmd.kind) };
     case 'scenarioResult':
       return { ok: true, data: scenarioResult(world) };
+    case 'train':
+      return world.trainStaff(cmd.staffId)
+        ? { ok: true }
+        : { ok: false, error: 'cannot train now' };
+    case 'setShift':
+      return world.setStaffShift(cmd.staffId, cmd.shift)
+        ? { ok: true }
+        : { ok: false, error: 'no such staff' };
+    case 'setWage': {
+      const wage = world.setWage(cmd.kind as StaffKind, cmd.wagePerHour);
+      return wage === null ? { ok: false, error: 'bad wage' } : { ok: true, data: wage };
+    }
+    case 'removeGuest':
+      return world.removeGuest(cmd.guestId)
+        ? { ok: true }
+        : { ok: false, error: 'not a suspicious guest' };
+    case 'marketing':
+      return { ok: true, data: marketingView(world) };
+    case 'runEvent':
+      try {
+        world.runEvent(cmd.eventId);
+        return { ok: true, data: marketingView(world) };
+      } catch (e) {
+        return { ok: false, error: (e as Error).message };
+      }
     default:
       return { ok: false, error: `${(cmd as Command).type} not implemented` };
   }

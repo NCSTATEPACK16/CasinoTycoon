@@ -90,7 +90,7 @@ export class SnapshotBuilder {
       );
     }
     for (const s of world.staff.values()) {
-      if (s.state === 'carried') continue;
+      if (s.state === 'carried' || s.state === 'off') continue;
       const p = s.renderPose();
       const kind = STAFF_KIND[s.kind] ?? AgentKind.Staff;
       this.write(i++, p.x, p.z, p.heading, s.anim, kind, 0, 1, idNum(s.id));
@@ -203,8 +203,16 @@ export class SnapshotBuilder {
         name: m.name,
         blurb: m.blurb,
       })),
+      ...hudEvents(world),
     };
   }
+}
+
+/** B10: what's booked or running, only when something is. */
+function hudEvents(world: CasinoWorld): { events?: HudView['events'] } {
+  if (world.marketing.runs.length === 0) return {};
+  const events = world.eventsNow();
+  return events.length > 0 ? { events } : {};
 }
 
 /** A ticker line for the wire, placed where its subject is right now: the

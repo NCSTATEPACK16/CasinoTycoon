@@ -79,7 +79,16 @@ const COLORS = {
   grid: 'rgba(255, 255, 255, 0.08)',
   zero: 'rgba(255, 255, 255, 0.25)',
   text: '#a99fb8',
+  event: 'rgba(120, 170, 255, 0.14)',
+  eventText: '#8fb4ff',
 };
+
+/** B10: the marketing events whose hours overlap this point. */
+function eventsAt(h: FinanceHistory, p: FinancePoint): string[] {
+  const from = (p.day - 1) * 24 + (p.hour ?? 0);
+  const to = p.hour === undefined ? from + 23 : from;
+  return (h.events ?? []).filter((e) => e.start <= to && e.end >= from).map((e) => e.name);
+}
 
 /** Round-number gridlines covering [lo, hi]. */
 export function niceTicks(lo: number, hi: number, count = 4): number[] {
@@ -232,6 +241,24 @@ export class FinanceChart {
       g.fillText(`${weekdayName(p.day)} ${p.day}`, at + 3, h - 6);
     });
 
+    // B10: shade the columns an event ran in, and name it where it starts.
+    if (this.data) {
+      let prev = '';
+      pts.forEach((p, i) => {
+        const names = eventsAt(this.data!, p);
+        const label = names.join(', ');
+        if (names.length > 0) {
+          g.fillStyle = COLORS.event;
+          g.fillRect(PAD.left + step * i, PAD.top, step, plotH);
+          if (label !== prev) {
+            g.fillStyle = COLORS.eventText;
+            g.fillText(label, PAD.left + step * i + 2, PAD.top + 10);
+          }
+        }
+        prev = label;
+      });
+    }
+
     if (m.kind === 'bar') {
       const bw = Math.max(1, step * 0.72);
       vals.forEach((v, i) => {
@@ -275,7 +302,8 @@ export class FinanceChart {
     const p = geo.points[i];
     if (!p) return void (this.tip.hidden = true);
     const v = this.metric.get(p);
-    this.tip.textContent = `${this.label(p)} — ${this.metric.label} ${v === null ? '—' : this.metric.fmt(v)}`;
+    const events = this.data ? eventsAt(this.data, p) : [];
+    this.tip.textContent = `${this.label(p)} — ${this.metric.label} ${v === null ? '—' : this.metric.fmt(v)}${events.length ? ` · ${events.join(', ')}` : ''}`;
     this.tip.hidden = false;
     const left = Math.min(e.clientX - rect.left + 10, rect.width - this.tip.offsetWidth - 4);
     this.tip.style.left = `${Math.max(0, left)}px`;

@@ -30,6 +30,8 @@ export interface ObjectDef {
    *  Unset/false for everything else; games don't need it, since
    *  `category === 'game'` already implies revenue. */
   isRevenueSource?: boolean;
+  /** B11: staff take their breaks here (none yet; B6's lounge seating). */
+  restsStaff?: boolean;
 }
 
 export const OBJECT_CATALOG: readonly ObjectDef[] = [

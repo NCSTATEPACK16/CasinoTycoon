@@ -53,3 +53,10 @@ Rules:
 - Treat "Test timed out" as Mac sleep until proven otherwise; re-run under caffeinate -i.
 - If you hit a decision only I can make, stop and ask.
 ```
+
+## After the ship cut (added 2026-11-01)
+
+The ship cut of both tracks is done or nearly so. Further work runs from its own task file, each with its loop prompt at the bottom:
+
+- [7-tycoon-2.md](7-tycoon-2.md): B9 real engines for eight games, B11 staff depth, B10 marketing. Branch `v2-tycoon-2`, port 5177. Can run now.
+- [8-decor-b6.md](8-decor-b6.md): B6 decor and amenities. Branch `v2-decor`, port 5178. Only after Track A's PR is merged.

@@ -339,6 +339,8 @@ v2 ships to Netlify after this cut. Do these next, in this order, then the finis
 
 ### After ship (backlog: don't start these until the user says so)
 
+> **Update 2026-11-01 (the user's decision):** B9, B10 and B11 now run as their own PR in [7-tycoon-2.md](7-tycoon-2.md) (branch `v2-tycoon-2`; B10's concert moves to B6 because it needs the `stage`). **B6 waits for Track A to merge** and is a fresh session with its own brief, [8-decor-b6.md](8-decor-b6.md). The entries below stay as the original scope and findings.
+
 - [ ] **B6. Decor and amenities with real effects.**
   - An appeal-radius system: decor raises nearby guests' happiness and nearby games' appeal, with diminishing returns.
   - Floor types gain prestige.

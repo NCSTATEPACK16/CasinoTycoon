@@ -4,9 +4,13 @@
 
 import type { GameKind } from '../shared/games';
 import { ODDS_OPTIONS } from '../sim/games/craps/craps';
+import { KENO_PAYTABLES } from '../sim/games/keno/keno';
+import { PACHINKO_NAILS, PACHINKO_SPECS } from '../sim/games/pachinko/pachinko';
 import { DENOMINATIONS } from '../sim/games/slots/slots';
 import { PAR_SHEETS } from '../sim/games/slots/sheets';
+import { ANTE_BONUS_TABLES, PAIR_PLUS_TABLES } from '../sim/games/tcp/tcp';
 import { TRIPS_PAYTABLES } from '../sim/games/uth/uth';
+import { VP_PAYTABLES } from '../sim/games/videopoker/videopoker';
 
 export type RuleField =
   | { key: string; label: string; type: 'number'; min: number; max: number; step: number }
@@ -109,6 +113,148 @@ export const RULE_FIELDS: Record<GameKind, RuleField[]> = {
       label: 'Trips paytable',
       type: 'select',
       options: Object.keys(TRIPS_PAYTABLES).map((k) => ({ value: k, label: k })),
+    },
+  ],
+  sicbo: [
+    ...LIMITS,
+    {
+      key: 'triple',
+      label: 'Specific triple pays',
+      type: 'select',
+      options: [
+        { value: 180, label: '180:1' },
+        { value: 150, label: '150:1' },
+      ],
+    },
+    {
+      key: 'anyTriple',
+      label: 'Any triple pays',
+      type: 'select',
+      options: [
+        { value: 30, label: '30:1' },
+        { value: 24, label: '24:1' },
+      ],
+    },
+    {
+      key: 'singleTriple',
+      label: 'Single number, all three dice',
+      type: 'select',
+      options: [
+        { value: 3, label: '3:1' },
+        { value: 2, label: '2:1' },
+      ],
+    },
+  ],
+  tcp: [
+    ...LIMITS,
+    {
+      key: 'pairPlus',
+      label: 'Pair Plus paytable',
+      type: 'select',
+      options: Object.keys(PAIR_PLUS_TABLES).map((k) => ({ value: k, label: k })),
+    },
+    {
+      key: 'anteBonus',
+      label: 'Ante bonus (SF-trips-straight)',
+      type: 'select',
+      options: Object.keys(ANTE_BONUS_TABLES).map((k) => ({ value: k, label: k })),
+    },
+  ],
+  paigow: [
+    ...LIMITS,
+    {
+      key: 'commission',
+      label: 'Commission on wins',
+      type: 'select',
+      options: [
+        { value: 0.05, label: '5%' },
+        { value: 0.04, label: '4%' },
+      ],
+    },
+    {
+      key: 'jokerRule',
+      label: 'Joker',
+      type: 'select',
+      options: [
+        { value: 'semi-wild', label: 'Semi-wild (53 cards)' },
+        { value: 'none', label: 'No joker (52 cards)' },
+      ],
+    },
+  ],
+  keno: [
+    ...LIMITS,
+    {
+      key: 'paytable',
+      label: 'Ticket paytables',
+      type: 'select',
+      options: Object.keys(KENO_PAYTABLES).map((k) => ({ value: k, label: k })),
+    },
+  ],
+  videopoker: [
+    ...LIMITS,
+    {
+      key: 'paytable',
+      label: 'Paytable (full house / flush)',
+      type: 'select',
+      options: Object.keys(VP_PAYTABLES).map((k) => ({ value: k, label: k })),
+    },
+  ],
+  pachinko: [
+    ...LIMITS,
+    {
+      key: 'spec',
+      label: 'Machine spec',
+      type: 'select',
+      options: Object.keys(PACHINKO_SPECS).map((k) => ({ value: k, label: k })),
+    },
+    {
+      key: 'nails',
+      label: 'Nails',
+      type: 'select',
+      options: Object.keys(PACHINKO_NAILS).map((k) => ({ value: k, label: k })),
+    },
+  ],
+  bingo: [
+    ...LIMITS,
+    {
+      key: 'payback',
+      label: 'Prize pool (share of card sales)',
+      type: 'select',
+      options: [
+        { value: 0.86, label: '86%' },
+        { value: 0.8, label: '80%' },
+        { value: 0.75, label: '75%' },
+      ],
+    },
+    {
+      key: 'pattern',
+      label: 'Pattern',
+      type: 'select',
+      options: [
+        { value: 'line', label: 'Any line' },
+        { value: 'blackout', label: 'Blackout' },
+      ],
+    },
+  ],
+  bigsix: [
+    ...LIMITS,
+    {
+      key: 'jokerPays',
+      label: 'Joker and logo pay',
+      type: 'select',
+      options: [
+        { value: 45, label: '45:1' },
+        { value: 40, label: '40:1' },
+      ],
+    },
+    {
+      key: 'segments',
+      label: 'Wheel layout',
+      type: 'select',
+      options: [
+        { value: 'standard', label: 'Standard ($1 ×24, $5 ×7)' },
+        { value: 'atlantic-city', label: 'Atlantic City ($1 ×23, $5 ×8)' },
+      ],
     },
   ],
 };

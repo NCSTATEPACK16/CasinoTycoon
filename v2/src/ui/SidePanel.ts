@@ -8,6 +8,7 @@
 
 import type { SimClient } from '../client/SimClient';
 import type { CasinoFinancials, PeriodPnl } from '../sim/economy/financials';
+import type { Command } from '../shared/contracts';
 import type { GameKind } from '../shared/games';
 import type {
   GuestInspect,
@@ -21,23 +22,30 @@ import type {
 import { button, el, escapeHtml, money, pct } from './dom';
 import type { GuestRow, ThoughtSummary } from '../worker/feedback';
 import type { FinanceHistory, LoansView } from '../worker/finance';
+import type { MarketingView } from '../worker/marketing';
 import { compButtons, compStatus, type CompKind } from './panels/comps';
 import { FinanceChart } from './panels/FinanceChart';
 import { GuestsPanel } from './panels/GuestsPanel';
 import { LoansPanel } from './panels/LoansPanel';
 import { PatronsPanel } from './panels/PatronsPanel';
+import { MarketingPanel } from './panels/MarketingPanel';
 import { PricesPanel } from './panels/PricesPanel';
 import { RatingPanel } from './panels/RatingPanel';
+import { StaffRoster } from './panels/StaffRoster';
 import { RULE_FIELDS, type RuleField } from './rulesSchema';
 
 export type PanelTab =
-  'inspect' | 'finances' | 'staff' | 'rating' | 'patrons' | 'prices' | 'guests';
+  'inspect' | 'finances' | 'staff' | 'rating' | 'patrons' | 'prices' | 'guests' | 'events';
 type Target = { objectId: string } | { agentId: number };
 
 const HIRE: { kind: string; label: string; blurb: string }[] = [
   { kind: 'dealer', label: 'Dealer', blurb: 'Opens a table. Tables without one stay closed.' },
   { kind: 'janitor', label: 'Janitor', blurb: 'Cleans spills and litter.' },
-  { kind: 'security', label: 'Security', blurb: 'Handles drunks and rage-quitters.' },
+  {
+    kind: 'security',
+    label: 'Security',
+    blurb: 'Handles drunks and rage-quitters. At skill 60+, walks out guests the pit flags.',
+  },
   { kind: 'mechanic', label: 'Mechanic', blurb: 'Repairs broken machines.' },
   { kind: 'bartender', label: 'Bartender', blurb: 'Staffs a bar.' },
   { kind: 'cashier', label: 'Cashier', blurb: 'Staffs the cage.' },
@@ -49,7 +57,7 @@ const HIRE: { kind: string; label: string; blurb: string }[] = [
   {
     kind: 'pitBoss',
     label: 'Pit boss',
-    blurb: 'Watches the floor. Counts toward the security rating.',
+    blurb: 'Watches the pit for card counters and cheats. Counts toward the security rating.',
   },
 ];
 
@@ -73,6 +81,10 @@ export class SidePanel {
   private prices = new PricesPanel();
   /** B5: what guests think, and everyone on the floor. */
   private guests = new GuestsPanel();
+  /** B11: shifts, skill, morale, training and wages. */
+  private roster = new StaffRoster();
+  /** B10: ads and events to book. */
+  private marketing = new MarketingPanel();
   /** B4: the Finances tab's P&L (patched HTML, no buttons), chart and loans. */
   private finPnl = el('div', 'fin-pnl');
   private finActions = el('div', 'fin-actions');
@@ -93,6 +105,7 @@ export class SidePanel {
       ['guests', 'Guests'],
       ['patrons', 'Club'],
       ['prices', 'Prices'],
+      ['events', 'Events'],
     ] as const) {
       const b = button(label, () => this.open(t));
       this.tabs.set(t, b);
@@ -106,6 +119,15 @@ export class SidePanel {
     this.prices.onSetPrice = (objectId, itemId, price) => this.setPrice(objectId, itemId, price);
     this.guests.onLocate = (agentId) => this.onLocateGuest(agentId);
     this.guests.onFollow = (agentId, name) => this.onFollowGuest(agentId, name);
+    this.guests.onRemove = (guestId) =>
+      void this.act({ type: 'removeGuest', guestId }, 'Security is walking them out.');
+    this.roster.onTrain = (staffId) =>
+      void this.act({ type: 'train', staffId }, 'Off to training.');
+    this.roster.onShift = (staffId, shift) => void this.act({ type: 'setShift', staffId, shift });
+    this.roster.onWage = (kind, wagePerHour) =>
+      void this.act({ type: 'setWage', kind, wagePerHour });
+    this.roster.onFire = (staffId) => void this.act({ type: 'fire', staffId });
+    this.marketing.onRun = (eventId) => void this.act({ type: 'runEvent', eventId }, 'Booked.');
     this.finActions.append(button('Last day’s report', () => this.onReport(), 'small'));
     this.loans.onTake = (amount, days) =>
       this.sim.command({ type: 'takeLoan', amount, days }).then(() => this.refresh(false));
@@ -117,6 +139,17 @@ export class SidePanel {
     try {
       await this.sim.command({ type: 'sendComp', guestId, kind });
       this.onMessage(`Comp sent: ${kind === 'matchPlay' ? 'match play' : `a ${kind}`}.`);
+    } catch (err) {
+      this.onMessage((err as Error).message);
+    }
+    await this.refresh(false);
+  }
+
+  /** B11: a staff or guest action, its refusal (if any) to the toast. */
+  private async act(cmd: Command, done?: string): Promise<void> {
+    try {
+      await this.sim.command(cmd);
+      if (done) this.onMessage(done);
     } catch (err) {
       this.onMessage((err as Error).message);
     }
@@ -151,6 +184,7 @@ export class SidePanel {
     if (t === 'patrons') this.body.append(this.patrons.root);
     if (t === 'prices') this.body.append(this.prices.root);
     if (t === 'guests') this.body.append(this.guests.root);
+    if (t === 'events') this.body.append(this.marketing.root);
     if (t === 'finances')
       this.body.append(this.finActions, this.finPnl, this.chart.root, this.loans.root);
     window.clearInterval(this.timer);
@@ -192,7 +226,8 @@ export class SidePanel {
           this.sim.command<GuestRow[]>({ type: 'guestList' }),
         ]);
         this.guests.update(summary, list);
-      }
+      } else if (t === 'events')
+        this.marketing.update(await this.sim.command<MarketingView>({ type: 'marketing' }));
     } catch (err) {
       if (t === 'inspect')
         this.body.innerHTML = `<p class="dim">${escapeHtml((err as Error).message)}</p>`;
@@ -449,50 +484,13 @@ export class SidePanel {
         );
         hire.append(card);
       }
-      this.body.replaceChildren(
-        el('h3', '', 'Hire'),
-        hire,
-        el('h3', 'roster-title'),
-        el('table', 'fin roster'),
-      );
+      this.body.replaceChildren(el('h3', '', 'Hire'), hire, this.roster.root);
     }
     for (const card of hire.querySelectorAll<HTMLElement>('.hire-card')) {
       const count = list.filter((s) => s.role === card.dataset.kind).length;
       card.querySelector('.count')!.textContent = `× ${count}`;
     }
-    this.body.querySelector('.roster-title')!.textContent = `Roster (${list.length})`;
-    const roster = this.body.querySelector<HTMLElement>('.roster')!;
-    // Rows are rebuilt only when someone joins or leaves; a state change
-    // patches its cell, for the same reason as the hire cards above.
-    const key = list.map((s) => s.id).join('|');
-    if (roster.dataset.key === key) {
-      for (const s of list) {
-        const cell = roster.querySelector(`tr[data-id="${s.id}"] .state`);
-        if (cell) cell.textContent = s.state;
-      }
-      return;
-    }
-    roster.dataset.key = key;
-    roster.innerHTML = '<tr><th>Who</th><th>Role</th><th>State</th><th>Wage</th><th></th></tr>';
-    for (const s of list) {
-      const tr = el(
-        'tr',
-        '',
-        `<td>${s.id}</td><td>${cap(s.role)}</td><td class="state">${s.state}</td><td>${money(s.wagePerHour, true)}/h</td>`,
-      );
-      tr.dataset.id = s.id;
-      const td = el('td');
-      td.append(
-        button(
-          'Fire',
-          () =>
-            void this.sim.command({ type: 'fire', staffId: s.id }).then(() => this.refresh(false)),
-          'danger small',
-        ),
-      );
-      tr.append(td);
-      roster.append(tr);
-    }
+    this.roster.update(list);
   }
 }
 

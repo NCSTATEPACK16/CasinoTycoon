@@ -1,12 +1,13 @@
 import { SIC_BO_BALANCE } from '../../../data/balance';
-import type { Rng } from '../../rng';
-import type { PlayCadence, PlayResult } from './CasinoGame';
-import { SeatedCasinoGame } from './SeatedCasinoGame';
+import type { PlayCadence } from './CasinoGame';
+import { EngineTable } from './EngineGame';
 
-// The swingiest table in the house: a 10x branch rare enough to stay inside the variance bar and fat enough to drive P11's jackpot beats.
-export class SicBoTable extends SeatedCasinoGame {
+// Sic bo: three dice and a layout of bets. costToPlay is the guest's stake for
+// a visit; each play deals a few real rolls with a layout drawn from the
+// guest mix (sim/games/sicbo).
+export class SicBoTable extends EngineTable {
   constructor(id: string, costToPlay: number = SIC_BO_BALANCE.costToPlay) {
-    super(id, 'sic-bo', costToPlay, SIC_BO_BALANCE.seats);
+    super(id, 'sic-bo', 'sicbo', costToPlay, SIC_BO_BALANCE.seats);
   }
 
   get cadence(): PlayCadence {
@@ -17,15 +18,7 @@ export class SicBoTable extends SeatedCasinoGame {
     };
   }
 
-  protected spin(rng: Rng): PlayResult {
-    return { wager: this.costToPlay, payout: this.rollPayout(rng, SIC_BO_BALANCE.payoutTable) };
-  }
-
   protected wearPerPlay(): number {
     return SIC_BO_BALANCE.wearPerPlay;
-  }
-
-  testSpin(rng: Rng): number {
-    return this.rollPayout(rng, SIC_BO_BALANCE.payoutTable);
   }
 }

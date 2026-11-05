@@ -28,6 +28,9 @@ import {
   RATING_BALANCE,
   REPUTATION,
   SECURITY_BALANCE,
+  STAFF_BALANCE,
+  STAFF_DEPTH,
+  ADVANTAGE_BALANCE,
 } from '../data/balance';
 import type { CampaignDef } from '../data/campaigns';
 import {
@@ -46,12 +49,26 @@ import type { WorldNav } from './nav/WorldNav';
 import type { CellRect, Rotation } from '../shared/contracts';
 import { createMachine, createMachineOrThrow } from './entities/machines/factory';
 import { SeatedCasinoGame } from './entities/machines/SeatedCasinoGame';
-import { Guest, type GuestArchetype } from './entities/Guest';
+import { ADVANTAGE_LABEL, Guest, type AdvantageKind, type GuestArchetype } from './entities/Guest';
 import { Bar, type BarJSON } from './entities/Bar';
 import { FoodStall, type FoodStallJSON, type FoodPurchase } from './entities/FoodStall';
 import type { Mess, MessKind } from './entities/Mess';
-import { Staff, type StaffKind } from './entities/staff/Staff';
+import { Staff, type StaffKind, type StaffPost } from './entities/staff/Staff';
+import {
+  cleanRadius,
+  dealerSkillSpeed,
+  detectChance,
+  misPayChance,
+  onShiftAt,
+  quitChance,
+  SHIFTS,
+  workHour,
+  moraleTarget,
+  type Shift,
+} from './entities/staff/staffing';
 import { HOUSE_SOURCES, Ledger, type LedgerJSON } from './economy';
+import { EVENTS, getEventDef, type EventDef } from '../data/events';
+import { Marketing, type Clock, type EventRun, type MarketingJSON } from './marketing';
 import { MoodField, type MoodFieldJSON } from './MoodField';
 import { TrafficField, type TrafficFieldJSON } from './TrafficField';
 import { ModifierSystem, type ModifierSystemJSON } from './modifiers';
@@ -163,6 +180,16 @@ interface StaffJSON {
   kind: StaffKind;
   col: number;
   row: number;
+  // B11 (optional: older saves load with the defaults).
+  skill?: number;
+  morale?: number;
+  fatigue?: number;
+  shift?: Shift;
+  awayHours?: number;
+  awayFor?: 'training' | 'break' | null;
+  off?: boolean;
+  misPays?: number;
+  misPaid?: number;
 }
 
 /** The casino rating split into its contributing terms. Bonuses are positive,
@@ -193,6 +220,10 @@ export interface CasinoWorldJSON {
   nextMessNum: number;
   staff: StaffJSON[];
   nextStaffNum: number;
+  /** B11: per-role wage levers, $/hour (absent = the market wage). */
+  wages?: Partial<Record<StaffKind, number>>;
+  /** B10: events booked and run, and recent arrivals by hour. */
+  marketing?: MarketingJSON;
   time: TimeSystemJSON;
   ledger: LedgerJSON;
   scenario: ScenarioJSON | null;
@@ -220,6 +251,9 @@ export interface CasinoWorldJSON {
 /** The seat holder id the avatar uses at tables and machines. */
 export const PLAYER_SEAT = 'player';
 
+/** B11: how often (ticks) the pit looks around. */
+const PIT_WATCH_TICKS = 10;
+
 export class CasinoWorld {
   state: GameState;
   grid: IsoGrid;
@@ -233,6 +267,17 @@ export class CasinoWorld {
    *  shift the call count of the shared stream, or every payout and spawn in
    *  the game changes the moment A5 lands. */
   private modifierRng: Rng;
+  /** B11: same reasoning again. Hire skill, mis-pays, advantage players,
+   *  detection and quits draw here, so a campaign without them keeps every
+   *  other draw where it was. */
+  private staffRng: Rng;
+  /** B11: per-role wage levers, $/hour. Absent = the market wage. */
+  wageLevels = new Map<StaffKind, number>();
+  /** B11: what advantage players have taken off the house this run, on top
+   *  of fair play (not saved; for tests and telemetry). */
+  advantageTaken = 0;
+  /** B10: events booked and run, and arrivals by hour to measure them. */
+  marketing = new Marketing();
   /** Same reasoning again for P3: the once-a-day return draw must not shift
    *  the shared stream, or adding patrons re-rolls the whole game for a seed. */
   private patronRng: Rng;
@@ -310,6 +355,7 @@ export class CasinoWorld {
     this.rng = new Rng(seed);
     this.archetypeRng = new Rng((seed ^ 0x9e3779b9) >>> 0);
     this.modifierRng = new Rng((seed ^ 0x85ebca6b) >>> 0);
+    this.staffRng = new Rng((seed ^ 0x27d4eb2f) >>> 0);
     this.patronRng = new Rng((seed ^ 0xc2b2ae35) >>> 0);
     this.autoSpawn = opts.autoSpawn ?? true;
     this.starterFloor = opts.starterFloor ?? false;
@@ -392,6 +438,8 @@ export class CasinoWorld {
     this.drinkClaims.clear();
     this.dealerAssignments.clear();
     this.cashierAssignments.clear();
+    this.wageLevels.clear();
+    this.marketing = new Marketing();
     this.grid.clear(cols, rows);
     this.state.reset(startingCash);
     this.refreshServiceAvailability();
@@ -494,6 +542,7 @@ export class CasinoWorld {
     this.refreshServiceAvailability();
     const t = this.time.tick();
     if (this.autoSpawn) this.maybeSpawn();
+    if (this.marketing.runs.length > 0) this.marketingTick();
     this.applyMessEffects();
     for (const guest of this.guests.values()) guest.tick(this);
     for (const [id, guest] of [...this.guests]) {
@@ -510,6 +559,7 @@ export class CasinoWorld {
       }
     }
     for (const member of this.staff.values()) member.tick(this);
+    if (this.tickCount % PIT_WATCH_TICKS === 0) this.detectAdvantagePlayers();
     this.nav?.step(this);
     this.sampleOccupancy();
     if (this.tickCount % OVERLAY_SAMPLE_TICKS === 0) {
@@ -536,7 +586,7 @@ export class CasinoWorld {
     // The hour that just completed (time already shows the new hour/day).
     const closedHour = this.time.hour === 0 ? HOURS_PER_DAY - 1 : this.time.hour - 1;
     const closedDay = this.time.hour === 0 ? this.time.day - 1 : this.time.day;
-    this.chargeWages();
+    this.staffHour(midnight);
     this.cleanlinessSamples.push(this.cleanlinessPct);
     if (midnight) {
       this.chargeUpkeep();
@@ -643,7 +693,10 @@ export class CasinoWorld {
 
   private chargeWages(): void {
     let total = 0;
-    for (const member of this.staff.values()) total += member.wagePerHour;
+    // B11: only who worked the hour is paid (off shift, training and breaks
+    // draw nothing), at the role's wage lever.
+    for (const member of this.staff.values())
+      if (member.state !== 'off') total += this.wageFor(member.kind);
     if (total === 0) return;
     this.state.cash -= total;
     this.ledger.addExpense(total);
@@ -713,7 +766,7 @@ export class CasinoWorld {
     signageBonus = Math.min(signageBonus, b.signageBonusCap);
     let securityBonus = 0;
     for (const m of this.staff.values()) {
-      if (m.kind === 'pitBoss' || m.kind === 'security') {
+      if ((m.kind === 'pitBoss' || m.kind === 'security') && m.state !== 'off') {
         securityBonus += SECURITY_BALANCE.bonusPerStaff;
       }
     }
@@ -975,6 +1028,14 @@ export class CasinoWorld {
    *  scaled cap multiplies it by cap / minCap, so a floor that holds ten
    *  times the people draws ten times the arrivals. */
   arrivalChance(): number {
+    const chance = this.unliftedArrivalChance(this.clockNow());
+    // B10: an ad or a tournament lifts its archetypes' arrivals; the mix of
+    // who comes follows in rollArchetype. Skipped outright when nothing runs.
+    if (!this.marketing.liftsArrivals(this.tickCount)) return chance;
+    return Math.min(1, chance * this.marketingLift());
+  }
+
+  private unliftedArrivalChance(at: { day: number; hour: number; fraction: number }): number {
     const base =
       spawnChance(this.rating, this.machines.size, this.reputation.value) *
       this.modifiers.spawnMult();
@@ -982,12 +1043,11 @@ export class CasinoWorld {
     if (p.curve === 'flat') return base;
     const t = TRAFFIC_BALANCE;
     const scale = p.cap === 'scaled' ? (this.guestCap() / t.minCap) * t.fill : 1;
-    const clock =
-      hourFactor(this.time.hour, this.time.tickInHour / TICKS_PER_HOUR) * dayFactor(this.time.day);
+    const clock = hourFactor(at.hour, at.fraction) * dayFactor(at.day);
     return Math.min(1, base * scale * clock);
   }
 
-  spawnGuest(archetypeOverride?: GuestArchetype): Guest {
+  spawnGuest(archetypeOverride?: GuestArchetype, walletMult = 1): Guest {
     const id = `g-${this.nextGuestNum++}`;
     // A1b: a patron drawn for today takes the next arrival rather than being
     // spawned on a schedule of their own. Returning through the same door
@@ -1002,7 +1062,7 @@ export class CasinoWorld {
         : this.rng.int(GUEST_BALANCE.walletMin, GUEST_BALANCE.walletMax);
     // Floored at 1 so a stacked wallet penalty can never spawn a guest who is
     // broke on arrival and walks straight back out.
-    const wallet = Math.max(1, Math.round(baseWallet * this.modifiers.walletMult()));
+    const wallet = Math.max(1, Math.round(baseWallet * this.modifiers.walletMult() * walletMult));
     const guest = new Guest(
       id,
       wallet,
@@ -1012,12 +1072,14 @@ export class CasinoWorld {
     );
     if (this.nav) guest.varyArrivalNeeds();
     guest.arrivedTick = this.tickCount;
+    guest.advantage = this.rollAdvantage();
     // B3: open play's guests come for an evening, not for good.
     if (this.trafficProfile.curve === 'daily') {
       const h = TRAFFIC_BALANCE.stayHours;
       guest.leaveAtTick =
         this.tickCount + this.rng.int(h.min * TICKS_PER_HOUR, h.max * TICKS_PER_HOUR);
     }
+    if (this.marketing.runs.length > 0) this.marketingArrival(guest);
     this.guests.set(id, guest);
     eventBus.emit('guestSpawned', { id, archetype: guest.archetype });
     if (patron) this.announcePatronArrival(patron, id);
@@ -1103,6 +1165,8 @@ export class CasinoWorld {
     // 'regular' degrades smoothly instead of vanishing at a cliff.
     const total = highRoller + biker + tourist;
     const scale = total > 1 ? 1 / total : 1;
+    if (this.marketing.liftsArrivals(this.tickCount))
+      return this.rollLiftedArchetype(highRoller * scale, biker * scale, tourist * scale);
     const roll = this.archetypeRng.next();
     if (roll < highRoller * scale) return 'highRoller';
     if (roll < (highRoller + biker) * scale) return 'biker';
@@ -1110,11 +1174,271 @@ export class CasinoWorld {
     return 'regular';
   }
 
+  /** B10: the same roll with each archetype's share times its marketing
+   *  lift, renormalised, so an ad brings more of its own people and nobody
+   *  else's. The one draw on archetypeRng is unchanged. */
+  private rollLiftedArchetype(highRoller: number, biker: number, tourist: number): GuestArchetype {
+    const shares = this.liftedShares(highRoller, biker, tourist);
+    let roll = this.archetypeRng.next();
+    for (const [archetype, share] of shares) {
+      if (roll < share) return archetype;
+      roll -= share;
+    }
+    return 'regular';
+  }
+
+  /** B10: who arrives, as shares of 1, with any marketing lift applied. */
+  private liftedShares(
+    highRoller: number,
+    biker: number,
+    tourist: number,
+  ): [GuestArchetype, number][] {
+    const raw: [GuestArchetype, number][] = [
+      ['highRoller', highRoller],
+      ['biker', biker],
+      ['tourist', tourist],
+      ['regular', Math.max(0, 1 - highRoller - biker - tourist)],
+    ];
+    const lifted = raw.map(([a, w]): [GuestArchetype, number] => [
+      a,
+      w * this.marketing.lift(a, this.tickCount),
+    ]);
+    const total = lifted.reduce((sum, [, w]) => sum + w, 0);
+    return lifted.map(([a, w]) => [a, w / total]);
+  }
+
+  /** B10: arrival shares by archetype right now, before marketing. */
+  archetypeShares(): Record<GuestArchetype, number> {
+    const b = ARCHETYPE_BALANCE;
+    const bias = (a: GuestArchetype) =>
+      this.modifiers.archetypeBias(a) * this.reputation.archetypeMultiplier(a);
+    const hr = b.highRollerChance * bias('highRoller');
+    const bk = b.bikerChance * bias('biker');
+    const tr = b.touristChance * bias('tourist');
+    const scale = hr + bk + tr > 1 ? 1 / (hr + bk + tr) : 1;
+    return {
+      highRoller: hr * scale,
+      biker: bk * scale,
+      tourist: tr * scale,
+      regular: Math.max(0, 1 - (hr + bk + tr) * scale),
+    };
+  }
+
+  /** B10: how much marketing multiplies arrivals in all: each archetype's
+   *  lift weighted by its share of who comes. */
+  private marketingLift(): number {
+    let lift = 0;
+    for (const [a, share] of Object.entries(this.archetypeShares()) as [GuestArchetype, number][])
+      lift += share * this.marketing.lift(a, this.tickCount);
+    return lift;
+  }
+
+  // ---------- marketing (B10) ----------
+
+  private clock(): Clock {
+    return {
+      tick: this.tickCount,
+      day: this.time.day,
+      hour: this.time.hour,
+      tickInHour: this.time.tickInHour,
+    };
+  }
+
+  /** Hook: the event ids this scenario offers (none outside a scenario). */
+  get marketingOffered(): readonly string[] {
+    return this.scenario?.def.marketing ?? [];
+  }
+
+  /** Hook: why this event can't be booked now, or null if it can. */
+  eventBlocked(def: EventDef): string | null {
+    if (!this.marketingOffered.includes(def.id)) return 'Not offered here';
+    if (def.requiresObject && !this.state.allObjects().some((o) => o.defId === def.requiresObject))
+      return `Needs a ${def.requiresObject.replace(/-/g, ' ')}`;
+    if (def.requires) {
+      const ids = new Set(def.requires.defIds);
+      let n = 0;
+      for (const o of this.state.allObjects()) if (ids.has(o.defId)) n++;
+      if (n < def.requires.count) return def.requires.label;
+    }
+    if (this.marketing.current(def.id, this.tickCount)) return 'Already booked';
+    const ready = this.marketing.readyAt(def);
+    if (ready > this.tickCount) {
+      const days = Math.ceil((ready - this.tickCount) / (HOURS_PER_DAY * TICKS_PER_HOUR));
+      return `Ready in ${days} day${days === 1 ? '' : 's'}`;
+    }
+    if (this.state.cash < def.cost) return 'Not enough cash';
+    return null;
+  }
+
+  /** Hook: book an event. Pays its price now; returns the run, or throws
+   *  with the reason it can't run. */
+  runEvent(id: string): EventRun {
+    const def = getEventDef(id);
+    if (!def) throw new Error(`Unknown event ${id}`);
+    const blocked = this.eventBlocked(def);
+    if (blocked) throw new Error(blocked);
+    const run = this.marketing.book(def, this.clock());
+    this.state.cash -= def.cost;
+    this.ledger.addExpense(def.cost);
+    this.ledger.accrue(HOUSE_SOURCES.marketing.id, HOUSE_SOURCES.marketing.defId, {
+      upkeep: def.cost,
+    });
+    eventBus.emit('moneyChanged', { cash: this.state.cash, delta: -def.cost });
+    const text = `${def.name} booked for ${formatDollarAmount(def.cost)}.`;
+    this.ledger.note(text);
+    eventBus.emit('tickerMessage', { text });
+    return run;
+  }
+
+  /** Hook: guests this event should bring, from the curve and the floor as
+   *  they stand now (ignoring the cap; the panel says so). */
+  expectedExtra(def: EventDef): number {
+    const e = def.effect;
+    if (e.type === 'group') return e.count;
+    const { start, end } = this.marketing.window(def, this.clock());
+    const shares = this.archetypeShares();
+    const share = e.archetypes.reduce((sum, a) => sum + shares[a], 0);
+    let extra = 0;
+    // Hour by hour across the window, from the clock it will be then.
+    const startOffset = this.time.tickInHour + (start - this.tickCount);
+    for (let t = 0; t < end - start; t += TICKS_PER_HOUR) {
+      const hoursAhead = Math.floor((startOffset + t) / TICKS_PER_HOUR);
+      const abs = (this.time.day - 1) * HOURS_PER_DAY + this.time.hour + hoursAhead;
+      const ticks = Math.min(TICKS_PER_HOUR, end - start - t);
+      const at = {
+        day: Math.floor(abs / HOURS_PER_DAY) + 1,
+        hour: abs % HOURS_PER_DAY,
+        fraction: 0.5,
+      };
+      extra += this.unliftedArrivalChance(at) * ticks * share * (e.mult - 1);
+    }
+    return Math.round(extra);
+  }
+
+  /** B10, every tick while any event is on the books: bring in a junket
+   *  that is due, and close out the runs that just ended. */
+  private marketingTick(): void {
+    for (const run of this.marketing.dueGroups(this.tickCount)) {
+      run.groupDone = true;
+      const e = getEventDef(run.id)?.effect;
+      if (e?.type !== 'group') continue;
+      for (let i = 0; i < e.count; i++) {
+        const guest = this.spawnGuest(e.archetype, e.walletMult);
+        guest.leaveAtTick = this.tickCount + e.stayHours * TICKS_PER_HOUR;
+      }
+      const text = `The ${run.name.toLowerCase()} is here: ${e.count} guests through the door.`;
+      eventBus.emit('tickerMessage', { text });
+    }
+    const active = this.marketing.active(this.tickCount);
+    if (active.length > 0) {
+      const full = this.guests.size >= this.guestCap();
+      const chance = full ? 0 : this.unliftedArrivalChance(this.clockNow());
+      const shares = full ? null : this.archetypeShares();
+      for (const run of active) {
+        run.ticks++;
+        if (full) run.fullTicks++;
+        const e = getEventDef(run.id)?.effect;
+        if (!shares || e?.type !== 'arrivals') continue;
+        const share = e.archetypes.reduce((sum, a) => sum + shares[a], 0);
+        run.lifted += Math.min(1, chance * (1 + share * (e.mult - 1))) - chance;
+      }
+    }
+    for (const run of this.marketing.runs) {
+      if (run.result !== undefined || this.tickCount < run.endTick) continue;
+      this.closeEventRun(run);
+    }
+  }
+
+  private clockNow(): { day: number; hour: number; fraction: number } {
+    return {
+      day: this.time.day,
+      hour: this.time.hour,
+      fraction: this.time.tickInHour / TICKS_PER_HOUR,
+    };
+  }
+
+  private closeEventRun(run: EventRun): void {
+    const def = getEventDef(run.id);
+    const parts: string[] = [];
+    if (def?.effect.type === 'group') {
+      run.extra = def.effect.count;
+      parts.push(`${def.effect.count} guests flew in`);
+    } else {
+      run.extra = Math.round(run.lifted);
+      const full = run.ticks > 0 ? Math.round((100 * run.fullTicks) / run.ticks) : 0;
+      parts.push(
+        `${run.arrivals} arrivals while it ran, about ${run.extra} more than the same hours without it` +
+          (full > 0 ? ` (the floor was full ${full}% of the time)` : ''),
+      );
+    }
+    if (def?.kind === 'tournament')
+      parts.push(`${run.entrants} entrants paid ${formatDollarAmount(run.fees)}`);
+    run.result = parts.join('; ');
+    // The day report lists it from the run (worker/finance.ts dayReport).
+    const text = `${run.name} ended: ${run.result}.`;
+    eventBus.emit('tickerMessage', { text });
+  }
+
+  /** B10: a guest through the door while events are on the books: count
+   *  them against what's running, and sign them up for a tournament. */
+  private marketingArrival(guest: Guest): void {
+    this.marketing.countArrival(this.tickCount);
+    const t = this.marketing.tournament(this.tickCount);
+    if (!t || t.def.effect.type !== 'arrivals') return;
+    if (!t.def.effect.archetypes.includes(guest.archetype)) return;
+    const fee = t.def.entryFee ?? 0;
+    if (guest.wallet <= fee * 2) return;
+    guest.tournament = true;
+    guest.wallet -= fee;
+    t.run.entrants++;
+    t.run.fees += fee;
+    if (fee === 0) return;
+    this.state.cash += fee;
+    this.ledger.addRevenue(fee);
+    this.ledger.accrue(HOUSE_SOURCES.marketing.id, HOUSE_SOURCES.marketing.defId, {
+      revenue: fee,
+    });
+  }
+
+  /** Hook: what's booked or running now, for the HUD and the panel. */
+  eventsNow(): { id: string; name: string; status: string }[] {
+    const out: { id: string; name: string; status: string }[] = [];
+    for (const run of this.marketing.runs) {
+      if (this.tickCount >= run.endTick) continue;
+      const running = this.tickCount >= run.startTick;
+      const at = (tick: number) => {
+        const abs =
+          (this.time.day - 1) * HOURS_PER_DAY +
+          this.time.hour +
+          Math.floor((this.time.tickInHour + tick - this.tickCount) / TICKS_PER_HOUR);
+        const day = Math.floor(abs / HOURS_PER_DAY) + 1;
+        const hour = String(abs % HOURS_PER_DAY).padStart(2, '0');
+        return day === this.time.day ? `${hour}:00` : `day ${day} ${hour}:00`;
+      };
+      out.push({
+        id: run.id,
+        name: run.name,
+        status: running ? `until ${at(run.endTick)}` : `from ${at(run.startTick)}`,
+      });
+    }
+    return out;
+  }
+
+  /** Every event this world knows, for the panel. */
+  get eventDefs(): readonly EventDef[] {
+    return EVENTS;
+  }
+
   // ---------- staff ----------
 
   hireStaff(kind: StaffKind): Staff {
     const member = new Staff(`s-${this.nextStaffNum++}`, kind, this.entranceTile);
+    member.skill = this.staffRng.int(STAFF_DEPTH.hireSkill.min, STAFF_DEPTH.hireSkill.max);
+    member.shift = this.shiftForHire(kind);
+    member.depth = this.staffDepth;
     this.staff.set(member.id, member);
+    if (this.staffDepth && !onShiftAt(member.shift, this.time.hour))
+      member.clockOut(this, this.entranceTile);
     eventBus.emit('staffHired', { id: member.id, kind });
     eventBus.emit('tickerMessage', { text: `Hired a ${kind}.` });
     return member;
@@ -1141,6 +1465,264 @@ export class CasinoWorld {
     const member = this.staff.get(id);
     if (!member || !this.grid.isWalkable(col, row)) return false;
     member.drop({ col, row });
+    return true;
+  }
+
+  // ---------- B11: staff with depth ----------
+
+  /** Hook: does this run play the full staffing game (shifts, fatigue,
+   *  advantage players)? Sandbox and the career do; the P16 campaigns and the
+   *  tutorial keep staff on every hour, as they were tuned. */
+  get staffDepth(): boolean {
+    return !!this.scenario?.def.staffDepth;
+  }
+
+  /** Hook: a role's hourly wage (the lever, else the market wage). */
+  wageFor(kind: StaffKind): number {
+    return this.wageLevels.get(kind) ?? STAFF_BALANCE[kind].wagePerHour;
+  }
+
+  /** Hook: set a role's wage, clamped to half to double the market wage.
+   *  Returns the wage applied. */
+  setWage(kind: StaffKind, wagePerHour: number): number | null {
+    const market = STAFF_BALANCE[kind]?.wagePerHour;
+    if (market === undefined || !Number.isFinite(wagePerHour)) return null;
+    const [lo, hi] = STAFF_DEPTH.wageRange;
+    const wage = Math.round(Math.min(hi * market, Math.max(lo * market, wagePerHour)) * 100) / 100;
+    if (wage === market) this.wageLevels.delete(kind);
+    else this.wageLevels.set(kind, wage);
+    return wage;
+  }
+
+  /** The shift a new hire of this role takes: the one with the fewest of
+   *  the role on it, the busiest of those first. A role's posts (tables,
+   *  bars, a cage) need someone every hour, so the shifts fill evenly. */
+  private shiftForHire(kind: StaffKind): Shift {
+    const weight = (sh: Shift) => {
+      const [from, to] = STAFF_DEPTH.shifts[sh];
+      let w = 0;
+      for (let h = from; h < to; h++) w += hourFactor(h);
+      return w;
+    };
+    const count = (sh: Shift) =>
+      [...this.staff.values()].filter((m) => m.kind === kind && m.shift === sh).length;
+    return [...SHIFTS].sort((a, b) => count(a) - count(b) || weight(b) - weight(a))[0]!;
+  }
+
+  /** Is a role short-handed on the floor right now? */
+  understaffed(kind: StaffKind): boolean {
+    const on = [...this.staff.values()].filter((m) => m.kind === kind && m.state !== 'off').length;
+    if (kind === 'dealer') {
+      let dealt = 0;
+      for (const m of this.machines.values()) if (m.needsDealer) dealt++;
+      return on < dealt;
+    }
+    if (kind === 'mechanic') {
+      let broken = 0;
+      for (const m of this.machines.values()) if (m.broken) broken++;
+      return on * STAFF_DEPTH.brokenPerMechanic < broken;
+    }
+    if (kind === 'janitor') return on * STAFF_DEPTH.messesPerJanitor < this.messes.size;
+    return false;
+  }
+
+  /** Hook: staff rest at any service with `restsStaff: true` (none on the
+   *  catalogue yet; B6's lounge seating is meant to be the first). */
+  staffRestAvailable(): boolean {
+    for (const po of this.state.allObjects()) if (getObjectDef(po.defId)?.restsStaff) return true;
+    return false;
+  }
+
+  /** The hour boundary for staff: pay who worked the hour, tire them and move
+   *  their morale, run the rota for the new hour, let the pit look around, and
+   *  at midnight let the unhappy quit. */
+  private staffHour(midnight: boolean): void {
+    this.chargeWages();
+    const depth = this.staffDepth;
+    const short = new Map<StaffKind, boolean>();
+    const isShort = (k: StaffKind) => {
+      if (!short.has(k)) short.set(k, this.understaffed(k));
+      return short.get(k)!;
+    };
+    for (const m of this.staff.values()) {
+      if (m.state === 'off' || m.state === 'carried') continue;
+      const ratio = this.wageFor(m.kind) / STAFF_BALANCE[m.kind].wagePerHour;
+      if (depth) workHour(m, ratio, isShort(m.kind));
+      else m.morale += STAFF_DEPTH.moraleDrift * (moraleTarget(ratio, 0, false) - m.morale);
+    }
+    const rest = depth && this.staffRestAvailable();
+    // Who goes and who comes this hour. The leavers' posts go to the arrivals
+    // of the same role (a handover in place), so a dealt table keeps dealing
+    // through the change instead of waiting on a walk from the door.
+    const posts = new Map<StaffKind, StaffPost[]>();
+    const arriving: Staff[] = [];
+    for (const m of this.staff.values()) {
+      if (m.state === 'carried') continue;
+      if (m.awayHours > 0) {
+        if (--m.awayHours > 0) continue;
+        m.awayFor = null;
+      }
+      const due = !depth || onShiftAt(m.shift, this.time.hour);
+      if (due && m.state === 'off') arriving.push(m);
+      else if (!due && m.state !== 'off') {
+        const list = posts.get(m.kind) ?? [];
+        list.push(m.post());
+        posts.set(m.kind, list);
+        m.clockOut(this, this.entranceTile);
+        m.fatigue = 0;
+      } else if (due && rest && m.fatigue >= STAFF_DEPTH.breakAtFatigue) {
+        m.clockOut(this, this.entranceTile);
+        m.fatigue = 0;
+        m.awayFor = 'break';
+        m.awayHours = 1;
+      }
+    }
+    for (const m of arriving) {
+      const post = posts.get(m.kind)?.shift();
+      if (!post) {
+        m.clockIn(this.entranceTile);
+        continue;
+      }
+      // A post whose table, bar or cage has gone since is just a place to start.
+      if (
+        post.tableId &&
+        (!this.machines.has(post.tableId) || this.dealerAssignments.has(post.tableId))
+      )
+        post.tableId = null;
+      if (post.cageId && this.cashierAssignments.has(post.cageId)) post.cageId = null;
+      if (post.barId && !this.bars.has(post.barId)) post.barId = null;
+      if (post.state && !post.tableId && !post.barId && !post.cageId) post.state = null;
+      m.relieve(post);
+      if (post.tableId) this.dealerAssignments.set(post.tableId, m.id);
+      if (post.cageId) this.cashierAssignments.set(post.cageId, m.id);
+    }
+    if (!midnight) return;
+    for (const m of [...this.staff.values()]) {
+      if (!this.staffRng.chance(quitChance(m.morale))) continue;
+      this.fireStaff(m.id);
+      const text = `A ${m.kind} quit (morale ${Math.round(m.morale)}).`;
+      this.ledger.note(text);
+      eventBus.emit('tickerMessage', { text, severity: 'alert' });
+    }
+  }
+
+  /** Hook: send a member to training: costs money, adds skill, and takes them
+   *  off the floor for a few game hours. */
+  trainStaff(id: string): boolean {
+    const m = this.staff.get(id);
+    const t = STAFF_DEPTH.train;
+    if (!m || m.skill >= 100 || m.awayFor || m.state === 'carried') return false;
+    if (this.state.cash - t.cost < -this.creditLimit) return false;
+    this.state.cash -= t.cost;
+    this.ledger.addExpense(t.cost);
+    this.ledger.accrue(HOUSE_SOURCES.wages.id, HOUSE_SOURCES.wages.defId, { upkeep: t.cost });
+    eventBus.emit('moneyChanged', { cash: this.state.cash, delta: -t.cost });
+    m.skill = Math.min(100, m.skill + t.skill);
+    if (m.state !== 'off') m.clockOut(this, this.entranceTile);
+    m.awayFor = 'training';
+    m.awayHours = t.hours;
+    return true;
+  }
+
+  /** Hook: move a member to another shift; they clock in or out at once. */
+  setStaffShift(id: string, shift: Shift): boolean {
+    const m = this.staff.get(id);
+    if (!m || !SHIFTS.includes(shift)) return false;
+    m.shift = shift;
+    if (!this.staffDepth || m.awayFor || m.state === 'carried') return true;
+    const due = onShiftAt(shift, this.time.hour);
+    if (due && m.state === 'off') m.clockIn(this.entranceTile);
+    else if (!due && m.state !== 'off') {
+      m.clockOut(this, this.entranceTile);
+      m.fatigue = 0;
+    }
+    return true;
+  }
+
+  /** An arrival's advantage, if the scenario has them. Draws nothing
+   *  otherwise. */
+  private rollAdvantage(): AdvantageKind | null {
+    if (!this.staffDepth || !this.staffRng.chance(ADVANTAGE_BALANCE.share)) return null;
+    let r = this.staffRng.next();
+    for (const [kind, p] of Object.entries(ADVANTAGE_BALANCE.kinds) as [AdvantageKind, number][]) {
+      if (r < p) return kind;
+      r -= p;
+    }
+    return 'counter';
+  }
+
+  /** Hook: what the staff and the guest's advantage do to a play's money
+   *  before it is booked. Theo is untouched: the house books what it expects,
+   *  so a mis-pay or an undetected advantage shows as hold under theo. */
+  private staffPlayEffects(machineId: string, guestId: string, result: PlayResult): void {
+    const machine = this.machines.get(machineId);
+    const guest = this.guests.get(guestId);
+    if (!machine) return;
+    const rounds = Math.max(1, result.rounds ?? 1);
+    const stake = result.wager / rounds;
+    const dealer = machine.needsDealer
+      ? this.staff.get(this.dealerAssignments.get(machineId) ?? '')
+      : undefined;
+    if (dealer && dealer.depth) {
+      const p = misPayChance(dealer.skill);
+      for (let i = 0; i < rounds; i++) {
+        if (!this.staffRng.chance(p)) continue;
+        result.payout += stake;
+        dealer.misPays++;
+        dealer.misPaid += stake;
+      }
+    }
+    // Once the pit has flagged them, the dealer shuffles up on a counter and
+    // the pit watches the layout and the reels: the advantage is gone, even
+    // before security reaches them.
+    if (!guest?.advantage || guest.suspicious) return;
+    const kind = machine.math?.kind;
+    const a = ADVANTAGE_BALANCE;
+    let extra = 0;
+    if (guest.advantage === 'counter' && kind === 'blackjack')
+      extra = (result.theo ?? 0) + a.counterEdge * result.wager;
+    else if (
+      guest.advantage === 'pastPoster' &&
+      (kind === 'roulette' || kind === 'craps' || kind === 'sicbo')
+    ) {
+      for (let i = 0; i < rounds; i++)
+        if (this.staffRng.chance(a.pastPost.chance)) extra += a.pastPost.stakes * stake;
+    } else if (guest.advantage === 'slotCheat' && kind === 'slots')
+      extra = a.slotDrain * result.wager;
+    else return;
+    result.payout += extra;
+    this.advantageTaken += extra;
+    guest.advRounds += rounds;
+    guest.advNet += extra;
+    guest.advGame = machine.defId;
+  }
+
+  /** Each pit boss on the floor watches the advantage players in range: the
+   *  hourly chance, spread over the hour's checks. */
+  private detectAdvantagePlayers(): void {
+    const a = ADVANTAGE_BALANCE;
+    for (const boss of this.staff.values()) {
+      if (boss.kind !== 'pitBoss' || boss.state === 'off' || boss.state === 'carried') continue;
+      const hourly = Math.min(1, detectChance(boss.skill) * boss.speed);
+      const p = 1 - (1 - hourly) ** (PIT_WATCH_TICKS / TICKS_PER_HOUR);
+      for (const g of this.guests.values()) {
+        if (!g.advantage || g.suspicious || g.advRounds === 0 || g.state === 'gone') continue;
+        if (Math.hypot(g.pos.col - boss.pos.col, g.pos.row - boss.pos.row) > a.pitRadius) continue;
+        if (!this.staffRng.chance(p)) continue;
+        g.suspicious = true;
+        const name = getObjectDef(g.advGame ?? '')?.name ?? 'the tables';
+        const text = `The pit flagged ${g.name} at ${name}: ${ADVANTAGE_LABEL[g.advantage]}.`;
+        this.ledger.note(text);
+        eventBus.emit('tickerMessage', { text, severity: 'alert' });
+      }
+    }
+  }
+
+  /** Hook: walk a guest the pit has flagged out of the casino. */
+  removeGuest(id: string): boolean {
+    const g = this.guests.get(id);
+    if (!g || !g.suspicious || g.escorted || g.state === 'gone') return false;
+    g.escortOut(this);
     return true;
   }
 
@@ -1232,7 +1814,17 @@ export class CasinoWorld {
     }
     // Only janitor reaches here — pitBoss/security never claim a job in the
     // first place (see claimJobFor), so completeJob is unreachable for them.
+    const at = this.messes.get(member.jobId);
     this.cleanMess(member.jobId);
+    // B11: a skilled janitor sweeps what's around the job too.
+    const r = member.depth ? cleanRadius(member.skill) : 0;
+    if (!at || r === 0) return;
+    for (const mess of [...this.messes.values()])
+      if (
+        Math.max(Math.abs(mess.col - at.col), Math.abs(mess.row - at.row)) <= r &&
+        (!mess.claimedBy || mess.claimedBy === member.id)
+      )
+        this.cleanMess(mess.id);
   }
 
   releaseJobs(staffId: string): void {
@@ -1378,6 +1970,23 @@ export class CasinoWorld {
     return findPath(this.grid, from, to);
   }
 
+  /** Hook (B11): where a pit boss strolls next — a walkable cell within a
+   *  few tiles of a table game, so the pit is watched. Only with staff depth
+   *  (the P16 campaigns keep their ambient patrol); null with no tables. */
+  pitPatrolTile(): Cell | null {
+    if (!this.staffDepth) return null;
+    const tables = [...this.machines.values()].filter((m) => m.needsDealer);
+    if (tables.length === 0) return null;
+    const po = this.state.getObject(tables[this.staffRng.int(0, tables.length - 1)]!.id);
+    if (!po) return null;
+    for (let i = 0; i < 25; i++) {
+      const col = po.col + this.staffRng.int(-4, 4);
+      const row = po.row + this.staffRng.int(-4, 4);
+      if (this.grid.inBounds(col, row) && this.grid.isWalkable(col, row)) return { col, row };
+    }
+    return null;
+  }
+
   randomWalkableTile(): Cell | null {
     for (let i = 0; i < 25; i++) {
       const col = this.rng.int(1, this.grid.cols - 2);
@@ -1470,6 +2079,7 @@ export class CasinoWorld {
     // result: `null` is reserved for "there is no machine to play", which is
     // what tells a guest to give its seat up.
     if (result.wager === 0) return result;
+    this.staffPlayEffects(machineId, guestId, result);
     const delta = result.wager - result.payout;
     this.state.cash += delta;
     this.ledger.addRevenue(delta);
@@ -1506,7 +2116,10 @@ export class CasinoWorld {
     return {
       unit: machine?.costToPlay ?? 0,
       wallet: guest?.wallet ?? Infinity,
-      skillError: ENGINE_BALANCE.skillErrorByArchetype[guest?.archetype ?? 'regular'] ?? 0.02,
+      skillError:
+        guest?.advantage === 'counter'
+          ? 0
+          : (ENGINE_BALANCE.skillErrorByArchetype[guest?.archetype ?? 'regular'] ?? 0.02),
       oddsAppetite: ENGINE_BALANCE.oddsAppetiteByArchetype[guest?.archetype ?? 'regular'] ?? 0.3,
       dealerSpeed: this.dealerSpeedFor(machineId),
     };
@@ -1517,7 +2130,11 @@ export class CasinoWorld {
   dealerSpeedFor(machineId: string): number {
     const machine = this.machines.get(machineId);
     if (!machine?.needsDealer) return 1;
-    return this.dealerAssignments.has(machineId) ? 1 : ENGINE_BALANCE.noDealerSpeed;
+    const dealer = this.staff.get(this.dealerAssignments.get(machineId) ?? '');
+    // B11: a dealer's skill sets the pace (0.8× at 0 to 1.15× at 100), and
+    // low morale slows it.
+    if (!dealer) return ENGINE_BALANCE.noDealerSpeed;
+    return dealer.depth ? dealerSkillSpeed(dealer.skill) * dealer.speed : 1;
   }
 
   /** Hook: seat occupancy for the books — occupied and available seat-ticks. */
@@ -1836,7 +2453,18 @@ export class CasinoWorld {
         row: m.row,
       })),
       nextMessNum: this.nextMessNum,
+      wages: Object.fromEntries(this.wageLevels),
+      marketing: this.marketing.toJSON(),
       staff: [...this.staff.values()].map((s) => ({
+        skill: s.skill,
+        morale: s.morale,
+        fatigue: s.fatigue,
+        shift: s.shift,
+        awayHours: s.awayHours,
+        awayFor: s.awayFor,
+        off: s.state === 'off',
+        misPays: s.misPays,
+        misPaid: s.misPaid,
         id: s.id,
         kind: s.kind,
         col: s.pos.col,
@@ -1906,13 +2534,27 @@ export class CasinoWorld {
     for (const b of data.bars) this.bars.set(b.id, Bar.fromJSON(b));
     for (const m of data.messes) this.messes.set(m.id, { ...m, claimedBy: null });
     this.nextMessNum = data.nextMessNum;
-    for (const s of data.staff)
-      this.staff.set(s.id, new Staff(s.id, s.kind, { col: s.col, row: s.row }));
+    for (const s of data.staff) {
+      const member = new Staff(s.id, s.kind, { col: s.col, row: s.row });
+      member.skill = s.skill ?? member.skill;
+      member.morale = s.morale ?? member.morale;
+      member.fatigue = s.fatigue ?? 0;
+      member.shift = s.shift ?? member.shift;
+      member.awayHours = s.awayHours ?? 0;
+      member.awayFor = s.awayFor ?? null;
+      member.misPays = s.misPays ?? 0;
+      member.misPaid = s.misPaid ?? 0;
+      if (s.off) member.state = 'off';
+      this.staff.set(s.id, member);
+    }
+    this.wageLevels = new Map(Object.entries(data.wages ?? {}) as [StaffKind, number][]);
+    this.marketing = Marketing.fromJSON(data.marketing);
     this.nextStaffNum = data.nextStaffNum;
     this.nextGuestNum = 1; // guests are transient — never saved
     this.time = TimeSystem.fromJSON(data.time);
     this.ledger = Ledger.fromJSON(data.ledger);
     this.scenario = data.scenario ? ScenarioManager.fromJSON(data.scenario) : null;
+    for (const member of this.staff.values()) member.depth = this.staffDepth;
     this.modifiers = ModifierSystem.fromJSON(data.modifiers);
     this.reputation = Reputation.fromJSON(data.reputation);
     this.patrons = PatronRegistry.fromJSON(data.patrons);

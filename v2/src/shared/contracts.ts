@@ -101,6 +101,9 @@ export interface HudView {
   /** B8: the scenario's goals and where the casino stands on each. Absent in
    *  Sandbox and free play. */
   goals?: { text: string; progress: string; fraction: number; met: boolean }[];
+  /** B10: marketing and events running or booked now, for the HUD. Absent
+   *  when none are. */
+  events?: { id: string; name: string; status: string }[];
 }
 
 export type SimEvent =
@@ -220,7 +223,19 @@ export type Command =
   | { type: 'heatMap'; kind: 'mood' | 'traffic' }
   // B8: how the run ended (or stands): goals, medal and score for the end
   // card (reply type lives in worker/scenario.ts).
-  | { type: 'scenarioResult' };
+  | { type: 'scenarioResult' }
+  // B11: staff with depth. Train a member (costs money, takes them off the
+  // floor for a few hours), move them to another shift, set a role's hourly
+  // wage, and remove a guest the pit has flagged as suspicious.
+  | { type: 'train'; staffId: string }
+  | { type: 'setShift'; staffId: string; shift: 'day' | 'swing' | 'graveyard' }
+  | { type: 'setWage'; kind: string; wagePerHour: number }
+  | { type: 'removeGuest'; guestId: string }
+  // B10: marketing and events. The panel's view (each event the scenario
+  // offers, its price, cooldown and expected effect; reply type lives in
+  // worker/marketing.ts), and booking one.
+  | { type: 'marketing' }
+  | { type: 'runEvent'; eventId: string };
 
 /** Reply to { type: 'stats' }. */
 export interface SimStats {

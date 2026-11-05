@@ -43,6 +43,9 @@ export interface FinanceHistory {
   hours: FinancePoint[];
   /** Up to 60 closed days, oldest first, then today so far. */
   days: FinancePoint[];
+  /** B10: marketing events booked, by absolute hour (day 1 00:00 = 0),
+   *  start and end inclusive, for the chart to mark. */
+  events?: { name: string; start: number; end: number }[];
 }
 
 function dayGaming(sources: readonly SourceRecord[]) {
@@ -93,7 +96,12 @@ export function financeHistory(world: CasinoWorld): FinanceHistory {
     cash: world.state.cash,
     partial: true,
   });
-  return { hours, days };
+  const events = world.marketing.runs.map((r) => ({
+    name: r.name,
+    start: r.startHourIndex,
+    end: r.endHourIndex,
+  }));
+  return { hours, days, events };
 }
 
 // ---------- the end-of-day report card ----------
@@ -130,6 +138,8 @@ export interface DayReport {
   losers: { name: string; net: number }[];
   /** Fines, forced sales, loans taken and paid off: what to remember. */
   notes: string[];
+  /** B10: marketing events that ran that day; `result` once one has ended. */
+  events: { name: string; result: string | null }[];
 }
 
 function gameResults(r: DailyRecord): GameResult[] {
@@ -183,6 +193,17 @@ export function dayReport(world: CasinoWorld, day?: number): DayReport | null {
     winners: r.winners.slice(0, 3).map((w) => ({ name: w.name, net: w.net })),
     losers: r.losers.slice(0, 3).map((w) => ({ name: w.name, net: w.net })),
     notes: [...(r.notes ?? [])],
+    events: world.marketing.runs
+      .filter(
+        (e) =>
+          Math.floor(e.startHourIndex / 24) + 1 <= r.day &&
+          Math.floor(e.endHourIndex / 24) + 1 >= r.day,
+      )
+      .map((e) => ({
+        name: e.name,
+        result:
+          e.result !== undefined && Math.floor(e.endHourIndex / 24) + 1 === r.day ? e.result : null,
+      })),
   };
 }
 

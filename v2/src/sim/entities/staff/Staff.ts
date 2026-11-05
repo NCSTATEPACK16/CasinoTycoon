@@ -6,6 +6,8 @@ import { NavFilter, STAFF_SPEED } from '../../nav/NavSystem';
 import type { CasinoWorld } from '../../world';
 import type { Guest } from '../Guest';
 import { Walker } from '../Walker';
+import { ADVANTAGE_BALANCE } from '../../../data/balance';
+import { moraleSpeed, repairTimeFactor, type Shift } from './staffing';
 
 /** Security: how close (m) a guard must get to walk a guest out, and how
  *  often (ticks) the chase re-aims at a target who keeps moving. */
@@ -24,7 +26,17 @@ function claims(world: CasinoWorld): Map<string, string> {
 export type StaffKind =
   'mechanic' | 'janitor' | 'bartender' | 'waitress' | 'pitBoss' | 'security' | 'dealer' | 'cashier';
 export type StaffState =
-  'idle' | 'patrol' | 'toJob' | 'working' | 'brewing' | 'stationed' | 'carried';
+  'idle' | 'patrol' | 'toJob' | 'working' | 'brewing' | 'stationed' | 'carried' | 'off';
+
+/** B11: what a member hands over at a shift change. */
+export interface StaffPost {
+  cell: Cell;
+  heading: number;
+  state: 'stationed' | 'brewing' | null;
+  tableId: string | null;
+  barId: string | null;
+  cageId: string | null;
+}
 
 // One class for every role. Mechanic/janitor share the job-queue dispatch
 // below (the only difference is which jobs the world hands them and how long
@@ -48,11 +60,33 @@ export class Staff extends Walker {
   /** Security only: the guest being walked out. */
   targetGuestId: string | null = null;
   private chaseTimer = 0;
+  /** B11: 0–100. What the member is good at (see staffing.ts). */
+  /** B11: skill, morale and fatigue change the work only in a scenario
+   *  with staff depth; elsewhere every hire works as staff did before it,
+   *  so the P16 campaigns keep the numbers they were tuned on. */
+  depth = false;
+  skill = 40;
+  /** B11: 0–100. Low morale slows work and risks a quit. */
+  morale = 70;
+  /** B11: 0–100. Builds on shift, resets off it or on a break. */
+  fatigue = 0;
+  shift: Shift = 'day';
+  /** B11: game hours left off the floor for training or a break. */
+  awayHours = 0;
+  awayFor: 'training' | 'break' | null = null;
+  /** B11, dealers: losing bets paid by mistake, and what they cost. */
+  misPays = 0;
+  misPaid = 0;
 
   constructor(id: string, kind: StaffKind, start: Cell) {
     super(start);
     this.id = id;
     this.kind = kind;
+  }
+
+  /** B11: work-speed multiplier from morale. */
+  get speed(): number {
+    return this.depth ? moraleSpeed(this.morale) : 1;
   }
 
   get moveTicksPerTile(): number {
@@ -85,9 +119,18 @@ export class Staff extends Walker {
   }
 
   get workDurationTicks(): number {
-    if (this.kind === 'mechanic') return STAFF_BALANCE.mechanic.repairTicks;
-    if (this.kind === 'waitress') return STAFF_BALANCE.waitress.deliverTicks;
-    return STAFF_BALANCE.janitor.cleanTicks;
+    if (!this.depth) {
+      if (this.kind === 'mechanic') return STAFF_BALANCE.mechanic.repairTicks;
+      if (this.kind === 'waitress') return STAFF_BALANCE.waitress.deliverTicks;
+      return STAFF_BALANCE.janitor.cleanTicks;
+    }
+    if (this.kind === 'mechanic')
+      return Math.round(
+        (STAFF_BALANCE.mechanic.repairTicks * repairTimeFactor(this.skill)) / this.speed,
+      );
+    if (this.kind === 'waitress')
+      return Math.round(STAFF_BALANCE.waitress.deliverTicks / this.speed);
+    return Math.round(STAFF_BALANCE.janitor.cleanTicks / this.speed);
   }
 
   protected onRouteLost(world: CasinoWorld): void {
@@ -95,7 +138,7 @@ export class Staff extends Walker {
   }
 
   tick(world: CasinoWorld): void {
-    if (this.state === 'carried') return;
+    if (this.state === 'carried' || this.state === 'off') return;
     this.stepMovement(world);
     this.act(world);
   }
@@ -113,6 +156,58 @@ export class Staff extends Walker {
 
   drop(cell: Cell): void {
     this.placeAt(cell);
+    this.state = 'idle';
+  }
+
+  /** B11: leave the floor (off shift, training, a break) at the door, giving
+   *  back any job, table, bar or cage. */
+  clockOut(world: CasinoWorld, door: Cell): void {
+    this.abandonJob(world);
+    if (this.targetGuestId) claims(world).delete(this.targetGuestId);
+    this.targetGuestId = null;
+    this.assignedBarId = null;
+    this.assignedTableId = null;
+    this.assignedCageId = null;
+    this.dealing = false;
+    this.placeAt(door);
+    this.parkHere();
+    this.state = 'off';
+  }
+
+  /** B11: the post a member leaves at a shift change, for whoever relieves
+   *  them: where they stand and, for a stationed role, what they hold. */
+  post(): StaffPost {
+    const held = this.state === 'stationed' || this.state === 'brewing' ? this.state : null;
+    return {
+      cell: { ...this.pos },
+      heading: this.heading,
+      state: held,
+      tableId: held ? this.assignedTableId : null,
+      barId: held ? this.assignedBarId : null,
+      cageId: held ? this.assignedCageId : null,
+    };
+  }
+
+  /** B11: clock in by taking over a post at a shift change, so a table's
+   *  game doesn't stop for the walk from the door. The world re-points its
+   *  claim books at the new member. */
+  relieve(post: StaffPost): void {
+    if (this.state !== 'off') return;
+    this.placeAt(post.cell);
+    this.heading = post.heading;
+    this.state = 'idle';
+    if (!post.state) return;
+    this.assignedTableId = post.tableId;
+    this.assignedBarId = post.barId;
+    this.assignedCageId = post.cageId;
+    this.parkHere();
+    this.state = post.state;
+  }
+
+  /** B11: back on the floor at the door. */
+  clockIn(door: Cell): void {
+    if (this.state !== 'off') return;
+    this.placeAt(door);
     this.state = 'idle';
   }
 
@@ -257,7 +352,9 @@ export class Staff extends Walker {
       target = undefined;
       let best = Infinity;
       for (const g of world.guests.values()) {
-        if (!(g.drunk || g.raging) || g.escorted || g.state === 'gone' || book.has(g.id)) continue;
+        const walkOut =
+          g.drunk || g.raging || (g.suspicious && this.skill >= ADVANTAGE_BALANCE.autoRemoveSkill);
+        if (!walkOut || g.escorted || g.state === 'gone' || book.has(g.id)) continue;
         const d = Math.hypot(g.x - this.x, g.z - this.z);
         if (d < best) [best, target] = [d, g];
       }
@@ -325,7 +422,8 @@ export class Staff extends Walker {
     this.idleTimer++;
     if (this.idleTimer < STAFF_BALANCE.patrolIdleTicks) return;
     this.idleTimer = 0;
-    const target = world.randomWalkableTile();
+    const target =
+      (this.kind === 'pitBoss' ? world.pitPatrolTile() : null) ?? world.randomWalkableTile();
     if (target && this.goTo(world, target)) this.state = 'patrol';
   }
 

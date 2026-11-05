@@ -1529,3 +1529,143 @@ button.scenario.locked {
     animation: none;
   }
 }
+
+/* Track B — B11: the staff roster, shift curve and wage levers; suspicious guests */
+.shift-curve {
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  gap: 2px;
+  align-items: end;
+  height: 72px;
+  margin: 4px 0 8px;
+}
+.shift-curve .sc-hour {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  height: 100%;
+  font-size: 10px;
+}
+.shift-curve .sc-hour i {
+  display: block;
+  width: 100%;
+  height: var(--v);
+  background: color-mix(in srgb, var(--accent, #d4a64a) 55%, transparent);
+  border-radius: 2px 2px 0 0;
+}
+.shift-curve .sc-hour b {
+  font-weight: 600;
+}
+.shift-curve .sc-hour small {
+  opacity: 0.6;
+  min-height: 1em;
+}
+.shift-curve .sc-hour.thin b {
+  color: var(--bad, #e05a5a);
+}
+.wage-levers {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.wage-lever {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 6px;
+  align-items: center;
+  font-size: 12px;
+}
+.wage-lever small {
+  grid-column: 1;
+}
+.wage-lever input {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  width: 64px;
+}
+.roster td small {
+  display: block;
+}
+.roster .r-acts {
+  white-space: nowrap;
+}
+.roster select {
+  font-size: 12px;
+}
+.guest-table .sus-badge {
+  color: var(--bad, #e05a5a);
+  font-size: 11px;
+  font-weight: 600;
+}
+.guest-table tr.suspicious td {
+  background: color-mix(in srgb, var(--bad, #e05a5a) 10%, transparent);
+}
+.guest-filter .warn-btn {
+  color: var(--bad, #e05a5a);
+}
+.staff-roster .roster select {
+  max-width: 96px;
+}
+.staff-roster .roster td,
+.staff-roster .roster th {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+/* Track B — B10: marketing and events. */
+.condition.event {
+  border-color: rgba(120, 170, 255, 0.55);
+}
+.condition.event b {
+  color: #8fb4ff;
+}
+.marketing .mk-running {
+  margin: 4px 0 8px;
+  font-size: 12px;
+}
+.marketing .mk-list {
+  display: grid;
+  gap: 8px;
+}
+.marketing .mk-card {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.marketing .mk-card.blocked {
+  opacity: 0.7;
+}
+.marketing .mk-card p {
+  margin: 4px 0;
+}
+.marketing .mk-top {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.marketing .mk-kind {
+  font-size: 11px;
+  color: #a99fb8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.marketing .mk-cost {
+  margin-left: auto;
+  font-weight: 600;
+}
+.marketing .mk-foot {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+.marketing .mk-expected {
+  color: #8fb4ff;
+}
+.marketing .mk-foot button {
+  white-space: nowrap;
+}

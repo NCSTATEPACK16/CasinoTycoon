@@ -4,10 +4,7 @@ import {
   PACHINKO_BALANCE,
   PENNY_SLOT_BALANCE,
   VIDEO_POKER_BALANCE,
-  kenoExpectedRtp,
-  pachinkoExpectedRtp,
   pennySlotExpectedRtp,
-  videoPokerExpectedRtp,
 } from '../data/balance';
 import { getObjectDef, OBJECT_CATALOG } from '../data/objects';
 import { createMachine } from './entities/machines/factory';
@@ -127,11 +124,10 @@ describe('Tier 1 payouts over many plays', () => {
   // The payout tables are asserted analytically in payoutVariance.test.ts; this
   // checks the machines actually roll against the table they claim, which a
   // copy-paste between four near-identical subclasses could easily get wrong.
+  // Keno left this list in B9b, video poker and pachinko in B9c: they play
+  // real engines, and engineMachines.test.ts checks their hold against theo.
   const cases = [
     { id: 'penny-slots', rtp: pennySlotExpectedRtp(), wager: PENNY_SLOT_BALANCE.costToPlay },
-    { id: 'pachinko', rtp: pachinkoExpectedRtp(), wager: PACHINKO_BALANCE.costToPlay },
-    { id: 'keno-lounge', rtp: kenoExpectedRtp(), wager: KENO_BALANCE.costToPlay },
-    { id: 'video-poker', rtp: videoPokerExpectedRtp(), wager: VIDEO_POKER_BALANCE.costToPlay },
   ];
 
   for (const { id, rtp, wager } of cases) {
@@ -172,10 +168,11 @@ describe('Tier 1 on a live floor', () => {
 
       for (let i = 0; i < TICKS[id]!; i++) world.tick();
 
-      // Every Tier 1 game has a positive house edge, so a long run must end up
-      // ahead. Zero means it was never played; negative means its payout table
-      // is inverted.
-      expect(machine!.lifetimeProfit, `${id} never earned over ${TICKS[id]} ticks`).toBeGreaterThan(0);
+      // Money moved: zero means it was never played. Every game is a real engine
+      // now (B9), and a short run can end behind on a jackpot (a royal, a rush, a
+      // bingo pool), so the sign is not the check any more: engineMachines.test.ts
+      // holds each machine's hold to its theoretical edge over 40k plays.
+      expect(machine!.lifetimeProfit, `${id} never played over ${TICKS[id]} ticks`).not.toBe(0);
       // Wear only accrues on a real play, so this is the independent check that
       // guests actually sat down rather than the profit coming from elsewhere.
       expect(machine!.reliability, `${id} was never played`).toBeLessThan(100);

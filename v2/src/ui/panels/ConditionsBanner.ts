@@ -13,12 +13,13 @@ export class ConditionsBanner {
     this.root.hidden = true;
   }
 
-  update(mods: HudView['modifiers']): void {
+  update(mods: HudView['modifiers'], events: HudView['events'] = []): void {
     const list = mods ?? [];
-    const key = list.map((m) => m.id).join('|');
+    const booked = events ?? [];
+    const key = [...list.map((m) => m.id), ...booked.map((e) => `${e.id}:${e.status}`)].join('|');
     if (key === this.key) return;
     this.key = key;
-    this.root.hidden = list.length === 0;
+    this.root.hidden = list.length === 0 && booked.length === 0;
     this.root.replaceChildren(el('span', 'conditions-label', 'Today'));
     for (const m of list) {
       const chip = el(
@@ -27,6 +28,16 @@ export class ConditionsBanner {
         `<b>${escapeHtml(m.name)}</b> <span>${escapeHtml(m.blurb)}</span>`,
       );
       chip.dataset.id = m.id;
+      this.root.append(chip);
+    }
+    // B10: the player's own ads and events, booked or running.
+    for (const e of booked) {
+      const chip = el(
+        'span',
+        'condition event',
+        `<b>${escapeHtml(e.name)}</b> <span>${escapeHtml(e.status)}</span>`,
+      );
+      chip.dataset.id = e.id;
       this.root.append(chip);
     }
   }
