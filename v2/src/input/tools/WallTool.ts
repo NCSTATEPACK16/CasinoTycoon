@@ -3,13 +3,12 @@
 // one down instead. Clicking an existing wall without dragging toggles a door
 // in it.
 
+import { DOOR_PRICE_PER_SEGMENT, WALL_PRICE_PER_SEGMENT } from '../../data/floorPrices';
 import { money } from '../../ui/tools/CursorTag';
 import type { PickHit } from '../Picker';
 import { nearestEdge, nearestVertex, wallPath, type EdgeKey, type Vertex } from './gridMath';
 import { isNotImplemented, type Tool, type ToolContext } from './Tool';
 
-/** Preview price per metre of wall; the sim is authoritative. */
-export const WALL_PREVIEW_COST = 30;
 const DOOR_PICK_DIST = 0.22;
 
 export class WallTool implements Tool {
@@ -82,6 +81,13 @@ export class WallTool implements Tool {
     return e;
   }
 
+  private underObject(e: EdgeKey): boolean {
+    const w = this.ctx.world;
+    const a = w.objectAt(e.col, e.row);
+    const b = e.edge === 'n' ? w.objectAt(e.col, e.row - 1) : w.objectAt(e.col - 1, e.row);
+    return !!a && a === b;
+  }
+
   private send(cmd: Parameters<ToolContext['sim']['command']>[0], what: string): void {
     this.ctx.sim.command(cmd).catch((err: Error) => {
       this.ctx.say(
@@ -106,10 +112,12 @@ export class WallTool implements Tool {
       o.setEdges(door ? [door] : [], 0x66e0ff);
       if (door) {
         const isDoor = this.ctx.world.wallAt(door.col, door.row, door.edge)?.door;
+        // A wall turned into a door is charged the difference (see sim/build.ts).
+        const cost = DOOR_PRICE_PER_SEGMENT - WALL_PRICE_PER_SEGMENT;
         this.ctx.tag.show(
           hit.clientX,
           hit.clientY,
-          isDoor ? 'Click: remove door' : 'Click: add door',
+          isDoor ? 'Click: remove door' : `Click: add door · ${money(cost)}`,
         );
       } else this.ctx.tag.show(hit.clientX, hit.clientY, 'Drag to build · Alt-drag to remove');
       return;
@@ -118,7 +126,14 @@ export class WallTool implements Tool {
     o.setVertex(this.end);
     o.setEdges(path.edges, this.removing ? 0xe74c3c : 0xf6c453);
     const n = path.edges.length;
-    const label = this.removing ? `Remove ${n} m` : `${n} m · ${money(n * WALL_PREVIEW_COST)}`;
+    // Only new segments are charged: existing walls and edges inside an
+    // object's footprint are skipped, as the sim does.
+    const fresh = path.edges.filter(
+      (e) => !this.ctx.world.wallAt(e.col, e.row, e.edge) && !this.underObject(e),
+    ).length;
+    const label = this.removing
+      ? `Remove ${n} m`
+      : `${n} m · ${fresh ? money(fresh * WALL_PRICE_PER_SEGMENT) : 'Free'}`;
     this.ctx.tag.show(hit.clientX, hit.clientY, label, this.removing ? 'bad' : 'ok');
   }
 }

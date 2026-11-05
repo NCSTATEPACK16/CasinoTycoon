@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { eventBus } from '../../../EventBus';
+import { OBJECT_CATALOG } from '../../../data/objects';
 import { ENGINE_FOR_DEF } from '../../games';
 import { Rng } from '../../rng';
 import { CasinoWorld } from '../../world';
@@ -68,8 +69,10 @@ describe('engine-backed machines', () => {
     };
     const fast = count(1);
     const slow = count(0.5);
-    if (m.math!.kind === 'slots')
-      expect(slow).toBe(fast); // a play is one spin, floored at 1
+    // A play of one spin, hand or cup is floored at 1 whatever the speed
+    // (and none of these has a dealer to be slow without).
+    if (['slots', 'videopoker', 'pachinko'].includes(m.math!.kind))
+      expect(slow).toBe(fast);
     else expect(slow).toBeLessThan(fast * 0.7);
   });
 
@@ -98,9 +101,11 @@ describe('engine-backed machines', () => {
     expect(slot.costToPlay).toBe(5);
   });
 
-  it('v1 games without an engine report no rules', () => {
-    expect(createMachine('sic-bo', 'x')!.setRules({})).toBeNull();
-    expect(createMachine('sic-bo', 'x')!.math).toBeNull();
+  it('every game in the catalogue plays an engine (B9 retired the v1 tables)', () => {
+    for (const def of OBJECT_CATALOG.filter((d) => d.category === 'game')) {
+      expect(ENGINE_FOR_DEF[def.id], def.id).toBeDefined();
+      expect(createMachine(def.id, 'x')!.math, def.id).not.toBeNull();
+    }
   });
 });
 

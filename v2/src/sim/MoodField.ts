@@ -26,8 +26,13 @@ const MIN_WEIGHT = 0.35;
  * instead of going cold.
  */
 export class MoodField {
-  private sum = new TileField();
-  private weight = new TileField();
+  private sum: TileField;
+  private weight: TileField;
+
+  constructor(cols?: number, rows?: number) {
+    this.sum = new TileField(cols, rows);
+    this.weight = new TileField(cols, rows);
+  }
 
   /** Record one guest standing on one tile. */
   sample(col: number, row: number, happiness: number): void {

@@ -3,6 +3,8 @@
 // stopping early when the guest's wallet can no longer cover the next bet.
 
 import { ENGINE_BALANCE } from '../../../data/balance';
+import { recordRound } from '../../fx/rounds';
+import type { RoundResult } from '../../../shared/games';
 import type { Rng } from '../../rng';
 import type { PlayContext, PlayResult } from './CasinoGame';
 import type { GameMath } from './GameMath';
@@ -49,6 +51,7 @@ export function playEngineRounds(
   let theo = 0;
   let dealt = 0;
   let summary: string | undefined;
+  let last: RoundResult | null = null;
   for (let i = 0; i < rounds; i++) {
     const r = math.playRound({ ...ctx, wallet: ctx.wallet - wager + payout }, rng);
     if (!r) break;
@@ -56,8 +59,11 @@ export function playEngineRounds(
     payout += r.returned;
     theo += r.theo;
     summary = r.summary;
+    last = r;
     dealt++;
   }
+  // Track A: the floor shows this play's last round (reads it, never the RNG).
+  if (last) recordRound(math, last);
   // Cents are the smallest chip; slot pays at a penny denomination stay exact.
   return {
     wager: Math.round(wager * 100) / 100,

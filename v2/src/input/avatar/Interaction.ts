@@ -4,13 +4,14 @@
 //
 // E sends `inspect` and re-broadcasts the reply as an `inspect` CustomEvent on
 // window ({ objectId, ok, data?, error? }) for the lead's inspector panel.
-// F sits the avatar at the nearest free seat and fires `playRequested`
+// F asks the sim for a seat (`sit`; a full table says so), sits the avatar at
+// the nearest seat no guest is in, and fires `playRequested`
 // ({ objectId, defId, game }); the play UI is the lead's and Session 4's.
-// F again, or V, stands back up.
+// F again, or V, stands back up and gives the seat back (`stand`).
 
 import { getObjectDef } from '../../data/objects';
 import { get3D } from '../../shared/catalog';
-import type { ObjectView } from '../../shared/contracts';
+import { AGENT_STRIDE, AgentKind, type ObjectView } from '../../shared/contracts';
 import type { SimClient } from '../../client/SimClient';
 import type { CameraDirector, Seat } from '../../camera/CameraDirector';
 import type { InteractPrompt } from '../../ui/tools/InteractPrompt';
@@ -21,6 +22,8 @@ import { footprintOf, type WorldView } from '../WorldView';
 import type { Avatar } from './Avatar';
 
 export const INTERACT_RANGE = 2;
+/** A seat with a guest closer than this to it is taken. */
+const SEAT_TAKEN_M = 0.45;
 
 export interface InspectEventDetail {
   objectId: string;
@@ -37,6 +40,9 @@ export interface PlayRequestedDetail {
 
 export class Interaction {
   target: ObjectView | null = null;
+  /** The object the sim has given the avatar a seat at. */
+  private seatedAt: string | null = null;
+  private sitting = false;
 
   constructor(
     private avatar: Avatar,
@@ -54,6 +60,11 @@ export class Interaction {
       if (m !== 'third' && m !== 'first') return;
       if (e.code === 'KeyE' && this.target) this.inspect(this.target);
       if (e.code === 'KeyF' && this.target && this.canPlay(this.target)) this.sitAt(this.target);
+    });
+    window.addEventListener('cameraModeChange', () => {
+      if (this.director.mode === 'seat' || !this.seatedAt) return;
+      this.seatedAt = null;
+      void this.sim.command({ type: 'stand' }).catch(() => {});
     });
   }
 
@@ -122,7 +133,38 @@ export class Interaction {
   }
 
   private sitAt(o: ObjectView): void {
-    const seat = seatFor(o, this.avatar.pos);
+    if (this.sitting) return;
+    this.sitting = true;
+    this.sim
+      .command({ type: 'sit', objectId: o.id })
+      .then(() => {
+        const m = this.director.mode;
+        if (m !== 'third' && m !== 'first') {
+          void this.sim.command({ type: 'stand' }).catch(() => {});
+          return;
+        }
+        this.seatedAt = o.id;
+        this.seatDown(o);
+      })
+      .catch((err: Error) => this.say(capitalise(err.message)))
+      .finally(() => (this.sitting = false));
+  }
+
+  /** Where guests stand or sit right now, from the latest snapshot. */
+  private guestSpots(): { x: number; z: number }[] {
+    const snap = this.sim.curr;
+    const out: { x: number; z: number }[] = [];
+    if (!snap) return out;
+    for (let i = 0; i < snap.agentCount; i++) {
+      const o = i * AGENT_STRIDE;
+      if (snap.agents[o + 4] === AgentKind.Guest)
+        out.push({ x: snap.agents[o]!, z: snap.agents[o + 1]! });
+    }
+    return out;
+  }
+
+  private seatDown(o: ObjectView): void {
+    const seat = seatFor(o, this.avatar.pos, this.guestSpots());
     this.director.sit(seat);
     const detail: PlayRequestedDetail = {
       objectId: o.id,
@@ -133,9 +175,18 @@ export class Interaction {
   }
 }
 
-/** The catalog seat nearest `near`, in world space. Objects without seat data
- *  get one in front of their footprint (unrotated +z side), facing in. */
-export function seatFor(o: ObjectView, near: { x: number; z: number }): Seat {
+function capitalise(t: string): string {
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+/** The catalog seat nearest `near`, in world space, skipping seats a guest is
+ *  in when another is free. Objects without seat data get one in front of
+ *  their footprint (unrotated +z side), facing in. */
+export function seatFor(
+  o: ObjectView,
+  near: { x: number; z: number },
+  guests: { x: number; z: number }[] = [],
+): Seat {
   const def = getObjectDef(o.defId);
   const w = def?.footprint.w ?? 1;
   const h = def?.footprint.h ?? 1;
@@ -147,7 +198,8 @@ export function seatFor(o: ObjectView, near: { x: number; z: number }): Seat {
     const r = rotateLocal(s.x, s.z, s.facing, w, h, o.rot);
     const x = o.col + r.x;
     const z = o.row + r.z;
-    const d = Math.hypot(x - near.x, z - near.z);
+    const taken = guests.some((g) => Math.hypot(g.x - x, g.z - z) < SEAT_TAKEN_M);
+    const d = Math.hypot(x - near.x, z - near.z) + (taken ? 1000 : 0);
     if (d < bestD) {
       bestD = d;
       best = {

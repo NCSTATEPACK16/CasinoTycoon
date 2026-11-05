@@ -43,7 +43,7 @@ export interface ThoughtDef {
  * one-off reactions to an event. They still need a bubble glyph, so
  * THOUGHT_EMOJI's coverage test has to know about them.
  */
-export const EVENT_THOUGHT_IDS = ['celebrate', 'ripoff', 'raging'] as const;
+export const EVENT_THOUGHT_IDS = ['celebrate', 'ripoff', 'raging', 'drunk', 'homeTime'] as const;
 
 /**
  * Bubble glyph per thought id. Lives here rather than next to the bubble
@@ -74,6 +74,8 @@ export const THOUGHT_EMOJI: Record<string, string> = {
   flush: '🍀',
   'worn-out': '🪑',
   content: '🙂',
+  drunk: '🥴',
+  homeTime: '👋',
 };
 
 export const THOUGHTS: readonly ThoughtDef[] = [

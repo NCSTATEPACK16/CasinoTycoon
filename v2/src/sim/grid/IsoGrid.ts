@@ -71,8 +71,15 @@ export class IsoGrid {
     return true;
   }
 
-  /** Empty every cell (scenario reset) — the grid object itself stays aliased. */
-  clear(): void {
+  /** Empty every cell (scenario reset), resizing to a new lot if one is given —
+   *  the grid object itself stays aliased. */
+  clear(cols = this.cols, rows = this.rows): void {
+    if (cols !== this.cols || rows !== this.rows) {
+      this.cols = cols;
+      this.rows = rows;
+      this.occupants = new Array<string | null>(cols * rows).fill(null);
+      return;
+    }
     this.occupants.fill(null);
   }
 

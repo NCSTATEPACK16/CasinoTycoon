@@ -83,9 +83,16 @@ export class PlayerControls {
       .finally(() => {
         if (!this.avatar.spawned) this.avatar.mesh.visible = false;
       });
-    // Lot bounds follow the floor plan once one arrives.
+    // Lot bounds follow the floor plan once one arrives. A lot of a new size
+    // (Sandbox after a campaign, or back) is framed whole, as the 40×30 lot is
+    // at boot: centred, from a distance that scales with its width.
     o.sim.onSnapshot((s) => {
-      if (s.floor) this.god.bounds = { cols: s.floor.cols, rows: s.floor.rows };
+      if (!s.floor) return;
+      const { cols, rows } = s.floor;
+      if (cols === this.god.bounds.cols && rows === this.god.bounds.rows) return;
+      this.god.bounds = { cols, rows };
+      this.god.focusOn(cols / 2, rows / 2, (32 * cols) / 40);
+      this.god.settle();
     });
     // Until the avatar first appears it waits, invisible, at the entrance.
   }

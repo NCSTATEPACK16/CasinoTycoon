@@ -29,6 +29,12 @@ export const AI = {
   maxIdleLooks: 4,
   /** Bankroll a guest needs to be allowed into High-Limit at all. */
   highLimitBankroll: 400,
+  /** B7a: chance a guest with no reason to get up plays another run at the
+   *  same game rather than walking to the next. Runs per sitting average
+   *  1 / (1 − this): ten at 0.9. Measured with the 0.3 s tick on the ~210-seat
+   *  Sandbox floor: 15–16% of guests at a game without it, 17–19% with it;
+   *  on the 40×30 lot about 61%. [tuned in B7a] */
+  stayAtGame: 0.9,
   /** Leave when happiness sinks this low, broke or not. */
   leaveUnhappy: 12,
   /** Drinks within one visit that make a guest drunk. */

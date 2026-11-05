@@ -1,6 +1,5 @@
 import { eventBus } from '../../../EventBus';
 import { supportsTableMinimum, TABLE_MINIMUMS, wagerForMinimum } from '../../../data/balance';
-import type { PayoutOutcome } from '../../../data/balance';
 import type { Rng } from '../../rng';
 import type { RulesIssue } from '../../games/types';
 import type { GameMath, GuestPlayContext } from './GameMath';
@@ -188,21 +187,16 @@ export abstract class CasinoGame {
     };
   }
 
-  protected rollPayout(rng: Rng, table: readonly PayoutOutcome[]): number {
-    let r = rng.next();
-    for (const outcome of table) {
-      if (r < outcome.p) return Math.round(this.costToPlay * outcome.multiplier);
-      r -= outcome.p;
-    }
-    return 0;
-  }
-
   private applyWear(): void {
     this.reliability = Math.max(0, this.reliability - this.wearPerPlay());
     if (this.reliability <= 0 && !this.broken) {
       this.broken = true;
       eventBus.emit('machineBroke', { machineId: this.id });
-      eventBus.emit('tickerMessage', { text: 'A machine has broken down!', severity: 'alert' });
+      eventBus.emit('tickerMessage', {
+        text: 'A machine has broken down!',
+        severity: 'alert',
+        objectId: this.id,
+      });
     }
   }
 }

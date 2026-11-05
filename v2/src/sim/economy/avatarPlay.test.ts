@@ -3,7 +3,8 @@ import { eventBus } from '../../EventBus';
 import { SANDBOX } from '../../data/campaigns';
 import { runCommand } from '../../worker/commands';
 import { SnapshotBuilder } from '../../worker/snapshot';
-import { CasinoWorld } from '../world';
+import { SeatedCasinoGame } from '../entities/machines/SeatedCasinoGame';
+import { CasinoWorld, PLAYER_SEAT } from '../world';
 import { casinoFinancials } from './financials';
 import { PLAYER_START_WALLET, type PlayerRoundReply } from './PlayerPlay';
 
@@ -70,12 +71,43 @@ describe('avatar play', () => {
     expect(world.ledger.todayPlayer.rounds).toBe(5);
   });
 
+  it('needs a free seat: a full table turns the avatar away, and it holds its seat', () => {
+    const { world, snap, ids } = setup();
+    const table = world.machines.get(ids.blackjack) as SeatedCasinoGame;
+    for (let i = 0; i < table.seatCount; i++) table.claimSeat(`g${i}`);
+    const bet = [{ spot: 'main', amount: 25 }];
+    expect(runCommand(world, snap, { type: 'sit', objectId: ids.blackjack })).toEqual({
+      ok: false,
+      error: 'every seat is taken',
+    });
+    expect(
+      runCommand(world, snap, { type: 'roundBegin', objectId: ids.blackjack, bets: bet }).ok,
+    ).toBe(false);
+    // A guest leaves: the avatar takes that seat, and the next guest can't.
+    table.release('g1');
+    expect(runCommand(world, snap, { type: 'sit', objectId: ids.blackjack }).ok).toBe(true);
+    expect(table.seatOf(PLAYER_SEAT)).toBe(1);
+    expect(table.isAvailable).toBe(false);
+    expect(snap.build(world, 0).objects!.find((o) => o.id === ids.blackjack)!.occupants).toBe(
+      table.seatCount,
+    );
+    // Standing frees it again; a single-player machine in use is refused too.
+    runCommand(world, snap, { type: 'stand' });
+    expect(table.isSeatFree(1)).toBe(true);
+    world.machines.get(ids.slots)!.reservedBy = 'g9';
+    expect(runCommand(world, snap, { type: 'sit', objectId: ids.slots })).toEqual({
+      ok: false,
+      error: 'someone is already playing',
+    });
+  });
+
   it('moves money between the player wallet and the house, through the ledger', () => {
     const { world, snap, ids } = setup();
     const cash = world.state.cash;
     const reply = playThrough(world, snap, ids.roulette, [{ spot: 'black', amount: 50 }]);
     const net = reply.result!.wagered - reply.result!.returned;
     expect(reply.wallet).toBe(PLAYER_START_WALLET - net);
+    expect(reply.onTable).toBe(0);
     expect(world.player.wallet).toBe(reply.wallet);
     expect(world.state.cash).toBe(cash + net);
     const row = world.ledger.sources.get(ids.roulette)!;
@@ -101,6 +133,24 @@ describe('avatar play', () => {
     expect(
       bad({ type: 'roundBegin', objectId: 'nope', bets: [{ spot: 'red', amount: 10 }] }),
     ).toBeTruthy();
+  });
+
+  it('reports the stake in play until the round settles', () => {
+    const { world, snap, ids } = setup();
+    const res = runCommand(world, snap, {
+      type: 'roundBegin',
+      objectId: ids.blackjack,
+      bets: [{ spot: 'main', amount: 25 }],
+    });
+    const reply = (res as { data: PlayerRoundReply }).data;
+    expect(reply.options).not.toBeNull();
+    // The bankroll moves only on settlement; the stake is reported beside it.
+    expect(reply.wallet).toBe(PLAYER_START_WALLET);
+    expect(reply.onTable).toBe(25);
+    const fin = runCommand(world, snap, { type: 'financials' }) as { data: { onTable: number } };
+    expect(fin.data.onTable).toBe(25);
+    const done = playThrough(world, snap, ids.roulette, [{ spot: 'red', amount: 20 }]);
+    expect(done.onTable).toBe(25);
   });
 
   it('a double the wallet cannot cover is refused mid-round', () => {

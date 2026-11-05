@@ -1,16 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { PATRONS, patronTierFor } from '../data/balance';
-import { PatronRegistry } from './patrons';
+import { PATRON_RECENT_VISITS, PatronRegistry } from './patrons';
 import { Rng } from './rng';
 
 /** A departing guest, as `recordDeparture` sees one. */
-function departing(overrides: Partial<{
-  id: string;
-  name: string;
-  patronId: string | null;
-  compsReceived: number;
-  theo: number;
-}> = {}) {
+function departing(
+  overrides: Partial<{
+    id: string;
+    name: string;
+    patronId: string | null;
+    compsReceived: number;
+    theo: number;
+  }> = {},
+) {
   const theo = overrides.theo ?? PATRONS.cardThresholdTheo;
   return {
     id: overrides.id ?? 'g-1',
@@ -204,16 +206,23 @@ describe('bounds', () => {
         900,
       );
     }
+    // Worst case for B2's visit history: every patron has a full one.
+    for (const p of reg.all())
+      for (let v = 0; v < PATRON_RECENT_VISITS; v++)
+        p.remember({ day: 896 + v, theo: 12345.678, comps: 199.5 });
     reg.drawForDay(901, new Rng(1));
     // The acceptance bar the design signed up to: a bounded roster, not a
-    // growing one. 25KB is the ceiling; blowing it means the bound is fiction.
+    // growing one; blowing it means the bound is fiction. It was 25KB before
+    // B2 added visit history; the full-history worst case measures 30.5KB, so
+    // the ceiling is 32KB. A whole save is far larger (every placed object),
+    // and localStorage holds megabytes, so the bound is what matters here.
     const bytes = JSON.stringify(reg.toJSON()).length;
-    expect(bytes).toBeLessThan(25_000);
+    expect(bytes).toBeLessThan(32_000);
   });
 });
 
 describe('serialization', () => {
-  it('round-trips the roster, the day\'s draw, and the id counter', () => {
+  it("round-trips the roster, the day's draw, and the id counter", () => {
     const reg = new PatronRegistry();
     const patron = reg.recordDeparture(departing({ theo: 500 }), 4).patron!;
     reg.recordDeparture({ ...departing({ theo: 10 }), patronId: patron.id }, 4);

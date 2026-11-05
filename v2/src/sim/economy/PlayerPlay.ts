@@ -15,7 +15,10 @@ export interface PlayerRoundReply {
   view: unknown;
   /** Present once settled. */
   result?: RoundResult & { theo: number };
+  /** The bankroll, settled rounds only: chips still in play are in it. */
   wallet: number;
+  /** Chips committed to rounds that haven't settled, on every table. */
+  onTable: number;
 }
 
 interface OpenRound {
@@ -97,6 +100,13 @@ export class PlayerPlay {
     return this.open.has(machineId);
   }
 
+  /** Chips in every open round. */
+  get onTable(): number {
+    let sum = 0;
+    for (const e of this.open.values()) sum += e.committed;
+    return sum;
+  }
+
   /** Chips already on other tables: one wallet covers every open round. */
   private committedElsewhere(machineId: string): number {
     let sum = 0;
@@ -112,9 +122,15 @@ export class PlayerPlay {
       this.wallet = Math.round((this.wallet + res.returned - res.wagered) * 100) / 100;
       this.open.delete(machineId);
       house.settle(machineId, result);
-      return { options: null, view: entry.round.view(), result, wallet: this.wallet };
+      return {
+        options: null,
+        view: entry.round.view(),
+        result,
+        wallet: this.wallet,
+        onTable: this.onTable,
+      };
     }
-    return { options, view: entry.round.view(), wallet: this.wallet };
+    return { options, view: entry.round.view(), wallet: this.wallet, onTable: this.onTable };
   }
 
   toJSON(): PlayerPlayJSON {

@@ -23,8 +23,13 @@ export class Lighting {
   readonly sun: THREE.DirectionalLight;
   readonly hemi: THREE.HemisphereLight;
   private sunDir = new THREE.Vector3(-0.45, 1, 0.3).normalize();
-  /** Furthest ground distance the shadow map has to cover. */
+  /** Furthest ground distance the shadow map has to cover, from overhead. */
   shadowReach = 70;
+  /** The reach from eye level. Looking along the floor, every frustum corner
+   *  above the horizon used to clamp ~50 m out, rendering casters for a wedge
+   *  of the floor whose shadows are invisible at that range; at 500 guests on
+   *  a full Sandbox that was ~70 draw calls and 200k triangles. */
+  eyeShadowReach = 24;
 
   constructor(
     private scene: THREE.Scene,
@@ -66,14 +71,16 @@ export class Lighting {
     camera.updateMatrixWorld();
     const pts: THREE.Vector3[] = [];
     const camPos = camera.position;
+    // Overhead the view needs the full reach; it shrinks toward eye level.
+    const reach = THREE.MathUtils.clamp(camPos.y * 4, this.eyeShadowReach, this.shadowReach);
     for (const c of corners) {
       tmp.copy(c).unproject(camera);
       ray.set(camPos, tmp.sub(camPos).normalize());
       const hit = new THREE.Vector3();
-      if (!ray.intersectPlane(plane, hit) || hit.distanceTo(camPos) > this.shadowReach) {
+      if (!ray.intersectPlane(plane, hit) || hit.distanceTo(camPos) > reach) {
         // Corner looks above the horizon (or too far): clamp along the ray's ground projection.
         const flat = new THREE.Vector3(ray.direction.x, 0, ray.direction.z).normalize();
-        hit.set(camPos.x, 0, camPos.z).addScaledVector(flat, this.shadowReach * 0.7);
+        hit.set(camPos.x, 0, camPos.z).addScaledVector(flat, reach * 0.7);
       }
       pts.push(hit);
     }

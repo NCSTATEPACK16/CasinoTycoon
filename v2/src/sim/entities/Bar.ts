@@ -1,8 +1,10 @@
-import { BAR_BALANCE } from '../../data/balance';
+import { BAR_BALANCE, PRICE_BALANCE } from '../../data/balance';
 
 export interface BarJSON {
   id: string;
   stock: number;
+  /** B2: absent in older saves, which means the default price. */
+  price?: number;
 }
 
 // A placed Bar's drink stock. No wager/payout — this isn't a CasinoGame.
@@ -11,13 +13,28 @@ export interface BarJSON {
 export class Bar {
   readonly id: string;
   stock = 0;
+  /** What a drink sells for here; the player sets it (B2). */
+  price: number = BAR_BALANCE.drinkPrice;
 
   constructor(id: string) {
     this.id = id;
   }
 
-  brew(): void {
-    this.stock = Math.min(BAR_BALANCE.maxStock, this.stock + 1);
+  setPrice(price: number): void {
+    const p = PRICE_BALANCE;
+    this.price = Math.round(Math.min(p.barPriceCeil, Math.max(p.barPriceFloor, price)));
+  }
+
+  /** Price over the default: 1 untouched, 2 at double. */
+  get priceIndex(): number {
+    return this.price / BAR_BALANCE.drinkPrice;
+  }
+
+  /** One more drink into stock; false at a full bar, where nothing is poured. */
+  brew(): boolean {
+    if (this.stock >= BAR_BALANCE.maxStock) return false;
+    this.stock++;
+    return true;
   }
 
   hasStock(): boolean {
@@ -32,12 +49,13 @@ export class Bar {
   }
 
   toJSON(): BarJSON {
-    return { id: this.id, stock: this.stock };
+    return { id: this.id, stock: this.stock, price: this.price };
   }
 
   static fromJSON(data: BarJSON): Bar {
     const bar = new Bar(data.id);
     bar.stock = data.stock;
+    if (data.price !== undefined) bar.setPrice(data.price);
     return bar;
   }
 }

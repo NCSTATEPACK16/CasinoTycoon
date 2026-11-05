@@ -26,7 +26,12 @@ export const SurfaceFlag = {
   Variant: 2,
   /** Chases: emissive pulses along x to fake marquee bulb chasers. */
   Chase: 4,
+  /** A reel window or video screen: the shader draws live reels in it (render/fx/reels.ts). */
+  Reel: 8,
 } as const;
+
+/** Decals the reels are drawn into. */
+export const REEL_DECALS = new Set(['slotReels', 'pennyScreen']);
 
 export const PALETTE = {
   white: { color: 0xffffff, rough: 0.6, metal: 0 },

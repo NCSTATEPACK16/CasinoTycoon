@@ -5,7 +5,8 @@
 import './tools.css';
 import { FLOOR_TYPES, ZONES, type FloorType, type Zone } from '../../shared/contracts';
 import type { BuildTool } from '../../input/BuildTool';
-import { FLOOR_COLORS, FLOOR_PREVIEW_COST, ZONE_COLORS } from '../../input/tools/PaintTool';
+import { FLOOR_PRICE_PER_CELL, ZONE_PRICE_PER_CELL } from '../../data/floorPrices';
+import { FLOOR_COLORS, ZONE_COLORS } from '../../input/tools/PaintTool';
 import { money } from './CursorTag';
 
 const HINTS: Record<string, string> = {
@@ -62,7 +63,7 @@ export class BuildToolbar {
         this.swatch(
           LABEL[f]!,
           FLOOR_COLORS[f],
-          FLOOR_PREVIEW_COST[f],
+          FLOOR_PRICE_PER_CELL[f],
           () => {
             build.floorType = f as FloorType;
             build.paintFloor(f);
@@ -75,7 +76,7 @@ export class BuildToolbar {
         this.swatch(
           LABEL[z]!,
           ZONE_COLORS[z],
-          0,
+          ZONE_PRICE_PER_CELL,
           () => {
             build.zone = z as Zone;
             build.paintZone(z);
