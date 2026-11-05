@@ -1,8 +1,42 @@
-# Loop prompts for the two parallel tracks
+# Loop prompts
 
-Run each prompt in its own fresh session. Ideally that session already has its own worktree: in the desktop app, start a new session with a worktree whose branch is `v2-alive` or `v2-tycoon`, based on `v2-playable`. If it doesn't, task A0/B0 creates one. Never run both tracks in the main checkout.
+Run each prompt in its own fresh session with its own worktree. Never run a track in the main checkout.
 
-## Track A: Alive
+## v2.1 Track A part 2 (current)
+
+```
+/loop Track A part 2 of Casino Tycoon v2 (v2.1): decor art, lighting, celebrations, people, exterior. Briefing, read in full every iteration: v2/docs/handoffs/NEXT-SESSION.md (shared rules; its v2.1 section overrides older lines), v2/docs/handoffs/10-alive-2.md (your task list) and v2/docs/SPEC.md.
+
+Each iteration:
+1. git fetch origin. If origin/v2.1 has commits your branch lacks, merge them in (merge, not rebase), resolving with the ownership rules in NEXT-SESSION.md. Then git log --oneline -5 and reread the briefing.
+2. Take the first unticked task in 10-alive-2.md and do only that, in its order (A0, A10, A8, A12, A9, A11, then A14). A0 sets up your worktree on branch v2-alive-2 from origin/v2.1, launch config "v2-alive-2" on port 5175, npm install, a draft PR into v2.1, the CC0 texture download request, and the stress baseline. Never work in the main checkout at ~/Documents/ClaudeWork/CasinoTycoon.
+3. Read the code the task touches before changing it. Use subagents where they help and check their work yourself.
+4. Verify with evidence: npx tsc --noEmit; only the affected test files; the economics guard if you touched src/sim; the built-in browser (preview_start "v2-alive-2"), driving the change through the UI, window.__v2 only for setup; screenshots; stress-scene fps, draw calls, triangles and tick before and after, on High and (once A8 lands) Low.
+5. Tick the task with that evidence. Commit work and ticked file together (message explains why, ends with the Co-Authored-By line). Push v2-alive-2 only, and update the draft PR.
+6. Checkpoints: after A10 and after A8, publish the screenshots as a private Artifact page, report the link to me and stop the loop until I sign off. After A14, report and stop the loop.
+
+Rules: never merge any PR; push only v2-alive-2; don't edit DOM UI or CSS (Track B owns it in v2.1) — write requests under "Requests to Track B"; downloads need my OK per batch (CC0 textures only, credited in v2/assets/CREDITS.md); no AI-generated models; Blender runs headless from the scripts, the Blender MCP only to look or search; run long suites in the background and read only summaries; treat "Test timed out" as Mac sleep until proven otherwise; if you hit a decision only I can make, stop and ask.
+```
+
+## v2.1 Track B part 3 (current)
+
+```
+/loop Track B part 3 of Casino Tycoon v2 (v2.1): rebuild the UI in the style of Cities: Skylines and RollerCoaster Tycoon (B15), then decor with real effects (B6). Briefing, read in full every iteration: v2/docs/handoffs/NEXT-SESSION.md (shared rules; its v2.1 section overrides older lines), v2/docs/handoffs/11-ui-b15.md (your task list), v2/docs/handoffs/8-decor-b6.md (B6's spec) and v2/docs/SPEC.md.
+
+Each iteration:
+1. git fetch origin. If origin/v2.1 has commits your branch lacks, merge them in (merge, not rebase), resolving with the ownership rules in NEXT-SESSION.md. Then git log --oneline -5 and reread the briefing.
+2. Take the first unticked task in 11-ui-b15.md and do only that, in its order (B15a–B15g, B6, then B16). B15a sets up your worktree on branch v2-tycoon-3 from origin/v2.1, launch config "v2-tycoon-3" on port 5176, npm install, a draft PR into v2.1, and builds the mockup. Never work in the main checkout at ~/Documents/ClaudeWork/CasinoTycoon.
+3. Read the code the task touches before changing it. Use subagents where they help and check their work yourself.
+4. Verify with evidence: npx tsc --noEmit; only the affected test files; for B6 and anything that moves guests, money or goals, the campaign suites and career.test.ts with before → after numbers; the built-in browser (preview_start "v2-tycoon-3") at the B15g sizes, driving changes through the UI, window.__v2 only for setup; screenshots.
+5. Tick the task with that evidence. Commit work and ticked file together (message explains why, ends with the Co-Authored-By line). Push v2-tycoon-3 only, and update the draft PR.
+6. Checkpoint: after B15a, publish the mockup as a private Artifact page, report the link and stop the loop until I pick a variant. After B16, report and stop the loop.
+
+Rules: never merge any PR; push only v2-tycoon-3; don't edit Track A's render, input, audio or asset files — write requests under "Requests to Track A"; restyle Track A's UI panels without changing their behaviour; scenario goals must stay winnable with a reasonable strategy and not by doing nothing, each with an automated test; run long suites in the background and read only summaries; treat "Test timed out" as Mac sleep until proven otherwise; if you hit a decision only I can make, stop and ask.
+```
+
+## Earlier prompts (v2 ship cut; finished)
+
+### Track A: Alive
 
 ```
 /loop Track A of Casino Tycoon v2, "Alive": make the floor look, move and sound like a real casino, in the current lively stylized style. Briefing, read in full every iteration: v2/docs/handoffs/NEXT-SESSION.md (shared rules), v2/docs/handoffs/5-alive.md (your task list) and v2/docs/SPEC.md.
@@ -29,7 +63,7 @@ Rules:
 - If you hit a decision only I can make, stop and ask.
 ```
 
-## Track B: Tycoon
+### Track B: Tycoon
 
 ```
 /loop Track B of Casino Tycoon v2, "Tycoon": give the player hours of decisions worth making. Briefing, read in full every iteration: v2/docs/handoffs/NEXT-SESSION.md (shared rules), v2/docs/handoffs/6-tycoon.md (your task list) and v2/docs/SPEC.md.

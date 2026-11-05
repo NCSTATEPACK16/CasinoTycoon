@@ -2,6 +2,28 @@
 
 Rewritten 2026-10-24, after "playable" (SPEC §9) was finished. This file holds the rules both tracks share. Each track also has its own task list. Together with `v2/docs/SPEC.md`, these files are the whole briefing; you need nothing from earlier conversations.
 
+## v2.1 (the user, 2026-11-05) — this section overrides anything older below
+
+v2 shipped to https://casinotycoon.netlify.app on 2026-11-05 (PRs #18–#22 merged; #23 points Netlify at `v2/`). v2.1 is the next release, again as two parallel sessions:
+
+| Track | Task list | Branch | Dev port | Launch config |
+|---|---|---|---|---|
+| **A part 2:** A10 decor art → A8 lighting + High/Low → A12 celebrations → A9 people → A11 exterior → A14 finish | [10-alive-2.md](10-alive-2.md) | `v2-alive-2` | 5175 | `v2-alive-2` |
+| **B part 3:** B15 UI rebuild (mockup first) → B6 decor effects → B16 finish | [11-ui-b15.md](11-ui-b15.md), [8-decor-b6.md](8-decor-b6.md) | `v2-tycoon-3` | 5176 | `v2-tycoon-3` |
+
+- **Base branch:** `v2.1` (cut from `v2-ship`, which is `v2-foundation` plus the Netlify fix). Cut your branch from `origin/v2.1`, open your draft PR into `v2.1`, and merge `origin/v2.1` at the start of each iteration. Wherever older text below says `v2-playable`, read `v2.1`.
+- **Release:** one v2.1 release. When both PRs are out of draft, the user merges them; then a ship step merges `v2.1` → `main`, deploys a Netlify preview, tests Chrome, Safari and Firefox, and asks the user before production.
+- **User checkpoints (stop and wait for sign-off, publishing a private Artifact page of screenshots):** Track A after A10 and after A8; Track B after the B15a mockup (the user picks a variant). The other track keeps working.
+- **Ownership changes for v2.1:**
+  - **All DOM UI is Track B's,** including `src/ui/Settings.ts`, `src/ui/TablePlay.ts`, `src/ui/play/**`, `src/ui/tools/**` (CSS, `CursorTag.ts`, `InteractPrompt.ts`) and every stylesheet. Track A keeps `src/render/**`, `src/input/**` logic, `src/audio/**`, `assets/**`, and WebGL labels and icons. A exposes behaviour as exported functions or render events and asks B for the control.
+  - **The append-only rule for `ui.css` is lifted for B15,** which replaces the CSS with token-based per-component sheets. Track A doesn't touch CSS in v2.1.
+  - The `#hud-slot-a` mount point is retired once B15 lands; Settings becomes a window B owns.
+- **Look and art:** lively stylized (warmer evening mood from A8). Models scripted in Blender; external downloads limited to CC0 textures (Poly Haven), one batch per user OK. No AI-generated models.
+- **Performance:** A8 adds a High/Low graphics setting (Low the default on weak hardware). The budgets below apply on High; check every rendering task on both.
+- **Screens:** 1280×720 to 2560 wide, UI scale 80–125%, a "best on desktop" notice on phones.
+- **"Impeccable"** (a design skill the user mentioned) isn't installed; verify layouts in the built-in browser at several sizes instead.
+- **The seat-order request** in 5-alive.md stays held by the user; don't forward it.
+
 ## The two tracks
 
 The next phase runs as two sessions at once. Each session has its own branch and worktree and runs its own `/loop`.
