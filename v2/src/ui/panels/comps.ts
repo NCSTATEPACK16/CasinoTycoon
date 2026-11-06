@@ -1,6 +1,7 @@
 // Comp buttons, shared by the guest inspector and the patrons roster. Each
 // says what it costs and, when it can't be given, why not.
 
+import './comps.css';
 import type { GuestInspect } from '../../worker/inspect';
 import { button, el, money } from '../dom';
 

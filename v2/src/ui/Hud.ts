@@ -1,9 +1,9 @@
-// The HUD: a top row (cash/time/rating bar, menu, speeds, help and Track A's
-// slot) with today's conditions under it, the build palette, the news ticker
-// and a toast for local feedback. The top stack publishes its height as
-// --hud-bottom on the UI root, so the toolbar and drawer below it never
-// collide with it however it wraps.
+// The HUD: a top row (cash/time/rating bar, menu, speeds, help and the
+// settings slot) in the shell's top region; today's conditions and the goals
+// in the right column; the build palette in the dock; the news ticker in the
+// hint row; and a toast in the toast region (B15b).
 
+import './Hud.css';
 import { getCampaign } from '../data/campaigns';
 import { weekdayName } from '../data/traffic';
 import type { HudView, SimEvent } from '../shared/contracts';
@@ -13,6 +13,7 @@ import { ConditionsBanner } from './panels/ConditionsBanner';
 import { GoalPanel } from './panels/GoalPanel';
 import { Palette } from './panels/Palette';
 import { Ticker } from './panels/Ticker';
+import { regionIn } from './shell/Shell';
 
 const money = (n: number) => `${n < 0 ? '-' : ''}$${Math.abs(Math.round(n)).toLocaleString()}`;
 
@@ -21,7 +22,7 @@ const SPEEDS: Speed[] = [0, 1, 2, 4];
 
 export class Hud {
   private bar: HTMLElement;
-  private top!: HTMLElement;
+  private right!: HTMLElement;
   /** The bar's fields, built once and patched: the bar updates many times a
    *  second, and rebuilding it would swallow clicks on the rating button. */
   private f: Record<'cash' | 'time' | 'paused' | 'guests' | 'today' | 'goal', HTMLElement>;
@@ -49,7 +50,7 @@ export class Hud {
     private sim: SimClient,
     build: BuildTool,
   ) {
-    const top = (this.top = el('div', 'hud-top'));
+    const top = el('div', 'hud-top');
     const row = el('div', 'hud-row');
     this.bar = el('div', 'hud-bar');
     this.f = {
@@ -98,16 +99,18 @@ export class Hud {
     slotA.id = 'hud-slot-a';
     row.append(this.bar, menu, speeds, help, slotA);
     f.goal.onclick = () => this.goals.toggle();
-    top.append(row, this.conditions.root, this.goals.root);
-    root.append(top, palette, this.toast, this.ticker.root, this.ticker.historyRoot);
-    new ResizeObserver(() =>
-      root.style.setProperty('--hud-bottom', `${Math.ceil(top.getBoundingClientRect().bottom)}px`),
-    ).observe(top);
+    top.append(row);
+    regionIn(root, 'top').append(top);
+    this.right = regionIn(root, 'right');
+    this.right.append(this.conditions.root, this.goals.root, this.ticker.historyRoot);
+    regionIn(root, 'dock').append(palette);
+    regionIn(root, 'toast').append(this.toast);
+    regionIn(root, 'hint').append(this.ticker.root);
   }
 
-  /** B12: a panel that sits under the bar, where the goals do. */
+  /** B12: a panel that sits with the goals, in the right column. */
   mountBelowBar(node: HTMLElement): void {
-    this.top.append(node);
+    this.right.insertBefore(node, this.ticker.historyRoot);
   }
 
   /** The speed last reported by the sim (0 is paused). */

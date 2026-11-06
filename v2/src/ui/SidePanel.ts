@@ -6,6 +6,7 @@
 // Anything with a button is built once and patched, never rebuilt by a poll:
 // a rebuild swaps the button out from under a press and the click is lost.
 
+import './SidePanel.css';
 import type { SimClient } from '../client/SimClient';
 import type { CasinoFinancials, PeriodPnl } from '../sim/economy/financials';
 import type { Command } from '../shared/contracts';

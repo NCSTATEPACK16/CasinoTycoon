@@ -4,6 +4,7 @@
 // commands the UI sends, the objects on the floor, the rating click) and
 // never drives the sim: the lesson is the real game.
 
+import './Tutorial.css';
 import type { SimClient } from '../client/SimClient';
 import { loadOnboarding, saveOnboarding, type Onboarding } from '../services/onboarding';
 import type { Command, HudView, ObjectView } from '../shared/contracts';

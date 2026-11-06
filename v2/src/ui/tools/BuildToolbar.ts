@@ -2,7 +2,8 @@
 // bulldoze and the walk button, plus a one-line hint for the active tool.
 // Object placement is started from the lead's palette through BuildTool.
 
-import './tools.css';
+import './BuildToolbar.css';
+import { regionIn } from '../shell/Shell';
 import { FLOOR_TYPES, ZONES, type FloorType, type Zone } from '../../shared/contracts';
 import type { BuildTool } from '../../input/BuildTool';
 import { FLOOR_PRICE_PER_CELL, ZONE_PRICE_PER_CELL } from '../../data/floorPrices';
@@ -84,7 +85,8 @@ export class BuildToolbar {
           `zone:${z}`,
         ),
       );
-    parent.append(this.root, this.hint);
+    regionIn(parent, 'left').prepend(this.root);
+    regionIn(parent, 'hint').append(this.hint);
     build.addEventListener('change', () => this.refresh());
     this.refresh();
   }

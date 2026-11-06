@@ -1,0 +1,75 @@
+/* B15b: the one token sheet for every DOM surface (Variant B, "Glass Strip",
+   picked by the user 2026-11-06). Sizes are rem, so the UI scale (80–125%)
+   is the root font size: --ui-scale is set on <html> by ui/shell/uiScale.ts
+   and nothing else needs to know about it. Hairlines (1–2 px) stay px. */
+:root {
+  --ui-scale: 1;
+
+  /* Colour: translucent slate glass, gold for money and active states. */
+  --c-bg: #0d1220;
+  --c-panel: rgba(16, 22, 34, 0.82);
+  --c-panel-2: rgba(28, 38, 56, 0.9);
+  --c-panel-solid: #121a29;
+  --c-scrim: rgba(6, 9, 16, 0.62);
+  --c-line: rgba(140, 190, 230, 0.22);
+  --c-line-soft: rgba(255, 255, 255, 0.07);
+  --c-fill: rgba(255, 255, 255, 0.1);
+  --c-inset: rgba(0, 0, 0, 0.28);
+  --c-text: #eef3f8;
+  --c-dim: #9fb0c4;
+  --c-accent: #f0b84a;
+  --c-accent-deep: #c98f1c;
+  --c-accent-fg: #1a1205;
+  --c-good: #5fd6a0;
+  --c-good-soft: #a6e9c8;
+  --c-bad: #f2705f;
+  --c-bad-soft: #f8b3a9;
+  --c-warn: #f3c95a;
+  --c-info: #8fb4ff;
+  --c-silver: #b8c0cc;
+  --c-felt: rgba(12, 38, 28, 0.92);
+  --blur: blur(8px) saturate(1.2);
+
+  /* Type. Barlow/Saira when installed, else the system face. */
+  --font-ui: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-num: 'Saira', 'Barlow', system-ui, -apple-system, sans-serif;
+  --fs-2xs: 0.625rem;
+  --fs-xs: 0.6875rem;
+  --fs-s: 0.75rem;
+  --fs-m: 0.8125rem;
+  --fs-base: 0.875rem;
+  --fs-l: 1rem;
+  --fs-xl: 1.125rem;
+  --fs-2xl: 1.5rem;
+  --fs-3xl: 1.75rem;
+  --fs-hero: 2.75rem;
+
+  /* Space. */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+
+  /* Shape and depth: small radii, soft shadows. */
+  --r-1: 0.1875rem;
+  --r-2: 0.25rem;
+  --r-pill: 999px;
+  --shadow-1: 0 0.375rem 1.125rem rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 0.75rem 2.5rem rgba(0, 0, 0, 0.45);
+  --shadow-3: 0 1.5rem 5rem rgba(0, 0, 0, 0.6);
+
+  /* Layers, lowest first. Regions stack in this order and nothing else
+     sets a z-index above its own region's. */
+  --z-floor-ui: 1;
+  --z-windows: 2;
+  --z-hint: 3;
+  --z-toast: 4;
+  --z-overlay: 5;
+  --z-modal: 10;
+
+  font-size: calc(16px * var(--ui-scale));
+  font-family: var(--font-ui);
+  color: var(--c-text);
+}

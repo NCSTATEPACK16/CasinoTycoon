@@ -2,6 +2,7 @@
 // severity, with a history drawer behind the News button. A line that
 // happened somewhere is clickable and takes the camera there.
 
+import './Ticker.css';
 import type { SimEvent } from '../../shared/contracts';
 import { button, el, escapeHtml } from '../dom';
 import { NewsQueue, type NewsItem, type NewsPlace } from './newsQueue';

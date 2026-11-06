@@ -1,0 +1,117 @@
+/* The top bar (top region) and the toast (toast region). B15c turns the
+   readouts into clickable gauges; here they only move into the shell. */
+.hud-top {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.hud-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 2.875rem;
+  padding: var(--sp-1) var(--sp-3);
+  background: var(--c-panel);
+  border-bottom: 1px solid var(--c-line);
+  backdrop-filter: var(--blur);
+  white-space: nowrap;
+}
+.hud-bar {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--sp-4);
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--fs-base);
+  font-variant-numeric: tabular-nums;
+}
+.hud-bar > * {
+  flex: none;
+}
+.hud-bar b {
+  color: var(--c-accent);
+  font-family: var(--font-num);
+  font-size: var(--fs-xl);
+}
+.hud-bar > .goal {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hud-bar .goal.has-goals {
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 0.1875rem;
+}
+.hud-bar > .hud-rating {
+  padding: 2px var(--sp-3);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-base);
+  background: color-mix(in srgb, var(--c-accent) 8%, transparent);
+}
+.hud-bar > .hud-rating:hover {
+  color: var(--c-accent);
+}
+.paused-badge {
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-s);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--c-accent-fg);
+  background: var(--c-accent);
+}
+.hud-menu,
+.hud-speeds {
+  display: flex;
+  flex: none;
+  gap: var(--sp-1);
+}
+.hud-menu small {
+  color: var(--c-dim);
+  font-size: var(--fs-xs);
+  margin-left: 2px;
+}
+.hud-row button {
+  padding: var(--sp-1) var(--sp-3);
+}
+.hud-speeds button {
+  min-width: 2.25rem;
+  font-family: var(--font-num);
+}
+.hud-speeds button.active {
+  border-color: var(--c-accent);
+  color: var(--c-accent-fg);
+  background: var(--c-accent);
+}
+.hud-help {
+  min-width: 2.25rem;
+  font-weight: 700;
+}
+#hud-slot-a:empty {
+  display: none;
+}
+.toast {
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--r-2);
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  backdrop-filter: var(--blur);
+  box-shadow: var(--shadow-1);
+  opacity: 0;
+  pointer-events: none;
+}
+.toast.show {
+  animation: toast 3s ease forwards;
+}
+@keyframes toast {
+  0%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}

@@ -1,12 +1,23 @@
-// Settings: volumes per bus, mute, and the graphics tier. The gear lives in
-// the HUD's #hud-slot-a when the HUD offers one, and floats on its own
-// otherwise. Volumes persist through the audio engine; the tier persists here.
+// Settings: volumes per bus, mute, the graphics tier and (B15b) the UI scale.
+// The gear lives in the HUD's #hud-slot-a, or in the top region when there is
+// no slot; the panel sits in the shell's window layer. Volumes persist through
+// the audio engine; the tier and the UI scale persist here.
 
+import './Settings.css';
 import type { AudioEngine } from '../audio/AudioEngine';
 import type { Bus } from '../audio/mix';
 import type { Quality } from '../render/Post';
 import type { Stage } from '../render/Stage';
 import { button, el } from './dom';
+import { regionIn } from './shell/Shell';
+import {
+  UI_SCALE_MAX,
+  UI_SCALE_MIN,
+  UI_SCALE_STEP,
+  applyUiScale,
+  loadUiScale,
+  saveUiScale,
+} from './shell/uiScale';
 
 export type QualityChoice = 'auto' | Quality;
 export const QUALITY_KEY = 'v2-graphics-quality';
@@ -66,6 +77,7 @@ export class Settings {
   readonly root = el('div', 'settings-panel');
   readonly gear = button('⚙', () => this.toggle(), 'settings-gear');
   private quality: QualityChoice;
+  private uiScale: number;
   private tierNote = el('span', 'dim small');
   private timer = 0;
 
@@ -77,18 +89,16 @@ export class Settings {
     this.root.hidden = true;
     this.quality = loadQualityChoice(storage());
     applyQuality(this.stage, this.quality);
+    this.uiScale = loadUiScale(storage());
+    applyUiScale(document.documentElement, this.uiScale);
     this.build();
   }
 
-  /** Into the HUD's slot when it has one; otherwise a floating gear above the palette. */
+  /** The gear into the HUD's slot (or the top region); the panel into the window layer. */
   mount(ui: HTMLElement): void {
     const slot = ui.querySelector<HTMLElement>('#hud-slot-a');
-    if (slot) slot.append(this.gear);
-    else {
-      this.gear.classList.add('floating');
-      ui.append(this.gear);
-    }
-    ui.append(this.root);
+    (slot ?? regionIn(ui, 'top')).append(this.gear);
+    regionIn(ui, 'windows').append(this.root);
   }
 
   get isOpen(): boolean {
@@ -167,7 +177,28 @@ export class Settings {
     const qRow = el('label', 'st-row');
     qRow.append(el('span', '', 'Quality'), sel, this.tierNote);
     gfx.append(qRow);
-    this.root.append(head, sound, gfx);
+
+    const display = el('div', 'st-group');
+    display.append(el('h4', '', 'Interface'));
+    const scale = el('input');
+    scale.type = 'range';
+    scale.min = String(UI_SCALE_MIN * 100);
+    scale.max = String(UI_SCALE_MAX * 100);
+    scale.step = String(UI_SCALE_STEP * 100);
+    scale.value = String(Math.round(this.uiScale * 100));
+    scale.setAttribute('aria-label', 'UI scale');
+    const scaleVal = el('span', 'st-val', `${scale.value}%`);
+    // Live while dragging; saved when the drag ends.
+    scale.oninput = () => {
+      this.uiScale = Number(scale.value) / 100;
+      scaleVal.textContent = `${scale.value}%`;
+      applyUiScale(document.documentElement, this.uiScale);
+    };
+    scale.onchange = () => saveUiScale(storage(), this.uiScale);
+    const sRow = el('label', 'st-row');
+    sRow.append(el('span', '', 'UI scale'), scale, scaleVal);
+    display.append(sRow);
+    this.root.append(head, sound, gfx, display);
   }
 
   private refreshTier(): void {

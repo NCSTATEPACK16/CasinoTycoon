@@ -2,6 +2,7 @@
 // the map on screen. While a map is up it asks the worker for fresh data once
 // a second and hands it to the render overlay.
 
+import './HeatControl.css';
 import type { SimClient } from '../../client/SimClient';
 import { heatColor, type HeatKind, type HeatOverlay } from '../../render/HeatOverlay';
 import type { HeatMap } from '../../worker/feedback';

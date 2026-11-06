@@ -1,0 +1,88 @@
+.build-toolbar {
+  width: 9.375rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-2);
+  backdrop-filter: var(--blur);
+  transition:
+    opacity 0.25s,
+    transform 0.25s;
+}
+.build-toolbar.hidden,
+.tool-hint.hidden {
+  opacity: 0;
+  transform: translateX(-0.75rem);
+  pointer-events: none;
+}
+.tool-btn {
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.tool-btn small {
+  color: var(--c-dim);
+  font-size: var(--fs-xs);
+}
+.tool-btn.active {
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 1px var(--c-accent) inset;
+}
+.tool-btn.walk {
+  margin-top: 0.375rem;
+  border-color: color-mix(in srgb, var(--c-info) 45%, transparent);
+}
+.swatches {
+  display: none;
+  flex-direction: column;
+  gap: 0.1875rem;
+  padding-left: 0.375rem;
+}
+.swatches.open {
+  display: flex;
+}
+.swatch {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  font-size: var(--fs-s);
+  text-align: left;
+}
+.swatch i {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: var(--r-1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+.swatch small {
+  margin-left: auto;
+  color: var(--c-accent);
+}
+.swatch.active {
+  border-color: var(--c-accent);
+}
+.tool-hint {
+  padding: 0.375rem 0.75rem;
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-2);
+  backdrop-filter: var(--blur);
+  font-size: var(--fs-m);
+  color: var(--c-dim);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+}
+.tool-hint.show {
+  opacity: 1;
+}
+/* Out of the hint row when there is nothing to say, so it takes no height. */
+.tool-hint:not(.show) {
+  display: none;
+}

@@ -4,6 +4,7 @@
 // badge and how to unlock it. Hovering an item shows its price, upkeep, size,
 // the zone it needs and what it holds, and the Shift hint for placing a row.
 
+import './Palette.css';
 import { getCampaign } from '../../data/campaigns';
 import { OBJECT_CATALOG, type ObjectDef } from '../../data/objects';
 import type { BuildTool } from '../../input/BuildTool';

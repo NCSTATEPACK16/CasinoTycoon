@@ -1,5 +1,4 @@
-import './style.css';
-import './ui/ui.css';
+import { Shell } from './ui/shell/Shell';
 import { GameAudio, audio } from './audio';
 import { AmbienceFeed } from './audio/AmbienceFeed';
 import { SimClient } from './client/SimClient';
@@ -27,6 +26,9 @@ import { guestPosition, locate } from './ui/panels/locate';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#view')!;
 const ui = document.querySelector<HTMLElement>('#ui')!;
+// B15b: the regions every surface mounts into. Built before the controls,
+// which hand their tool UI the same root.
+const shell = new Shell(ui);
 
 const sim = new SimClient();
 const stage = new Stage(canvas);
@@ -38,7 +40,8 @@ const table = new TablePlay(sim);
 const menus = new Menus(sim);
 const help = new HelpOverlay();
 const report = new DayReportCard();
-ui.append(panel.root, table.root, help.root, report.root, menus.root);
+shell.mount('windows', panel.root, table.root);
+shell.mount('modal', help.root, report.root, menus.root);
 const showReport = () =>
   void sim
     .command<DayReport>({ type: 'dayReport' })
@@ -51,12 +54,12 @@ const tips = new Tips();
 tutorial.watch(sim);
 tutorial.onExit = () => void menus.title();
 hud.mountBelowBar(tutorial.root);
-ui.append(tips.root);
+shell.mount('hint', tips.root);
 // B5: the mood/traffic heat map over the floor, and following a guest.
 const heat = new HeatOverlay();
 stage.scene.add(heat.object);
 const heatControl = new HeatControl(sim, heat);
-ui.append(heatControl.root);
+shell.mount('left', heatControl.root);
 const follower = new GuestFollower(sim, controls, canvas);
 follower.onMessage = (t) => hud.say(t);
 panel.onFollowGuest = (agentId, name) => {
