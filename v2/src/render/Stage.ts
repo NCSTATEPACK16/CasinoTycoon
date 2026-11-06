@@ -33,13 +33,21 @@ import { objectUniforms } from './materials/ObjectMaterial';
 import { ObjectLayer } from './ObjectLayer';
 import { Overlays } from './Overlays';
 import { Post, type Quality } from './Post';
+import { Practicals } from './Practicals';
+import { suggestedQuality } from './gpuTier';
+import { CROWD_LOD } from './Crowd';
 
-const QUALITY: Record<Quality, { pixelRatio: number; shadow: number; shadows: boolean }> = {
+// High: shadows, N8AO, full bloom, real point lights, full crowd LOD bands.
+// Low: baked light pools only, no shadows or AO, cheaper bloom, shorter crowd bands.
+const QUALITY: Record<
+  Quality,
+  { pixelRatio: number; shadow: number; shadows: boolean; realLights: boolean; crowdLod: readonly [number, number] }
+> = {
   // The shadow frustum is refitted to the view every frame, so 2048² is
   // already ~2 cm texels at god-cam range; 4096² cost ~3× as much on an A18 Pro.
-  high: { pixelRatio: 2, shadow: 2048, shadows: true },
-  medium: { pixelRatio: 1.5, shadow: 2048, shadows: true },
-  low: { pixelRatio: 1, shadow: 1024, shadows: false },
+  high: { pixelRatio: 2, shadow: 2048, shadows: true, realLights: true, crowdLod: CROWD_LOD },
+  medium: { pixelRatio: 1.5, shadow: 2048, shadows: true, realLights: false, crowdLod: CROWD_LOD },
+  low: { pixelRatio: 1, shadow: 1024, shadows: false, realLights: false, crowdLod: [9, 30] },
 };
 
 /** Rounds play out on games within this distance of the camera. */
@@ -66,6 +74,8 @@ export class Stage {
   /** Dealt cards and chips on watched card tables. */
   readonly felt: FeltParts;
   readonly lighting: Lighting;
+  /** Light pools on the floor and, on High, real lights near the camera (A8). */
+  readonly practicals: Practicals;
   private post: Post;
   private quality: Quality = 'high';
   private lastCamera: THREE.PerspectiveCamera | null = null;
@@ -111,6 +121,13 @@ export class Stage {
     this.parts = new TableParts(this.assets);
     this.felt = new FeltParts(this.assets);
     this.floor.onZones = (g) => this.overlays.rebuildZones(g);
+    this.practicals = new Practicals((key) => this.assets.get(key).lights);
+    // ObjectLayer already listens for loaded assets; chain on, don't replace.
+    const objectsOnUpdate = this.assets.onUpdate;
+    this.assets.onUpdate = (a) => {
+      objectsOnUpdate(a);
+      if (a.lights.length) this.practicals.markDirty();
+    };
     this.scene.add(
       this.floor.group,
       this.objects.group,
@@ -118,6 +135,7 @@ export class Stage {
       this.felt.group,
       this.crowd.group,
       this.overlays.group,
+      this.practicals.group,
     );
 
     // Exterior: a dark stone plaza the lot sits on, faded out by fog.
@@ -152,11 +170,13 @@ export class Stage {
   /** Diff the object list into the instance pools (no Mesh per object). */
   setObjects(objects: ObjectView[]): void {
     this.objects.setObjects(objects);
+    this.practicals.setObjects(objects);
     if (this.selected && !this.objects.get(this.selected)) this.setSelected(null);
   }
 
   setFloor(plan: FloorPlanView): void {
     this.floor.setFloor(plan);
+    this.practicals.setFloor(plan);
     // The plaza stays centred under whatever lot the scenario brought.
     this.ground.position.set(plan.cols / 2, -0.02, plan.rows / 2);
     this.hasFloor = true;
@@ -250,12 +270,20 @@ export class Stage {
     this.applyPixelRatio();
     this.lighting.setShadowSize(cfg.shadow, cfg.shadows);
     this.post.setQuality(q);
+    this.practicals.setRealLights(cfg.realLights);
+    this.crowd.lodBands = cfg.crowdLod;
     const c = this.renderer.domElement;
     this.resize(c.clientWidth || 1, c.clientHeight || 1);
   }
 
   getQuality(): Quality {
     return this.quality;
+  }
+
+  /** The tier to start on for this GPU: Low on software and weak integrated or
+   *  mobile GPUs, else High. For Settings' Auto (Track B request in 10-alive-2.md). */
+  suggestedQuality(): Quality {
+    return suggestedQuality(this.renderer.getContext());
   }
 
   private applyPixelRatio(): void {
@@ -315,6 +343,7 @@ export class Stage {
     this.updateView(cam);
     this.objects.update(cam, now);
     this.overlays.update(now, cam);
+    this.practicals.update(cam, now);
     if (this.lighting.sun.castShadow) this.lighting.update(cam);
     this.renderer.info.reset();
     this.post.render(cam, dt);

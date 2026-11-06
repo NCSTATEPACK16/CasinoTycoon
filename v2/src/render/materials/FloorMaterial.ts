@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import type { DecalAtlas } from '../assets/Atlas';
 import { FLOOR_TYPES } from '../../shared/contracts';
+import { poolUniforms } from '../Practicals';
 
 /** Per FloorType: atlas decal, metres per texture repeat, roughness, tint. */
 const FLOOR_LOOK: Record<(typeof FLOOR_TYPES)[number], [string, number, number, number]> = {
@@ -36,6 +37,7 @@ export function createFloorMaterial(atlas: DecalAtlas): THREE.MeshStandardMateri
     s.uniforms.uTiles = { value: tiles };
     s.uniforms.uRough = { value: rough };
     s.uniforms.uTints = { value: tints };
+    Object.assign(s.uniforms, poolUniforms);
     s.vertexShader = s.vertexShader
       .replace(
         '#include <common>',
@@ -59,6 +61,10 @@ export function createFloorMaterial(atlas: DecalAtlas): THREE.MeshStandardMateri
         uniform float uTiles[${n}];
         uniform float uRough[${n}];
         uniform vec3 uTints[${n}];
+        // A8 light pools: practical light baked per lot texel (render/Practicals.ts).
+        uniform sampler2D uPools;
+        uniform vec2 uPoolSize;
+        uniform float uPoolGain;
         varying float vFloor;
         varying vec2 vWorldXZ;
         int floorId() { return int(vFloor + 0.5); }`,
@@ -83,7 +89,15 @@ export function createFloorMaterial(atlas: DecalAtlas): THREE.MeshStandardMateri
           }
         }`,
       )
-      .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = uRough[floorId()];');
+      .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = uRough[floorId()];')
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        {
+          vec3 pool = texture2D(uPools, vWorldXZ / uPoolSize).rgb;
+          totalEmissiveRadiance += diffuseColor.rgb * pool * uPoolGain;
+        }`,
+      );
   };
   m.customProgramCacheKey = () => 'casino-floor';
   return m;

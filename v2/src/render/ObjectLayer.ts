@@ -201,6 +201,7 @@ export class ObjectLayer {
       new THREE.Vector4(r.u0, r.v0, r.u1, r.v1);
     objectUniforms.uReelRect.value.copy(vec(u('slotReels')));
     objectUniforms.uScreenRect.value.copy(vec(u('pennyScreen')));
+    objectUniforms.uWaterRect.value.copy(vec(u('water')));
     objectUniforms.uStripRect.value.copy(vec(u('reelStrips')));
     objectUniforms.uStripGrid.value.set(SHEET_ORDER.length * MAX_REELS, STRIP_MAX);
     SHEET_ORDER.forEach((id, i) => {

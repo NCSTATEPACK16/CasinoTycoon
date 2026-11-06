@@ -370,7 +370,8 @@ def bake_ao(objects, samples=48, distance=0.6):
             d.color = (v, v, v, 1.0)
 
 
-def export_glb(path, objects):
+def export_glb(path, objects, extras=False):
+    """extras=True exports custom properties (e.g. light_<n> colour/radius) as glTF extras."""
     bpy.ops.object.select_all(action='DESELECT')
     for ob in objects:
         ob.select_set(True)
@@ -385,7 +386,7 @@ def export_glb(path, objects):
         export_texcoords=True,
         export_materials='EXPORT',
         export_animations=False,
-        export_extras=False,
+        export_extras=extras,
         export_cameras=False,
         export_lights=False,
     )

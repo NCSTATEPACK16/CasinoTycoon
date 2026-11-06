@@ -276,7 +276,8 @@ export class FloorLayer {
         const coffer = c % 2 === 0 && r % 2 === 0;
         b.box(1, 0.08, 1, c + 0.5, CEIL_H + 0.3, r + 0.5, surf('plaster', { color: 0x4a1f2c }));
         if (coffer) {
-          b.box(1.7, 0.02, 1.7, c + 1, CEIL_H + 0.28, r + 1, { ...PALETTE.lampWarm, emit: 0.55 });
+          // Evening (A8): a dim cove, so the chandeliers carry the room.
+          b.box(1.7, 0.02, 1.7, c + 1, CEIL_H + 0.28, r + 1, { ...PALETTE.lampWarm, color: 0xe8b878, emit: 0.1 });
           b.box(2, 0.3, 0.08, c + 1, CEIL_H, r, PALETTE.gold);
           b.box(0.08, 0.3, 2, c, CEIL_H, r + 1, PALETTE.gold);
         }
