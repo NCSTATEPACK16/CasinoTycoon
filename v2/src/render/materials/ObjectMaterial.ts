@@ -24,6 +24,8 @@ export const objectUniforms = {
   uSheets: { value: Array.from({ length: 8 }, () => new THREE.Vector4(3, 16, 1, 0)) },
   // Fountain water (A10): the 'water' tile's rect; SurfaceFlag.Scroll surfaces scroll through it.
   uWaterRect: { value: new THREE.Vector4() },
+  // Bloom fix (A8): the brightest emissive channel is capped here (linear, pre-ACES).
+  uEmitCap: { value: 1.6 },
 };
 
 /** Water: two copies of the seamless water tile drifting apart, so it ripples. */
@@ -162,6 +164,7 @@ function patch(
       '#include <common>',
       `#include <common>
       uniform float uTime;
+      uniform float uEmitCap;
       varying vec4 vPbr;
       varying vec4 vState;
       varying float vChaseX;`,
@@ -197,7 +200,15 @@ function patch(
         if (mod(floor(flags / 4.0), 2.0) == 1.0)
           emit *= 0.35 + 0.65 * step(0.5, fract(vChaseX * 3.0 - uTime * 2.5));
         emit *= 1.0 - vState.y * 0.95;
-        totalEmissiveRadiance += diffuseColor.rgb * (emit + reelGlow);
+        // Bloom fix (A8): emitters right in front of the lens read as white-hot
+        // bars, so fade them a little up close, then cap the brightest channel.
+        // The cap keeps the hue (a yellow strip stays yellow under ACES) and
+        // still clears the bloom threshold; a win flash may go past it.
+        emit *= mix(0.55, 1.0, smoothstep(0.8, 4.5, length(vViewPosition)));
+        vec3 glow = diffuseColor.rgb * (emit + reelGlow);
+        float peak = max(max(glow.r, glow.g), glow.b);
+        float cap = uEmitCap * (1.0 + flash * 1.5);
+        totalEmissiveRadiance += glow * min(1.0, cap / max(peak, 1e-4));
       }`,
     );
 }

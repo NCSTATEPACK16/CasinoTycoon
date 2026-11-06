@@ -349,6 +349,8 @@ const projScreen = new THREE.Matrix4();
 
 export class Crowd {
   readonly group = new THREE.Group();
+  /** Distances where agents drop to LOD1 and LOD2; Low quality shortens them (A8). */
+  lodBands: readonly [number, number] = CROWD_LOD;
   private tiers: Tier[] = [];
   private states = new Map<number, AgentState>();
   private prevIndex = new Map<number, number>();
@@ -512,7 +514,7 @@ export class Crowd {
       sphere.radius = 1.1;
       if (!frustum.intersectsSphere(sphere)) continue;
       const d = cam.distanceTo(sphere.center);
-      const tier = d < CROWD_LOD[0] ? 0 : d < CROWD_LOD[1] ? 1 : 2;
+      const tier = d < this.lodBands[0] ? 0 : d < this.lodBands[1] ? 1 : 2;
       animBuf[0] = st.clip + 16 * st.prevClip;
       animBuf[1] = st.tA;
       animBuf[2] = st.tB;
