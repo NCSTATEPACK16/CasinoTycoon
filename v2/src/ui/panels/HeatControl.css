@@ -1,0 +1,54 @@
+.heat-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  width: max-content;
+  padding: 0.25rem 0.375rem;
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-2);
+}
+.heat-buttons button.active {
+  border-color: var(--c-accent);
+  color: var(--c-accent);
+}
+.heat-buttons small {
+  color: var(--c-dim);
+  margin-left: 2px;
+}
+.heat-legend {
+  padding: 0.5rem 0.625rem;
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-2);
+}
+.heat-legend[hidden] {
+  display: none;
+}
+.heat-legend p {
+  margin: 0.25rem 0 0;
+}
+.heat-ramp {
+  display: block;
+  height: 0.625rem;
+  border-radius: var(--r-2);
+}
+.heat-ends {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.375rem;
+  margin-top: 0.1875rem;
+}
+.heat-summary {
+  color: var(--c-accent);
+}
+.heat-control {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--sp-2);
+  width: 14.75rem;
+  margin-top: auto;
+}
+#ui:has(.table-play:not([hidden])) .heat-control {
+  display: none;
+}

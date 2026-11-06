@@ -2,6 +2,7 @@
 // browser (the ids are kept in the onboarding record), dismissed with a
 // click or after a while. The caller decides when a tip is due.
 
+import './Tips.css';
 import { loadOnboarding, saveOnboarding, type Onboarding } from '../../services/onboarding';
 import { button, el } from '../dom';
 

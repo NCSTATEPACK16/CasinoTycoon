@@ -4,6 +4,7 @@
 // thin evening shows before the guests feel it. Built once and patched, like
 // the rest of the panel, so a press never lands on a rebuilt button.
 
+import './StaffRoster.css';
 import { STAFF_BALANCE, STAFF_DEPTH } from '../../data/balance';
 import { hourFactor } from '../../data/traffic';
 import type { StaffInspect } from '../../worker/inspect';

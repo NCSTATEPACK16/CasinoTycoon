@@ -4,6 +4,7 @@
 // (arrivals in their hours against the same hours without them). Built once
 // per event and patched, so a press never lands on a rebuilt button.
 
+import './MarketingPanel.css';
 import type { MarketingView } from '../../worker/marketing';
 import { button, el, escapeHtml, money } from '../dom';
 

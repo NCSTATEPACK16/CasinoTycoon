@@ -1,0 +1,33 @@
+.conditions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  max-width: 100%;
+}
+.conditions[hidden] {
+  display: none;
+}
+.conditions-label {
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-dim);
+  padding: 0 0.25rem;
+}
+.condition {
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-s);
+  background: var(--c-panel-2);
+  border: 1px solid color-mix(in srgb, var(--c-warn) 55%, transparent);
+}
+.condition b {
+  color: var(--c-warn);
+}
+.condition.event {
+  border-color: color-mix(in srgb, var(--c-info) 55%, transparent);
+}
+.condition.event b {
+  color: var(--c-info);
+}

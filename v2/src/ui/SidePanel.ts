@@ -6,6 +6,7 @@
 // Anything with a button is built once and patched, never rebuilt by a poll:
 // a rebuild swaps the button out from under a press and the click is lost.
 
+import './SidePanel.css';
 import type { SimClient } from '../client/SimClient';
 import type { CasinoFinancials, PeriodPnl } from '../sim/economy/financials';
 import type { Command } from '../shared/contracts';
@@ -74,6 +75,8 @@ export class SidePanel {
   /** Keep the camera on a guest as they move (B5). */
   onFollowGuest: (agentId: number, name: string) => void = () => {};
   onClose: () => void = () => {};
+  /** The tab now showing, or null when closed (the dock lights it). */
+  onTab: (t: PanelTab | null) => void = () => {};
   /** A comp or price action's outcome, for the toast. */
   onMessage: (text: string) => void = () => {};
   private rating = new RatingPanel();
@@ -178,6 +181,7 @@ export class SidePanel {
     this.tab = t;
     this.root.hidden = false;
     for (const [k, b] of this.tabs) b.classList.toggle('active', k === t);
+    this.onTab(t);
     this.body.innerHTML = '';
     this.inspectPrices = null;
     if (t === 'rating') this.body.append(this.rating.root);
@@ -196,6 +200,7 @@ export class SidePanel {
     this.tab = null;
     this.root.hidden = true;
     window.clearInterval(this.timer);
+    this.onTab(null);
     this.onClose();
   }
 

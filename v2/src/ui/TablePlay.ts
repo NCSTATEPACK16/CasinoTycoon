@@ -4,6 +4,7 @@
 // FxDirector) — from the engine's public round view and its settled result,
 // never re-simulated here. The DOM holds buttons and text only.
 
+import './TablePlay.css';
 import { audio } from '../audio';
 import type { SimClient } from '../client/SimClient';
 import { seenCards, type SeenCard } from '../render/fx/felt';

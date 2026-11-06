@@ -1,5 +1,4 @@
-import './style.css';
-import './ui/ui.css';
+import { Shell } from './ui/shell/Shell';
 import { GameAudio, audio } from './audio';
 import { AmbienceFeed } from './audio/AmbienceFeed';
 import { SimClient } from './client/SimClient';
@@ -9,6 +8,7 @@ import type { PickHit } from './input/Picker';
 import type { SoundName } from './audio/sounds';
 import { Stage } from './render/Stage';
 import { Anim } from './shared/contracts';
+import { Dock } from './ui/dock/Dock';
 import { Hud } from './ui/Hud';
 import { Menus } from './ui/Menus';
 import { Settings } from './ui/Settings';
@@ -27,6 +27,9 @@ import { guestPosition, locate } from './ui/panels/locate';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#view')!;
 const ui = document.querySelector<HTMLElement>('#ui')!;
+// B15b: the regions every surface mounts into. Built before the controls,
+// which hand their tool UI the same root.
+const shell = new Shell(ui);
 
 const sim = new SimClient();
 const stage = new Stage(canvas);
@@ -38,7 +41,8 @@ const table = new TablePlay(sim);
 const menus = new Menus(sim);
 const help = new HelpOverlay();
 const report = new DayReportCard();
-ui.append(panel.root, table.root, help.root, report.root, menus.root);
+shell.mount('windows', panel.root, table.root);
+shell.mount('modal', help.root, report.root, menus.root);
 const showReport = () =>
   void sim
     .command<DayReport>({ type: 'dayReport' })
@@ -51,12 +55,16 @@ const tips = new Tips();
 tutorial.watch(sim);
 tutorial.onExit = () => void menus.title();
 hud.mountBelowBar(tutorial.root);
-ui.append(tips.root);
+// B15c: Opening Night's steps own the goal chip while it runs.
+hud.goalSource = () =>
+  tutorial.isActive ? { name: 'Opening Night', count: tutorial.progress } : null;
+hud.onGoals = () => (tutorial.isActive ? tutorial.toggleFolded() : hud.toggleGoals());
+shell.mount('hint', tips.root);
 // B5: the mood/traffic heat map over the floor, and following a guest.
 const heat = new HeatOverlay();
 stage.scene.add(heat.object);
 const heatControl = new HeatControl(sim, heat);
-ui.append(heatControl.root);
+shell.mount('left', heatControl.root);
 const follower = new GuestFollower(sim, controls, canvas);
 follower.onMessage = (t) => hud.say(t);
 panel.onFollowGuest = (agentId, name) => {
@@ -136,8 +144,21 @@ setInterval(() => {
 
 // ---------- management UI ----------
 
-hud.menu.finances.onclick = () => panel.toggle('finances');
-hud.menu.staff.onclick = () => panel.toggle('staff');
+// B15d: the dock's Manage group opens the management panels.
+const dock = Dock.for(ui);
+for (const [tab, label, key] of [
+  ['finances', 'Finances', 'P'],
+  ['staff', 'Staff', 'H'],
+  ['rating', 'Rating', ''],
+  ['guests', 'Guests', 'G'],
+  ['patrons', 'Club', 'C'],
+  ['prices', 'Prices', ''],
+  ['events', 'Events', ''],
+] as const)
+  dock.addManage(tab, `${label}${key ? ` <small>${key}</small>` : ''}`, label, () =>
+    tab === 'rating' ? hud.onRating() : panel.toggle(tab),
+  );
+panel.onTab = (t) => dock.markManage(t);
 hud.menu.save.onclick = () => void menus.saveMenu((t) => hud.say(t));
 hud.menu.load.onclick = () => {
   hud.pause();
@@ -151,6 +172,8 @@ hud.onRating = () => {
   panel.toggle('rating');
   tutorial.noteRating();
 };
+hud.onFinances = () => panel.toggle('finances');
+hud.onGuests = () => panel.toggle('guests');
 panel.onMessage = (t) => hud.say(t);
 panel.onLocateGuest = (agentId) => {
   const at = guestPosition(sim.curr, agentId);

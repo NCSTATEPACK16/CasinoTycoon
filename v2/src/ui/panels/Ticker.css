@@ -1,0 +1,191 @@
+.news-ticker > * {
+  pointer-events: auto;
+}
+.news-btn {
+  flex: none;
+  padding: 0.25rem 0.5rem;
+  font-size: var(--fs-s);
+  border-color: transparent;
+  background: none;
+}
+.news-btn.active {
+  border-color: var(--c-accent);
+  color: var(--c-accent);
+}
+.news-btn .unread {
+  margin-left: 0.375rem;
+  padding: 0 0.375rem;
+  border-radius: var(--r-pill);
+  font-style: normal;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--c-accent-fg);
+  background: var(--c-accent);
+}
+.news-line {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.1875rem 0.5rem;
+  font-size: var(--fs-m);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  border-left: 0.1875rem solid var(--c-accent);
+  border-radius: var(--r-1);
+  animation: news-in 0.25s ease;
+}
+.news-line[hidden] {
+  display: none;
+}
+.news-line.located,
+.news-history li.located {
+  cursor: pointer;
+}
+.news-line.located::after {
+  content: '⌖';
+  margin-left: 0.5rem;
+  color: var(--c-accent);
+}
+.news-line.located:hover {
+  background: var(--c-line-soft);
+}
+.news-line small,
+.news-history small {
+  color: var(--c-accent);
+  font-weight: 700;
+}
+.news-more {
+  flex: none;
+  font-size: var(--fs-s);
+  color: var(--c-dim);
+}
+.news-line.sev-warn,
+.news-history .sev-warn {
+  border-left-color: var(--c-warn);
+}
+.news-line.sev-alert,
+.news-history .sev-alert {
+  border-left-color: var(--c-bad);
+}
+.news-line.sev-alert {
+  color: var(--c-bad-soft);
+  background: color-mix(in srgb, var(--c-bad) 18%, transparent);
+}
+@keyframes news-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.25rem);
+  }
+}
+
+.news-history-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--c-line);
+}
+.news-history-head b {
+  color: var(--c-accent);
+  font-family: var(--font-num);
+  letter-spacing: 0.03em;
+}
+.news-history ol {
+  list-style: none;
+  margin: 0;
+  padding: 0.375rem;
+  overflow-y: auto;
+}
+.news-history li {
+  display: grid;
+  gap: 2px;
+  padding: 0.375rem 0.5rem;
+  margin: 2px 0;
+  font-size: var(--fs-m);
+  border-left: 0.1875rem solid var(--c-accent);
+  border-radius: var(--r-2);
+}
+.news-history li.dim {
+  border-left-color: transparent;
+}
+.news-history li.located:hover {
+  background: var(--c-line-soft);
+}
+.news-history time {
+  font-size: var(--fs-xs);
+  color: var(--c-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.news-ticker {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+  margin: 0 var(--sp-1);
+  padding: 2px;
+  border: 1px solid var(--c-line-soft);
+  border-radius: var(--r-2);
+  background: var(--c-inset);
+}
+.news-history {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: min(60vh, 30rem);
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-2);
+  backdrop-filter: var(--blur);
+  box-shadow: var(--shadow-2);
+}
+.news-history[hidden] {
+  display: none;
+}
+
+.hud-bar > .news-ticker {
+  flex: 1 1 0;
+}
+.news-today {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  padding: 0.25rem 0.5rem;
+  font-size: var(--fs-s);
+  border-color: transparent;
+  color: var(--c-warn);
+  background: color-mix(in srgb, var(--c-warn) 10%, transparent);
+}
+.news-today[hidden] {
+  display: none;
+}
+.news-today b {
+  font-family: var(--font-num);
+}
+.news-today span {
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--c-text);
+}
+.news-history-head .dim {
+  flex: 1;
+  font-size: var(--fs-s);
+}
+.news-history > .conditions {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--c-line-soft);
+}
+#ui:has(.table-play:not([hidden])) .news-history {
+  display: none;
+}
+/* In the right column the drawer gives way first: it shrinks to what is
+   left under the goals and scrolls its own list (B15d's tray can take the
+   room at small sizes). */
+.region-right > .news-history {
+  flex: 0 1 auto;
+  min-height: 7rem;
+}
