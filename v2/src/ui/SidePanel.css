@@ -11,12 +11,14 @@
   border-radius: var(--r-2);
   backdrop-filter: var(--blur);
   box-shadow: var(--shadow-2);
+  overflow: hidden;
 }
 .side-panel[hidden] {
   display: none;
 }
 .sp-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.25rem;
   padding: 0.5rem;
   border-bottom: 1px solid var(--c-line);

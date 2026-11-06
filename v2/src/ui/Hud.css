@@ -1,11 +1,14 @@
-/* The top bar (top region) and the toast (toast region). B15c turns the
-   readouts into clickable gauges; here they only move into the shell. */
+/* The top bar (top region) and the toast (toast region). B15c: one slim
+   glass row of gauges; the news line takes the slack and gives it back
+   first. As the row narrows (a small screen or a large UI scale), the
+   sub-labels, then the meters and the news text, fold away; nothing wraps or
+   overflows. */
 .hud-top {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
 }
 .hud-row {
+  container: hudrow / inline-size;
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -20,39 +23,96 @@
   display: flex;
   flex: 1 1 auto;
   align-items: center;
-  gap: var(--sp-4);
+  gap: var(--sp-1);
   min-width: 0;
-  overflow: hidden;
   font-size: var(--fs-base);
   font-variant-numeric: tabular-nums;
 }
 .hud-bar > * {
   flex: none;
 }
-.hud-bar b {
-  color: var(--c-accent);
+
+/* A gauge: a number, an optional meter and a dim sub-label. */
+.gauge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 2.125rem;
+  padding: 0 0.625rem;
+  border: 1px solid transparent;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--c-text);
+  font: inherit;
+}
+button.gauge:hover:not(:disabled) {
+  border-color: var(--c-line);
+  background: var(--c-line-soft);
+}
+button.gauge:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.gauge .num {
   font-family: var(--font-num);
+  font-weight: 600;
+  font-size: var(--fs-l);
+}
+.gauge .sub {
+  color: var(--c-dim);
+  font-size: var(--fs-s);
+}
+.gauge .sub.good {
+  color: var(--c-good-soft);
+}
+.gauge .sub.bad {
+  color: var(--c-bad-soft);
+}
+.g-money .num {
+  color: var(--c-accent);
   font-size: var(--fs-xl);
 }
-.hud-bar > .goal {
-  flex: 1 1 auto;
+.g-time {
+  gap: var(--sp-2);
+}
+.g-time .num {
+  font-size: var(--fs-base);
+}
+.meter {
+  width: 2.75rem;
+  height: 0.3125rem;
+  border-radius: var(--r-pill);
+  background: var(--c-fill);
+  overflow: hidden;
+}
+.meter[hidden] {
+  display: none;
+}
+.meter i {
+  display: block;
+  height: 100%;
+  background: var(--c-accent);
+  transition: width 0.4s;
+}
+.hud-rating .num {
+  color: var(--c-accent);
+}
+.goalchip {
+  flex: 0 1 auto;
+  min-width: 0;
+  color: var(--c-dim);
+}
+.goalchip .goal-name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.hud-bar .goal.has-goals {
-  cursor: pointer;
-  text-decoration: underline dotted;
-  text-underline-offset: 0.1875rem;
+.goalchip b {
+  color: var(--c-text);
+  font-family: var(--font-num);
 }
-.hud-bar > .hud-rating {
-  padding: 2px var(--sp-3);
-  border-radius: var(--r-pill);
-  font-size: var(--fs-base);
-  background: color-mix(in srgb, var(--c-accent) 8%, transparent);
-}
-.hud-bar > .hud-rating:hover {
-  color: var(--c-accent);
+.goalchip b[hidden] {
+  display: none;
 }
 .paused-badge {
   padding: 2px var(--sp-2);
@@ -63,23 +123,32 @@
   color: var(--c-accent-fg);
   background: var(--c-accent);
 }
+.paused-badge[hidden] {
+  display: none;
+}
 .hud-menu,
 .hud-speeds {
   display: flex;
   flex: none;
   gap: var(--sp-1);
 }
+.hud-speeds {
+  margin: 0 var(--sp-1);
+}
 .hud-menu small {
   color: var(--c-dim);
   font-size: var(--fs-xs);
   margin-left: 2px;
 }
-.hud-row button {
+.hud-row button:not(.gauge) {
   padding: var(--sp-1) var(--sp-3);
 }
 .hud-speeds button {
   min-width: 2.25rem;
   font-family: var(--font-num);
+}
+.hud-row .hud-speeds button {
+  padding: var(--sp-1) var(--sp-2);
 }
 .hud-speeds button.active {
   border-color: var(--c-accent);
@@ -93,6 +162,38 @@
 #hud-slot-a:empty {
   display: none;
 }
+
+/* Folding as the row narrows. The thresholds are in em of the row, so they
+   follow the UI scale. Measured at 2560 wide: everything takes ~87em plus
+   the news text; without sub-labels and meters ~66em. So: all of it above
+   104em (1920 at 100%), the dim sub-labels go first, then every sub-label
+   and meter (1280 at 100% is 80em), then the goal chip keeps only its count
+   and the gauges tighten (1280 at 125% is 64em). */
+@container hudrow (max-width: 104em) {
+  .gauge .sub:not(.good):not(.bad),
+  .hud-menu small {
+    display: none;
+  }
+}
+@container hudrow (max-width: 84em) {
+  .gauge .sub,
+  .meter,
+  .news-today span {
+    display: none;
+  }
+}
+@container hudrow (max-width: 72em) {
+  .g-time .num {
+    font-size: var(--fs-s);
+  }
+  .gauge {
+    padding: 0 0.375rem;
+  }
+  .goalchip:has(b:not([hidden])) .goal-name {
+    display: none;
+  }
+}
+
 .toast {
   padding: var(--sp-2) var(--sp-4);
   border-radius: var(--r-2);

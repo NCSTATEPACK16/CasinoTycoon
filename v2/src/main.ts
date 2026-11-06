@@ -54,6 +54,10 @@ const tips = new Tips();
 tutorial.watch(sim);
 tutorial.onExit = () => void menus.title();
 hud.mountBelowBar(tutorial.root);
+// B15c: Opening Night's steps own the goal chip while it runs.
+hud.goalSource = () =>
+  tutorial.isActive ? { name: 'Opening Night', count: tutorial.progress } : null;
+hud.onGoals = () => (tutorial.isActive ? tutorial.toggleFolded() : hud.toggleGoals());
 shell.mount('hint', tips.root);
 // B5: the mood/traffic heat map over the floor, and following a guest.
 const heat = new HeatOverlay();
@@ -154,6 +158,8 @@ hud.onRating = () => {
   panel.toggle('rating');
   tutorial.noteRating();
 };
+hud.onFinances = () => panel.toggle('finances');
+hud.onGuests = () => panel.toggle('guests');
 panel.onMessage = (t) => hud.say(t);
 panel.onLocateGuest = (agentId) => {
   const at = guestPosition(sim.curr, agentId);

@@ -45,7 +45,7 @@
 }
 .st-row {
   display: grid;
-  grid-template-columns: 4.75rem 1fr 2.625rem;
+  grid-template-columns: 4.75rem minmax(0, 1fr) 2.625rem;
   align-items: center;
   gap: 0.5rem;
   font-size: var(--fs-m);
@@ -53,6 +53,8 @@
 }
 .st-row input[type='range'] {
   accent-color: var(--c-accent);
+  width: 100%;
+  min-width: 0;
 }
 .st-row .st-val,
 .st-row .dim {
@@ -62,4 +64,12 @@
 }
 .st-row.st-mute {
   grid-template-columns: auto 1fr;
+}
+.st-row select {
+  min-width: 0;
+  max-width: 100%;
+}
+.st-row .dim.small {
+  white-space: normal;
+  line-height: 1.15;
 }

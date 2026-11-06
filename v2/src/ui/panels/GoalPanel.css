@@ -1,9 +1,11 @@
 .goal-panel {
-  backdrop-filter: var(--blur);
-  padding: 0.375rem 0.625rem;
+  padding: 0.5rem 0.75rem 0.625rem;
   background: var(--c-panel);
   border: 1px solid var(--c-line);
+  border-top: 2px solid var(--c-accent);
   border-radius: var(--r-2);
+  backdrop-filter: var(--blur);
+  box-shadow: var(--shadow-2);
   font-size: var(--fs-s);
 }
 .goal-panel[hidden] {
@@ -64,4 +66,12 @@
 }
 .goal-row.met .goal-bar i {
   background: var(--c-good);
+}
+.goal-head b {
+  color: var(--c-accent);
+  font-family: var(--font-num);
+  letter-spacing: 0.03em;
+}
+.region-right:has(> .news-history:not([hidden])) .goal-list {
+  display: none;
 }
