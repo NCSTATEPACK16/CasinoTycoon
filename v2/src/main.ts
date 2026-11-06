@@ -8,6 +8,7 @@ import type { PickHit } from './input/Picker';
 import type { SoundName } from './audio/sounds';
 import { Stage } from './render/Stage';
 import { Anim } from './shared/contracts';
+import { Dock } from './ui/dock/Dock';
 import { Hud } from './ui/Hud';
 import { Menus } from './ui/Menus';
 import { Settings } from './ui/Settings';
@@ -143,8 +144,21 @@ setInterval(() => {
 
 // ---------- management UI ----------
 
-hud.menu.finances.onclick = () => panel.toggle('finances');
-hud.menu.staff.onclick = () => panel.toggle('staff');
+// B15d: the dock's Manage group opens the management panels.
+const dock = Dock.for(ui);
+for (const [tab, label, key] of [
+  ['finances', 'Finances', 'P'],
+  ['staff', 'Staff', 'H'],
+  ['rating', 'Rating', ''],
+  ['guests', 'Guests', 'G'],
+  ['patrons', 'Club', 'C'],
+  ['prices', 'Prices', ''],
+  ['events', 'Events', ''],
+] as const)
+  dock.addManage(tab, `${label}${key ? ` <small>${key}</small>` : ''}`, label, () =>
+    tab === 'rating' ? hud.onRating() : panel.toggle(tab),
+  );
+panel.onTab = (t) => dock.markManage(t);
 hud.menu.save.onclick = () => void menus.saveMenu((t) => hud.say(t));
 hud.menu.load.onclick = () => {
   hud.pause();

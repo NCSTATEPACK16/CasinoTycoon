@@ -1,9 +1,10 @@
 // The HUD (B15c): one slim top bar of glanceable gauges. Money opens
 // Finances, rating opens Rating, guests open Guests; the date carries the
 // paused badge; the speeds follow it; the news line (with today's conditions
-// folded in) and the goal chip sit at the bar's right, then the menu, help and
-// the settings slot. The goals checklist and the news history stack in the
-// right column; the build palette goes to the dock and the toast to the
+// folded in) and the goal chip sit at the bar's right, then Save, Menu, help
+// and the settings slot (Finances and Staff moved to the dock's Manage group
+// in B15d). The goals checklist and the news history stack in the right
+// column; the build palette's categories go to the dock and the toast to the
 // toast region.
 
 import './Hud.css';
@@ -12,6 +13,7 @@ import { weekdayName } from '../data/traffic';
 import type { HudView, SimEvent } from '../shared/contracts';
 import type { SimClient } from '../client/SimClient';
 import type { BuildTool } from '../input/BuildTool';
+import { Dock } from './dock/Dock';
 import { ConditionsBanner } from './panels/ConditionsBanner';
 import { GoalPanel } from './panels/GoalPanel';
 import { Palette } from './panels/Palette';
@@ -70,7 +72,7 @@ export class Hud {
   /** The build palette; B8 locks and unlocks items through it. */
   readonly palette: Palette;
   /** Top-bar menu buttons; main.ts binds what each opens. */
-  readonly menu: Record<'finances' | 'staff' | 'save' | 'load' | 'help', HTMLButtonElement>;
+  readonly menu: Record<'save' | 'load' | 'help', HTMLButtonElement>;
   /** The speed the sim reported last, and the one Space resumes to. */
   private current: Speed = 0;
   private resumeTo: Speed = 1;
@@ -133,7 +135,7 @@ export class Hud {
       this.goalBtn,
     );
     // B7: the tabbed palette, with forbidden and locked items explained.
-    this.palette = new Palette(build);
+    this.palette = new Palette(build, Dock.for(root));
     this.palette.onMessage = (t) => this.say(t);
     this.toast = el('div', 'toast');
     const menu = el('div', 'hud-menu');
@@ -145,8 +147,6 @@ export class Hud {
     const help = el('button', 'hud-help', '?') as HTMLButtonElement;
     help.title = 'Controls (?)';
     this.menu = {
-      finances: mk('Finances', 'P'),
-      staff: mk('Staff', 'H'),
       save: mk('Save', ''),
       load: mk('Menu', ''),
       help,
@@ -160,7 +160,6 @@ export class Hud {
     this.right = regionIn(root, 'right');
     this.right.append(this.goals.root, this.ticker.historyRoot);
     this.ticker.mountInHistory(this.conditions.root);
-    regionIn(root, 'dock').append(this.palette.root);
     regionIn(root, 'toast').append(this.toast);
   }
 

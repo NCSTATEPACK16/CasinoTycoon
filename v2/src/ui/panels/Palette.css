@@ -1,71 +1,84 @@
+/* The palette's tray (B15d): picture cards for the open category, the Shift
+   hint at the end, and the hover card above the tray. */
 .palette {
+  position: relative;
+  align-items: center;
+}
+.pal-items {
   display: flex;
   gap: var(--sp-2);
+  flex: 1 1 auto;
+  min-width: 0;
   overflow-x: auto;
-  padding: var(--sp-2) var(--sp-3);
-  background: var(--c-panel);
-  border-top: 1px solid var(--c-line);
-  backdrop-filter: var(--blur);
+  padding-bottom: 2px;
 }
 .pal-item {
+  position: relative;
   flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  font-size: var(--fs-m);
+  display: grid;
+  grid-template-rows: 1.75rem auto auto auto;
+  align-content: start;
+  gap: 2px;
+  width: 9.5rem;
+  padding: 0 0 var(--sp-2);
+  overflow: hidden;
   text-align: left;
+  font-size: var(--fs-m);
+  white-space: nowrap;
 }
-.pal-item small {
+/* The picture band: a tint per category until the item icons land. */
+.pal-item::before {
+  content: '';
+  margin-bottom: var(--sp-1);
+  background: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--pal-tint) 55%, transparent),
+    color-mix(in srgb, var(--pal-tint) 15%, transparent)
+  );
+  border-bottom: 1px solid var(--c-line-soft);
+}
+.pal-item.tab-slots {
+  --pal-tint: var(--c-accent);
+}
+.pal-item.tab-tables {
+  --pal-tint: var(--c-good);
+}
+.pal-item.tab-services {
+  --pal-tint: var(--c-info);
+}
+.pal-item.tab-decor {
+  --pal-tint: var(--c-warn);
+}
+.pal-item > span,
+.pal-item > i {
+  padding: 0 var(--sp-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pal-name {
+  font-weight: 600;
+}
+.pal-stat {
+  color: var(--c-dim);
+  font-size: var(--fs-s);
+}
+.pal-price {
   color: var(--c-accent);
+  font-family: var(--font-num);
+  font-weight: 600;
 }
 .pal-item.active {
   border-color: var(--c-accent);
   box-shadow: 0 0 0 1px var(--c-accent) inset;
 }
-.palette.palette-v2 {
-  align-items: stretch;
-  overflow: visible;
-}
-.pal-tabs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.1875rem;
-  flex: 0 0 auto;
-}
-.pal-tab {
-  padding: 2px 0.5rem;
-  font-size: var(--fs-s);
-  text-align: left;
-}
-.pal-tab small {
-  color: var(--c-dim);
-}
-.pal-tab.active {
-  border-color: var(--c-accent);
-  color: var(--c-accent);
-}
-.pal-tab.empty:not(.active) {
-  opacity: 0.55;
-}
-.pal-items {
-  display: flex;
-  gap: 0.375rem;
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow-x: auto;
-}
-.palette-v2 .pal-item {
-  position: relative;
-}
-.palette-v2 .pal-item.blocked {
-  opacity: 0.45;
+.pal-item.blocked {
+  opacity: 0.5;
   cursor: not-allowed;
   border-style: dashed;
 }
 .pal-lock {
-  display: inline;
-  margin-left: 0.375rem;
   font-style: normal;
-  font-size: var(--fs-2xs);
+  font-size: var(--fs-xs);
   color: var(--c-bad-soft);
 }
 .pal-lock[hidden] {
@@ -83,10 +96,11 @@
   bottom: calc(100% + 0.375rem);
   width: 15.625rem;
   padding: 0.5rem 0.625rem;
-  background: var(--c-panel);
+  background: var(--c-panel-solid);
   border: 1px solid var(--c-line);
   border-radius: var(--r-2);
   box-shadow: var(--shadow-1);
+  white-space: normal;
   pointer-events: none;
   z-index: 4;
 }

@@ -20,20 +20,20 @@ import {
 
 export const TUTORIAL_ID = 'opening-night';
 
-const byText = (selector: string, text: string): HTMLElement | null =>
-  [...document.querySelectorAll<HTMLElement>(selector)].find((e) =>
-    e.textContent?.trim().toLowerCase().startsWith(text),
-  ) ?? null;
-
 /** The control a step points at, or its tab when that control is not showing. */
 export function targetFor(target: TutorialStep['target']): HTMLElement | null {
   const visible = (e: HTMLElement | null) => (e && e.offsetParent !== null ? e : null);
+  const dockCat = (id: string) =>
+    document.querySelector<HTMLElement>(`.dock-cat[data-cat="${id}"]`);
+  // B15d: the item's card when its tray is open, else its dock category.
   const palette = (def: string, tab: string) =>
-    visible(document.querySelector<HTMLElement>(`.pal-item[data-def="${def}"]`)) ??
-    byText('.pal-tab', tab);
+    visible(document.querySelector<HTMLElement>(`.pal-item[data-def="${def}"]`)) ?? dockCat(tab);
   switch (target) {
     case 'zone-tool':
-      return byText('.build-toolbar .tool-btn', 'zone');
+      return (
+        visible(document.querySelector<HTMLElement>('.swatch[data-key="zone:gaming"]')) ??
+        dockCat('zone')
+      );
     case 'slot':
       return palette('slot-machine', 'slots');
     case 'table':
@@ -41,9 +41,9 @@ export function targetFor(target: TutorialStep['target']): HTMLElement | null {
     case 'stall':
       return palette('food-stall', 'services');
     case 'staff-tab':
-      return byText('.hud-menu button', 'staff');
+      return document.querySelector<HTMLElement>('.dock-man[data-manage="staff"]');
     case 'prices-tab':
-      return byText('.sp-tabs button', 'prices');
+      return document.querySelector<HTMLElement>('.dock-man[data-manage="prices"]');
     case 'rating':
       return document.querySelector<HTMLElement>('.hud-rating');
   }
