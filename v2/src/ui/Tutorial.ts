@@ -1,9 +1,12 @@
-// B12: Opening Night's guide. A card under the top bar lists the steps and
-// ticks them as the player does them; the current step's control pulses so
+// B12: Opening Night's guide. A compact checklist in the right column (B15c)
+// lists the steps, with the current step's text under it, and ticks them as
+// the player does them; folded, it shows the current step only. The goal
+// chip in the top bar folds it too. The current step's control pulses so
 // the player knows where to click. It watches what the player does (the
 // commands the UI sends, the objects on the floor, the rating click) and
 // never drives the sim: the lesson is the real game.
 
+import './Tutorial.css';
 import type { SimClient } from '../client/SimClient';
 import { loadOnboarding, saveOnboarding, type Onboarding } from '../services/onboarding';
 import type { Command, HudView, ObjectView } from '../shared/contracts';
@@ -17,20 +20,20 @@ import {
 
 export const TUTORIAL_ID = 'opening-night';
 
-const byText = (selector: string, text: string): HTMLElement | null =>
-  [...document.querySelectorAll<HTMLElement>(selector)].find((e) =>
-    e.textContent?.trim().toLowerCase().startsWith(text),
-  ) ?? null;
-
 /** The control a step points at, or its tab when that control is not showing. */
 export function targetFor(target: TutorialStep['target']): HTMLElement | null {
   const visible = (e: HTMLElement | null) => (e && e.offsetParent !== null ? e : null);
+  const dockCat = (id: string) =>
+    document.querySelector<HTMLElement>(`.dock-cat[data-cat="${id}"]`);
+  // B15d: the item's card when its tray is open, else its dock category.
   const palette = (def: string, tab: string) =>
-    visible(document.querySelector<HTMLElement>(`.pal-item[data-def="${def}"]`)) ??
-    byText('.pal-tab', tab);
+    visible(document.querySelector<HTMLElement>(`.pal-item[data-def="${def}"]`)) ?? dockCat(tab);
   switch (target) {
     case 'zone-tool':
-      return byText('.build-toolbar .tool-btn', 'zone');
+      return (
+        visible(document.querySelector<HTMLElement>('.swatch[data-key="zone:gaming"]')) ??
+        dockCat('zone')
+      );
     case 'slot':
       return palette('slot-machine', 'slots');
     case 'table':
@@ -38,9 +41,9 @@ export function targetFor(target: TutorialStep['target']): HTMLElement | null {
     case 'stall':
       return palette('food-stall', 'services');
     case 'staff-tab':
-      return byText('.hud-menu button', 'staff');
+      return document.querySelector<HTMLElement>('.dock-man[data-manage="staff"]');
     case 'prices-tab':
-      return byText('.sp-tabs button', 'prices');
+      return document.querySelector<HTMLElement>('.dock-man[data-manage="prices"]');
     case 'rating':
       return document.querySelector<HTMLElement>('.hud-rating');
   }
@@ -55,6 +58,7 @@ export class Tutorial {
   private finished = false;
   /** The finish card was closed: stay out of the way until the next run. */
   private dismissed = false;
+  private folded = false;
   private pointed: HTMLElement | null = null;
   private key = '';
   private objects: readonly ObjectView[] = [];
@@ -65,6 +69,17 @@ export class Tutorial {
 
   get isActive(): boolean {
     return this.active;
+  }
+
+  /** Steps done out of all, for the goal chip. */
+  get progress(): string {
+    return `${this.tracker.done.size}/${TUTORIAL_STEPS.length}`;
+  }
+
+  /** Show only the current step, or the whole list. */
+  toggleFolded(): void {
+    this.folded = !this.folded;
+    this.root.classList.toggle('folded', this.folded);
   }
 
   /** Forget the last run: a new game is starting. */
@@ -134,26 +149,28 @@ export class Tutorial {
   private card(cur: TutorialStep | undefined): HTMLElement {
     const c = el('div', 'tut-card');
     const done = this.tracker.done.size;
-    c.append(
-      el(
-        'div',
-        'tut-head',
-        `<b>Opening Night</b> <span class="dim">${done} of ${TUTORIAL_STEPS.length}</span>`,
-      ),
+    const head = el(
+      'div',
+      'tut-head',
+      `<b>Opening Night</b> <span class="dim">${done} of ${TUTORIAL_STEPS.length}</span>`,
     );
+    const fold = button('', () => this.toggleFolded(), 'small tut-fold');
+    fold.title = 'Show the current step only, or every step';
+    head.append(fold);
+    c.append(head);
     const list = el('ol', 'tut-steps');
     for (const s of TUTORIAL_STEPS) {
       const li = el(
         'li',
         this.tracker.done.has(s.id) ? 'done' : s === cur ? 'now' : '',
-        escapeHtml(s.title),
+        `<span>${escapeHtml(s.title)}</span>`,
       );
       li.dataset.step = s.id;
+      if (s === cur) li.append(el('p', 'tut-body', escapeHtml(cur.body)));
       list.append(li);
     }
     c.append(list);
-    if (cur) c.append(el('p', 'tut-body', escapeHtml(cur.body)));
-    else {
+    if (!cur) {
       c.append(
         el(
           'p',

@@ -1,0 +1,46 @@
+.patron {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--c-line);
+  border-left: 0.1875rem solid var(--c-silver);
+  border-radius: var(--r-2);
+}
+.patron.tier-gold {
+  border-left-color: var(--c-accent);
+}
+.patron.tier-black {
+  border-left-color: var(--c-bad);
+  background: var(--c-inset);
+}
+.patron-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.patron-head .where {
+  margin-left: auto;
+  font-size: var(--fs-s);
+}
+.patron .tier {
+  padding: 0 0.5rem;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--c-accent-fg);
+  background: var(--c-silver);
+}
+.patron.tier-gold .tier {
+  background: var(--c-accent);
+}
+.patron.tier-black .tier {
+  color: var(--c-accent);
+  background: var(--c-bg);
+  border: 1px solid var(--c-accent);
+}
+.patron-progress {
+  height: 0.25rem;
+  border-radius: var(--r-1);
+  background: linear-gradient(90deg, var(--c-accent) var(--v), var(--c-fill) var(--v));
+}

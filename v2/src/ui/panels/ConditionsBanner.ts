@@ -2,6 +2,7 @@
 // modifier also gets one ticker line at midnight, but that scrolls away and
 // the condition doesn't: a heat wave still matters at 9 p.m.
 
+import './ConditionsBanner.css';
 import type { HudView } from '../../shared/contracts';
 import { el, escapeHtml } from '../dom';
 

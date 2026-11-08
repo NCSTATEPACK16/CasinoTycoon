@@ -2,6 +2,7 @@
 // written out here rather than gathered from the handlers, which live in
 // several modules; keep it in step when a binding changes.
 
+import './HelpOverlay.css';
 import { button, el } from '../dom';
 
 const SECTIONS: [string, [string, string][]][] = [

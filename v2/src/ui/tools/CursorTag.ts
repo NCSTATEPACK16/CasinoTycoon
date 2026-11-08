@@ -1,7 +1,8 @@
 // The little price tag that rides next to the cursor while a build tool is
 // active: cost, cell count, refund, or why a placement is blocked.
 
-import './tools.css';
+import './CursorTag.css';
+import { regionIn } from '../shell/Shell';
 
 export type TagTone = 'ok' | 'bad' | 'info';
 
@@ -11,7 +12,7 @@ export class CursorTag {
   constructor(root: HTMLElement) {
     this.el = document.createElement('div');
     this.el.className = 'cursor-tag';
-    root.append(this.el);
+    regionIn(root, 'overlay').append(this.el);
   }
 
   show(clientX: number, clientY: number, html: string, tone: TagTone = 'info'): void {

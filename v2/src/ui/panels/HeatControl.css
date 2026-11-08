@@ -1,0 +1,87 @@
+/* B15f: the info-view strip under the top bar on the left, and the legend
+   of the view on screen below it (Variant B). */
+.heat-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+.heat-buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1);
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-2);
+  backdrop-filter: var(--blur);
+}
+.heat-view {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 1.875rem;
+  padding: 0 0.5625rem;
+  border-color: transparent;
+  background: none;
+}
+.heat-view:hover {
+  border-color: var(--c-line);
+  background: var(--c-line-soft);
+}
+.heat-view.active {
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+  color: var(--c-accent-fg);
+}
+.heat-view kbd {
+  color: var(--c-dim);
+  font-size: var(--fs-xs);
+}
+.heat-view.active kbd {
+  color: inherit;
+  opacity: 0.75;
+}
+.ico {
+  width: 1.15em;
+  height: 1.15em;
+  flex: none;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.heat-legend {
+  width: 14.375rem;
+  padding: 0.5rem 0.625rem;
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-2);
+  backdrop-filter: var(--blur);
+  font-size: var(--fs-m);
+}
+.heat-legend[hidden] {
+  display: none;
+}
+.heat-legend p {
+  margin: 0.25rem 0 0;
+}
+.heat-ramp {
+  display: block;
+  height: 0.5625rem;
+  margin: 0.375rem 0 0.1875rem;
+  border-radius: var(--r-1);
+}
+.heat-ends {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.375rem;
+  color: var(--c-dim);
+}
+.heat-summary {
+  color: var(--c-accent);
+}
+#ui:has(.table-play:not([hidden])) .heat-control {
+  display: none;
+}

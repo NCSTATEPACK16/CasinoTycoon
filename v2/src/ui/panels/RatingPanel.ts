@@ -2,6 +2,7 @@
 // stands in its range and what the player can do about it, plus reputation —
 // the slow number behind who walks in the door.
 
+import './RatingPanel.css';
 import type { RatingReport, RatingTermId } from '../../worker/inspect';
 import { el, escapeHtml } from '../dom';
 

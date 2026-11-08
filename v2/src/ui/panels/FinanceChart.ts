@@ -3,6 +3,7 @@
 // are bars, green above zero and red below; hold, guests and cash are lines.
 // Hovering shows the exact value.
 
+import './FinanceChart.css';
 import { weekdayName } from '../../data/traffic';
 import type { FinanceHistory, FinancePoint } from '../../worker/finance';
 import { button, el, money, pct } from '../dom';
