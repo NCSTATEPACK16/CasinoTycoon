@@ -4,34 +4,14 @@
   padding: 0.5rem 0.625rem;
 }
 
+/* B15f: the content of the Settings window (the window manager draws the
+   frame, the title and the tabs). */
 .settings-panel {
-  position: absolute;
-  top: var(--sp-2);
-  left: var(--sp-2);
-  width: var(--settings-w);
-  max-height: calc(100% - var(--sp-4));
-  overflow-y: auto;
-  padding: var(--sp-3) var(--sp-4);
   display: grid;
   gap: var(--sp-3);
-  background: var(--c-panel);
-  border: 1px solid var(--c-line);
-  border-radius: var(--r-2);
-  backdrop-filter: var(--blur);
-  box-shadow: var(--shadow-2);
 }
-.settings-panel[hidden] {
+.st-group[hidden] {
   display: none;
-}
-/* The settings panel takes the window layer's left; B15e's windows place
-   themselves clear of it. */
-.region-windows {
-  --settings-w: min(18.75rem, calc(100% - var(--sp-4)));
-}
-.st-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 .st-group h4 {
   margin: 0 0 0.375rem;

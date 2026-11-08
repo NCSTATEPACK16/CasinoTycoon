@@ -7,7 +7,7 @@
   max-width: 100%;
   /* A GAP from the layer's edges, and short enough that a cascaded window
      leaves the title bars behind it in view. */
-  max-height: min(calc(100% - 1rem), 36rem);
+  max-height: min(var(--win-room, 100%), calc(100% - 1rem), 36rem);
   display: flex;
   flex-direction: column;
   background: var(--c-panel);

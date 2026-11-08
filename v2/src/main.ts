@@ -13,6 +13,7 @@ import { Hud } from './ui/Hud';
 import { Menus } from './ui/Menus';
 import { Settings } from './ui/Settings';
 import { Desk } from './ui/windows/Desk';
+import { PhoneNotice } from './ui/PhoneNotice';
 import { feltPoint } from './ui/play/feltPoint';
 import { TablePlay } from './ui/TablePlay';
 import { HeatOverlay } from './render/HeatOverlay';
@@ -44,6 +45,8 @@ shell.mount('windows', table.root);
 // B15e: the Manage and inspect windows, in the window layer.
 const panel = new Desk(sim, shell.region('windows'));
 shell.mount('modal', help.root, report.root, menus.root);
+// B15f: narrow or touch-only screens get a "best on a computer" notice.
+shell.mount('modal', new PhoneNotice().root);
 const showReport = () =>
   void sim
     .command<DayReport>({ type: 'dayReport' })
@@ -74,10 +77,10 @@ panel.onFollowGuest = (agentId, name) => {
 panel.onReport = showReport;
 controls.onMessage = (t) => hud.say(t);
 const settings = new Settings(audio, stage);
-settings.mount(ui);
+settings.mount(ui, panel.wm);
 audio.unlockOn(window);
 const gameAudio = new GameAudio(audio, sim);
-gameAudio.watchPanels([table.root, menus.root, settings.root]);
+gameAudio.watchPanels([table.root, menus.root]);
 panel.wm.onCreate = (root) => gameAudio.watchPanels([root]);
 gameAudio.watchClicks(ui);
 stage.fx.sound = (name, at, delay, rate) => audio.play(name as SoundName, { at, delay, rate });

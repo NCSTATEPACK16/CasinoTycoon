@@ -1,7 +1,10 @@
 // Settings: volumes per bus, mute, the graphics tier and (B15b) the UI scale.
 // The gear lives in the HUD's #hud-slot-a, or in the top region when there is
-// no slot; the panel sits in the shell's window layer. Volumes persist through
-// the audio engine; the tier and the UI scale persist here.
+// no slot. B15f: the settings are a window (Sound, Graphics, Interface tabs)
+// that the window manager places, drags and pins like the others. Volumes
+// persist through the audio engine; the tier and the UI scale persist here.
+// The graphics row is a placeholder for Track A's A8 (Auto/High/Low, Auto
+// starting at stage.suggestedQuality()), which lands through origin/v2.1.
 
 import './Settings.css';
 import type { AudioEngine } from '../audio/AudioEngine';
@@ -10,6 +13,7 @@ import type { Quality } from '../render/Post';
 import type { Stage } from '../render/Stage';
 import { button, el } from './dom';
 import { regionIn } from './shell/Shell';
+import type { WindowManager } from './windows/WindowManager';
 import {
   UI_SCALE_MAX,
   UI_SCALE_MIN,
@@ -74,7 +78,10 @@ const VOLUMES: { key: 'master' | Bus; label: string }[] = [
 ];
 
 export class Settings {
+  /** The window's content. */
   readonly root = el('div', 'settings-panel');
+  private wm: WindowManager | null = null;
+  private panes = new Map<string, HTMLElement>();
   readonly gear = button('⚙', () => this.toggle(), 'settings-gear');
   private quality: QualityChoice;
   private uiScale: number;
@@ -86,7 +93,6 @@ export class Settings {
     private stage: Stage,
   ) {
     this.gear.title = 'Settings';
-    this.root.hidden = true;
     this.quality = loadQualityChoice(storage());
     applyQuality(this.stage, this.quality);
     this.uiScale = loadUiScale(storage());
@@ -94,15 +100,15 @@ export class Settings {
     this.build();
   }
 
-  /** The gear into the HUD's slot (or the top region); the panel into the window layer. */
-  mount(ui: HTMLElement): void {
+  /** The gear into the HUD's slot (or the top region); the window through `wm`. */
+  mount(ui: HTMLElement, wm: WindowManager): void {
     const slot = ui.querySelector<HTMLElement>('#hud-slot-a');
     (slot ?? regionIn(ui, 'top')).append(this.gear);
-    regionIn(ui, 'windows').append(this.root);
+    this.wm = wm;
   }
 
   get isOpen(): boolean {
-    return !this.root.hidden;
+    return !!this.wm?.get('settings')?.isOpen;
   }
 
   toggle(): void {
@@ -111,21 +117,35 @@ export class Settings {
   }
 
   open(): void {
-    this.root.hidden = false;
-    this.refreshTier();
-    this.timer = window.setInterval(() => this.refreshTier(), 1000);
+    this.wm?.show({
+      key: 'settings',
+      title: 'Settings',
+      width: '20rem',
+      tabs: [
+        { id: 'sound', label: 'Sound' },
+        { id: 'graphics', label: 'Graphics' },
+        { id: 'interface', label: 'Interface' },
+      ],
+      onTab: (id) => {
+        for (const [k, p] of this.panes) p.hidden = k !== id;
+      },
+      content: this.root,
+      onOpen: () => {
+        this.refreshTier();
+        window.clearInterval(this.timer);
+        this.timer = window.setInterval(() => this.refreshTier(), 1000);
+      },
+      onClose: () => window.clearInterval(this.timer),
+    });
   }
 
   close(): void {
-    this.root.hidden = true;
-    window.clearInterval(this.timer);
+    this.wm?.get('settings')?.close();
   }
 
   private build(): void {
-    const head = el('div', 'st-head', '<b>Settings</b>');
-    head.append(button('✕', () => this.close(), 'small'));
     const sound = el('div', 'st-group');
-    sound.append(el('h4', '', 'Sound'));
+    sound.append(el('h4', '', 'Volume'));
     for (const v of VOLUMES) {
       const row = el('label', 'st-row');
       const range = el('input');
@@ -159,7 +179,7 @@ export class Settings {
     sound.append(musicRow);
 
     const gfx = el('div', 'st-group');
-    gfx.append(el('h4', '', 'Graphics'));
+    gfx.append(el('h4', '', 'Quality'));
     const sel = el('select');
     sel.setAttribute('aria-label', 'Graphics quality');
     for (const c of CHOICES) {
@@ -179,7 +199,7 @@ export class Settings {
     gfx.append(qRow);
 
     const display = el('div', 'st-group');
-    display.append(el('h4', '', 'Interface'));
+    display.append(el('h4', '', 'Size'));
     const scale = el('input');
     scale.type = 'range';
     scale.min = String(UI_SCALE_MIN * 100);
@@ -197,8 +217,15 @@ export class Settings {
     scale.onchange = () => saveUiScale(storage(), this.uiScale);
     const sRow = el('label', 'st-row');
     sRow.append(el('span', '', 'UI scale'), scale, scaleVal);
-    display.append(sRow);
-    this.root.append(head, sound, gfx, display);
+    display.append(
+      sRow,
+      el('p', 'dim small', 'Scales every panel, window and the dock. 100% suits a 1440 px screen.'),
+    );
+    this.panes.set('sound', sound);
+    this.panes.set('graphics', gfx);
+    this.panes.set('interface', display);
+    gfx.hidden = display.hidden = true;
+    this.root.append(sound, gfx, display);
   }
 
   private refreshTier(): void {

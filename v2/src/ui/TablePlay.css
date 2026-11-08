@@ -1,6 +1,10 @@
+/* B15f: bottom-right of the window layer, above the dock. The seated camera
+   puts the felt left of centre and the wheel (and the shoe, the dice and the
+   reels) at the top right, so this corner shows only the player's own
+   arms and stool. */
 .table-play {
   position: absolute;
-  top: var(--sp-2);
+  bottom: var(--sp-2);
   right: var(--sp-2);
   width: min(21.25rem, 100%);
   max-height: calc(100% - var(--sp-4));

@@ -35,6 +35,8 @@ const GAP = 8;
 const CASCADE = 28;
 /** The height a new window is planned at before its data fills it. */
 const PLAN_HEIGHT_REM = 18;
+/** The least a window shrinks to before it moves up instead. */
+const MIN_ROOM_REM = 10;
 
 export class Win {
   readonly root = el('section', 'win');
@@ -161,10 +163,7 @@ export class WindowManager {
 
   /** The layer shrinks when a tray opens or the screen changes, and a window
    *  grows when its data arrives: keep every window inside the layer. */
-  private ro = new ResizeObserver(() => {
-    for (const w of this.wins.values())
-      if (w.isOpen) this.place(w, w.root.offsetLeft, w.root.offsetTop);
-  });
+  private ro = new ResizeObserver(() => this.reclamp());
 
   constructor(readonly layer: HTMLElement) {
     this.ro.observe(layer);
@@ -218,14 +217,43 @@ export class WindowManager {
     this.last = w;
   }
 
-  /** Put a window at (x, y), clamped inside the layer. */
+  /** Put a window at (x, y), clamped inside the layer. A window keeps its
+   *  spot and gets shorter (its body scrolls) rather than climbing over the
+   *  title bars above it; it only moves up when less than MIN_ROOM_REM is
+   *  left below it. */
   place(w: Win, x: number, y: number): void {
     const lw = this.layer.clientWidth;
     const lh = this.layer.clientHeight;
     const ww = Math.min(w.root.offsetWidth, lw);
-    const wh = Math.min(w.root.offsetHeight, lh);
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const minH = Math.min(w.root.offsetHeight, MIN_ROOM_REM * rem, lh);
+    const top = Math.round(inset(y, lh, minH));
+    const m = lh - minH >= 2 * GAP ? GAP : 0;
     w.root.style.left = `${Math.round(inset(x, lw, ww))}px`;
-    w.root.style.top = `${Math.round(inset(y, lh, wh))}px`;
+    w.root.style.top = `${top}px`;
+    w.root.style.setProperty('--win-room', `${Math.max(0, lh - top - m)}px`);
+  }
+
+  /** Keep every open window inside the layer, back to front. A narrow layer
+   *  can push two windows onto the same row; the front one then steps one
+   *  cascade down, so the title bar behind it stays in view. */
+  private reclamp(): void {
+    const placed: Win[] = [];
+    for (const w of [...this.open].reverse()) {
+      this.place(w, w.root.offsetLeft, w.root.offsetTop);
+      for (let i = 0; i < 8; i++) {
+        const r = w.root;
+        const clash = placed.find(
+          (p) =>
+            Math.abs(p.root.offsetTop - r.offsetTop) < CASCADE / 2 &&
+            p.root.offsetLeft < r.offsetLeft + r.offsetWidth &&
+            r.offsetLeft < p.root.offsetLeft + p.root.offsetWidth,
+        );
+        if (!clash) break;
+        this.place(w, r.offsetLeft, clash.root.offsetTop + CASCADE);
+      }
+      placed.push(w);
+    }
   }
 
   /** Its placed position (style, so it still reads right once hidden). */

@@ -1,12 +1,25 @@
-// The map control: Off · Mood · Traffic (M and T toggle), with a legend for
-// the map on screen. While a map is up it asks the worker for fresh data once
-// a second and hands it to the render overlay.
+// The info views (B15f, Variant B): a strip of view buttons under the top bar
+// on the left (Mood, Traffic; Appeal arrives with B6), with the legend of the
+// view on screen below it. M and T toggle; clicking the lit view turns it
+// off. While a view is up it asks the worker for fresh data once a second and
+// hands it to the render overlay.
 
 import './HeatControl.css';
 import type { SimClient } from '../../client/SimClient';
 import { heatColor, type HeatKind, type HeatOverlay } from '../../render/HeatOverlay';
 import type { HeatMap } from '../../worker/feedback';
 import { button, el } from '../dom';
+
+/** Stroke icons, the mockup's set. */
+const ICON: Record<HeatKind, string> = {
+  mood: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 14.5c1 1.2 2.2 1.8 3.5 1.8s2.5-.6 3.5-1.8M9 9.5h.01M15 9.5h.01"/>',
+  traffic: '<path d="M5 19l4-14M19 19L15 5M12 6v2M12 11v2M12 16v2"/>',
+};
+
+const VIEWS: { kind: HeatKind; label: string; key: string }[] = [
+  { kind: 'mood', label: 'Mood', key: 'M' },
+  { kind: 'traffic', label: 'Traffic', key: 'T' },
+];
 
 const css = ([r, g, b]: [number, number, number]) => `rgb(${r},${g},${b})`;
 
@@ -29,7 +42,7 @@ export class HeatControl {
   readonly root = el('div', 'heat-control');
   private kind: HeatKind | null = null;
   private timer = 0;
-  private buttons = new Map<HeatKind | 'off', HTMLButtonElement>();
+  private buttons = new Map<HeatKind, HTMLButtonElement>();
   private legend = el('div', 'heat-legend');
 
   constructor(
@@ -37,14 +50,17 @@ export class HeatControl {
     private overlay: HeatOverlay,
   ) {
     const row = el('div', 'heat-buttons');
-    row.append(el('span', 'small dim', 'Map'));
-    for (const [k, label] of [
-      ['off', 'Off'],
-      ['mood', 'Mood <small>M</small>'],
-      ['traffic', 'Traffic <small>T</small>'],
-    ] as const) {
-      const b = button(label, () => this.set(k === 'off' ? null : k), 'small');
-      this.buttons.set(k, b);
+    row.setAttribute('role', 'toolbar');
+    row.setAttribute('aria-label', 'Info views');
+    for (const v of VIEWS) {
+      const b = button(
+        `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${ICON[v.kind]}</svg><span class="lbl">${v.label}</span><kbd>${v.key}</kbd>`,
+        () => this.toggle(v.kind),
+        'heat-view',
+      );
+      b.dataset.view = v.kind;
+      b.title = `${v.label} view (${v.key}); click again to turn it off`;
+      this.buttons.set(v.kind, b);
       row.append(b);
     }
     this.root.append(row, this.legend);
@@ -58,7 +74,10 @@ export class HeatControl {
 
   set(kind: HeatKind | null): void {
     this.kind = kind;
-    for (const [k, b] of this.buttons) b.classList.toggle('active', (kind ?? 'off') === k);
+    for (const [k, b] of this.buttons) {
+      b.classList.toggle('active', kind === k);
+      b.setAttribute('aria-pressed', String(kind === k));
+    }
     window.clearInterval(this.timer);
     this.overlay.setVisible(false);
     this.legend.hidden = kind === null;
@@ -66,7 +85,8 @@ export class HeatControl {
     const l = LEGEND[kind];
     const top = l.ends.at(-1)!;
     const stops = l.ends.map((v) => `${css(heatColor(kind, v))} ${(v / top) * 100}%`);
-    this.legend.innerHTML = `<i class="heat-ramp" style="background:linear-gradient(90deg, ${stops.join(', ')})"></i><div class="heat-ends small"><span>${l.left}</span><span class="heat-summary"></span><span>${l.right}</span></div><p class="small dim">${l.blurb}</p>`;
+    const name = VIEWS.find((v) => v.kind === kind)!.label;
+    this.legend.innerHTML = `<b class="heat-name">${name}</b><i class="heat-ramp" style="background:linear-gradient(90deg, ${stops.join(', ')})"></i><div class="heat-ends small"><span>${l.left}</span><span class="heat-summary"></span><span>${l.right}</span></div><p class="small dim">${l.blurb}</p>`;
     void this.refresh();
     this.timer = window.setInterval(() => void this.refresh(), 1000);
   }

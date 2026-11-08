@@ -1,0 +1,34 @@
+/* B15f: the "best on a computer" notice over everything on a narrow or
+   touch-only screen. */
+.phone-notice {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: grid;
+  place-items: center;
+  padding: var(--sp-4);
+  background: var(--c-scrim);
+}
+.phone-notice[hidden] {
+  display: none;
+}
+.phone-panel {
+  width: min(19rem, 100%);
+  padding: 1.125rem;
+  text-align: center;
+  line-height: 1.45;
+  background: var(--c-panel-solid);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-2);
+  box-shadow: var(--shadow-3);
+}
+.phone-panel h3 {
+  margin: 0 0 0.5rem;
+  color: var(--c-accent);
+  font-family: var(--font-num);
+  font-size: var(--fs-xl);
+  font-weight: 600;
+}
+.phone-panel p {
+  margin: 0 0 0.875rem;
+}
