@@ -30,9 +30,10 @@
   --c-felt: rgba(12, 38, 28, 0.92);
   --blur: blur(8px) saturate(1.2);
 
-  /* Type. Barlow/Saira when installed, else the system face. */
-  --font-ui: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-num: 'Saira', 'Barlow', system-ui, -apple-system, sans-serif;
+  /* Type. System faces only (the user, 2026-11-08: no web fonts). Numbers
+     set tabular-nums where they need it. */
+  --font-ui: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-num: system-ui, -apple-system, 'Segoe UI', sans-serif;
   --fs-2xs: 0.625rem;
   --fs-xs: 0.6875rem;
   --fs-s: 0.75rem;
