@@ -86,9 +86,11 @@ export class Dock {
   }
 
   /** Light the Manage button whose window is showing (null: none). */
-  markManage(id: string | null): void {
+  /** Light the Manage buttons whose windows are open (B15e: any number). */
+  markManage(ids: string | readonly string[] | null): void {
+    const open = new Set(ids === null ? [] : typeof ids === 'string' ? [ids] : ids);
     for (const b of this.manage.querySelectorAll<HTMLElement>('.dock-man'))
-      b.classList.toggle('open', b.dataset.manage === id);
+      b.classList.toggle('open', open.has(b.dataset.manage ?? ''));
   }
 
   get open(): string | null {

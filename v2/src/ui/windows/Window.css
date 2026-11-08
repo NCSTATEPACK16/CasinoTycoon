@@ -1,0 +1,224 @@
+/* B15e: floating windows in the window layer (Variant B: glass, a thin
+   header, underlined tabs). */
+.win {
+  position: absolute;
+  top: var(--sp-2);
+  left: var(--sp-2);
+  max-width: 100%;
+  /* A GAP from the layer's edges, and short enough that a cascaded window
+     leaves the title bars behind it in view. */
+  max-height: min(calc(100% - 1rem), 36rem);
+  display: flex;
+  flex-direction: column;
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-2);
+  backdrop-filter: var(--blur);
+  box-shadow: var(--shadow-2);
+  overflow: hidden;
+}
+.win[hidden] {
+  display: none;
+}
+.win.pinned {
+  border-color: color-mix(in srgb, var(--c-accent) 55%, var(--c-line));
+}
+.win-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-1) var(--sp-1) var(--sp-3);
+  border-bottom: 1px solid var(--c-line-soft);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+.win.dragging .win-head {
+  cursor: grabbing;
+}
+.win-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-m);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.win-btn {
+  flex: none;
+  padding: 0.125rem 0.4375rem;
+  border-color: transparent;
+  background: none;
+  font-size: var(--fs-s);
+  line-height: 1.4;
+  cursor: pointer;
+}
+.win-btn:hover {
+  border-color: var(--c-line);
+  background: var(--c-line-soft);
+}
+.win-pin {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+.win-pin[aria-pressed='true'] {
+  filter: none;
+  opacity: 1;
+  border-color: var(--c-line);
+}
+.win-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  padding: 0 var(--sp-2);
+  border-bottom: 1px solid var(--c-line-soft);
+}
+.win-tab {
+  padding: var(--sp-1) var(--sp-2);
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: var(--c-dim);
+  font-size: var(--fs-m);
+}
+.win-tab:hover {
+  color: var(--c-text);
+}
+.win-tab.active {
+  color: var(--c-accent);
+  box-shadow: inset 0 -2px 0 var(--c-accent);
+}
+.win-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sp-2) var(--sp-3) var(--sp-3);
+}
+.win-body [hidden] {
+  display: none;
+}
+.win-body h3 {
+  margin: 0.375rem 0 0.5rem;
+  color: var(--c-accent);
+  font-size: var(--fs-l);
+}
+.win-body h4 {
+  margin: 0.75rem 0 0.375rem;
+}
+.win-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+/* Small line charts (sparklines). */
+.spark {
+  margin: var(--sp-2) 0;
+}
+.spark-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  font-size: var(--fs-s);
+  color: var(--c-dim);
+}
+.spark-head b {
+  color: var(--c-text);
+  font-family: var(--font-num);
+}
+.spark svg {
+  display: block;
+  width: 100%;
+  height: 3rem;
+}
+.spark .spark-line {
+  fill: none;
+  stroke: var(--c-accent);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+.spark .spark-area {
+  fill: color-mix(in srgb, var(--c-accent) 18%, transparent);
+}
+.spark .spark-zero {
+  stroke: var(--c-line);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.spark-empty {
+  font-size: var(--fs-s);
+  color: var(--c-dim);
+}
+
+/* The views the side panel used to hold (moved here with B15e). */
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.25rem 0.75rem;
+  margin: 0.5rem 0;
+  font-size: var(--fs-base);
+}
+.stat-grid dt {
+  color: var(--c-dim);
+}
+.stat-grid dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.rules {
+  margin-top: 0.25rem;
+}
+.rule {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.375rem 0;
+  font-size: var(--fs-base);
+}
+.needs {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.5rem 0;
+}
+.need {
+  display: grid;
+  grid-template-columns: 5rem 1fr;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--fs-m);
+}
+.need i {
+  height: 0.375rem;
+  border-radius: var(--r-1);
+  background: linear-gradient(90deg, var(--c-accent) var(--v), var(--c-fill) var(--v));
+}
+.thought {
+  margin: 0.625rem 0;
+  padding: 0.5rem 0.625rem;
+  border-left: 0.1875rem solid var(--c-accent);
+  color: var(--c-dim);
+  font-style: italic;
+}
+.hire-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.5rem;
+}
+.hire-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-2);
+}
+.hire-card small {
+  color: var(--c-dim);
+  font-size: var(--fs-s);
+}

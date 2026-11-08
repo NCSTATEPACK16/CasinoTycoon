@@ -12,7 +12,7 @@ import { Dock } from './ui/dock/Dock';
 import { Hud } from './ui/Hud';
 import { Menus } from './ui/Menus';
 import { Settings } from './ui/Settings';
-import { SidePanel } from './ui/SidePanel';
+import { Desk } from './ui/windows/Desk';
 import { feltPoint } from './ui/play/feltPoint';
 import { TablePlay } from './ui/TablePlay';
 import { HeatOverlay } from './render/HeatOverlay';
@@ -36,12 +36,13 @@ const stage = new Stage(canvas);
 const controls = new PlayerControls({ canvas, ui, stage, sim });
 const { god, build } = controls;
 const hud = new Hud(ui, sim, build);
-const panel = new SidePanel(sim);
 const table = new TablePlay(sim);
 const menus = new Menus(sim);
 const help = new HelpOverlay();
 const report = new DayReportCard();
-shell.mount('windows', panel.root, table.root);
+shell.mount('windows', table.root);
+// B15e: the Manage and inspect windows, in the window layer.
+const panel = new Desk(sim, shell.region('windows'));
 shell.mount('modal', help.root, report.root, menus.root);
 const showReport = () =>
   void sim
@@ -76,7 +77,8 @@ const settings = new Settings(audio, stage);
 settings.mount(ui);
 audio.unlockOn(window);
 const gameAudio = new GameAudio(audio, sim);
-gameAudio.watchPanels([panel.root, table.root, menus.root, settings.root]);
+gameAudio.watchPanels([table.root, menus.root, settings.root]);
+panel.wm.onCreate = (root) => gameAudio.watchPanels([root]);
 gameAudio.watchClicks(ui);
 stage.fx.sound = (name, at, delay, rate) => audio.play(name as SoundName, { at, delay, rate });
 const ambience = new AmbienceFeed(audio);
@@ -158,7 +160,7 @@ for (const [tab, label, key] of [
   dock.addManage(tab, `${label}${key ? ` <small>${key}</small>` : ''}`, label, () =>
     tab === 'rating' ? hud.onRating() : panel.toggle(tab),
   );
-panel.onTab = (t) => dock.markManage(t);
+panel.onWindows = (open) => dock.markManage(open);
 hud.menu.save.onclick = () => void menus.saveMenu((t) => hud.say(t));
 hud.menu.load.onclick = () => {
   hud.pause();
@@ -204,7 +206,7 @@ panel.onSell = (id) =>
     .command<number>({ type: 'sell', objectId: id })
     .then((refund) => {
       hud.say(`Sold for $${Math.round(refund).toLocaleString()}`);
-      panel.close();
+      panel.forget(id);
     })
     .catch((err: Error) => hud.say(err.message));
 panel.onClose = () => stage.setSelected(null);

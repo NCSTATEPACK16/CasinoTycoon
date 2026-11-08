@@ -23,14 +23,10 @@
 .settings-panel[hidden] {
   display: none;
 }
-/* Settings opens at the window layer's left and the side panel stays at its
-   right; on a narrow layer the two split it rather than overlap (B15e's
-   window manager replaces this). */
+/* The settings panel takes the window layer's left; B15e's windows place
+   themselves clear of it. */
 .region-windows {
-  --settings-w: min(18.75rem, calc(50% - 0.75 * var(--sp-2)));
-}
-.region-windows:has(> .settings-panel:not([hidden])) > .side-panel {
-  width: min(27.5rem, calc(100% - var(--settings-w) - 3 * var(--sp-2)));
+  --settings-w: min(18.75rem, calc(100% - var(--sp-4)));
 }
 .st-head {
   display: flex;
