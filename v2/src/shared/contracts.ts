@@ -235,7 +235,10 @@ export type Command =
   // offers, its price, cooldown and expected effect; reply type lives in
   // worker/marketing.ts), and booking one.
   | { type: 'marketing' }
-  | { type: 'runEvent'; eventId: string };
+  | { type: 'runEvent'; eventId: string }
+  // B6: the appeal field for the Appeal info view (reply is worker/feedback.ts's
+  // HeatMap with kind 'appeal').
+  | { type: 'appealMap' };
 
 /** Reply to { type: 'stats' }. */
 export interface SimStats {
