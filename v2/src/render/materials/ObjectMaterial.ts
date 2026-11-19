@@ -186,7 +186,7 @@ function patch(
       // Broken machines go dull grey; selection/hover lifts the whole asset.
       float lum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(lum * 0.5), vState.y);
-      diffuseColor.rgb += vState.z * 0.12;`,
+      diffuseColor.rgb += mod(vState.z, 2.0) * 0.12;`,
     )
     .replace(
       '#include <emissivemap_fragment>',
@@ -197,8 +197,15 @@ function patch(
         float flash = mod(flags, 2.0) == 1.0 ? exp(-max(0.0, uTime - vState.x) * 1.6) * step(vState.x, uTime) : 0.0;
         // Win flash: a hard strobe that decays, on toppers and bulbs.
         emit *= 1.0 + flash * (2.5 + 2.5 * step(0.5, fract(uTime * 7.0)));
-        if (mod(floor(flags / 4.0), 2.0) == 1.0)
-          emit *= 0.35 + 0.65 * step(0.5, fract(vChaseX * 3.0 - uTime * 2.5));
+        // A12: an empty machine runs its attract lights: the chase bulbs sweep
+        // and the topper breathes. A played machine holds its bulbs steady. Neither
+        // is a win flash: that stays the strobe above, fired only by a real payout.
+        bool idle = floor(vState.z / 2.0 + 0.01) >= 1.0;
+        bool chase = mod(floor(flags / 4.0), 2.0) == 1.0;
+        if (chase && idle)
+          emit *= 0.3 + 0.7 * step(0.55, fract(vChaseX * 2.2 - uTime * 1.6));
+        else if (idle && mod(flags, 2.0) == 1.0)
+          emit *= 0.8 + 0.2 * sin(uTime * 2.1 + vChaseX * 0.7);
         emit *= 1.0 - vState.y * 0.95;
         // Bloom fix (A8): emitters right in front of the lens read as white-hot
         // bars, so fade them a little up close, then cap the brightest channel.
@@ -209,6 +216,9 @@ function patch(
         float peak = max(max(glow.r, glow.g), glow.b);
         float cap = uEmitCap * (1.0 + flash * 1.5);
         totalEmissiveRadiance += glow * min(1.0, cap / max(peak, 1e-4));
+        // A12: a broken machine is dark apart from a blinking red fault light on its bulbs.
+        if (chase && vState.y > 0.9)
+          totalEmissiveRadiance += vec3(1.5, 0.08, 0.04) * step(0.5, fract(uTime * 1.1 + vChaseX * 0.05));
       }`,
     );
 }

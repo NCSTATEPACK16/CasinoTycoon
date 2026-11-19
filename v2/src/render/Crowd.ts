@@ -351,6 +351,8 @@ export class Crowd {
   readonly group = new THREE.Group();
   /** Distances where agents drop to LOD1 and LOD2; Low quality shortens them (A8). */
   lodBands: readonly [number, number] = CROWD_LOD;
+  /** Big-win cheers (A12): standing guests inside a circle cheer until `until` (performance.now s). */
+  private cheers: { x: number; z: number; r2: number; until: number }[] = [];
   private tiers: Tier[] = [];
   private states = new Map<number, AgentState>();
   private prevIndex = new Map<number, number>();
@@ -446,6 +448,7 @@ export class Crowd {
     const a = curr.agents;
     const n = Math.min(MAX, curr.agentCount);
     const walkDur = this.clipDur[1] ?? 1;
+    const nowS = performance.now() / 1000;
     for (let i = 0; i < n; i++) {
       const o = i * AGENT_STRIDE;
       const kind = a[o + 4]!;
@@ -478,6 +481,9 @@ export class Crowd {
             : simAnim;
       // The sim may still say Idle for a tick while the agent is visibly moving.
       if (clip === Anim.Idle && dist > 0.6 * dt) clip = Anim.Walk;
+      // Bystanders standing near a big win cheer along (cosmetic; the sim keeps its pose).
+      if (clip === Anim.Idle && kind === AgentKind.Guest && this.cheers.length && this.cheering(x, z, nowS))
+        clip = Anim.Cheer;
       if (clip !== st.clip) {
         st.prevClip = st.clip;
         st.tB = st.tA;
@@ -526,6 +532,24 @@ export class Crowd {
     // Forget agents that left; keeps the map from growing over a long day.
     if (this.frame % 120 === 0)
       for (const [k, s] of this.states) if (this.frame - s.frame > 60) this.states.delete(k);
+  }
+
+  /** Standing guests within `radius` m of (x, z) cheer for `secs`. */
+  cheerNear(x: number, z: number, radius: number, secs: number): void {
+    const now = performance.now() / 1000;
+    this.cheers = this.cheers.filter((c) => c.until > now);
+    this.cheers.push({ x, z, r2: radius * radius, until: now + secs });
+  }
+
+  private cheering(x: number, z: number, now: number): boolean {
+    for (const c of this.cheers)
+      if (c.until > now && (x - c.x) ** 2 + (z - c.z) ** 2 < c.r2) return true;
+    return false;
+  }
+
+  /** Agents drawn last frame, for labels and icons that follow them. */
+  get drawnAgents(): readonly { id: number; x: number; z: number }[] {
+    return this.drawn;
   }
 
   private spawn(key: number, id: number, kind: number, variant: number, x: number, z: number, heading: number): AgentState {

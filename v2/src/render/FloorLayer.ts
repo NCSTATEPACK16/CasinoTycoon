@@ -287,6 +287,11 @@ export class FloorLayer {
     return b.build();
   }
 
+  /** Built ceiling chunks exist (Stage warms their shaders up once, A12). */
+  get hasCeiling(): boolean {
+    return this.ceilingGroup.children.length > 0;
+  }
+
   /** 0 = hidden (god cam), 1 = fully shown (avatar). Dithered, no sorting. */
   setCeiling(fade: number): void {
     this.ceilingGroup.visible = fade > 0.01;

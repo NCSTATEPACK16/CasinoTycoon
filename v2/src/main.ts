@@ -16,6 +16,8 @@ import { SidePanel } from './ui/SidePanel';
 import { feltPoint } from './ui/play/feltPoint';
 import { TablePlay } from './ui/TablePlay';
 import { HeatOverlay } from './render/HeatOverlay';
+import { ThoughtFeed } from './render/ThoughtIcons';
+import type { GuestRow } from './worker/feedback';
 import { DayReportCard } from './ui/panels/DayReportCard';
 import { GuestFollower } from './ui/panels/follow';
 import { HeatControl } from './ui/panels/HeatControl';
@@ -57,6 +59,29 @@ const heat = new HeatOverlay();
 stage.scene.add(heat.object);
 const heatControl = new HeatControl(sim, heat);
 ui.append(heatControl.root);
+// A12: thought bubbles for the hovered/selected guest and in the Mood view.
+const thoughtFeed = new ThoughtFeed(() => sim.command<GuestRow[]>({ type: 'guestList' }), stage.thoughts);
+stage.thoughtFocus = { focus: new Set(), moodView: false };
+const syncThoughts = () => {
+  stage.thoughtFocus = { focus: thoughtFeed.focus, moodView: thoughtFeed.moodView };
+  void thoughtFeed.poll();
+};
+thoughtFeed.start();
+{
+  // HeatControl (Track B) has no change hook yet; observe its set() (request in 10-alive-2.md).
+  const setHeat = heatControl.set.bind(heatControl);
+  heatControl.set = (kind) => {
+    setHeat(kind);
+    thoughtFeed.moodView = kind === 'mood';
+    syncThoughts();
+  };
+}
+controls.picker.addEventListener('hover', (ev) => {
+  const id = (ev as CustomEvent<PickHit>).detail.agentId;
+  if (id === thoughtFeed.hovered) return;
+  thoughtFeed.hovered = id;
+  syncThoughts();
+});
 const follower = new GuestFollower(sim, controls, canvas);
 follower.onMessage = (t) => hud.say(t);
 panel.onFollowGuest = (agentId, name) => {
@@ -184,12 +209,18 @@ panel.onSell = (id) =>
       panel.close();
     })
     .catch((err: Error) => hud.say(err.message));
-panel.onClose = () => stage.setSelected(null);
+panel.onClose = () => {
+  stage.setSelected(null);
+  thoughtFeed.selected = null;
+  syncThoughts();
+};
 
 // God-view click with no build tool active → inspect what's under the cursor.
 controls.picker.addEventListener('select', (ev) => {
   const hit = (ev as CustomEvent<PickHit>).detail;
   if (controls.tools.active || controls.director.mode !== 'god') return;
+  thoughtFeed.selected = hit.agentId;
+  syncThoughts();
   if (hit.agentId !== null) panel.inspect({ agentId: hit.agentId });
   else if (hit.objectId) {
     stage.setSelected(hit.objectId);

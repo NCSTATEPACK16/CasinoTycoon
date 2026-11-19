@@ -36,6 +36,13 @@ import { Post, type Quality } from './Post';
 import { Practicals } from './Practicals';
 import { suggestedQuality } from './gpuTier';
 import { CROWD_LOD } from './Crowd';
+import { Celebrations, type BigWinEvent } from './fx/Celebrations';
+import { get3D } from '../shared/catalog';
+import { ThoughtIcons } from './ThoughtIcons';
+
+/** Render-side events for the UI (A12). Track B's news line listens via Stage.onRenderEvent. */
+export type RenderEvent = BigWinEvent;
+const _box = new THREE.Box3();
 
 // High: shadows, N8AO, full bloom, real point lights, full crowd LOD bands.
 // Low: baked light pools only, no shadows or AO, cheaper bloom, shorter crowd bands.
@@ -76,12 +83,22 @@ export class Stage {
   readonly lighting: Lighting;
   /** Light pools on the floor and, on High, real lights near the camera (A8). */
   readonly practicals: Practicals;
+  /** Big-win beacons, confetti and cheers (A12). */
+  readonly celebrations = new Celebrations();
+  /** Thought bubbles over the hovered/selected guest and in the Mood view (A12); main.ts feeds them. */
+  readonly thoughts = new ThoughtIcons();
+  /** Who gets a bubble this frame; set by main.ts's ThoughtFeed. */
+  thoughtFocus: { focus: ReadonlySet<number>; moodView: boolean } = { focus: new Set(), moodView: false };
+  /** Render events for the UI: a big win for the news line (A12). Replace to listen. */
+  onRenderEvent: (e: RenderEvent) => void = () => {};
   private post: Post;
   private quality: Quality = 'high';
   private lastCamera: THREE.PerspectiveCamera | null = null;
   private lastAgentsAt = performance.now();
   private clock = new THREE.Clock();
   private hasFloor = false;
+  private ceilingWarm = false;
+  private lastAgents: { prev: Snapshot | null; curr: Snapshot; alpha: number } | null = null;
   private selected: string | null = null;
   /** null = automatic (from camera height); otherwise forced ceiling fade. */
   viewMode: 'god' | 'avatar' | null = null;
@@ -136,7 +153,10 @@ export class Stage {
       this.crowd.group,
       this.overlays.group,
       this.practicals.group,
+      this.celebrations.group,
+      this.thoughts.mesh,
     );
+    this.fx.onBigWin = (id, fx, at) => this.bigWin(id, fx.returned, at.x, at.z);
 
     // Exterior: a dark stone plaza the lot sits on, faded out by fog.
     this.ground = new THREE.Mesh(
@@ -204,6 +224,7 @@ export class Stage {
       prev = this.avatarPrev;
       curr = withAgent(curr, this.avatar);
     }
+    this.lastAgents = { prev, curr, alpha };
     if (this.lastCamera) this.crowd.update(prev, curr, alpha, this.lastCamera, dt);
   }
 
@@ -245,6 +266,23 @@ export class Stage {
     const t = this.clock.elapsedTime;
     this.overlays.spawnPayout(x, z, amount);
     if (amount > 0) this.objects.flashAt(x, z, t);
+  }
+
+  /** A big win landed on a machine: beacon, confetti, a bell after the
+   *  jackpot sting, nearby standing guests cheer, and a news-line event.
+   *  Only ever called for a real round the sim paid (FxDirector.reveal). */
+  bigWin(objectId: string, amount: number, x: number, z: number): void {
+    const o = this.objects.get(objectId);
+    const defId = o?.view.defId ?? '';
+    // Sit the beacon on the model's real top (the catalog height is nominal).
+    const geo = o?.asset.lods[0];
+    if (geo && !geo.boundingBox) geo.computeBoundingBox();
+    const top = geo?.boundingBox ? _box.copy(geo.boundingBox).applyMatrix4(o!.matrix).max.y : 0;
+    const height = top > 0.3 ? top : defId ? get3D(defId).height : 1.8;
+    this.celebrations.start(x, z, height, this.clock.elapsedTime);
+    this.fx.sound('bell', { x, y: height, z }, 0.9);
+    this.crowd.cheerNear(x, z, 5, 4);
+    this.onRenderEvent({ type: 'bigWin', objectId, defId, amount, x, z });
   }
 
   /** Hologram placement ghost from the real asset; defId null hides it. */
@@ -340,10 +378,13 @@ export class Stage {
     objectUniforms.uTime.value = now;
     this.fx.update(now);
     this.fx.drawParts(this.parts, this.felt);
+    if (!this.ceilingWarm && this.floor.hasCeiling && this.crowd.ready && this.lastAgents?.curr.agentCount) this.warmEyeLevel(cam, now);
     this.updateView(cam);
     this.objects.update(cam, now);
     this.overlays.update(now, cam);
     this.practicals.update(cam, now);
+    this.celebrations.update(now, dt);
+    this.thoughts.update(this.crowd.drawnAgents, cam.position, this.thoughtFocus.moodView, this.thoughtFocus.focus, dt);
     if (this.lighting.sun.castShadow) this.lighting.update(cam);
     this.renderer.info.reset();
     this.post.render(cam, dt);
@@ -351,6 +392,34 @@ export class Stage {
     this.stats.triangles = this.renderer.info.render.triangles;
     this.stats.frameMs = performance.now() - t0;
     void this.hasFloor;
+  }
+
+  /**
+   * A12 fix for the first-eye-level hitch (190–1,000 ms). Four shaders exist
+   * only for cameras under the ceiling: the ceiling's alpha-hashed material
+   * (two variants), the full-detail crowd mesh and its shadow-depth pass. They
+   * used to compile on the first avatar frame. Instead, once there is a ceiling
+   * and someone on the floor, render one throwaway frame from eye level behind
+   * the first agent, then put the crowd back for the real camera. The real
+   * frame draws over it before anything reaches the screen.
+   * renderer.compileAsync isn't enough: outside the post stack's half-float
+   * target it builds a different variant, and it never sees the shadow pass.
+   */
+  private warmEyeLevel(cam: THREE.PerspectiveCamera, now: number): void {
+    this.ceilingWarm = true;
+    const { prev, curr, alpha } = this.lastAgents!;
+    const x = curr.agents[0]!;
+    const z = curr.agents[1]!;
+    const eye = new THREE.PerspectiveCamera(65, cam.aspect, 0.1, 500);
+    eye.position.set(x - 2.5, 1.6, z);
+    eye.lookAt(x, 1.2, z);
+    eye.updateMatrixWorld();
+    this.crowd.update(prev, curr, alpha, eye, 0);
+    this.updateView(eye);
+    this.objects.update(eye, now);
+    if (this.lighting.sun.castShadow) this.lighting.update(eye);
+    this.post.render(eye, 0);
+    this.crowd.update(prev, curr, alpha, cam, 0);
   }
 
   /** God cam: walls between camera and focus cut down, ceiling hidden. Low

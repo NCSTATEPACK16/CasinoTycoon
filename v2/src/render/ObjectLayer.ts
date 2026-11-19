@@ -246,6 +246,7 @@ export class ObjectLayer {
       } else if (
         have.view.broken !== v.broken ||
         have.view.open !== v.open ||
+        (have.view.occupants === 0) !== (v.occupants === 0) ||
         have.view.decalRow !== v.decalRow
       ) {
         have.view = v;
@@ -323,7 +324,9 @@ export class ObjectLayer {
     if (i === undefined) return;
     state4[0] = p.flashAt;
     state4[1] = p.view.broken ? 1 : p.view.open ? 0 : 0.35;
-    state4[2] = this.hovered === p.view.id ? 1 : 0;
+    // .z packs hover (bit 0) and idle (bit 1): an empty machine runs its attract lights (A12).
+    const idle = p.view.occupants === 0 && !p.view.broken && p.view.open && !!get3D(p.view.defId).seats?.length;
+    state4[2] = (this.hovered === p.view.id ? 1 : 0) + (idle ? 2 : 0);
     state4[3] = (p.variant % p.asset.variantRows) * p.asset.variantStep;
     pool.set(CH_STATE, i, state4);
     pool.set(CH_REEL_A, i, p.reel.subarray(0, 4));
