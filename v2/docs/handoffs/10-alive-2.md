@@ -164,7 +164,7 @@ Branch `v2-alive-2`, cut from `origin/v2.1`, in its own worktree. Dev port 5175,
 
       Crowd hidden, every view's non-crowd numbers are identical between the two runs, so the deltas are the crowd's. The standard views rarely hold guests (they cluster near the entrance after spawning), so the dense row is the real test. Worst case seen, 170 LOD0 guests within 9 m on High: **1.49M tris with the shadow proxies, 1.70M without**; calls 143 either way. High stays inside ≤ 300 calls and ≤ 1.5M tris, but a crowd that dense leaves about 10k of headroom. The worker tick read 12 ms (hidden page, inflated as before).
 
-- [ ] **A11. Exterior, entrance, day and night, and unwired juice.**
+- [x] ✅ **A11. Exterior, entrance, day and night, and unwired juice.**
   - A facade on the entrance side with a **marquee canopy** (lettering) and **glass entrance doors**; interior doors that swing when an agent passes.
   - **Outside:** sidewalk, a street with street lamps and **a few static parked cars** (scripted, low-poly). **No moving traffic, no parking lot to manage.**
   - **Sky:** a sky dome whose colour follows the in-game hour, day to night; street lamps and the marquee switch on at dusk. **The interior always stays lit.**
@@ -172,6 +172,28 @@ Branch `v2-alive-2`, cut from `origin/v2.1`, in its own worktree. Dev port 5175,
   - **Unwired juice:** the hologram ghost in `PlaceTool`; the shader hover highlight on the avatar's hover target.
   - Keep the god camera's limits sensible so the player can see the facade without leaving the lot.
   - **Evidence:** god-view screenshots at noon and midnight; an eye-level shot of the entrance; the ghost and hover shown working; stress numbers on High and Low.
+  - **Done (2026-11-21):** all in the new `src/render/Exterior.ts` layer (Stage builds it next to the ground plane), plus three small wirings.
+    - **Street side:** the lot edge the entrance tile sits on (east on every shipped layout; north, south and west also handled). Built in a street frame (x out, z along) and mapped once: a 4 m sidewalk with joints, curb, 7.4 m street with a dashed centre line, far curb and sidewalk; street lamps every 8 m (clear of the canopy); five static low-poly parked cars along the near curb, never in front of the doors. No traffic, no parking lot.
+    - **Facade and entrance:** stone cladding with a plinth, cornice and gold band on the outer face of every boundary wall, taller on the street side; it uses the wall material's cutaway, so it drops with the walls in the god view. Over the street doors: a stone header with a brass frame, a black marquee canopy with gold fascia, brass posts and bulb rows, and a "CASINO" sign board in marquee lettering (canvas texture) facing the street. A red carpet with gold edges runs from the doors to the curb, and the entrance tile gets a red mat with a gold border and cross.
+    - **Doors:** door segments are joined into runs (`doorRuns`). Street runs get two sliding glass panes; interior runs up to 2 m get one or two hinged mahogany leaves; wider runs (the 7 m and 11 m lobby archways) stay open so the arrival rush never queues. Each snapshot, `doorTriggers` finds the nearest agent within 1.3 m of each run, and the leaves swing away from them (eased, 1.4 rad). One instanced draw for leaves, one for panes.
+    - **Day and night:** a gradient sky dome (zenith/horizon keyed at 0, 4:30, 6, 8, 12, 16:30, 18:30, 20 h) follows the HUD clock, with scene background and fog matched to the horizon. Lamps, bulbs and the sign come on from 18:30–19:30 to 5:30–6:30 (`nightAt`), with additive light pools under the lamps; outdoor surfaces darken at night and the ground plane lightens by day. Interior lights, lighting rig and quality settings are untouched: the interior stays lit.
+    - **Unwired juice:** `PlaceTool` now drives `stage.showGhost` (the real asset as the scan-line hologram, green or red from `canPlace`) with its eased glide, hop and landing squash passed as a new optional `GhostPose`; the legacy box ghost stays hidden. `main.ts` gets one wiring line: `stage.setHovered(controls.interaction.target?.id ?? null)`, so the avatar's interact target gets `ObjectLayer`'s shader highlight.
+    - **God camera:** the focus may now go 13 m past the east edge (`GodCamera.clampTarget`), out over the sidewalk and street, so the facade is visible without leaving the lot.
+    - **Checks:** `npx tsc --noEmit` clean. New `src/render/exterior.test.ts` (street frame east and north, door runs and street flags, door triggers and sides, sky colours at midnight, noon and dusk, lamp hours). `src/render`, `src/camera`, `src/input`: 16 files, 109 tests pass. `src/sim` untouched, so no economics guard. No DOM UI or CSS touched.
+    - **Browser** (sandbox lot, 96×64): noon god view of the facade, street, lamps and a parked car; noon street view with the sky gradient, canopy and sign; eye-level at the doors with guests streaming through the open glass panes; midnight street and god views with a dark sky, lamp pools, glowing sign and bulbs, and a lit interior; a restroom double door closed, then swung away from a (forced) occupant. Build bar → Slot Machine → hologram ghost with its price tag; walk mode next to the placed slot → interact prompt, outline and shader highlight (`hovered` = the target id).
+    - **Stress scene** (A9 method; 1280×800; frames pumped from the page, pane hidden, so no fps). Exterior hidden = "without":
+
+      | view | High with / without | Low with / without |
+      |---|---|---|
+      | overview | 229 / 318k · 217 / 304k | 159 / 263k · 152 / 254k |
+      | mid | 140 / 629k · 129 / 617k | 79 / 305k · 73 / 298k |
+      | close | 93 / 482k · 87 / 478k | 67 / 326k · 64 / 325k |
+      | slot 8 m (16,30) | 71 / 820k · 66 / 819k | 44 / 445k · 41 / 445k |
+      | slot 8 m (24,12) | 67 / 1.02M · 62 / 1.02M | 39 / 527k · 36 / 526k |
+      | slot 8 m (70,44) | 144 / 1.49M · 132 / 1.48M | 113 / 903k · 107 / 892k |
+      | street (100,32.5) at 30 m | 118 / 765k · 104 / 752k | 70 / 128k · 61 / 120k |
+
+      The exterior costs 5–14 calls and at most 14k triangles; 5 calls even off-screen (sky dome, door leaves and panes are not frustum-culled, plus their shadow pass). High stays inside ≤ 300 calls and ≤ 1.5M tris. The worker tick read 11 ms (hidden page).
 
 - [ ] **A14. Finish.** Merge `origin/v2.1` if it moved. Full suite under `caffeinate -i` (background; read the summary), `npm run build`, the stress scene on High and Low against A0's baseline, a screenshot set (one per task), the PR description complete (checklist, evidence, every `contract:` commit and `world.ts` hook), PR out of draft. Report to the user and stop the loop.
 

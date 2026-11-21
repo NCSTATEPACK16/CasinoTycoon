@@ -289,6 +289,7 @@ stage.renderer.setAnimationLoop((now) => {
         }
       : null;
   if (sim.curr) stage.updateAgents(sim.prev, sim.curr, sim.alpha(now));
+  stage.setHovered(controls.interaction.target?.id ?? null); // A11: highlight the avatar's interact target
   stage.render(controls.camera);
   audio.update(controls.camera);
   ambience.update(controls.camera, now / 1000);

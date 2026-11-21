@@ -37,6 +37,9 @@ export function pitchForDistance(d: number): number {
   return PITCH_NEAR + (PITCH_FAR - PITCH_NEAR) * smootherstep(Math.pow(Math.max(0, t), 0.6));
 }
 
+/** How far past the lot's east edge the focus may go (Exterior.STREET_REACH). */
+const STREET_REACH_M = 13;
+
 export class GodCamera {
   readonly camera: THREE.PerspectiveCamera;
   /** Whether keyboard/mouse drive the rig (false while the avatar has the camera). */
@@ -267,7 +270,9 @@ export class GodCamera {
 
   private clampTarget(): void {
     const f = this.target.focus;
-    f.x = THREE.MathUtils.clamp(f.x, 0, this.bounds.cols);
+    // A11: the street runs along the east edge (the entrance side), so the
+    // focus may go out over the sidewalk and street to see the facade.
+    f.x = THREE.MathUtils.clamp(f.x, 0, this.bounds.cols + STREET_REACH_M);
     f.z = THREE.MathUtils.clamp(f.z, 0, this.bounds.rows);
   }
 

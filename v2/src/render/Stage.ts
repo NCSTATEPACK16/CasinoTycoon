@@ -24,6 +24,7 @@ import {
 } from '../shared/contracts';
 import { AssetLibrary } from './assets/AssetLibrary';
 import { Crowd } from './Crowd';
+import { Exterior } from './Exterior';
 import { GameSpots } from './gameSpots';
 import { FloorLayer } from './FloorLayer';
 import { FxDirector } from './fx/FxDirector';
@@ -32,7 +33,7 @@ import { TableParts } from './fx/TableParts';
 import { Lighting } from './Lighting';
 import { objectUniforms } from './materials/ObjectMaterial';
 import { ObjectLayer } from './ObjectLayer';
-import { Overlays } from './Overlays';
+import { Overlays, type GhostPose } from './Overlays';
 import { Post, type Quality } from './Post';
 import { Practicals } from './Practicals';
 import { suggestedQuality } from './gpuTier';
@@ -69,6 +70,9 @@ export class Stage {
   readonly scene = new THREE.Scene();
   /** The ground plane under and around the lot; build tools raycast it. */
   readonly ground: THREE.Mesh;
+  /** A11: the outside, the doors and the sky; `setHour` follows the sim clock. */
+  readonly exterior: Exterior;
+  private hourShown = -1;
   /** Legacy box ghost kept for the skeleton BuildTool; prefer showGhost(). */
   readonly ghost: THREE.Mesh;
   readonly assets = new AssetLibrary();
@@ -169,6 +173,9 @@ export class Stage {
     this.ground.receiveShadow = true;
     this.ground.name = 'ground';
     this.scene.add(this.ground);
+    // A11: facade, street, doors and the sky over them.
+    this.exterior = new Exterior(this.assets, this.scene, this.ground);
+    this.scene.add(this.exterior.group);
 
     this.ghost = new THREE.Mesh(
       new THREE.BoxGeometry(1, 1, 1).translate(0.5, 0.5, 0.5),
@@ -201,6 +208,7 @@ export class Stage {
   setFloor(plan: FloorPlanView): void {
     this.floor.setFloor(plan);
     this.practicals.setFloor(plan);
+    this.exterior.setFloor(plan);
     // The plaza stays centred under whatever lot the scenario brought.
     this.ground.position.set(plan.cols / 2, -0.02, plan.rows / 2);
     this.hasFloor = true;
@@ -229,6 +237,13 @@ export class Stage {
       curr = withAgent(curr, this.avatar);
     }
     this.lastAgents = { prev, curr, alpha };
+    this.exterior.setAgents(curr);
+    const hour = curr.hud ? curr.hud.hour + curr.hud.minute / 60 : -1;
+    // Sky colours move slowly; refresh on each in-game minute change.
+    if (hour >= 0 && hour !== this.hourShown) {
+      this.hourShown = hour;
+      this.exterior.setHour(hour);
+    }
     if (this.lastCamera) this.crowd.update(prev, curr, alpha, this.lastCamera, dt);
   }
 
@@ -290,9 +305,9 @@ export class Stage {
   }
 
   /** Hologram placement ghost from the real asset; defId null hides it. */
-  showGhost(defId: string | null, col = 0, row = 0, rot: Rotation = 0, valid = true): void {
+  showGhost(defId: string | null, col = 0, row = 0, rot: Rotation = 0, valid = true, pose?: GhostPose): void {
     this.ghost.visible = false;
-    this.overlays.showGhost(defId, col, row, rot, valid);
+    this.overlays.showGhost(defId, col, row, rot, valid, pose);
   }
 
   setSelected(id: string | null): void {
@@ -388,6 +403,7 @@ export class Stage {
     this.overlays.update(now, cam);
     this.practicals.update(cam, now);
     this.celebrations.update(now, dt);
+    this.exterior.update(dt);
     this.thoughts.update(this.crowd.drawnAgents, cam.position, this.thoughtFocus.moodView, this.thoughtFocus.focus, dt);
     if (this.lighting.sun.castShadow) this.lighting.update(cam);
     this.renderer.info.reset();
