@@ -313,7 +313,22 @@ let useFixed = false;
 stage.setFloor(buildPlan());
 const { views, seats } = buildObjects();
 stage.setObjects(views);
-const agents = makeAgents(seats);
+const agents = q.has('lineup') ? lineup() : makeAgents(seats);
+
+/** ?lineup: 20 guests in two rows and one of each staff uniform in front,
+ *  standing idle at (10..18, 10..14), facing +z (A9 evidence). */
+function lineup(): Walker[] {
+  const out: Walker[] = [];
+  const put = (kind: number, variant: number, x: number, z: number, id: number) =>
+    out.push({ id, kind, x, z, tx: x, tz: z, heading: 0, anim: Anim.Idle, variant, mood: 0.8, until: Infinity });
+  for (let i = 0; i < 20; i++) put(AgentKind.Guest, i % 4, 10 + (i % 10) * 0.85, 10 + Math.floor(i / 10) * 1.1, 1000 + i * 7);
+  const staff: [number, number][] = [
+    [AgentKind.Dealer, 0], [AgentKind.Security, 0], [AgentKind.Janitor, 0],
+    [AgentKind.Staff, 1], [AgentKind.Staff, 2], [AgentKind.Staff, 3], [AgentKind.Staff, 4], [AgentKind.Staff, 5],
+  ];
+  staff.forEach(([k, v], i) => put(k, v, 10.4 + i * 1.0, 12.6, 2000 + i));
+  return out;
+}
 const quality = q.get('quality');
 if (quality === 'medium' || quality === 'low' || quality === 'high') stage.setQuality(quality);
 if (q.get('dynres') === '0') stage.dynamicResolution = false;

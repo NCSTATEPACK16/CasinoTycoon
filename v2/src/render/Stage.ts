@@ -24,6 +24,7 @@ import {
 } from '../shared/contracts';
 import { AssetLibrary } from './assets/AssetLibrary';
 import { Crowd } from './Crowd';
+import { GameSpots } from './gameSpots';
 import { FloorLayer } from './FloorLayer';
 import { FxDirector } from './fx/FxDirector';
 import { FeltParts } from './fx/FeltParts';
@@ -74,6 +75,7 @@ export class Stage {
   readonly objects: ObjectLayer;
   readonly floor: FloorLayer;
   readonly crowd = new Crowd();
+  private gameSpots = new GameSpots();
   readonly overlays: Overlays;
   readonly fx: FxDirector;
   /** Roulette heads and balls, dice, big six faces on watched tables. */
@@ -157,6 +159,7 @@ export class Stage {
       this.thoughts.mesh,
     );
     this.fx.onBigWin = (id, fx, at) => this.bigWin(id, fx.returned, at.x, at.z);
+    this.crowd.gameAt = (x, z) => this.gameSpots.at(x, z);
 
     // Exterior: a dark stone plaza the lot sits on, faded out by fog.
     this.ground = new THREE.Mesh(
@@ -191,6 +194,7 @@ export class Stage {
   setObjects(objects: ObjectView[]): void {
     this.objects.setObjects(objects);
     this.practicals.setObjects(objects);
+    this.gameSpots.set(objects);
     if (this.selected && !this.objects.get(this.selected)) this.setSelected(null);
   }
 

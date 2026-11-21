@@ -3,86 +3,158 @@
   {
    "name": "idle",
    "start": 0,
-   "frames": 40,
-   "fps": 20,
+   "frames": 24,
+   "fps": 12,
    "loop": true
   },
   {
    "name": "walk",
-   "start": 40,
+   "start": 24,
    "frames": 20,
    "fps": 20,
    "loop": true
   },
   {
    "name": "sit",
-   "start": 60,
-   "frames": 40,
-   "fps": 20,
+   "start": 44,
+   "frames": 24,
+   "fps": 12,
    "loop": true
   },
   {
    "name": "play",
-   "start": 100,
+   "start": 68,
    "frames": 30,
    "fps": 20,
    "loop": true
   },
   {
    "name": "cheer",
-   "start": 130,
+   "start": 98,
    "frames": 20,
    "fps": 20,
    "loop": true
   },
   {
    "name": "sad",
-   "start": 150,
-   "frames": 40,
-   "fps": 20,
+   "start": 118,
+   "frames": 24,
+   "fps": 12,
    "loop": true
   },
   {
    "name": "eat",
-   "start": 190,
-   "frames": 50,
-   "fps": 20,
+   "start": 142,
+   "frames": 30,
+   "fps": 12,
    "loop": true
   },
   {
    "name": "deal",
-   "start": 240,
-   "frames": 40,
-   "fps": 20,
+   "start": 172,
+   "frames": 24,
+   "fps": 12,
    "loop": true
   },
   {
    "name": "standplay",
-   "start": 280,
-   "frames": 40,
+   "start": 196,
+   "frames": 24,
+   "fps": 12,
+   "loop": true
+  },
+  {
+   "name": "press",
+   "start": 220,
+   "frames": 20,
+   "fps": 20,
+   "loop": true
+  },
+  {
+   "name": "chips",
+   "start": 240,
+   "frames": 18,
+   "fps": 12,
+   "loop": true
+  },
+  {
+   "name": "spin",
+   "start": 258,
+   "frames": 18,
+   "fps": 12,
+   "loop": true
+  },
+  {
+   "name": "clap",
+   "start": 276,
+   "frames": 20,
    "fps": 20,
    "loop": true
   }
  ],
- "frames": 320,
+ "frames": 296,
+ "format": "u16-oct",
+ "parts": [
+  "male",
+  "female",
+  "hairCap",
+  "hairLong",
+  "hairBun",
+  "hairPony",
+  "hairCurly",
+  "skirt",
+  "jacket",
+  "vestM",
+  "vestF",
+  "bowtie",
+  "tie",
+  "bibM",
+  "bibF",
+  "apron",
+  "fedora",
+  "cap",
+  "cowboy"
+ ],
  "lods": [
   {
-   "vertexCount": 902,
-   "indexCount": 4860,
-   "width": 902,
-   "height": 640,
+   "vertexCount": 1838,
+   "indexCount": 9876,
+   "width": 1838,
+   "height": 296,
+   "boundsMin": [
+    -0.3848642110824585,
+    -0.04475776106119156,
+    -0.6204302310943604
+   ],
+   "boundsMax": [
+    0.415522962808609,
+    1.9753402471542358,
+    0.7129805088043213
+   ],
    "indexOffset": 0,
-   "regionOffset": 9720,
-   "vatOffset": 10624
+   "regionOffset": 19752,
+   "partOffset": 21592,
+   "vatOffset": 23432
   },
   {
-   "vertexCount": 484,
-   "indexCount": 2472,
-   "width": 484,
-   "height": 640,
-   "indexOffset": 4628864,
-   "regionOffset": 4633808,
-   "vatOffset": 4634292
+   "vertexCount": 1024,
+   "indexCount": 5232,
+   "width": 1024,
+   "height": 296,
+   "boundsMin": [
+    -0.382464200258255,
+    -0.04475776106119156,
+    -0.6268551349639893
+   ],
+   "boundsMax": [
+    0.41600894927978516,
+    1.9753402471542358,
+    0.7129805088043213
+   ],
+   "indexOffset": 4375816,
+   "regionOffset": 4386280,
+   "partOffset": 4387304,
+   "vatOffset": 4388328
   }
  ]
 }
