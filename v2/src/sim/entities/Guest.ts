@@ -230,9 +230,6 @@ export class Guest extends Walker {
     const min = GUEST_BALANCE.arrivalNeedsMin;
     for (const need of ['bladder', 'hunger', 'thirst'] as const)
       this.needs[need] = min[need] + (100 - min[need]) * this.brainRng.next();
-    // B6: drawn last, so the draws above are unchanged.
-    const e = LOUNGE_BALANCE.arrivalEnergyMin;
-    this.needs.energy = e + (100 - e) * this.brainRng.next();
   }
 
   get navSpeed(): number {

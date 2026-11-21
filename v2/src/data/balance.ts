@@ -112,15 +112,14 @@ export const APPEAL_BALANCE = {
   } as Record<string, { strength: number; radius: number }>,
 } as const;
 
-// B6: lounge seating, a rest stop. A guest whose energy has run down sits a
-// while, gets it all back and leaves the sofa happier. Crowd guests arrive
-// somewhere between arrivalEnergyMin and fresh (drawn after the other needs,
-// so a guest's earlier draws are unchanged). Staff take their breaks here too
-// (restsStaff; STAFF_DEPTH's fatigue rules).
+// B6: lounge seating, a rest stop. Energy runs down about 1 an hour, so a
+// guest a dozen hours into a long night sits a while, gets it all back and
+// leaves the sofa happier. (Guests arrive fresh: drawing a tired arrival
+// would shift every guest's later decisions and re-roll the whole career.)
+// Staff take their breaks here too (restsStaff; STAFF_DEPTH's fatigue rules).
 export const LOUNGE_BALANCE = {
   /** Energy below which the sofa starts to call. */
-  tiredBelow: 55,
-  arrivalEnergyMin: 50,
+  tiredBelow: 88,
   restTicks: 40,
   happinessOnRest: 5,
 } as const;
