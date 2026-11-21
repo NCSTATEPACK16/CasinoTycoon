@@ -136,12 +136,33 @@ Branch `v2-alive-2`, cut from `origin/v2.1`, in its own worktree. Dev port 5175,
 
       Unchanged within guest-position noise; High stays inside ≤ 300 calls and ≤ 1.5M tris. The in-browser tick read 12–19 ms on High and 19–30 ms on Low (hidden page, inflated, as before).
 
-- [ ] **A9. People who look like people.**
+- [x] ✅ **A9. People who look like people.**
   - In `human.py`: 4–6 hairstyles; skirt/dress and jacket silhouettes; a few hats; a simple face (eyes, brows, mouth) through the atlas; a **real female body mesh** (replacing the negative-scale trick).
   - **Staff uniforms by role:** dealer vest and bow tie, security suit, janitor overalls, bartender, mechanic, pit boss.
   - New clips: slot button press, chip place, croupier wheel spin, clap. Wire them where they apply (slots, table bets, roulette dealer, cheering bystanders from A12).
   - Bake as VAT variants chosen per agent. Stay inside **10 MB** for the VAT (trim frames or share clips if you must).
   - **Evidence:** a close-up of 20 guests showing variety and one of each staff role; VAT size; 500 guests inside the frame budget on High and Low.
+  - **Done (2026-11-21):**
+    - **One superset body** (`assets/blender/human.py`): every garment, hairstyle and hat is in the mesh, tagged with a part number (vertex attribute `aPart`). Each agent carries a bitmask (`aStyle`), and the vertex shader collapses parts it doesn't wear to a point under the floor. A **real female build** (narrower shoulders, bust, hips; its own torso part) replaces the negative-scale trick. 18 parts: male/female torsos; hair (short cap, long, bun, ponytail, curly; bald men wear none); skirt, jacket hem, male/female vests, bow tie, tie, male/female bibs (overalls), apron; fedora, cap, cowboy hat. Face (eyes, brows, mouth) is geometry on LOD0 only: the crowd has no UVs, so an atlas face would have meant adding a UV set and texture fetch to every vertex for 3 small features.
+    - **Staff uniforms** (`Crowd.ts` `lookFor`, `OUTFITS`): dealer white shirt, black vest, red bow tie; security dark suit and tie; janitor blue overalls and cap; bartender burgundy vest and apron; waitress white apron; cashier navy vest; pit boss charcoal suit and gold tie; mechanic orange overalls and cap. The worker's snapshot now sends a per-role variant for staff (`STAFF_VARIANT` in `snapshot.ts`, a new constant only).
+    - **Clips:** press (slot button), chips (place a bet), spin (croupier wheel), clap. `simClip` maps the sim's Play pose by the game under the agent (`gameSpots.ts`, rebuilt on `setObjects`): slots, pachinko, keno, bingo and seated machines with no game → press; other tables → chips; dealers → deal, or spin at roulette. A12's big-win bystanders now cheer or clap by hash. Cosmetic only; the sim is untouched.
+    - **VAT:** new `u16-oct` format (RGBA16UI per vertex per frame: position quantized to the LOD's bounds, normal octahedral in 2 bytes), and slow loops (idle, sit, sad, eat, deal, standplay, chips, spin) baked at 12 fps instead of 20. **human.vat.bin 6.81 MB** (was 7.11 MB before the new parts and clips; cap 10 MB). LOD0 1,838 verts / 3,292 tris superset; LOD1 1,024 / 1,744.
+    - **Draw cost:** each LOD is drawn as two builds (male, female), each with an index buffer that skips the parts that build never wears: LOD0 2,388 / 2,838 tris, LOD1 1,268 / 1,452. LOD0 no longer draws itself into the shadow map; a shadow-only proxy per build draws the LOD1 mesh with the LOD0 instances (`ShadowProxy`). Its draw range opens only in `onBeforeShadow`, so other passes issue one empty call and no triangles.
+    - **Checks:** `npx tsc --noEmit` clean. New `src/render/crowdLook.test.ts` (one build per agent, at most one hat, build-specific garments match the build, no part from the other build's never-list, >40 guest looks, all hairstyles, skirts and cowboy hats appear, bald men, no bun under a hat, each staff uniform, the clip mapping, `GameSpots` lookup). All of `src/render`: 11 files, 63 tests pass. `src/sim` untouched, so no economics guard.
+    - **Browser:** lab `?lineup` at High: 20 guests and one of each staff role, all distinct; a face close-up shows eyes, brows, nose and mouth; female builds, a cowboy hat and ties visible. App, stress floor, eye-level over a dense slot aisle: varied hair, hats, builds and outfits with shadows intact. In-app clip histogram after the settle: walk 496, press 27, sit 3; no guest had reached a table seat in the 20 s settle, so chips, deal and spin are covered by the unit test, not seen in the app.
+    - **Stress scene** (A8 method; 1280×800; frames pumped from the page because the pane was hidden, so no fps). Same fresh floor run once on A12's code and once on A9's:
+
+      | view | A9 High | A12 High | A9 Low | A12 Low |
+      |---|---|---|---|---|
+      | overview | 217 / 304k | 217 / 304k | 152 / 254k | 152 / 254k |
+      | mid | 129 / 617k | 129 / 617k | 73 / 298k | 74 / 298k |
+      | close | 87 / 478k | 87 / 478k | 64 / 325k | 65 / 326k |
+      | slot 8 m (16,30) | 66 / 819k | 66 / 819k | 41 / 445k | 41 / 445k |
+      | slot 8 m (24,12) | 62 / 1.02M | 62 / 1.02M | 36 / 526k | 36 / 526k |
+      | slot 8 m (70,44) | 132 / 1.47M | 129 / 1.48M | 106 / 896k | 105 / 898k |
+      | dense crowd (84,42) at 12 m | 152 / 1.31M (30 LOD0, 348 LOD1) | — | 119 / 995k | — |
+
+      Crowd hidden, every view's non-crowd numbers are identical between the two runs, so the deltas are the crowd's. The standard views rarely hold guests (they cluster near the entrance after spawning), so the dense row is the real test. Worst case seen, 170 LOD0 guests within 9 m on High: **1.49M tris with the shadow proxies, 1.70M without**; calls 143 either way. High stays inside ≤ 300 calls and ≤ 1.5M tris, but a crowd that dense leaves about 10k of headroom. The worker tick read 12 ms (hidden page, inflated as before).
 
 - [ ] **A11. Exterior, entrance, day and night, and unwired juice.**
   - A facade on the entrance side with a **marquee canopy** (lettering) and **glass entrance doors**; interior doors that swing when an agent passes.

@@ -381,6 +381,42 @@ class Tier {
   }
 }
 
+/**
+ * Casts the shadows of a LOD0 tier with the matching LOD1 mesh (A9). LOD0 is
+ * the 2.4–2.8k-triangle close-up body; drawing it a second time into the shadow
+ * map doubled the crowd's cost in dense close views. The proxy shares the LOD0
+ * tier's instance attributes, so it needs no per-frame copy. Its draw range is
+ * empty except inside the shadow pass: other passes still issue one empty call.
+ */
+class ShadowProxy {
+  readonly mesh: THREE.Mesh;
+  private readonly geo = new THREE.InstancedBufferGeometry();
+
+  constructor(
+    private readonly of: Tier,
+    shape: THREE.BufferGeometry,
+    material: THREE.Material,
+    depth: THREE.Material,
+  ) {
+    const g = this.geo;
+    g.index = shape.index;
+    for (const [k, a] of Object.entries(shape.attributes)) g.setAttribute(k, a);
+    for (const k of ['aXform', 'aAnim', 'aLook', 'aStyle']) g.setAttribute(k, of.geo.attributes[k]!);
+    g.setDrawRange(0, 0);
+    this.mesh = new THREE.Mesh(g, material);
+    this.mesh.frustumCulled = false;
+    this.mesh.customDepthMaterial = depth;
+    this.mesh.castShadow = true;
+    this.mesh.onBeforeShadow = () => g.setDrawRange(0, Infinity);
+    this.mesh.onAfterShadow = () => g.setDrawRange(0, 0);
+  }
+
+  sync(): void {
+    this.geo.instanceCount = this.of.count;
+    this.mesh.visible = this.of.count > 0;
+  }
+}
+
 // ---------- agents ----------
 
 interface AgentState {
@@ -422,6 +458,7 @@ export class Crowd {
   /** Big-win cheers (A12): standing guests inside a circle cheer until `until` (performance.now s). */
   private cheers: { x: number; z: number; r2: number; until: number }[] = [];
   private tiers: Tier[] = [];
+  private shadows: ShadowProxy[] = [];
   private states = new Map<number, AgentState>();
   private prevIndex = new Map<number, number>();
   private indexedPrev: Snapshot | null = null;
@@ -504,9 +541,15 @@ export class Crowd {
         }
         const g = geo.clone();
         g.setIndex(new THREE.BufferAttribute(new Uint16Array(keep), 1));
-        const tier = new Tier(g, mat, li === 0 ? depth : undefined);
+        // LOD0 casts no shadow itself; a proxy below casts it with LOD1.
+        const tier = new Tier(g, mat);
         this.tiers.push(tier);
         this.group.add(tier.mesh);
+        if (li === 1) {
+          const proxy = new ShadowProxy(this.tiers[this.tiers.length - 3]!, g, mat, depth);
+          this.shadows.push(proxy);
+          this.group.add(proxy.mesh);
+        }
       }
     }
     const quad = new THREE.PlaneGeometry(0.5, 1.82).translate(0, 0.91, 0);
@@ -622,6 +665,7 @@ export class Crowd {
       this.drawn.push({ id, x, z });
     }
     for (const t of this.tiers) t.end();
+    for (const s of this.shadows) s.sync();
     // Forget agents that left; keeps the map from growing over a long day.
     if (this.frame % 120 === 0)
       for (const [k, s] of this.states) if (this.frame - s.frame > 60) this.states.delete(k);
