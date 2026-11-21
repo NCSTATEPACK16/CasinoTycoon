@@ -81,7 +81,7 @@ export const APPEAL_BALANCE = {
    *  this much past their stop-loss (×1.2), and open play's planned home
    *  time slides later by this many ticks per tick (a quarter as long again
    *  at full appeal). Both scale linearly with the appeal where they stand. */
-  lossStretchAtCap: 0.2,
+  lossStretchAtCap: 0.6,
   lingerTicksPerTickAtCap: 0.25,
   /** A game on fully appealing cells scores up to this much more with
    *  guests choosing what to play (0.25 → ×1.25). */

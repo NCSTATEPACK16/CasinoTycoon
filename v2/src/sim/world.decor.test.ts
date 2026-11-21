@@ -13,7 +13,7 @@ afterEach(() => eventBus.clear());
 
 const TICKS_PER_DAY = 50 * 24;
 
-/** Decor along the aisles of testkit's furnished floor. */
+/** Decor round the edge of testkit's furnished floor, clear of its aisles. */
 function decorate(world: CasinoWorld): number {
   let placed = 0;
   const tryPut = (defId: string, col: number, row: number) => {
@@ -25,37 +25,39 @@ function decorate(world: CasinoWorld): number {
     tryPut('lamp-post', col, 25);
   }
   for (let row = 4; row <= 24; row += 4) {
-    tryPut('lamp-post', 10, row);
-    tryPut('plant', 23, row);
-    tryPut('neon-sign', 33, row);
+    tryPut('lamp-post', 9, row);
+    tryPut('neon-sign', 35, row);
   }
   return placed;
 }
 
+/**
+ * Three days on testkit's furnished floor, with or without decor. Arrivals are
+ * a fixed schedule (one guest every 40 ticks), not autoSpawn: decor lifts the
+ * rating and so the arrival rate, and a fuller floor shortens everyone's stay
+ * for want of seats, which would hide what decor does to each guest. With the
+ * schedule fixed, the only difference is the floor itself.
+ */
 function run(decor: boolean, seed: number) {
-  const world = new CasinoWorld({ seed, autoSpawn: true });
+  const world = new CasinoWorld({ seed, autoSpawn: false });
   world.state.cash = 1_000_000;
-  // testkit's furnished floor, less its restrooms, food and bar: with every
-  // need met, guests sit at ~92% happy and nothing has room to lift them.
-  // Without services their needs go critical and sour them, which is where a
-  // pleasant floor shows (and where a guest who sours slower stays longer).
   furnish(world);
-  for (const po of [...world.state.allObjects()])
-    if (['toilet', 'food-stall', 'bar'].includes(po.defId)) world.sell(po.id);
   const pieces = decor ? decorate(world) : 0;
   let guestTicks = 0;
   let departures = 0;
   let happySum = 0;
   let happyN = 0;
   eventBus.on('guestLeft', () => departures++);
-  for (let t = 0; t < 2 * TICKS_PER_DAY; t++) {
+  for (let t = 0; t < 3 * TICKS_PER_DAY; t++) {
+    if (t % 40 === 0) world.spawnGuest();
     world.tick();
     guestTicks += world.guests.size;
-    if (t % 25 === 0 && world.guests.size > 0) {
-      happySum += world.averageHappiness;
+    for (const g of world.guests.values()) {
+      happySum += g.needs.happiness;
       happyN++;
     }
   }
+  eventBus.clear();
   return {
     pieces,
     happiness: happySum / happyN,
@@ -66,8 +68,8 @@ function run(decor: boolean, seed: number) {
 }
 
 describe('B6: a decorated floor beats a bare one', () => {
-  it('on happiness and dwell time (three seeds, summed)', { timeout: 300_000 }, () => {
-    const seeds = [11, 12, 13];
+  it('on happiness and dwell time (six seeds, averaged)', { timeout: 300_000 }, () => {
+    const seeds = [1, 2, 3, 4, 5, 6];
     const bare = seeds.map((s) => run(false, s));
     const decked = seeds.map((s) => run(true, s));
     const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
@@ -82,7 +84,8 @@ describe('B6: a decorated floor beats a bare one', () => {
     expect(r.pieces).toBeGreaterThanOrEqual(20);
     expect(r.decorTerm[1]!).toBeGreaterThan(r.decorTerm[0]! + 3);
     expect(r.happiness[1]!).toBeGreaterThan(r.happiness[0]!);
-    expect(r.dwell[1]!).toBeGreaterThan(r.dwell[0]!);
+    // Guests linger: at least 3% longer stays on the same arrivals.
+    expect(r.dwell[1]!).toBeGreaterThan(r.dwell[0]! * 1.03);
   });
 });
 
