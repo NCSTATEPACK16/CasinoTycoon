@@ -116,7 +116,10 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     id: 'neon-nights',
     name: 'Neon Nights',
     tagline: 'A strip-corner lease and impatient backers. Scale it fast.',
-    startingCash: 3500,
+    // B6: $3500 → $4000. Fair food prices (the rip-off line now follows the
+    // default menu price, not the stall's own) cut the margin this goal was
+    // tuned on; 14 seeds: greedy 13/14 at $4000, doing nothing 0/14.
+    startingCash: 4000,
     goalDailyProfit: 1000,
     dayLimit: 11,
     goalWindowDays: 3,

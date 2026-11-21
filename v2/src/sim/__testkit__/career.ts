@@ -43,8 +43,10 @@ export interface CareerPlan {
    *  than the best affordable, for a floor whose mix is the point. */
   balance?: boolean;
   /** B6: a piece of decor for every `per` games, the first of `items` that
-   *  is allowed and affordable above the reserve. Decor lifts the rating's
-   *  decor term and keeps guests near it a little longer. */
+   *  is allowed and affordable from surplus (DECOR_SURPLUS above the
+   *  reserve). Decor lifts the rating's decor term and keeps guests near it a
+   *  little longer, but a thin floor that spends its margin on lamps sells its
+   *  tables to the bank on the first bad night. */
   decor?: { per: number; items: readonly string[] };
 }
 
@@ -98,6 +100,9 @@ function latticeSpots(world: CasinoWorld): { col: number; row: number }[] {
   }
   return spots.sort((a, b) => a.d - b.d);
 }
+
+/** B6: what a plan keeps in hand, beyond its reserve, before it decorates. */
+const DECOR_SURPLUS = 1000;
 
 export function runCareer(
   def: CampaignDef,
@@ -224,7 +229,9 @@ export function runCareer(
       const isDecor = (id: string) => getObjectDef(id)?.category === 'decor';
       const want = Math.floor(count(isGame) / plan.decor.per);
       if (count(isDecor) < want) {
-        const id = plan.decor.items.find((d) => allowed(d) && cash() >= cost(d) + plan.reserve);
+        const id = plan.decor.items.find(
+          (d) => allowed(d) && cash() >= cost(d) + plan.reserve + DECOR_SURPLUS,
+        );
         if (id) put(id);
       }
     }
