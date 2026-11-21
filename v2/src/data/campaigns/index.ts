@@ -125,7 +125,8 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     // borrows, and a loan costs 1.5–2.5% a day, so the goals stand.
     loanLimit: 1750,
     unlockAfter: 'lucky-strike',
-    unlocks: ['craps-table', 'sic-bo'],
+    // B6: the fountain is the first prestige piece a career earns.
+    unlocks: ['craps-table', 'sic-bo', 'fountain'],
   },
   {
     id: 'high-roller',
@@ -143,7 +144,8 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     // B4: a bank loan of up to half the starting stake; the greedy probe never
     // borrows, and a loan costs 1.5–2.5% a day, so the goals stand.
     loanLimit: 2500,
-    allowedObjects: ['blackjack-table', 'toilet', 'food-stall', 'plant'],
+    // B6: a members' club takes statues and lamps, as it takes plants.
+    allowedObjects: ['blackjack-table', 'toilet', 'food-stall', 'plant', 'statue', 'lamp-post'],
     unlockAfter: 'neon-nights',
     unlocks: ['high-limit-table', 'poker-table'],
   },
@@ -224,7 +226,8 @@ export const CAREER_SCENARIOS: readonly CampaignDef[] = [
   {
     id: 'velvet-rope',
     unlockAfter: 'high-roller',
-    unlocks: ['three-card-poker'],
+    // B6: the stage, and with it the concert (B10's event).
+    unlocks: ['three-card-poker', 'stage'],
     name: 'The Velvet Rope',
     tagline: 'A club for people who expect to be remembered. Remember them.',
     startingCash: 8000,
@@ -271,6 +274,13 @@ export const CAREER_SCENARIOS: readonly CampaignDef[] = [
       'plant',
       'neon-sign',
       'marquee',
+      // B6: decor and amenities are no dealt tables.
+      'statue',
+      'fountain',
+      'lamp-post',
+      'lounge-seating',
+      'atm',
+      'stage',
     ],
     medals: { gold: 4, silver: 7 },
     goals: [
