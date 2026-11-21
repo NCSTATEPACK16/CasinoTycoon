@@ -18,10 +18,10 @@ describe('B8 scenarios in the world', () => {
   it('opens Clean Slate in debt: the loan is on the books and the goal says so', () => {
     const world = start('clean-slate');
     expect(world.state.cash).toBe(8000);
-    expect(world.loans.outstanding).toBe(6000);
-    expect(world.scenarioFacts().debt).toBe(6000);
+    expect(world.loans.outstanding).toBe(5000);
+    expect(world.scenarioFacts().debt).toBe(5000);
     const goals = hudGoals(world)!;
-    expect(goals[0]).toMatchObject({ met: false, progress: '$6,000 owed' });
+    expect(goals[0]).toMatchObject({ met: false, progress: '$5,000 owed' });
     expect(goalLine(world)).toBe('2 goals by day 14');
   });
 
