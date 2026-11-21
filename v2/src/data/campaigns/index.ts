@@ -233,7 +233,10 @@ export const CAREER_SCENARIOS: readonly CampaignDef[] = [
     unlocks: ['three-card-poker', 'stage'],
     name: 'The Velvet Rope',
     tagline: 'A club for people who expect to be remembered. Remember them.',
-    startingCash: 8000,
+    // B6: $8000 → $10000. A floor that fills (higher rating, more guests)
+    // leaves a thin reserve, and one bad table night forced the high-limit
+    // table's sale. 14 seeds: crowd 12/14, grid 10/14, doing nothing 0/14.
+    startingCash: 10000,
     goalDailyProfit: 0,
     dayLimit: 14,
     goalWindowDays: 1,
@@ -328,7 +331,11 @@ export const CAREER_SCENARIOS: readonly CampaignDef[] = [
     staffDepth: true,
     // B10: ads to fill the room the loan bought.
     marketing: ['billboards', 'radio', 'mailers'],
-    startingLoan: { amount: 6000, days: 28 },
+    // B6: $6000 → $5000 owed (the cash in hand is unchanged). With food at
+    // fair prices and decor to buy, a busy floor's margin no longer cleared
+    // $6000 and the profit goal on most crowd runs. 14 seeds: crowd 10/14,
+    // grid 9/14, doing nothing 0/14.
+    startingLoan: { amount: 5000, days: 28 },
     medals: { gold: 8, silver: 11 },
     goals: [{ kind: 'noDebt' }, { kind: 'avgProfit', amount: 700, days: 3 }],
   },
