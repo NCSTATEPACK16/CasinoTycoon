@@ -22,7 +22,6 @@ export interface ObjectDef {
   // On-screen size in px for real (non-placeholder) art, since source images
   // are captured at arbitrary export resolution, not pre-sized to the iso grid.
   displaySize?: { w: number; h: number };
-  ratingBonus?: number; // small, capped casino-rating contribution (RATING_BALANCE.signageBonusCap)
   category: ObjectCategory;
   /** `category: 'service'` covers both objects that take money (food stall,
    *  bar, cage) and one that doesn't (toilet) — the category alone can't
@@ -30,7 +29,7 @@ export interface ObjectDef {
    *  Unset/false for everything else; games don't need it, since
    *  `category === 'game'` already implies revenue. */
   isRevenueSource?: boolean;
-  /** B11: staff take their breaks here (none yet; B6's lounge seating). */
+  /** B11: staff take their breaks here (B6's lounge seating). */
   restsStaff?: boolean;
 }
 
@@ -153,7 +152,6 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     footprint: { w: 1, h: 1 },
     spriteKey: 'img-pachinko',
     displaySize: { w: 78, h: 139 },
-    ratingBonus: 1,
     category: 'game',
   },
   {
@@ -233,7 +231,6 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     footprint: { w: 4, h: 3 },
     spriteKey: 'img-bingo-hall',
     displaySize: { w: 332, h: 260 },
-    ratingBonus: 3,
     category: 'game',
   },
   {
@@ -279,7 +276,6 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     footprint: { w: 1, h: 1 },
     spriteKey: 'img-neon-sign',
     displaySize: { w: 67, h: 110 },
-    ratingBonus: 2,
     category: 'decor',
   },
   {
@@ -291,7 +287,6 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     footprint: { w: 2, h: 1 },
     spriteKey: 'img-marquee',
     displaySize: { w: 200, h: 141 },
-    ratingBonus: 4,
     category: 'decor',
   },
   {
@@ -316,6 +311,70 @@ export const OBJECT_CATALOG: readonly ObjectDef[] = [
     displaySize: { w: 220, h: 120 },
     category: 'service',
     isRevenueSource: true,
+  },
+  // B6: the pre-agreed decor (NEXT-SESSION.md). Footprints are fixed so Track
+  // A's art meets them; prices and upkeep are B's. Appeal: APPEAL_BALANCE.items.
+  {
+    id: 'statue',
+    name: 'Statue',
+    icon: 'statue',
+    cost: 900,
+    upkeepPerDay: 4,
+    footprint: { w: 1, h: 1 },
+    spriteKey: 'obj-statue',
+    category: 'decor',
+  },
+  {
+    id: 'fountain',
+    name: 'Fountain',
+    icon: 'fountain',
+    cost: 2400,
+    upkeepPerDay: 15,
+    footprint: { w: 3, h: 3 },
+    spriteKey: 'obj-fountain',
+    category: 'decor',
+  },
+  {
+    id: 'lamp-post',
+    name: 'Lamp Post',
+    icon: 'lamp-post',
+    cost: 150,
+    upkeepPerDay: 2,
+    footprint: { w: 1, h: 1 },
+    spriteKey: 'obj-lamp-post',
+    category: 'decor',
+  },
+  {
+    id: 'lounge-seating',
+    name: 'Lounge Seating',
+    icon: 'lounge-seating',
+    cost: 600,
+    upkeepPerDay: 6,
+    footprint: { w: 2, h: 1 },
+    spriteKey: 'obj-lounge-seating',
+    category: 'service',
+    restsStaff: true,
+  },
+  {
+    id: 'atm',
+    name: 'ATM',
+    icon: 'atm',
+    cost: 1000,
+    upkeepPerDay: 8,
+    footprint: { w: 1, h: 1 },
+    spriteKey: 'obj-atm',
+    category: 'service',
+    isRevenueSource: true,
+  },
+  {
+    id: 'stage',
+    name: 'Stage',
+    icon: 'stage',
+    cost: 4000,
+    upkeepPerDay: 30,
+    footprint: { w: 4, h: 3 },
+    spriteKey: 'obj-stage',
+    category: 'decor',
   },
 ];
 

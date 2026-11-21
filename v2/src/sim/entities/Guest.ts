@@ -1,12 +1,15 @@
 import { eventBus } from '../../EventBus';
 import type { CompKind, PatronTier } from '../../data/balance';
 import {
+  APPEAL_BALANCE,
+  ATM_BALANCE,
   BAR_BALANCE,
   CASHIER_BALANCE,
   COMPS,
   expectedRtpFor,
   FOOD_BALANCE,
   GUEST_BALANCE,
+  LOUNGE_BALANCE,
   MESS_BALANCE,
   POKER_BALANCE,
   RAGE_BALANCE,
@@ -28,6 +31,7 @@ import {
   scoreGame,
   type Choice,
   type GuestView,
+  type ServiceKind,
 } from '../agents/utility';
 import type { Cell } from '../grid/astar';
 import type { Rng } from '../rng';
@@ -133,7 +137,8 @@ export class Guest extends Walker {
   private spinsLeft = 0;
   private spinTimer = 0;
   private spinEveryTicks = 8; // from the machine's cadence at sit-down
-  private serviceKind: 'toilet' | 'food-stall' | 'bar' | 'cage' | null = null;
+  private serviceKind: ServiceKind | null = null;
+  private serviceObjectId: string | null = null;
   /** Once true, never visits a cage again this session — a one-time top-up. */
   private usedCashAdvance = false;
   private serviceTimer = 0;
@@ -168,6 +173,14 @@ export class Guest extends Walker {
    *  finishes what they are doing and goes home. Null: stay as long as
    *  money, mood and energy last (the campaigns' rule). */
   leaveAtTick: number | null = null;
+  /** B6: the appeal (0–100) where this guest stands, set each tick by the
+   *  world. A pleasant spot keeps them a little longer: see lossStretch. */
+  appealHere = 0;
+
+  /** B6: how far past their stop-loss a guest will play in a pleasant spot. */
+  get lossStretch(): number {
+    return 1 + (APPEAL_BALANCE.lossStretchAtCap * this.appealHere) / APPEAL_BALANCE.cellCap;
+  }
   /** B5: the tick this guest walked in, for the Guests list. */
   arrivedTick = 0;
   /** Standing in High-Limit right now — keeps the zone on this guest's filter
@@ -217,6 +230,9 @@ export class Guest extends Walker {
     const min = GUEST_BALANCE.arrivalNeedsMin;
     for (const need of ['bladder', 'hunger', 'thirst'] as const)
       this.needs[need] = min[need] + (100 - min[need]) * this.brainRng.next();
+    // B6: drawn last, so the draws above are unchanged.
+    const e = LOUNGE_BALANCE.arrivalEnergyMin;
+    this.needs.energy = e + (100 - e) * this.brainRng.next();
   }
 
   get navSpeed(): number {
@@ -428,7 +444,7 @@ export class Guest extends Walker {
       return true;
     }
     if (this.needs.happiness <= AI.leaveUnhappy) return true;
-    return stopReason(this.profile, this.sessionNet) !== null;
+    return stopReason(this.profile, this.sessionNet, this.lossStretch) !== null;
   }
 
   private view(): GuestView {
@@ -505,13 +521,16 @@ export class Guest extends Walker {
     let objectId: string | undefined;
     if (c.service === 'toilet') {
       stand = world.findService('toilet')?.stand ?? null;
+    } else if (c.service === 'lounge-seating' || c.service === 'atm') {
+      const svc = world.findService(c.service);
+      if (svc) [stand, objectId] = [svc.stand, svc.objectId];
     } else if (c.service === 'food-stall') {
       const svc = world.findFoodStall(this.wallet);
       if (svc) [stand, objectId, this.foodStallId] = [svc.stand, svc.standId, svc.standId];
     } else if (c.service === 'bar') {
       const svc = world.findBar();
       if (svc) [stand, objectId, this.barId] = [svc.stand, svc.barId, svc.barId];
-    } else {
+    } else if (c.service === 'cage') {
       const svc = world.findCage();
       if (svc) [stand, objectId, this.cageId] = [svc.stand, svc.cageId, svc.cageId];
     }
@@ -522,7 +541,7 @@ export class Guest extends Walker {
         ? [objectId]
         : world.state
             .allObjects()
-            .filter((o) => o.defId === 'toilet')
+            .filter((o) => o.defId === c.service)
             .map((o) => o.id);
       const spread = spreadStand(world, this.pos, ids, this);
       if (!spread) {
@@ -538,6 +557,7 @@ export class Guest extends Walker {
     this.serviceStand = standKey(stand);
     this.state = 'service';
     this.serviceKind = c.service;
+    this.serviceObjectId = objectId ?? null;
     this.serviceTimer = 0;
     return true;
   }
@@ -741,7 +761,8 @@ export class Guest extends Walker {
     this.spinsLeft--;
     // The bankroll model ends a session the moment a stop rule trips, not at
     // the end of the planned run of plays.
-    if (stopReason(this.profile, this.sessionNet) !== null) return this.stopPlaying(world);
+    if (stopReason(this.profile, this.sessionNet, this.lossStretch) !== null)
+      return this.stopPlaying(world);
     if (this.spinsLeft > 0) return;
     if (this.staysForAnotherRun(world)) {
       const cadence = world.machineCadence(this.machineId);
@@ -797,8 +818,18 @@ export class Guest extends Walker {
   private tickService(world: CasinoWorld): void {
     const b = GUEST_BALANCE;
     this.serviceTimer++;
-    if (this.serviceTimer < b.serviceTicks) return;
-    if (this.serviceKind === 'toilet') {
+    const ticks = this.serviceKind === 'lounge-seating' ? LOUNGE_BALANCE.restTicks : b.serviceTicks;
+    if (this.serviceTimer < ticks) return;
+    if (this.serviceKind === 'lounge-seating') {
+      this.needs.energy = 100;
+      this.adjustHappiness(LOUNGE_BALANCE.happinessOnRest);
+    } else if (this.serviceKind === 'atm') {
+      const result = world.useAtm(this.wallet, this.serviceObjectId ?? undefined);
+      if (result) {
+        this.wallet += result.advance - ATM_BALANCE.fee;
+        this.usedCashAdvance = true;
+      }
+    } else if (this.serviceKind === 'toilet') {
       this.needs.bladder = 100;
       this.adjustHappiness(b.happinessOnService);
     } else if (this.serviceKind === 'food-stall') {
@@ -839,6 +870,7 @@ export class Guest extends Walker {
       this.cageId = null;
     }
     this.serviceKind = null;
+    this.serviceObjectId = null;
     this.evaluate(world);
   }
 

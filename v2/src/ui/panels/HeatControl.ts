@@ -1,6 +1,6 @@
 // The info views (B15f, Variant B): a strip of view buttons under the top bar
-// on the left (Mood, Traffic; Appeal arrives with B6), with the legend of the
-// view on screen below it. M and T toggle; clicking the lit view turns it
+// on the left (Mood, Traffic and B6's Appeal), with the legend of the
+// view on screen below it. M, T and L toggle; clicking the lit view turns it
 // off. While a view is up it asks the worker for fresh data once a second and
 // hands it to the render overlay.
 
@@ -14,11 +14,13 @@ import { button, el } from '../dom';
 const ICON: Record<HeatKind, string> = {
   mood: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 14.5c1 1.2 2.2 1.8 3.5 1.8s2.5-.6 3.5-1.8M9 9.5h.01M15 9.5h.01"/>',
   traffic: '<path d="M5 19l4-14M19 19L15 5M12 6v2M12 11v2M12 16v2"/>',
+  appeal: '<path d="M12 3.5l2.4 5 5.4.6-4 3.7 1.1 5.4L12 15.5l-4.9 2.7 1.1-5.4-4-3.7 5.4-.6z"/>',
 };
 
 const VIEWS: { kind: HeatKind; label: string; key: string }[] = [
   { kind: 'mood', label: 'Mood', key: 'M' },
   { kind: 'traffic', label: 'Traffic', key: 'T' },
+  { kind: 'appeal', label: 'Appeal', key: 'L' },
 ];
 
 const css = ([r, g, b]: [number, number, number]) => `rgb(${r},${g},${b})`;
@@ -35,6 +37,12 @@ const LEGEND: Record<HeatKind, { left: string; right: string; blurb: string; end
     right: 'Busiest',
     blurb: 'Where guests walk. Hot corridors want aisles; dead corners want a reason to visit.',
     ends: [0, 0.5, 1],
+  },
+  appeal: {
+    left: 'Plain',
+    right: 'Stunning',
+    blurb: 'What decor and fine floors do for each spot. Guests are happier here and games here draw more players; the floor\'s average is the rating\'s Decor term.',
+    ends: [0, 30, 60, 100],
   },
 };
 
@@ -95,7 +103,9 @@ export class HeatControl {
     const kind = this.kind;
     if (!kind) return;
     try {
-      const m = await this.sim.command<HeatMap>({ type: 'heatMap', kind });
+      const m = await this.sim.command<HeatMap>(
+        kind === 'appeal' ? { type: 'appealMap' } : { type: 'heatMap', kind },
+      );
       if (this.kind !== kind) return;
       this.overlay.setData(kind, m.cols, m.rows, m.values);
       this.overlay.setVisible(true);
@@ -104,9 +114,9 @@ export class HeatControl {
         summary.textContent =
           m.summary === null
             ? 'no data yet'
-            : kind === 'mood'
-              ? `average ${Math.round(m.summary)}`
-              : `busiest tile ${Math.round(m.summary)} visits`;
+            : kind === 'traffic'
+              ? `busiest tile ${Math.round(m.summary)} visits`
+              : `average ${Math.round(m.summary)}`;
     } catch {
       // Between games the world may be resetting; the next poll catches up.
     }

@@ -1,3 +1,4 @@
+import { APPEAL_BALANCE } from './balance';
 import { describe, expect, it } from 'vitest';
 import { OBJECT_CATALOG, getObjectDef } from './objects';
 
@@ -47,9 +48,13 @@ describe('object catalog', () => {
     expect(getObjectDef('no-such-thing')).toBeUndefined();
   });
 
-  it('ratingBonus, when present, is non-negative', () => {
-    for (const d of OBJECT_CATALOG) {
-      if (d.ratingBonus !== undefined) expect(d.ratingBonus, d.id).toBeGreaterThanOrEqual(0);
+  it('every appeal source is a real object with a positive strength and radius (B6)', () => {
+    for (const [id, a] of Object.entries(APPEAL_BALANCE.items)) {
+      expect(getObjectDef(id), id).toBeDefined();
+      expect(a.strength, id).toBeGreaterThan(0);
+      expect(a.radius, id).toBeGreaterThan(0);
     }
+    for (const id of ['statue', 'fountain', 'lamp-post', 'lounge-seating', 'atm', 'stage'])
+      expect(getObjectDef(id), id).toBeDefined();
   });
 });

@@ -3,7 +3,7 @@
 // tastes and bankroll; the brain tries them best-first. Pure apart from the
 // world reads, and it never draws from world.rng (see bankroll.ts for why).
 
-import { CASHIER_BALANCE, GUEST_BALANCE } from '../../data/balance';
+import { APPEAL_BALANCE, CASHIER_BALANCE, GUEST_BALANCE, LOUNGE_BALANCE } from '../../data/balance';
 import { get3D } from '../../shared/catalog';
 import { footprintOf } from '../build';
 import type { GuestArchetype, GuestNeeds } from '../entities/Guest';
@@ -15,7 +15,7 @@ import { TOURNAMENT_SLOT_PREF } from '../../data/events';
 import type { BankrollProfile } from './bankroll';
 import { queueLength } from './queue';
 
-export type ServiceKind = 'toilet' | 'food-stall' | 'bar' | 'cage';
+export type ServiceKind = 'toilet' | 'food-stall' | 'bar' | 'cage' | 'lounge-seating' | 'atm';
 
 export type Choice =
   | { kind: 'service'; service: ServiceKind; score: number }
@@ -49,6 +49,14 @@ export function needUrgency(level: number, rank: number): number {
   const soft = t * 1.6;
   if (level < soft) return (0.35 * (soft - level)) / (soft - t);
   return 0;
+}
+
+/** B6: how hard the lounge pulls: nothing above LOUNGE_BALANCE.tiredBelow,
+ *  rising to a need's urgency as energy runs out. */
+export function tiredUrgency(energy: number): number {
+  const t = LOUNGE_BALANCE.tiredBelow;
+  if (energy >= t) return 0;
+  return 0.4 + (1.1 * (t - energy)) / t;
 }
 
 /** Score for playing one game, or null when this guest cannot play it now. */
@@ -85,7 +93,9 @@ export function scoreGame(world: CasinoWorld, g: GuestView, machineId: string): 
   const fit = ratio <= 1 ? 1 : ratio <= 3 ? 0.7 : ratio <= 8 ? 0.4 : 0.15;
   // The floor of 0.3 keeps any playable game ahead of aimless wandering:
   // a guest in a one-machine casino still plays the machine.
-  let score = 0.3 + 0.9 * pref * distance * crowding * fit;
+  // B6: a game among decor draws more players (APPEAL_BALANCE.gameWeight).
+  const appeal = 1 + (APPEAL_BALANCE.gameWeight * world.appeal.meanOver(po.col, po.row, fp.w, fp.h)) / APPEAL_BALANCE.cellCap;
+  let score = 0.3 + 0.9 * pref * distance * crowding * fit * appeal;
   if (full) score *= AI.queueFactor;
   return { kind: 'game', machineId, full, score };
 }
@@ -113,6 +123,10 @@ export function* rankChoices(world: CasinoWorld, g: GuestView): Generator<Choice
   if (world.hasServiceObject('bar'))
     service('bar', needUrgency(g.needs.thirst, 0) * world.serviceAppeal('bar'));
   if (!g.usedCashAdvance && g.wallet < CASHIER_BALANCE.walletThreshold) service('cage', 1.3);
+  // B6: the ATM ranks just behind a staffed cage; the sofa calls the tired.
+  if (!g.usedCashAdvance && g.wallet < CASHIER_BALANCE.walletThreshold && world.hasServiceObject('atm'))
+    service('atm', 1.25);
+  if (world.hasServiceObject('lounge-seating')) service('lounge-seating', tiredUrgency(g.needs.energy));
   heap.push({ kind: 'wander', score: AI.wanderScore }, Infinity);
 
   const index = siteIndex(world);
@@ -146,7 +160,7 @@ export function* rankChoices(world: CasinoWorld, g: GuestView): Generator<Choice
  * float rounding from ever ranking a game early.
  */
 function gameScoreBound(maxPref: number, d: number): number {
-  return 0.3 + (0.9 * maxPref) / (1 + d / AI.distanceScale) + 1e-9;
+  return 0.3 + (0.9 * maxPref * (1 + APPEAL_BALANCE.gameWeight)) / (1 + d / AI.distanceScale) + 1e-9;
 }
 
 const maxPrefs = new Map<GuestArchetype, number>();

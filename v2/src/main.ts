@@ -200,6 +200,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyG') panel.toggle('guests');
   if (e.code === 'KeyM') heatControl.toggle('mood');
   if (e.code === 'KeyT') heatControl.toggle('traffic');
+  if (e.code === 'KeyL') heatControl.toggle('appeal');
   if (e.code === 'KeyZ') stage.showZoneOverlay((zonesOn = !zonesOn));
 });
 let zonesOn = false;

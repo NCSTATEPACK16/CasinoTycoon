@@ -1,4 +1,4 @@
-import { FOOD_BALANCE } from '../../data/balance';
+import { FOOD_BALANCE, PRICE_BALANCE } from '../../data/balance';
 import { DEFAULT_MENU, getDefaultMenuItem, type MenuAsset } from '../../data/foodMenu';
 import type { Rng } from '../rng';
 
@@ -12,6 +12,12 @@ export interface FoodPurchase {
   baseCost: number;
   hungerSatisfaction: number;
   ripoff: boolean;
+}
+
+/** B6: the price past which an item reads as a rip-off: the bar's rule,
+ *  PRICE_BALANCE.ripoffIndex × the item's default price. */
+export function foodRipoffAbove(item: { id: string; currentPrice: number }): number {
+  return (getDefaultMenuItem(item.id)?.currentPrice ?? item.currentPrice) * PRICE_BALANCE.ripoffIndex;
 }
 
 // A placed Food Stall's own priced, toggleable menu, cloned from DEFAULT_MENU
@@ -65,7 +71,7 @@ export class FoodStall {
       price: item.currentPrice,
       baseCost: item.baseCost,
       hungerSatisfaction: item.hungerSatisfaction,
-      ripoff: item.currentPrice > item.baseCost * FOOD_BALANCE.ripoffMultiplier,
+      ripoff: item.currentPrice > foodRipoffAbove(item),
     };
   }
 

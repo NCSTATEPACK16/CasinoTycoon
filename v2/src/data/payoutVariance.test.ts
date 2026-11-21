@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  APPEAL_BALANCE,
   BIG_SIX_BALANCE,
   BINGO_BALANCE,
   BLACKJACK_BALANCE,
@@ -46,7 +47,7 @@ describe('catalogue differentiation', () => {
     'wear',
     'footprint',
     'upkeep',
-    'ratingBonus',
+    'appeal',
   ] as const;
 
   interface Profile {
@@ -60,7 +61,7 @@ describe('catalogue differentiation', () => {
     wear: number;
     footprint: string;
     upkeep: number;
-    ratingBonus: number;
+    appeal: number;
   }
 
   function profile(id: string, b: Record<string, unknown>): Profile {
@@ -78,7 +79,7 @@ describe('catalogue differentiation', () => {
       wear: b.wearPerPlay as number,
       footprint: `${def.footprint.w}x${def.footprint.h}`,
       upkeep: def.upkeepPerDay,
-      ratingBonus: def.ratingBonus ?? 0,
+      appeal: APPEAL_BALANCE.items[def.id]?.strength ?? 0,
     };
   }
 

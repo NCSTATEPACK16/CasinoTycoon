@@ -14,7 +14,7 @@ const LABEL: Record<RatingTermId, string> = {
   variety: 'Variety',
   cleanliness: 'Cleanliness',
   broken: 'Broken games',
-  signage: 'Signage',
+  signage: 'Decor & appeal',
   security: 'Security',
   dealers: 'Dealt tables',
   rage: 'Rage-quits',
@@ -45,9 +45,11 @@ export function ratingAdvice(id: RatingTermId, value: number, best: number, f: F
         ? 'Nothing broken.'
         : `${f.brokenGames} broken game${f.brokenGames === 1 ? '' : 's'}, −5 each. Hire a mechanic.`;
     case 'signage':
-      return maxed
-        ? 'Signage is at its cap.'
-        : 'Neon signs and marquees add a little each, up to +10.';
+      return f.decorPieces === 0 && f.meanAppeal < 0.5
+        ? 'A plain floor. Decor (plants, signs, statues, lamps, a fountain) and marble or wood floors make the casino appealing, up to about +10. See the Appeal view (L).'
+        : value >= best - 0.5
+          ? `Floor appeal averages ${Math.round(f.meanAppeal)}: about as appealing as a casino gets.`
+          : `Floor appeal averages ${Math.round(f.meanAppeal)} (${f.decorPieces} decor piece${f.decorPieces === 1 ? '' : 's'}). Spread decor where guests go: a second piece beside the first adds less than one somewhere plain.`;
     case 'security':
       return maxed
         ? `${f.guards} on the floor: as safe as it gets.`

@@ -12,6 +12,7 @@ import { OBJECT_CATALOG, type ObjectDef } from '../../data/objects';
 import type { BuildTool } from '../../input/BuildTool';
 import { locksFor, type Progress } from '../../services/progress';
 import { get3D } from '../../shared/catalog';
+import { appealOf } from '../../sim/appeal';
 import type { Dock } from '../dock/Dock';
 import { el, escapeHtml, money } from '../dom';
 
@@ -48,6 +49,8 @@ const SERVICE_BLURB: Record<string, string> = {
   'food-stall': 'Feeds hungry guests. Set its prices in Prices.',
   bar: 'Pours drinks; needs a bartender. Waitresses carry them to seated players.',
   cage: 'Cash advances for guests running dry; needs a cashier.',
+  'lounge-seating': 'Tired guests sit and recover here, happier for it; staff take their breaks here too.',
+  atm: 'Guests running dry draw cash here, no cashier needed; the house keeps the fee.',
 };
 
 /** The one line a service's card shows. */
@@ -56,6 +59,8 @@ const SERVICE_STAT: Record<string, string> = {
   'food-stall': 'Hunger',
   bar: 'Drinks · bartender',
   cage: 'Cash · cashier',
+  'lounge-seating': 'Rest · staff breaks',
+  atm: 'Cash · fee',
 };
 
 export function paletteTab(def: ObjectDef): PaletteTab {
@@ -71,7 +76,15 @@ function keyStat(def: ObjectDef): string {
     return `${seats} seat${seats === 1 ? '' : 's'}${paletteTab(def) === 'tables' ? ' · dealer' : ''}`;
   }
   if (def.category === 'service') return SERVICE_STAT[def.id] ?? 'Service';
-  return def.ratingBonus ? `+${def.ratingBonus} rating` : 'Decoration';
+  const a = appealOf(def.id);
+  return a ? `Appeal ${a.strength} · ${a.radius} m` : 'Decoration';
+}
+
+/** What a piece of decor (or a game with appeal) does, for the hover card. */
+function appealBlurb(defId: string): string {
+  const a = appealOf(defId);
+  if (!a) return '';
+  return ` Appeal ${a.strength} on the spot, fading to nothing ${a.radius} m out: guests nearby are happier and games nearby draw more players. Pieces close together add less.`;
 }
 
 export class Palette {
@@ -222,14 +235,15 @@ export class Palette {
       ? `Needs a ${g.zones.map((z) => ZONE_LABEL[z] ?? z).join(' or ')} zone`
       : 'Fits anywhere with a floor';
     const seats = g.seats?.length ?? 0;
-    const what =
+    const whatBase =
       def.category === 'game'
         ? `${seats} seat${seats === 1 ? '' : 's'}${paletteTab(def) === 'tables' ? ' · needs a dealer' : ''}`
         : def.category === 'service'
           ? (SERVICE_BLURB[def.id] ?? '')
-          : def.ratingBonus
-            ? `Adds ${def.ratingBonus} to the rating (signage counts up to +10 in all).`
+          : def.id === 'stage'
+            ? 'Hosts concerts (Events).'
             : 'Decoration.';
+    const what = whatBase + appealBlurb(def.id);
     const why = this.blocked(def.id);
     this.card.innerHTML = `<b>${escapeHtml(def.name)}</b>
       <div class="pal-card-grid"><span>Price</span><b>${money(def.cost)}</b><span>Upkeep</span><b>${money(def.upkeepPerDay)}/day</b><span>Size</span><b>${def.footprint.w}×${def.footprint.h} m</b></div>

@@ -175,14 +175,15 @@ export function guestList(world: CasinoWorld): GuestRow[] {
 // ---------- heat maps ----------
 
 export interface HeatMap {
-  kind: 'mood' | 'traffic';
+  kind: 'mood' | 'traffic' | 'appeal';
   cols: number;
   rows: number;
-  /** Row-major, one per cell: mood 0–100, or traffic 0–1 (1 = as busy as
+  /** Row-major, one per cell: mood or appeal 0–100, or traffic 0–1 (1 = as busy as
    *  the busiest tenth of the floor, or busier); −1 where too little has been
    *  seen to say. */
   values: number[];
-  /** Mood: the floor's average where seen. Traffic: the busiest tile's count. */
+  /** Mood: the floor's average where seen. Traffic: the busiest tile's count.
+   *  Appeal: the floor's mean appeal (what the rating's decor term reads). */
   summary: number | null;
 }
 
@@ -224,4 +225,16 @@ export function heatMap(world: CasinoWorld, kind: 'mood' | 'traffic'): HeatMap {
   for (let i = 0; i < raw.length; i++)
     if (raw[i]! >= cutoff) values[i] = Math.round(Math.min(1, raw[i]! / scale) * 1000) / 1000;
   return { kind, cols, rows, values, summary: world.traffic.busiest };
+}
+
+/** B6: the appeal field, −1 where there is no floor. Rounded to whole points;
+ *  the overlay needs no more and the reply stays small. */
+export function appealMap(world: CasinoWorld): HeatMap {
+  const field = world.appeal;
+  const { cols, rows } = field;
+  const values = new Array<number>(cols * rows).fill(-1);
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c < cols; c++)
+      if (world.floor.floorAt(c, r) !== 'none') values[r * cols + c] = Math.round(field.at(c, r));
+  return { kind: 'appeal', cols, rows, values, summary: field.flooredCells ? field.mean : null };
 }
