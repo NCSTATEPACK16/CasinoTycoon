@@ -35,11 +35,11 @@ export const STREET_W = 7.4;
 /** How far past the street edge the god camera's focus may go. */
 export const STREET_REACH = SIDEWALK + STREET_W + 2;
 
-const STONE: Surface = { color: 0xcfc3ae, rough: 0.8, metal: 0 };
+const STONE: Surface = { color: 0xf2ece2, rough: 0.8, metal: 0, decal: 'texFacade' };
 const STONE_DARK: Surface = { color: 0x8f8372, rough: 0.8, metal: 0 };
-const CONCRETE: Surface = { color: 0x9a968f, rough: 0.9, metal: 0 };
 const CURB: Surface = { color: 0xb8b3a8, rough: 0.85, metal: 0 };
-const ASPHALT: Surface = { color: 0x2a2a2e, rough: 0.95, metal: 0 };
+const ASPHALT: Surface = { color: 0x9a9aa0, rough: 0.95, metal: 0, decal: 'texAsphalt' };
+const PAVERS: Surface = { color: 0xe6e2da, rough: 0.9, metal: 0, decal: 'texPavers' };
 const PAINT: Surface = { color: 0xe8e0c0, rough: 0.7, metal: 0 };
 const CARPET: Surface = { color: 0x8a1020, rough: 0.95, metal: 0 };
 const POLE: Surface = { color: 0x1d1f24, rough: 0.5, metal: 0.6 };
@@ -425,13 +425,14 @@ export class Exterior {
     const S = SIDEWALK;
     const W = STREET_W;
     // Sidewalk, curb, street, far curb and sidewalk.
-    solid.box(S - 0.05, 0.08, len, (S + 0.05) / 2, -0.02, zc, CONCRETE);
-    for (let z = z0 + 1.5; z < z1; z += 1.5) solid.box(S - 0.1, 0.004, 0.03, S / 2, 0.06, z, STONE_DARK);
+    // Photo textures map once per box face, so the paving and the street are
+    // laid as slabs (1.5 m) and squares (one street width) rather than one strip.
+    for (let z = z0; z < z1; z += 1.5) solid.box(S - 0.05, 0.08, 1.5, (S + 0.05) / 2, -0.02, z + 0.75, PAVERS);
     solid.box(0.18, 0.14, len, S + 0.09, -0.04, zc, CURB);
-    solid.box(W, 0.02, len, S + 0.18 + W / 2, -0.03, zc, ASPHALT);
+    for (let z = z0; z < z1; z += W) solid.box(W, 0.02, Math.min(W, z1 - z), S + 0.18 + W / 2, -0.03, z + Math.min(W, z1 - z) / 2, ASPHALT);
     for (let z = z0 + 1; z < z1; z += 4) solid.box(0.14, 0.006, 2, S + 0.18 + W / 2, -0.01, z, PAINT);
     solid.box(0.18, 0.14, len, S + 0.27 + W, -0.04, zc, CURB);
-    solid.box(3, 0.08, len, S + 0.36 + W + 1.5, -0.02, zc, CONCRETE);
+    for (let z = z0; z < z1; z += 3) solid.box(3, 0.08, 3, S + 0.36 + W + 1.5, -0.02, z + 1.5, PAVERS);
     // Red carpet from the street doors to the curb.
     solid.box(S - 0.25, 0.012, 2.2, S / 2, 0.06, e, CARPET);
     solid.box(S - 0.25, 0.014, 0.08, S / 2, 0.06, e - 1.12, PALETTE.gold);

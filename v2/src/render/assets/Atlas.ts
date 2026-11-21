@@ -10,10 +10,20 @@ import { MAX_REELS, REEL_CELL, SHEET_ORDER, STRIP_MAX } from '../fx/reels';
 import { AMERICAN, EUROPEAN } from '../fx/wheel';
 import marbleUrl from '../../../assets/textures/marble_01_diff_512.jpg?url';
 import velvetUrl from '../../../assets/textures/velour_velvet_diff_512.jpg?url';
+import asphaltUrl from '../../../assets/textures/clean_asphalt_diff_512.jpg?url';
+import paversUrl from '../../../assets/textures/concrete_pavers_diff_512.jpg?url';
+import facadeUrl from '../../../assets/textures/beige_wall_001_diff_512.jpg?url';
 
 /** Atlas tiles painted from CC0 photo textures (assets/CREDITS.md) once they load;
  *  until then (and in tests) the procedural stand-in shows. */
-const TEX_IMAGES: Record<string, string> = { texMarble: marbleUrl, texVelvet: velvetUrl };
+const TEX_IMAGES: Record<string, string> = {
+  texMarble: marbleUrl,
+  texVelvet: velvetUrl,
+  // A11 exterior: one tile per street square, sidewalk slab and metre of facade.
+  texAsphalt: asphaltUrl,
+  texPavers: paversUrl,
+  texFacade: facadeUrl,
+};
 
 export interface UvRect {
   u0: number;
@@ -87,6 +97,9 @@ const DECALS: Record<string, DecalSpec> = {
   // A10 decor. tex* tiles are photo textures (TEX_IMAGES) over a stand-in.
   texMarble: { w: 256, h: 256, paint: (g, w, h) => marble(g, w, h, false) },
   texVelvet: { w: 256, h: 256, paint: velvetStandIn },
+  texAsphalt: { w: 256, h: 256, paint: (g, w, h) => flatStandIn(g, w, h, '#3a3a3c') },
+  texPavers: { w: 256, h: 256, paint: (g, w, h) => flatStandIn(g, w, h, '#9a968f') },
+  texFacade: { w: 256, h: 256, paint: (g, w, h) => flatStandIn(g, w, h, '#d8ccb6') },
   // Fountain water; tiles seamlessly because the shader scrolls it (SurfaceFlag.Scroll).
   water: { w: 256, h: 256, paint: water },
   atmScreen: { w: 192, h: 128, paint: atmScreen },
@@ -1289,6 +1302,13 @@ function cardFaces(g: CanvasRenderingContext2D) {
 }
 
 // ---------- A10 decor ----------
+
+/** Plain stand-in under a photo tile until its image loads. */
+function flatStandIn(g: CanvasRenderingContext2D, w: number, h: number, colour: string) {
+  g.fillStyle = colour;
+  g.fillRect(0, 0, w, h);
+  noise(g, w, h, 0.05, 3);
+}
 
 function velvetStandIn(g: CanvasRenderingContext2D, w: number, h: number) {
   g.fillStyle = '#7d0c22';

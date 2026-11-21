@@ -195,7 +195,15 @@ Branch `v2-alive-2`, cut from `origin/v2.1`, in its own worktree. Dev port 5175,
 
       The exterior costs 5–14 calls and at most 14k triangles; 5 calls even off-screen (sky dome, door leaves and panes are not frustum-culled, plus their shadow pass). High stays inside ≤ 300 calls and ≤ 1.5M tris. The worker tick read 11 ms (hidden page).
 
-- [ ] **A14. Finish.** Merge `origin/v2.1` if it moved. Full suite under `caffeinate -i` (background; read the summary), `npm run build`, the stress scene on High and Low against A0's baseline, a screenshot set (one per task), the PR description complete (checklist, evidence, every `contract:` commit and `world.ts` hook), PR out of draft. Report to the user and stop the loop.
+- [x] ✅ **A14. Finish.** Merge `origin/v2.1` if it moved. Full suite under `caffeinate -i` (background; read the summary), `npm run build`, the stress scene on High and Low against A0's baseline, a screenshot set (one per task), the PR description complete (checklist, evidence, every `contract:` commit and `world.ts` hook), PR out of draft. Report to the user and stop the loop.
+  - **Done 2026-11-21.**
+    - `origin/v2.1` has not moved since A0 (d277f72), so nothing to merge. No `contract:` commits; `world.ts` and `contracts.ts` untouched.
+    - `npx tsc --noEmit` clean. Full suite under `caffeinate -i`: 134 files, 1,184 tests passed, no timeouts (359 s).
+    - `npm run build` passes: index 1.35 MB (454 kB gzip), VAT 6.81 MB.
+    - Exterior surfaces now use the approved CC0 textures: `beige_wall_001` on the facade, `concrete_pavers` on the sidewalks (1.5 m and 3 m slabs), `clean_asphalt` on the street (street-width squares). No new draws.
+    - Stress on High and Low against A0 (calls / tris), High: overview 229/318k (A0 217/304k), mid 140/629k (129/617k), close 93/482k (87/478k), slot banks 71/820k, 67/1.02M, 144/1.49M (66/819k, 62/1.02M, 129/1.49M), street 118/765k. Low: 159/263k, 79/305k, 67/326k, 44/445k, 39/527k, 113/903k, street 70/128k.
+    - Screenshot set, one per task: https://claude.ai/artifact/38cEj7S76jXkAsZjTwcyNJ. PR #24 description completed and out of draft.
+    - Flagged in the PR: one existing line in `src/worker/snapshot.ts` changed in A9 (staff uniform into the variant slot, previously always 0).
 
 ## Requests to Track B
 
