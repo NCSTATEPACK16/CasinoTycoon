@@ -6,7 +6,7 @@ import type { SimClient } from '../../client/SimClient';
 import type { PlayerControls } from '../../input/PlayerControls';
 import type { Stage } from '../../render/Stage';
 import { AGENT_STRIDE, AgentKind, type Snapshot } from '../../shared/contracts';
-import type { SidePanel } from '../SidePanel';
+import type { Desk } from '../windows/Desk';
 import type { NewsPlace } from './newsQueue';
 
 /** Close enough to read the subject, far enough to see what's around it. */
@@ -30,7 +30,7 @@ export interface LocateDeps {
   sim: SimClient;
   controls: PlayerControls;
   stage: Stage;
-  panel: SidePanel;
+  panel: Pick<Desk, 'inspect'>;
 }
 
 /** Returns false when the camera can't move: the player is seated at a game. */

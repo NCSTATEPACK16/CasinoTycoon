@@ -23,7 +23,7 @@ import {
   scenarioList,
   staffList,
 } from './inspect';
-import { guestList, heatMap, thoughtSummary } from './feedback';
+import { appealMap, guestList, heatMap, thoughtSummary } from './feedback';
 import { dayReport, financeHistory, loansView } from './finance';
 import { marketingView } from './marketing';
 import { scenarioResult } from './scenario';
@@ -285,6 +285,8 @@ export function runCommand(world: CasinoWorld, snap: SnapshotBuilder, cmd: Comma
       } catch (e) {
         return { ok: false, error: (e as Error).message };
       }
+    case 'appealMap':
+      return { ok: true, data: appealMap(world) };
     default:
       return { ok: false, error: `${(cmd as Command).type} not implemented` };
   }

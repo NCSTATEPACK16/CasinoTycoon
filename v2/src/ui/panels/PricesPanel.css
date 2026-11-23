@@ -1,0 +1,15 @@
+.price-card {
+  margin: 0.625rem 0;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-2);
+}
+.price-card h4 {
+  margin: 0 0 0.25rem;
+}
+table.prices input {
+  width: 4.5rem;
+}
+table.prices td {
+  vertical-align: middle;
+}

@@ -42,6 +42,12 @@ export interface CareerPlan {
   /** Buy the ladder in even numbers (the least-owned affordable game) rather
    *  than the best affordable, for a floor whose mix is the point. */
   balance?: boolean;
+  /** B6: a piece of decor for every `per` games, the first of `items` that
+   *  is allowed and affordable from surplus (DECOR_SURPLUS above the
+   *  reserve). Decor lifts the rating's decor term and keeps guests near it a
+   *  little longer, but a thin floor that spends its margin on lamps sells its
+   *  tables to the bank on the first bad night. */
+  decor?: { per: number; items: readonly string[] };
 }
 
 export interface CareerRun {
@@ -94,6 +100,9 @@ function latticeSpots(world: CasinoWorld): { col: number; row: number }[] {
   }
   return spots.sort((a, b) => a.d - b.d);
 }
+
+/** B6: what a plan keeps in hand, beyond its reserve, before it decorates. */
+const DECOR_SURPLUS = 1000;
 
 export function runCareer(
   def: CampaignDef,
@@ -216,6 +225,16 @@ export function runCareer(
         if (!world.sendComp(g.id, 'drink')) world.sendComp(g.id, 'meal');
       }
     }
+    if (plan.decor) {
+      const isDecor = (id: string) => getObjectDef(id)?.category === 'decor';
+      const want = Math.floor(count(isGame) / plan.decor.per);
+      if (count(isDecor) < want) {
+        const id = plan.decor.items.find(
+          (d) => allowed(d) && cash() >= cost(d) + plan.reserve + DECOR_SURPLUS,
+        );
+        if (id) put(id);
+      }
+    }
     // Saving for the high-limit room: buy nothing else until it is painted.
     if (plan.highLimit && games >= plan.highLimit.after && !painted) return;
     // Keep buying while cash, the ladder and the floor allow: one of each
@@ -257,6 +276,8 @@ export const CAREER_PLANS: Record<string, CareerPlan> = {
   'lucky-strike': {
     ladder: ['blackjack-table', 'slot-machine', 'roulette-table', 'penny-slots'],
     reserve: 300,
+    // B6: a rating goal, so a piece of decor with every game (not every fourth).
+    decor: { per: 1, items: ['lamp-post', 'plant'] },
   },
   'velvet-rope': {
     ladder: ['blackjack-table', 'roulette-table', 'craps-table', 'slot-machine'],
@@ -264,6 +285,7 @@ export const CAREER_PLANS: Record<string, CareerPlan> = {
     // 2). Under B11's shifts the old plan won 3/7 on the crowd; the club
     // needs its big players seated sooner.
     reserve: 200,
+    decor: { per: 4, items: ['lamp-post', 'plant'] },
     comps: true,
     highLimit: {
       rect: { col0: 20, row0: 19, col1: 33, row1: 25 },
@@ -274,11 +296,13 @@ export const CAREER_PLANS: Record<string, CareerPlan> = {
   'house-rules': {
     ladder: ['slot-machine', 'video-poker'],
     reserve: 400,
+    decor: { per: 4, items: ['lamp-post', 'plant'] },
     balance: true,
   },
   'the-salon': {
     ladder: ['blackjack-table', 'roulette-table', 'craps-table', 'slot-machine'],
     reserve: 600,
+    decor: { per: 4, items: ['lamp-post', 'plant'] },
     highLimit: {
       rect: { col0: 26, row0: 4, col1: 39, row1: 11 },
       games: ['high-limit-table', 'blackjack-table'],
@@ -288,10 +312,13 @@ export const CAREER_PLANS: Record<string, CareerPlan> = {
   'clean-slate': {
     ladder: ['slot-machine', 'blackjack-table', 'roulette-table'],
     reserve: 800,
+    decor: { per: 4, items: ['lamp-post', 'plant'] },
     repayAfter: 8,
   },
   'the-strip': {
     ladder: ['blackjack-table', 'roulette-table', 'craps-table', 'slot-machine', 'penny-slots'],
     reserve: 1000,
+    // B6: a rating goal, so a piece of decor with every game.
+    decor: { per: 1, items: ['lamp-post', 'plant'] },
   },
 };

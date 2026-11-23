@@ -2,6 +2,7 @@
 // where the casino stands, the deadline and the medal days. The HUD's goal
 // text folds it away and back; the choice is remembered per browser.
 
+import './GoalPanel.css';
 import { getCampaign } from '../../data/campaigns';
 import { MEDAL_GLYPH, medalDays } from '../../data/score';
 import type { HudView } from '../../shared/contracts';

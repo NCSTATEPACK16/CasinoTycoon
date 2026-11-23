@@ -31,7 +31,10 @@ import {
   STAFF_BALANCE,
   STAFF_DEPTH,
   ADVANTAGE_BALANCE,
+  APPEAL_BALANCE,
+  ATM_BALANCE,
 } from '../data/balance';
+import { AppealField, appealOf, type AppealSource } from './appeal';
 import type { CampaignDef } from '../data/campaigns';
 import {
   CAMPAIGN_TRAFFIC,
@@ -377,6 +380,49 @@ export class CasinoWorld {
 
   /** Hook: something changed the walkable layout inside `rect` (paint, wall,
    *  door, an object placed or sold). Queues a navmesh rebake of those tiles. */
+  /** B6: the appeal field, rebuilt when the floor or its objects change
+   *  (place and sell both edit the floor) and at every hour as a backstop. */
+  private appealField: AppealField | null = null;
+  private appealRevision = -1;
+
+  get appeal(): AppealField {
+    if (!this.appealField || this.appealRevision !== this.floorRevision) this.rebuildAppeal();
+    return this.appealField!;
+  }
+
+  private rebuildAppeal(): void {
+    const sources: AppealSource[] = [];
+    for (const po of this.state.allObjects()) {
+      const a = appealOf(po.defId);
+      if (!a) continue;
+      const fp = footprintOf(po.defId, po.rot);
+      sources.push({ col: po.col, row: po.row, w: fp.w, h: fp.h, ...a });
+    }
+    const { cols, rows } = this.grid;
+    const floor = this.floor;
+    this.appealField = new AppealField(
+      { cols, rows, floorAt: (c, r) => floor.floorAt(c, r) },
+      sources,
+    );
+    this.appealRevision = this.floorRevision;
+  }
+
+  /** B6: standing somewhere appealing lifts a guest's mood a little. */
+  private applyAppealEffects(): void {
+    const field = this.appeal;
+    const b = APPEAL_BALANCE;
+    const rate = b.happinessPerTickAtCap / b.cellCap;
+    const linger = b.lingerTicksPerTickAtCap / b.cellCap;
+    for (const guest of this.guests.values()) {
+      if (guest.state === 'leaving' || guest.state === 'gone') continue;
+      const a = field.at(guest.pos.col, guest.pos.row);
+      guest.appealHere = a;
+      if (a <= 0) continue;
+      guest.adjustHappiness(rate * a);
+      if (guest.leaveAtTick !== null) guest.leaveAtTick += linger * a;
+    }
+  }
+
   onFloorEdited(rect: CellRect): void {
     this.floorRevision++;
     this.nav?.markDirty(rect);
@@ -450,6 +496,7 @@ export class CasinoWorld {
     this.reputation = new Reputation();
     this.mood = new MoodField(cols, rows);
     this.traffic = new TrafficField(cols, rows);
+    this.appealField = null;
     this.patrons = new PatronRegistry();
     this.loans = new LoanBook();
     this.tickCount = 0;
@@ -526,7 +573,13 @@ export class CasinoWorld {
 
   /** Rebuild the hasServiceObject cache from the current floor. */
   private refreshServiceAvailability(): void {
-    const found: Record<string, boolean> = { toilet: false, bar: false, 'food-stall': false };
+    const found: Record<string, boolean> = {
+      toilet: false,
+      bar: false,
+      'food-stall': false,
+      'lounge-seating': false,
+      atm: false,
+    };
     for (const po of this.state.allObjects()) {
       if (po.defId in found) found[po.defId] = true;
     }
@@ -544,6 +597,7 @@ export class CasinoWorld {
     if (this.autoSpawn) this.maybeSpawn();
     if (this.marketing.runs.length > 0) this.marketingTick();
     this.applyMessEffects();
+    this.applyAppealEffects();
     for (const guest of this.guests.values()) guest.tick(this);
     for (const [id, guest] of [...this.guests]) {
       if (guest.state === 'gone') {
@@ -759,11 +813,9 @@ export class CasinoWorld {
     const variety = new Set([...this.machines.values()].map((m) => m.defId)).size;
     let broken = 0;
     for (const m of this.machines.values()) if (m.broken) broken++;
-    let signageBonus = 0;
-    for (const po of this.state.allObjects()) {
-      signageBonus += getObjectDef(po.defId)?.ratingBonus ?? 0;
-    }
-    signageBonus = Math.min(signageBonus, b.signageBonusCap);
+    // B6: the decor term is the floor's appeal (sim/appeal.ts), not a capped
+    // sum of signs; the RatingBreakdown keeps its 'signage' key.
+    const signageBonus = this.appeal.ratingTerm;
     let securityBonus = 0;
     for (const m of this.staff.values()) {
       if ((m.kind === 'pitBoss' || m.kind === 'security') && m.state !== 'off') {
@@ -2364,13 +2416,24 @@ export class CasinoWorld {
     return po ? this.standTileFor(po) : null;
   }
 
-  findService(defId: 'toilet'): { stand: Cell } | null {
+  findService(defId: 'toilet' | 'lounge-seating' | 'atm'): { stand: Cell; objectId: string } | null {
     for (const po of this.state.allObjects()) {
       if (po.defId !== defId) continue;
       const stand = this.standTileFor(po);
-      if (stand) return { stand };
+      if (stand) return { stand, objectId: po.id };
     }
     return null;
+  }
+
+  /** B6: an ATM withdrawal. The fee is the house's; null if the wallet can't
+   *  cover it. Like the cage, the advance thins under a chip shortage. */
+  useAtm(wallet: number, atmId?: string): { advance: number } | null {
+    if (wallet < ATM_BALANCE.fee) return null;
+    this.state.cash += ATM_BALANCE.fee;
+    this.ledger.addRevenue(ATM_BALANCE.fee);
+    if (atmId) this.ledger.accrue(atmId, 'atm', { revenue: ATM_BALANCE.fee });
+    eventBus.emit('moneyChanged', { cash: this.state.cash, delta: ATM_BALANCE.fee });
+    return { advance: Math.round(ATM_BALANCE.advanceAmount * this.modifiers.cageCapacityMult()) };
   }
 
   /**
@@ -2561,6 +2624,7 @@ export class CasinoWorld {
     this.loans = LoanBook.fromJSON(data.loans);
     this.mood = MoodField.fromJSON(data.mood);
     this.traffic = TrafficField.fromJSON(data.traffic);
+    this.appealField = null;
     this.player = PlayerPlay.fromJSON(data.player);
     this.refreshServiceAvailability();
     const scenarioId = this.scenario?.def.id ?? null;

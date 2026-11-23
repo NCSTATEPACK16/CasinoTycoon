@@ -1,0 +1,48 @@
+.marketing .mk-running {
+  margin: 0.25rem 0 0.5rem;
+  font-size: var(--fs-s);
+}
+.marketing .mk-list {
+  display: grid;
+  gap: 0.5rem;
+}
+.marketing .mk-card {
+  border: 1px solid var(--c-line-soft);
+  border-radius: var(--r-2);
+  padding: var(--sp-2) 0.625rem;
+  background: var(--c-line-soft);
+}
+.marketing .mk-card.blocked {
+  opacity: 0.7;
+}
+.marketing .mk-card p {
+  margin: 0.25rem 0;
+}
+.marketing .mk-top {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+.marketing .mk-kind {
+  font-size: var(--fs-xs);
+  color: var(--c-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.marketing .mk-cost {
+  margin-left: auto;
+  font-weight: 600;
+}
+.marketing .mk-foot {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.375rem;
+}
+.marketing .mk-expected {
+  color: var(--c-info);
+}
+.marketing .mk-foot button {
+  white-space: nowrap;
+}

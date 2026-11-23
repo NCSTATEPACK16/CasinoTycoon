@@ -4,6 +4,7 @@
 // fewer: the sim scales how hard hunger and thirst pull a guest to the counter
 // by the price, so the best price is a margin-versus-volume call, not "max".
 
+import './PricesPanel.css';
 import type { PricedObject, PriceItem } from '../../worker/inspect';
 import { el, escapeHtml, money } from '../dom';
 

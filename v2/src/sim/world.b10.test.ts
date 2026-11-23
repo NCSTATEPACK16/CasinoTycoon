@@ -241,18 +241,19 @@ describe('scenarios that offer no marketing', () => {
    *  table's dealer crew at once and skill effects were confined to
    *  staff-depth scenarios: neither touches marketing, which still draws
    *  nothing while nothing is booked. Re-record on any deliberate economy
-   *  change, after checking it isn't the marketing path that moved. */
+   *  change, after checking it isn't the marketing path that moved.
+   *  Re-recorded in B6 (decor, appeal, fair food prices, Lucky Strike's plan
+   *  decorating with every game, Neon Nights' $4000 start): no marketing
+   *  file changed. This seed is one of Lucky Strike's grid losses. */
   const BEFORE_B10 = {
     days: [
-      [1, -276.39, 479, 40],
-      [2, 1344.86, 635, 85],
-      [3, 119.73, 648, 81],
-      [4, 440.5, 658, 68],
-      [5, 1225.52, 635, 85],
-      [6, 1396.2, 667, 92],
-      [7, 1025, 731, 120],
+      [1, -1208.5, 351, 36],
+      [2, -523.3, 457, 35],
+      [3, -150.7, 423, 21],
+      [4, 150, 403, 7],
+      [5, 10, 389, 1],
     ],
-    p16: ['failed', null, 1220],
+    p16: ['won', 10, 2268],
   };
 
   it('play exactly as before B10 (one seed, day by day)', async () => {

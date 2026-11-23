@@ -1,0 +1,641 @@
+<title>Casino Tycoon B15 Mockup</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@400;500;600;700&family=Marcellus+SC&family=Saira:wght@400;500;600;700&family=Chakra+Petch:wght@500;600;700&display=swap">
+<style>
+/* Layout: a page header of controls over one fixed-size "screen" (1280×720 … 2560×1440)
+   scaled to fit; inside it, the game UI shell with named regions. Single dark look by choice. */
+:root {
+  color-scheme: dark;
+  --page: #0e0b14;
+  --page-2: #17121f;
+  --page-line: #2c2438;
+  --page-fg: #ece6f3;
+  --page-dim: #9d92ad;
+  --page-gold: #e8b64c;
+  --f-body: 'Barlow', system-ui, sans-serif;
+}
+html, body { background: var(--page); color: var(--page-fg); font-family: var(--f-body); }
+body { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 40px; }
+h1 { font: 600 20px/1.2 var(--f-body); margin: 0; letter-spacing: .01em; text-wrap: balance; }
+.lede { color: var(--page-dim); margin: 4px 0 0; max-width: 78ch; line-height: 1.45; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin: 14px 0 10px; }
+.ctl { display: flex; align-items: center; gap: 8px; }
+.ctl > span { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--page-dim); }
+.seg { display: inline-flex; border: 1px solid var(--page-line); border-radius: 7px; overflow: hidden; background: var(--page-2); }
+.seg button { font: 500 13px var(--f-body); color: var(--page-dim); background: none; border: 0; padding: 6px 11px; cursor: pointer; border-right: 1px solid var(--page-line); }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--page-gold); color: #1b1206; }
+.seg button:focus-visible, .pbtn:focus-visible { outline: 2px solid var(--page-gold); outline-offset: 2px; }
+.pbtn { font: 500 13px var(--f-body); color: var(--page-fg); background: var(--page-2); border: 1px solid var(--page-line); border-radius: 7px; padding: 6px 11px; cursor: pointer; }
+.vnote { background: var(--page-2); border: 1px solid var(--page-line); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; line-height: 1.45; font-size: 13.5px; }
+.vnote b { color: var(--page-gold); }
+.stage-wrap { position: relative; width: 100%; overflow: hidden; border-radius: 6px; border: 1px solid var(--page-line); background: #000; }
+.stage-wrap.actual { overflow: auto; max-height: 82vh; }
+.stage-sizer { position: relative; }
+.foot { color: var(--page-dim); font-size: 12.5px; margin-top: 10px; line-height: 1.5; max-width: 100ch; }
+
+/* ---------------- the game screen ---------------- */
+.screen { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; background: #1a0d10 url(floor.jpg) center / cover no-repeat; }
+.heat { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .25s; mix-blend-mode: hard-light; }
+.heat.on { opacity: .62; }
+.heat.mood { background:
+  radial-gradient(14% 18% at 40% 35%, #3fd17a 0, transparent 100%),
+  radial-gradient(12% 16% at 64% 53%, #9fdc4a 0, transparent 100%),
+  radial-gradient(9% 12% at 48% 75%, #e9c83c 0, transparent 100%),
+  radial-gradient(8% 10% at 30% 60%, #e2562f 0, transparent 100%),
+  radial-gradient(10% 12% at 75% 72%, #3fd17a 0, transparent 100%); }
+.heat.traffic { background:
+  radial-gradient(18% 9% at 45% 42%, #ff3d2e 0, transparent 100%),
+  radial-gradient(10% 22% at 58% 55%, #ff9a2e 0, transparent 100%),
+  radial-gradient(22% 7% at 70% 66%, #ffd23e 0, transparent 100%),
+  radial-gradient(8% 8% at 90% 60%, #ff3d2e 0, transparent 100%); }
+.heat.appeal { background:
+  radial-gradient(9% 12% at 60% 42%, #f6d36a 0, transparent 100%),
+  radial-gradient(7% 10% at 48% 61%, #f6d36a 0, transparent 100%),
+  radial-gradient(7% 10% at 80% 66%, #f6d36a 0, transparent 100%),
+  radial-gradient(6% 9% at 68% 90%, #c99a2e 0, transparent 100%); }
+.hot { position: absolute; width: 4.2%; aspect-ratio: 1; transform: translate(-50%,-50%); border-radius: 50%; cursor: pointer; border: 2px dashed rgba(255,255,255,.0); }
+.hot:hover, .hot.sel { border-color: rgba(255,230,160,.95); box-shadow: 0 0 0 4px rgba(255,210,100,.25); }
+.hot.guest { width: 1.6%; }
+
+.ui { position: absolute; left: 0; top: 0; transform-origin: 0 0; font-family: var(--f-ui); color: var(--fg); font-size: var(--fs); }
+.ui * { box-sizing: border-box; }
+.ui button { font: inherit; color: inherit; }
+.ico { width: 1.15em; height: 1.15em; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---- per-variant tokens ---- */
+.v-a { --f-ui: 'Barlow', system-ui, sans-serif; --f-num: 'Barlow', system-ui, sans-serif; --f-title: 'Marcellus SC', Georgia, serif;
+  --fs: 13.5px; --panel: rgba(28,18,44,.94); --panel-2: rgba(44,30,66,.96); --line: rgba(232,182,76,.38); --line-soft: rgba(255,255,255,.08);
+  --fg: #f2ecf8; --dim: #b4a8c6; --accent: #e8b64c; --accent-fg: #1e1304; --good: #6fd38f; --bad: #ef6a5a; --warn: #f1c453;
+  --r: 9px; --r-s: 6px; --shadow: 0 8px 22px rgba(0,0,0,.45); --bar-h: 42px; --dock-h: 64px; --gap: 8px; --title-bg: linear-gradient(180deg,#5b3c18,#3b250c); --title-fg: #ffe7ad; }
+.v-b { --f-ui: 'Barlow', system-ui, sans-serif; --f-num: 'Saira', system-ui, sans-serif; --f-title: 'Saira', system-ui, sans-serif;
+  --fs: 13.5px; --panel: rgba(16,22,34,.80); --panel-2: rgba(28,38,56,.88); --line: rgba(140,190,230,.22); --line-soft: rgba(255,255,255,.07);
+  --fg: #eef3f8; --dim: #9fb0c4; --accent: #f0b84a; --accent-fg: #1a1205; --good: #5fd6a0; --bad: #f2705f; --warn: #f3c95a;
+  --r: 4px; --r-s: 3px; --shadow: 0 6px 18px rgba(0,0,0,.35); --bar-h: 46px; --dock-h: 74px; --gap: 10px; --title-bg: rgba(255,255,255,.04); --title-fg: #eef3f8; }
+.v-c { --f-ui: 'Barlow Semi Condensed', system-ui, sans-serif; --f-num: 'Chakra Petch', ui-monospace, monospace; --f-title: 'Barlow Semi Condensed', system-ui, sans-serif;
+  --fs: 12.5px; --panel: #3a2a4a; --panel-2: #4a3760; --line: #20142c; --line-soft: rgba(0,0,0,.25);
+  --fg: #fbf4ff; --dim: #cbb9dc; --accent: #ffcc33; --accent-fg: #241503; --good: #7be08f; --bad: #ff6b5b; --warn: #ffd34d;
+  --r: 2px; --r-s: 2px; --shadow: 3px 3px 0 rgba(0,0,0,.45); --bar-h: 34px; --dock-h: 52px; --gap: 6px; --title-bg: linear-gradient(180deg,#7a2c3a,#5a1d2a); --title-fg: #ffe9a8; }
+.v-b .panel, .v-b .bar, .v-b .dockbar { backdrop-filter: blur(8px) saturate(1.2); }
+.v-c .panel, .v-c .bar, .v-c .dockbar, .v-c .win { border: 2px solid; border-color: #6d548a #1c1028 #1c1028 #6d548a; }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); }
+
+/* ---- region: top bar ---- */
+.bar { position: absolute; left: 0; right: 0; top: 0; height: var(--bar-h); display: flex; align-items: center; gap: var(--gap); padding: 0 10px; background: var(--panel); border-bottom: 1px solid var(--line); z-index: 30; white-space: nowrap; }
+.v-a .bar { background: linear-gradient(180deg, rgba(36,22,56,.97), rgba(24,14,38,.97)); }
+.gauge { display: inline-flex; align-items: center; gap: 6px; height: calc(var(--bar-h) - 12px); padding: 0 10px; border-radius: var(--r-s); border: 1px solid transparent; background: none; cursor: pointer; font-variant-numeric: tabular-nums; }
+.gauge:hover { border-color: var(--line); background: var(--line-soft); }
+.gauge .num { font-family: var(--f-num); font-weight: 600; font-size: 1.08em; }
+.gauge .sub { color: var(--dim); font-size: .86em; }
+.v-a .gauge { border-color: var(--line); border-radius: 999px; background: rgba(0,0,0,.18); }
+.v-c .gauge { background: #120b18; border: 2px solid; border-color: #1c1028 #6d548a #6d548a #1c1028; border-radius: 0; height: 24px; }
+.v-c .gauge .num { color: #9bff9b; letter-spacing: .04em; }
+.meter { width: 46px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.12); overflow: hidden; display: none; }
+.meter > i { display: block; height: 100%; background: var(--accent); }
+.v-b .meter { display: block; }
+.bar .spacer { flex: 1; min-width: 6px; }
+.speed { display: inline-flex; gap: 2px; }
+.speed button { width: 30px; height: 26px; border-radius: var(--r-s); border: 1px solid var(--line); background: rgba(0,0,0,.2); cursor: pointer; font-family: var(--f-num); font-weight: 600; font-size: .92em; }
+.speed button.on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.newsline { display: inline-flex; align-items: center; gap: 8px; max-width: 34%; min-width: 0; border-radius: var(--r-s); padding: 4px 10px; background: rgba(0,0,0,.2); border: 1px solid var(--line-soft); cursor: pointer; }
+.newsline .txt { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.newsline .count { font-family: var(--f-num); font-weight: 700; background: var(--accent); color: var(--accent-fg); border-radius: 999px; padding: 0 7px; font-size: .85em; }
+.iconbtn { width: 30px; height: 28px; display: inline-grid; place-items: center; border-radius: var(--r-s); border: 1px solid transparent; background: none; cursor: pointer; }
+.iconbtn:hover { border-color: var(--line); background: var(--line-soft); }
+.goalchip { color: var(--dim); }
+.goalchip b { color: var(--fg); font-family: var(--f-num); }
+
+/* ---- region: news history (drops from the news line) ---- */
+.newshist { position: absolute; top: calc(var(--bar-h) + 6px); width: 380px; padding: 8px; z-index: 29; }
+.newshist h4, .goals h4 { margin: 0 0 6px; font: 600 1em var(--f-title); letter-spacing: .03em; color: var(--accent); display: flex; align-items: center; gap: 6px; }
+.newsitem { display: grid; grid-template-columns: 48px 1fr; gap: 8px; padding: 6px 4px; border-top: 1px solid var(--line-soft); line-height: 1.35; }
+.newsitem time { color: var(--dim); font-family: var(--f-num); font-size: .9em; }
+
+/* ---- region: toast ---- */
+.toast { position: absolute; left: 50%; transform: translateX(-50%); top: calc(var(--bar-h) + 8px); padding: 7px 14px; z-index: 28; display: flex; gap: 8px; align-items: center; }
+
+/* ---- region: goals ---- */
+.goals { position: absolute; right: 8px; top: calc(var(--bar-h) + 8px); width: 290px; padding: 8px 10px 10px; z-index: 20; }
+.goals .collapse { margin-left: auto; }
+.step { display: grid; grid-template-columns: 18px 1fr; gap: 6px; padding: 3px 0; line-height: 1.3; color: var(--dim); }
+.step.done { text-decoration: line-through; opacity: .7; }
+.step.cur { color: var(--fg); }
+.step .box { width: 14px; height: 14px; border: 1.5px solid var(--dim); border-radius: 3px; margin-top: 2px; display: grid; place-items: center; font-size: 10px; }
+.step.done .box { background: var(--good); border-color: var(--good); color: #0b2412; }
+.step.cur .box { border-color: var(--accent); }
+.step .body { display: block; color: var(--dim); font-size: .92em; margin-top: 3px; }
+.goals.min .step:not(.cur), .goals.min .step .body, .goals.min .gsum { display: none; }
+.gsum { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line-soft); color: var(--dim); font-size: .92em; }
+
+/* ---- region: info views ---- */
+.infostrip { position: absolute; z-index: 20; display: flex; gap: 4px; padding: 4px; }
+.v-a .infostrip { left: 8px; flex-direction: column; top: 50%; transform: translateY(-50%); }
+.bar.tight .sub, .bar.tight .newsline .txt, .bar.tight .meter { display: none; }
+.bar.tighter .goalchip { font-size: 0; } .bar.tighter .goalchip b { font-size: 13px; }
+.dockbar.tight [data-open] span, .dockbar.tight .docklabel, .dockbar.tight .infodock .lbl { display: none; }
+.dockbar.tighter .dockbtn span { display: none; } .dockbar.tight .dockbtn { min-width: 0; }
+.goals { overflow: auto; }
+.v-b .infostrip { left: 8px; top: calc(var(--bar-h) + 8px); }
+.v-c .infostrip { display: none; }
+.infostrip button, .infodock button { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 9px; border-radius: var(--r-s); border: 1px solid transparent; background: none; cursor: pointer; }
+.infostrip button:hover, .infodock button:hover { background: var(--line-soft); }
+.infostrip button.on, .infodock button.on { background: var(--accent); color: var(--accent-fg); }
+.v-a .infostrip button .lbl { display: none; }
+kbd { font: 600 .78em var(--f-num); padding: 0 4px; border-radius: 3px; border: 1px solid var(--line); color: var(--dim); }
+.on kbd { color: inherit; border-color: currentColor; }
+.legend { position: absolute; z-index: 20; padding: 8px 10px; width: 230px; font-size: .92em; }
+.v-a .legend { left: 8px; top: calc(var(--bar-h) + 8px); }
+.v-b .legend { left: 8px; top: calc(var(--bar-h) + 52px); }
+.v-c .legend { left: 8px; top: calc(var(--bar-h) + 8px); }
+.legend .ramp { height: 9px; border-radius: 3px; margin: 6px 0 3px; }
+.legend .ends { display: flex; justify-content: space-between; color: var(--dim); }
+
+/* ---- region: dock + tray ---- */
+.dock { position: absolute; left: 0; right: 0; bottom: 0; z-index: 25; pointer-events: none; display: flex; flex-direction: column; align-items: center; }
+.v-c .dock { align-items: flex-start; padding-left: 8px; }
+.dock > * { pointer-events: auto; }
+.dockbar { display: flex; align-items: stretch; gap: 4px; padding: 6px; height: var(--dock-h); margin-bottom: 8px; }
+.v-b .dockbar { width: 100%; margin-bottom: 0; border-radius: 0; border-width: 1px 0 0; padding: 8px 14px; }
+.dockbtn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 62px; padding: 0 8px; border-radius: var(--r-s); border: 1px solid transparent; background: none; cursor: pointer; font-size: .9em; }
+.dockbtn .ico { width: 22px; height: 22px; }
+.dockbtn:hover { background: var(--line-soft); }
+.dockbtn.on { background: var(--accent); color: var(--accent-fg); }
+.v-b .dockbtn { min-width: 76px; }
+.v-b .dockbtn .ico { width: 26px; height: 26px; }
+.v-c .dockbtn { flex-direction: row; min-width: 0; gap: 5px; padding: 0 9px; }
+.v-c .dockbtn .ico { width: 17px; height: 17px; }
+.docksep { width: 1px; background: var(--line); margin: 4px 6px; }
+.v-b .dock-grow { flex: 1; }
+.docklabel { align-self: center; color: var(--dim); font-size: .8em; text-transform: uppercase; letter-spacing: .1em; margin-right: 2px; }
+.infodock { display: none; }
+.v-c .infodock { display: flex; align-items: center; gap: 2px; }
+
+.tray { padding: 8px; margin-bottom: 6px; max-width: min(1100px, calc(100% - 16px)); }
+.v-b .tray { max-width: none; width: 100%; border-radius: 0; margin-bottom: 0; border-width: 1px 0 0; }
+.tray-head { display: flex; align-items: center; gap: 10px; margin: 0 2px 7px; }
+.tray-head b { font: 600 1.02em var(--f-title); color: var(--accent); letter-spacing: .03em; }
+.tray-head .hint { color: var(--dim); font-size: .9em; }
+.cards { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.card { position: relative; flex: none; width: 128px; text-align: left; padding: 7px 8px 8px; border-radius: var(--r-s); border: 1px solid var(--line-soft); background: var(--panel-2); cursor: pointer; display: grid; gap: 2px; }
+.card:hover { border-color: var(--accent); }
+.card.sel { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
+.card .thumb { height: 46px; border-radius: var(--r-s); display: grid; place-items: center; background: rgba(0,0,0,.25); margin-bottom: 4px; }
+.card .thumb .ico { width: 26px; height: 26px; color: var(--accent); }
+.card .nm { font-weight: 600; line-height: 1.2; }
+.card .pr { font-family: var(--f-num); font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
+.card .st { color: var(--dim); font-size: .86em; line-height: 1.25; }
+.card.locked { opacity: .78; }
+.card.locked .thumb .ico { color: var(--dim); }
+.card .lock { position: absolute; right: 6px; top: 6px; font-size: .75em; font-weight: 700; padding: 1px 6px; border-radius: 999px; background: #000a; color: var(--warn); border: 1px solid var(--warn); }
+.card .lock.new { color: #9fe3ff; border-color: #9fe3ff; }
+.card .unl { color: var(--warn); font-size: .84em; line-height: 1.25; }
+.v-b .card { width: 150px; }
+.v-b .card .thumb { height: 64px; }
+.v-c .cards { flex-wrap: wrap; overflow: visible; max-width: 760px; }
+.v-c .card { width: 180px; grid-template-columns: 30px 1fr auto; align-items: center; column-gap: 6px; padding: 4px 6px; }
+.v-c .card .thumb { height: 26px; margin: 0; grid-row: span 2; }
+.v-c .card .thumb .ico { width: 18px; height: 18px; }
+.v-c .card .pr { grid-column: 3; grid-row: 1; }
+.v-c .card .st { grid-column: 2 / 4; }
+.v-c .card .unl { grid-column: 2 / 4; }
+.v-c .card .lock { position: static; grid-column: 3; grid-row: 1; }
+.v-c .card.locked .pr { display: none; }
+
+.toolhint { position: absolute; z-index: 24; left: 50%; transform: translateX(-50%); padding: 6px 12px; display: flex; gap: 10px; align-items: center; white-space: nowrap; }
+.toolhint .k { color: var(--dim); }
+
+/* ---- region: windows ---- */
+.winlayer { position: absolute; left: 0; right: 0; z-index: 22; pointer-events: none; }
+.win { position: absolute; pointer-events: auto; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden; }
+.win.front { box-shadow: var(--shadow), 0 0 0 1px var(--accent); }
+.wtitle { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 4px 0 10px; background: var(--title-bg); color: var(--title-fg); cursor: grab; user-select: none; border-bottom: 1px solid var(--line); }
+.wtitle:active { cursor: grabbing; }
+.wtitle .t { font: 600 1em var(--f-title); letter-spacing: .03em; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wtitle button { width: 24px; height: 22px; border: 0; background: none; cursor: pointer; display: grid; place-items: center; border-radius: 3px; color: inherit; opacity: .8; }
+.wtitle button:hover { opacity: 1; background: rgba(255,255,255,.1); }
+.wtitle button.pinned { color: var(--accent); opacity: 1; }
+.v-b .wtitle { height: 32px; }
+.v-c .wtitle { height: 24px; }
+.v-c .wtitle button { background: #2a1c36; border: 2px solid; border-color: #6d548a #1c1028 #1c1028 #6d548a; width: 20px; height: 18px; }
+.wbody { display: flex; flex: 1; min-height: 0; }
+.wtabs { display: flex; gap: 2px; padding: 6px 8px 0; border-bottom: 1px solid var(--line-soft); }
+.wtabs button { border: 0; background: none; padding: 5px 10px; cursor: pointer; color: var(--dim); border-radius: var(--r-s) var(--r-s) 0 0; }
+.wtabs button.on { color: var(--fg); background: var(--panel-2); }
+.v-b .wtabs button.on { background: none; box-shadow: inset 0 -2px 0 var(--accent); }
+.v-c .wbody { flex-direction: row; }
+.v-c .wtabs { flex-direction: column; padding: 6px 0 6px 4px; border-bottom: 0; border-right: 2px solid var(--line); background: rgba(0,0,0,.18); }
+.v-c .wtabs button { width: 30px; height: 30px; padding: 0; display: grid; place-items: center; border-radius: 0; background: #2a1c36; border: 2px solid; border-color: #6d548a #1c1028 #1c1028 #6d548a; }
+.v-c .wtabs button.on { background: var(--panel); border-color: #1c1028 #6d548a #6d548a #1c1028; }
+.v-c .wtabs .lbl { display: none; }
+.wtabs .ico { display: none; }
+.v-c .wtabs .ico { display: block; }
+.wcol { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.wcontent { padding: 10px 12px 12px; overflow: auto; flex: 1; line-height: 1.35; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; font-variant-numeric: tabular-nums; }
+.kv dt { color: var(--dim); }
+.kv dd { margin: 0; text-align: right; font-family: var(--f-num); font-weight: 600; }
+.pill { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 999px; font-size: .86em; font-weight: 600; }
+.pill.good { background: rgba(111,211,143,.16); color: var(--good); }
+.pill.bad { background: rgba(239,106,90,.16); color: var(--bad); }
+.pill.dim { background: rgba(255,255,255,.08); color: var(--dim); }
+.big { font: 700 1.9em var(--f-num); line-height: 1; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.sect { font-size: .8em; text-transform: uppercase; letter-spacing: .1em; color: var(--dim); margin: 10px 0 5px; }
+table.t { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+table.t th { text-align: left; color: var(--dim); font-weight: 500; font-size: .88em; padding: 3px 4px; border-bottom: 1px solid var(--line-soft); }
+table.t td { padding: 3px 4px; border-bottom: 1px solid var(--line-soft); }
+table.t td.n, table.t th.n { text-align: right; font-family: var(--f-num); }
+.pos { color: var(--good); } .neg { color: var(--bad); }
+.term { display: grid; grid-template-columns: 92px 1fr 58px; gap: 8px; align-items: center; padding: 3px 0; }
+.term .tb { height: 8px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; }
+.term .tb i { display: block; height: 100%; background: var(--accent); }
+.term .tv { text-align: right; font-family: var(--f-num); font-variant-numeric: tabular-nums; }
+.term .tip { grid-column: 1 / -1; color: var(--dim); font-size: .88em; margin: -2px 0 3px; }
+.cardsx { display: flex; gap: 4px; }
+.pc { width: 26px; height: 36px; border-radius: 3px; background: #fbf7ee; color: #1a1a1a; font: 700 12px/1 var(--f-num); display: grid; place-items: center; box-shadow: 0 1px 2px #0008; }
+.pc.r { color: #c22b2b; }
+.chart { width: 100%; height: auto; display: block; }
+.chart text { fill: var(--dim); font: 10px var(--f-num); }
+.slider { width: 100%; accent-color: var(--accent); }
+.setrow { display: grid; grid-template-columns: 110px 1fr 44px; gap: 10px; align-items: center; padding: 4px 0; }
+.setrow output { text-align: right; font-family: var(--f-num); }
+
+/* phone notice */
+.phone { position: absolute; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(10,6,16,.86); }
+.phone .panel { width: 300px; padding: 18px; text-align: center; line-height: 1.45; }
+.phone h3 { margin: 0 0 8px; font: 600 1.2em var(--f-title); color: var(--accent); }
+</style>
+
+<h1>Casino Tycoon v2.1 · B15 UI mockup</h1>
+<p class="lede">Three takes on the agreed layout over a real Sandbox floor and real numbers from the running game. Click the gauges, the dock, the item cards, Manage, the info views, the news line and the blackjack table on the floor (the dashed ring). Drag windows by their title bar; pin or close them. Pick the variant you want built.</p>
+
+<div class="controls">
+  <div class="ctl"><span>Variant</span><div class="seg" id="segV">
+    <button data-v="a" aria-pressed="true">A · Velvet &amp; Brass</button><button data-v="b" aria-pressed="false">B · Glass Strip</button><button data-v="c" aria-pressed="false">C · Compact Bevel</button></div></div>
+  <div class="ctl"><span>Screen</span><div class="seg" id="segS">
+    <button data-s="1280x720" aria-pressed="true">1280×720</button><button data-s="1920x1080" aria-pressed="false">1920×1080</button><button data-s="2560x1440" aria-pressed="false">2560×1440</button></div></div>
+  <div class="ctl"><span>UI scale</span><div class="seg" id="segU">
+    <button data-u="0.8" aria-pressed="false">80%</button><button data-u="1" aria-pressed="true">100%</button><button data-u="1.25" aria-pressed="false">125%</button></div></div>
+  <div class="ctl"><span>View</span><div class="seg" id="segF">
+    <button data-f="fit" aria-pressed="true">Fit</button><button data-f="actual" aria-pressed="false">Actual pixels</button></div></div>
+  <button class="pbtn" id="btnAll">Open everything</button>
+  <button class="pbtn" id="btnPhone">Phone notice</button>
+</div>
+<div class="vnote" id="vnote"></div>
+
+<div class="stage-wrap" id="wrap"><div class="stage-sizer" id="sizer">
+  <div class="screen v-a" id="screen">
+    <div class="heat" id="heat"></div>
+    <button class="hot" id="hotBJ" style="left:63.4%;top:49.6%" aria-label="Blackjack Table (obj-49)"></button>
+    <button class="hot guest" id="hotG" style="left:66.4%;top:68.7%" aria-label="Guest Bobbie Ainsworth"></button>
+    <div class="ui" id="ui"></div>
+  </div>
+</div></div>
+
+<p class="foot">Numbers come from a Sandbox run on this branch (day 2, 03:00, 4×): 48 slots, 4 blackjack tables, roulette, craps, 7 dealers, 96 guests. The cash gauge shows Sandbox's $100M stake on purpose, to size the widest figure. The goals list shows Opening Night's real tutorial steps. Info-view colours are illustrative; the real views come from the sim's heat maps. Appeal and the six new decor items arrive with B6.</p>
+
+<script>
+(() => {
+const D = {
+  cash: 99965741, day: 2, dow: 'Tue', time: '03:00', rating: 93, rep: 'Unremarkable', guests: 96, cap: 139, today: 706,
+  news: [
+    { t: 'Day 2', txt: 'Convention in town: the hotel next door is full. Expect a crowd, and expect it to bet big.' },
+    { t: 'Day 2', txt: 'Chip shortage: the cage is running light. Advances are half what they should be.' },
+    { t: 'Day 1', txt: 'Hired a dealer ×7, a janitor and a guard.' },
+    { t: 'Day 1', txt: 'Yesterday: −$1,131 (upkeep $1,306 on the first night).' },
+  ],
+  hours: [[12,-8],[13,-8],[14,-8],[15,-8],[16,-7],[17,-97],[18,109],[19,141],[20,225],[21,-535],[22,337],[23,-1272],[0,114],[1,292],[2,-168],[3,294]],
+  guestsByHour: [80,85,95,99,107,127,141,141,142,141,130,109,104,101,97,96],
+  terms: [['Happiness',38.8,50,'Average mood 78. Keep queues short and prices fair.'],['Machines',25,25,'54 games on the floor.'],['Variety',10,10,'4 kinds of game.'],['Cleanliness',15,15,'No mess on the floor.'],['Signage',0,10,'No neon or marquees yet. B6 turns this into Appeal.'],['Security',0,8,'Your one guard is off shift. Put security on the graveyard shift.'],['Dealers',4,10,'2 of 6 tables dealt right now; 5 dealers are off shift.'],['Broken games',0,0,'Nothing broken.'],['Rage quits',0,0,'Nobody stormed out.']],
+  thoughts: [['😍','I love this Slot Machine!',42,'+10'],['🙂','Not a bad little place.',33,'−5'],['🤩','This place is great!',11,'+2'],['🍔',"I'm hungry…",4,'+1'],['🤬','That Slot Machine is rigged!',2,'+1']],
+  guestRows: [['Bobbie Ainsworth','Tourist','Playing',100,164,20,'💰 Jackpot! I’m on fire!'],['Eunice Ainsworth','Regular','Playing',100,229,10,'🤩 This place is great!'],['Frankie Ainsworth','Regular','Looking for a game',88,119,-80,'🤬 That Slot Machine is rigged!'],['Dean Ainsworth','Regular','Playing',100,40,-40,'🤩 This place is great!'],['Harriet Vasquez','Regular','Leaving',99,7,-70,"🍔 I'm hungry…"],['Mickey Vasquez','Biker','Leaving',83,137,-10,'👋 Good night. Time to head home.']],
+  staff: [['s-3','Dealer','At Blackjack #49',48,55,60,'Graveyard'],['s-6','Dealer','At Blackjack #50',50,55,60,'Graveyard'],['s-1','Dealer','Off',41,36,0,'Swing'],['s-2','Dealer','Off',46,59,0,'Day'],['s-4','Dealer','Off',39,36,0,'Swing'],['s-5','Dealer','Off',44,59,0,'Day'],['s-7','Dealer','Off',49,36,0,'Swing'],['s-8','Janitor','Off',49,69,0,'Swing'],['s-9','Security','Off',42,69,0,'Swing']],
+  events: [['Billboards','Ad',600,'3 days','+150% tourists: about +24 guests a day'],['Mailers','Ad',300,'3 days','+50% high rollers: about +8 guests a day'],['Radio spots','Ad',900,'3 days','+20% regulars: about +49 guests a day'],['Slot tournament','Tournament',800,'19:00–23:00','about +83 guests; entrants pay $10'],['High-roller junket','Junket',700,'20:00–04:00','8 high rollers with 3× bankroll'],['Concert','Show',null,'evening','Needs a stage (B6)']],
+  prices: [['Food Stall','Burger',5,2,6],['Food Stall','Soda',2.5,0.5,1.5],['Food Stall','Fries',3.5,1,3],['Bar','Drink',12,4,24]],
+};
+const steps = [
+  ['Paint a zone',1],['Place a slot machine',1],['Place a blackjack table',1],['Hire a dealer',1],
+  ['Open the table',0,'Once a dealer reaches the table it opens. Run the clock at 1× and watch for the table lights.'],
+  ['Build a food stall',0],['Set a price',0],['Read the rating',0]];
+const ICON = {
+  build:'<path d="M14 6l4 4-9 9H5v-4z"/><path d="M13 7l2-2 4 4-2 2"/>', zone:'<rect x="4" y="4" width="16" height="16" rx="1"/><path d="M4 12h16M12 4v16"/>',
+  slots:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8v6H8zM11 8v6M8 18h8"/>', tables:'<path d="M3 15c0-4 4-7 9-7s9 3 9 7z"/><path d="M8 15v4M16 15v4"/>',
+  services:'<path d="M6 4h10v8a5 5 0 01-10 0z"/><path d="M16 6h2a2 2 0 010 4h-2M8 21h6"/>', decor:'<path d="M12 21V11"/><path d="M12 11c-4 0-6-3-6-6 4 0 6 3 6 6zM12 13c4 0 6-3 6-6-4 0-6 3-6 6z"/>',
+  fin:'<path d="M12 3v18M16 7c-1-1.5-2.5-2-4-2-2.2 0-4 1.2-4 3s1.8 2.5 4 3 4 1.4 4 3.2S14.2 18 12 18c-1.8 0-3.4-.7-4.4-2"/>', staff:'<circle cx="12" cy="8" r="3.5"/><path d="M5 20c1-4 4-6 7-6s6 2 7 6"/>',
+  rating:'<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>', guests:'<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.4"/><path d="M3 19c.8-3.5 3.2-5 6-5s5.2 1.5 6 5M15 14.5c2.6-.3 4.8 1 5.5 4"/>',
+  club:'<path d="M4 18h16l-1.5-9-4.5 4-2-6-2 6-4.5-4z"/>', prices:'<path d="M3 12l9-9h8v8l-9 9z"/><circle cx="16" cy="8" r="1.5"/>',
+  events:'<path d="M4 10v4h3l7 4V6L7 10z"/><path d="M17 9a4 4 0 010 6"/>', mood:'<circle cx="12" cy="12" r="8.5"/><path d="M8.5 14.5c1 1.2 2.2 1.8 3.5 1.8s2.5-.6 3.5-1.8M9 9.5h.01M15 9.5h.01"/>',
+  traffic:'<path d="M5 19l4-14M19 19L15 5M12 6v2M12 11v2M12 16v2"/>', appeal:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>', news:'<rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M8 9h8M8 12h8M8 15h5"/>',
+  pin:'<path d="M9 4h6l-1 5 3 3H7l3-3zM12 15v6"/>', close:'<path d="M6 6l12 12M18 6L6 18"/>', min:'<path d="M6 12h12"/>', help:'<circle cx="12" cy="12" r="8.5"/><path d="M9.5 9.5a2.5 2.5 0 015 0c0 1.7-2.5 2-2.5 4M12 17h.01"/>',
+  manage:'<rect x="3" y="7" width="18" height="13" rx="1.5"/><path d="M9 7V5h6v2M3 12h18"/>', wall:'<path d="M3 20V8h18v12M3 12h18M3 16h18M8 8v4M14 8v4M11 12v4M17 12v4M8 16v4M14 16v4"/>',
+  door:'<path d="M6 21V4h12v17M3 21h18"/><circle cx="15" cy="13" r="1"/>', bulldoze:'<path d="M3 17h11v-5H7l-2 3M14 12h3l3 5M6 20a2 2 0 100-4 2 2 0 000 4zM12 20a2 2 0 100-4 2 2 0 000 4zM17 9V5"/>',
+  overview:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h5"/>', stats:'<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>', settings:'<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+  lock:'<rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 018 0v3"/>',
+};
+const ic = (n) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${ICON[n] || ''}</svg>`;
+const money = (n, d = 0) => (n < 0 ? '−' : '') + '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+
+const TRAY = {
+  build: { label: 'Build', hint: 'Floors paint by dragging a rectangle. Walls drag in a line; Door cuts one into a wall.', items: [
+    ['Red carpet','$12/m²','Gaming floors','build'],['Blue carpet','$12/m²','Gaming floors','build'],['Marble','$30/m²','Lobby & high limit','build'],['Wood','$18/m²','Food court','build'],['Tile','$15/m²','Restrooms','build'],['Walls','$20/m','Drag a line','wall'],['Door','$60','Click a wall','door'],['Bulldoze','refund 50%','X','bulldoze']] },
+  zone: { label: 'Zone', hint: 'Games only go on Gaming ground. Drag to paint a zone.', items: [
+    ['Gaming','$1/m²','Slots & tables','zone'],['High limit','$1/m²','High-Limit tables','zone'],['Food court','$1/m²','Stalls & bars','zone'],['Restrooms','$1/m²','Restrooms','zone'],['Back of house','$1/m²','Staff only','zone'],['Erase','$1/m²','Clear a zone','zone']] },
+  slots: { label: 'Slots', hint: 'Shift+click places a row · R rotates · Esc cancels', items: [
+    ['Slot Machine',500,'1 seat · $20/day · 1×1','slots'],['Penny Slots',180,'1 seat · $8/day · 1×1','slots'],['Video Poker Bank',560,'$18/day · 1×2','slots'],
+    ['Pachinko Machine',320,'$12/day · 1×1','slots','Win Lucky Strike Lanes'],['Keno Lounge',450,'$14/day · 2×2','slots','Win The Dusty Dime'],['Bingo Hall',1450,'$45/day · 4×3','slots','Win Lucky Strike Lanes']] },
+  tables: { label: 'Tables', hint: 'Tables stay closed until a dealer reaches them.', items: [
+    ['Blackjack Table',1200,'4 seats · dealer · $50/day','tables'],['Big Six Wheel',350,'dealer · $12/day · 1×1','tables'],['Roulette Table',1800,'dealer · $50/day','tables','Win The Dusty Dime'],
+    ['Craps Table',900,'dealer · $35/day','tables','Win Neon Nights'],['Sic Bo Table',780,'dealer · $28/day','tables','Win Neon Nights'],['Poker Table',1200,'dealer · $40/day','tables','Win The High Roller Club'],
+    ['High-Limit Table',2500,'dealer · $80/day','tables','Win The High Roller Club'],['Three-Card Poker',980,'dealer · $34/day','tables','Win The Velvet Rope'],['Pai Gow Poker',1150,'dealer · $30/day','tables','Win House Rules']] },
+  services: { label: 'Services', hint: 'Hungry, thirsty or uncomfortable guests go home early.', items: [
+    ['Restroom',300,'Restrooms zone · $10/day','services'],['Food Stall',400,'Food court · $15/day','services'],['Bar',700,'Drinks · $15/day · 2×1','services'],['VIP Cage',900,'Cash advances · $20/day','services']] },
+  decor: { label: 'Decor', hint: 'Decor lifts the rating. In B6 it works by radius as Appeal.', items: [
+    ['Plant',40,'Decoration','decor'],['Neon Sign',250,'+2 rating · $5/day','decor'],['Marquee',600,'+4 rating · 2×1','decor','Win The Dusty Dime'],
+    ['Statue',null,'Appeal radius · 1×1','decor','B6'],['Fountain',null,'Large appeal · 3×3','decor','B6'],['Lamp Post',null,'Small appeal · 1×1','decor','B6'],['Lounge Seating',null,'Rests guests · 2×1','decor','B6'],['ATM',null,'Cash access, fee · 1×1','decor','B6'],['Stage',null,'Hosts concerts · 4×3','decor','B6']] },
+};
+const MANAGE = [['fin','Finances','fin','P'],['staff','Staff','staff','H'],['rating','Rating','rating',''],['guests','Guests','guests','G'],['club','Club','club',''],['prices','Prices','prices',''],['events','Events','events','']];
+const NOTES = {
+  a: '<b>A · Velvet &amp; Brass.</b> Closest to today\'s look: dark violet panels with gold. Gauges are rounded chips; the dock is a centred row of labelled icons; windows have a brass title bar and text tabs. Info views sit in a slim icon column on the right edge.',
+  b: '<b>B · Glass Strip.</b> Cities: Skylines take: translucent slate glass, full-width dock and tray along the bottom with bigger picture cards, gauges with small meters (rating out of 100, guests against the cap), flat windows with underlined tabs. Info views sit under the top bar on the left.',
+  c: '<b>C · Compact Bevel.</b> RollerCoaster Tycoon take: chunky bevelled panels, smaller type, digital gauge readouts, a compact dock at the bottom-left whose tray is a dense grid, and windows with RCT-style icon tabs down the left side. Info views live in the dock. Shows the most floor.',
+};
+
+const S = { v: 'a', w: 1280, h: 720, u: 1, fit: true, tray: 'tables', sel: null, info: null, newsOpen: false, goalsMin: false, phone: false, z: 10, wins: [], pos: {}, toast: 'Hired a dealer: Blackjack #49 is open.' };
+const $ = (q, r = document) => r.querySelector(q);
+const ui = $('#ui'), screen = $('#screen'), wrap = $('#wrap'), sizer = $('#sizer');
+
+function regions() {
+  const st = getComputedStyle(screen);
+  const bar = parseFloat(st.getPropertyValue('--bar-h'));
+  const dock = parseFloat(st.getPropertyValue('--dock-h')) + (S.v === 'b' ? 0 : 8);
+  const tray = $('.tray', ui); const trayH = tray ? tray.offsetHeight + (S.v === 'b' ? 0 : 6) : 0;
+  const hint = $('.toolhint', ui); const hintH = hint ? hint.offsetHeight + 8 : 0;
+  const strip = S.v === 'b' ? ($('.infostrip', ui)?.offsetHeight ?? 0) + 8 : 0;
+  const legend = S.v === 'b' && S.info ? ($('.legend', ui)?.offsetHeight ?? 0) + 8 : 0;
+  const uw = S.w / S.u;
+  const g = $('.goals', ui); const goalsLeft = g ? g.offsetLeft - 8 : uw;
+  const left = S.v === 'a' ? 56 + (S.info ? 240 : 0) : S.v === 'c' && S.info ? 246 : 0;
+  return { top: bar + 8 + strip + legend, bottom: dock + trayH + hintH + 8, uw, uh: S.h / S.u, goalsLeft, left };
+}
+/* Shrink the bar and dock until they fit, then fit goals and news into what is left. */
+function fitRegions() {
+  const bar = $('.bar', ui); const over = () => bar.scrollWidth > bar.clientWidth + 1;
+  if (over()) bar.classList.add('tight'); if (over()) bar.classList.add('tighter');
+  const db = $('.dockbar', ui); const fits = () => db.offsetLeft + db.offsetWidth <= S.w / S.u - 8;
+  if (!fits()) db.classList.add('tight'); if (!fits()) db.classList.add('tighter');
+  const R = regions(); const barH = parseFloat(getComputedStyle(screen).getPropertyValue('--bar-h'));
+  const g = $('.goals', ui); if (g) g.style.maxHeight = Math.max(60, R.uh - R.bottom - barH - 16) + 'px';
+  const th = $('.toolhint', ui); if (th) th.style.bottom = (R.bottom - th.offsetHeight - 8) + 'px';
+  // A's info strip centres in the free floor area between the bar (and legend) and the tray.
+  const strip = $('.infostrip', ui);
+  if (S.v === 'a' && strip) { const lg = $('.legend', ui); const top = lg ? lg.offsetTop + lg.offsetHeight + 8 : barH + 8; strip.style.transform = 'none'; strip.style.top = Math.max(top, (top + R.uh - R.bottom - strip.offsetHeight) / 2) + 'px'; }
+}
+
+function topbar() {
+  const done = steps.filter((s) => s[1]).length;
+  return `<div class="bar">
+    <button class="gauge" data-open="fin" title="Finances (P)">${ic('fin')}<span class="num">${money(D.cash)}</span><span class="sub ${D.today >= 0 ? 'pos' : 'neg'}">today ${D.today >= 0 ? '+' : ''}${money(D.today)}</span></button>
+    <span class="gauge" style="cursor:default"><span class="num">${D.dow} · Day ${D.day} · ${D.time}</span></span>
+    <span class="speed" role="group" aria-label="Speed"><button aria-label="Pause">❚❚</button><button>1×</button><button>2×</button><button class="on">4×</button></span>
+    <button class="gauge" data-open="rating" title="Rating">${ic('rating')}<span class="num">${D.rating}</span><span class="meter"><i style="width:${D.rating}%"></i></span><span class="sub">${D.rep}</span></button>
+    <button class="gauge" data-open="guests" title="Guests (G)">${ic('guests')}<span class="num">${D.guests}</span><span class="meter"><i style="width:${Math.round(D.guests / D.cap * 100)}%"></i></span><span class="sub">/ ${D.cap}</span></button>
+    <button class="newsline" data-news>${ic('news')}<span class="count">${D.news.length}</span><span class="txt">${D.news[0].txt}</span></button>
+    <span class="spacer"></span>
+    <button class="gauge goalchip" data-goals title="Goals">Opening Night <b>${done}/${steps.length}</b></button>
+    <button class="iconbtn" title="Help (?)">${ic('help')}</button>
+    <button class="iconbtn" data-open="settings" title="Settings">${ic('gear')}</button>
+  </div>`;
+}
+function goals() {
+  return `<div class="panel goals ${S.goalsMin || S.newsOpen ? 'min' : ''}"><h4>${ic('rating')} Opening Night <button class="iconbtn collapse" data-goals title="${S.goalsMin ? 'Expand' : 'Collapse'}">${ic(S.goalsMin ? 'overview' : 'min')}</button></h4>
+    ${steps.map((s, i) => { const cur = !s[1] && steps.findIndex((x) => !x[1]) === i; return `<div class="step ${s[1] ? 'done' : ''} ${cur ? 'cur' : ''}"><span class="box">${s[1] ? '✓' : ''}</span><span>${s[0]}${cur && s[2] ? `<span class="body">${s[2]}</span>` : ''}</span></div>`; }).join('')}
+    <div class="gsum">Then: avg $1,000 a day over 4 days, by day 12 (The Dusty Dime).</div></div>`;
+}
+function newshist() {
+  return `<div class="panel newshist" style="left:${newsLeft()}px"><h4>${ic('news')} News <span class="sub" style="color:var(--dim);font-family:var(--f-ui);font-size:.85em">· today's conditions first</span></h4>${D.news.map((n) => `<div class="newsitem"><time>${n.t}</time><span>${n.txt}</span></div>`).join('')}</div>`;
+}
+function newsLeft() { const nl = $('.newsline', ui); return nl ? nl.offsetLeft : 400; }
+function info() {
+  const items = [['mood','Mood','M'],['traffic','Traffic','T'],['appeal','Appeal','A']];
+  const btns = items.map(([k, l, key]) => `<button class="${S.info === k ? 'on' : ''}" data-info="${k}" title="${l} (${key})">${ic(k)}<span class="lbl">${l}</span><kbd>${key}</kbd></button>`).join('');
+  let legend = '';
+  if (S.info) {
+    const L = { mood: ['Mood', 'linear-gradient(90deg,#e2562f,#e9c83c,#3fd17a)', 'Unhappy', 'Happy', 'Where guests feel good. Red patches need a fix.'], traffic: ['Traffic', 'linear-gradient(90deg,#3a2a12,#ffd23e,#ff3d2e)', 'Quiet', 'Packed', 'Footfall over the last hour.'], appeal: ['Appeal', 'linear-gradient(90deg,#2a1e0a,#c99a2e,#f6d36a)', 'Bare', 'Lavish', 'Decor reach and strength (arrives with B6).'] }[S.info];
+    legend = `<div class="panel legend"><b>${L[0]}</b><div class="ramp" style="background:${L[1]}"></div><div class="ends"><span>${L[2]}</span><span>${L[3]}</span></div><div style="color:var(--dim);margin-top:4px">${L[4]}</div></div>`;
+  }
+  return { strip: `<div class="panel infostrip">${btns}</div>`, dock: `<span class="infodock">${btns}</span>`, legend };
+}
+function dock() {
+  const cats = ['build','zone','slots','tables','services','decor'];
+  const inf = info();
+  const catBtns = cats.map((c) => `<button class="dockbtn ${S.tray === c ? 'on' : ''}" data-tray="${c}">${ic(c)}<span>${TRAY[c].label}</span></button>`).join('');
+  const manBtns = MANAGE.map(([id, l, icn, key]) => `<button class="dockbtn ${S.wins.some((w) => w.id === id) ? 'on' : ''}" data-open="${id}" title="${l}${key ? ' (' + key + ')' : ''}">${ic(icn)}<span>${l}</span></button>`).join('');
+  let tray = '';
+  if (S.tray) {
+    const T = TRAY[S.tray];
+    tray = `<div class="panel tray"><div class="tray-head"><b>${T.label}</b><span class="hint">${T.hint}</span><span style="flex:1"></span><button class="iconbtn" data-tray="${S.tray}" title="Close tray">${ic('close')}</button></div><div class="cards">${T.items.map((it, i) => {
+      const [nm, pr, st, icn, lock] = it; const isNew = lock === 'B6'; const locked = !!lock && !isNew;
+      const price = typeof pr === 'number' ? money(pr) : pr ?? '';
+      return `<button class="card ${locked ? 'locked' : ''} ${S.sel === S.tray + i ? 'sel' : ''}" data-card="${i}" ${locked ? 'aria-disabled="true"' : ''}>
+        <span class="thumb">${ic(icn)}</span><span class="nm">${nm}</span><span class="pr">${price}</span><span class="st">${st}</span>
+        ${locked ? `<span class="lock">🔒</span><span class="unl">${lock}</span>` : ''}${isNew ? '<span class="lock new">B6</span>' : ''}</button>`; }).join('')}</div></div>`;
+  }
+  const bar = S.v === 'b'
+    ? `<div class="panel dockbar">${catBtns}<span class="dock-grow"></span><span class="docklabel">Manage</span>${manBtns}</div>`
+    : S.v === 'c'
+      ? `<div class="panel dockbar">${catBtns}<span class="docksep"></span>${manBtns}<span class="docksep"></span>${inf.dock}</div>`
+      : `<div class="panel dockbar">${catBtns}<span class="docksep"></span><span class="docklabel">Manage</span>${manBtns}</div>`;
+  return `<div class="dock">${tray}${bar}</div>`;
+}
+function toolhint() {
+  if (S.sel == null || !S.tray) return '';
+  const it = TRAY[S.tray].items[Number(String(S.sel).slice(S.tray.length))];
+  if (!it) return '';
+  return `<div class="panel toolhint"><b>${it[0]}</b><span class="k">Click the floor to place · <kbd>Shift</kbd> places a row · <kbd>R</kbd> rotates · <kbd>Esc</kbd> cancels</span></div>`;
+}
+
+/* ---------- windows ---------- */
+function finChart(w, h, mode) {
+  const pad = { l: 34, r: 6, t: 8, b: 18 }; const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
+  const vals = mode === 'guests' ? D.guestsByHour : D.hours.map((x) => x[1]);
+  const max = mode === 'guests' ? 160 : 400, min = mode === 'guests' ? 0 : -1300;
+  const y = (v) => pad.t + ih * (1 - (v - min) / (max - min)); const bw = iw / vals.length;
+  const ticks = mode === 'guests' ? [0, 80, 160] : [-1200, -600, 0, 400];
+  let s = `<svg class="chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="${mode === 'guests' ? 'Guests by hour' : 'Profit by hour'}">`;
+  for (const t of ticks) s += `<line x1="${pad.l}" x2="${w - pad.r}" y1="${y(t)}" y2="${y(t)}" stroke="rgba(255,255,255,${t === 0 ? .3 : .08})"/><text x="${pad.l - 4}" y="${y(t) + 3}" text-anchor="end">${mode === 'guests' ? t : (t < 0 ? '−' : '') + '$' + Math.abs(t)}</text>`;
+  if (mode === 'guests') {
+    const pts = vals.map((v, i) => `${pad.l + bw * i + bw / 2},${y(v)}`).join(' ');
+    s += `<polygon points="${pad.l + bw / 2},${y(0)} ${pts} ${pad.l + bw * (vals.length - .5)},${y(0)}" fill="var(--accent)" fill-opacity=".18"/><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2"/>`;
+    s += `<circle cx="${pad.l + bw * (vals.length - .5)}" cy="${y(vals.at(-1))}" r="3.5" fill="var(--accent)"/>`;
+    s += `<line x1="${pad.l}" x2="${w - pad.r}" y1="${y(D.cap)}" y2="${y(D.cap)}" stroke="var(--bad)" stroke-dasharray="4 3"/><text x="${w - pad.r}" y="${y(D.cap) - 3}" text-anchor="end">cap ${D.cap}</text>`;
+  } else {
+    vals.forEach((v, i) => { const x = pad.l + bw * i + 1.5; s += `<rect x="${x}" y="${Math.min(y(v), y(0))}" width="${bw - 3}" height="${Math.max(1, Math.abs(y(v) - y(0)))}" fill="${v >= 0 ? 'var(--good)' : 'var(--bad)'}" rx="1.5"/>`; });
+  }
+  D.hours.forEach((x, i) => { if (i % 3 === 0) s += `<text x="${pad.l + bw * i + bw / 2}" y="${h - 4}" text-anchor="middle">${String(x[0]).padStart(2, '0')}h</text>`; });
+  return s + '</svg>';
+}
+const WIN = {
+  bj: { title: 'Blackjack Table · #49', w: 330, h: 330, tabs: [['Overview','overview'],['Stats','stats'],['Rules','settings']], body(tab) {
+    if (tab === 0) return `<div class="row"><span class="pill good">● Open</span><span class="pill dim">Seats 4 / 4</span><span class="pill dim">Dealer s-3 · skill 48</span></div>
+      <div class="sect">Today</div><dl class="kv"><dt>Handle</dt><dd>${money(3208)}</dd><dt>House win</dt><dd class="neg">−$92</dd><dt>Hold</dt><dd class="neg">−2.9%</dd><dt>Theoretical win</dt><dd>$35.94</dd><dt>Rounds</dt><dd>358</dd></dl>
+      <div class="sect">Last round</div><div class="row"><div class="cardsx">${['7♦','J♥'].map((c) => `<span class="pc ${/[♥♦]/.test(c) ? 'r' : ''}">${c}</span>`).join('')}</div><span style="color:var(--dim)">vs</span><div class="cardsx">${['5♥','2♠','6♣','4♠'].map((c) => `<span class="pc ${/[♥♦]/.test(c) ? 'r' : ''}">${c}</span>`).join('')}</div><span class="pill dim">Push · 17 v 17</span></div>`;
+    if (tab === 1) return `<div class="row" style="justify-content:space-between"><span><span class="sect" style="display:block;margin:0">Hold vs edge today</span></span></div>
+      <svg class="chart" viewBox="0 0 300 92" role="img" aria-label="Hold versus house edge"><text x="0" y="14">Edge 0.40%</text><rect x="74" y="5" width="200" height="12" rx="2" fill="rgba(255,255,255,.08)"/><rect x="174" y="5" width="8" height="12" rx="2" fill="var(--accent)"/>
+      <text x="0" y="40">Hold −2.9%</text><rect x="74" y="31" width="200" height="12" rx="2" fill="rgba(255,255,255,.08)"/><rect x="116" y="31" width="58" height="12" rx="2" fill="var(--bad)"/><line x1="174" x2="174" y1="0" y2="50" stroke="rgba(255,255,255,.35)"/>
+      <text x="74" y="62">−10%</text><text x="174" y="62" text-anchor="middle">0</text><text x="274" y="62" text-anchor="end">+10%</text>
+      <text x="0" y="86">358 rounds is a small sample: hold swings round the edge.</text></svg>
+      <dl class="kv"><dt>Lifetime profit</dt><dd class="pos">+$180</dd><dt>Reliability</dt><dd>86.5%</dd><dt>Appeal</dt><dd>1.03</dd><dt>Rounds / hour</dt><dd>80</dd></dl>`;
+    return `<dl class="kv"><dt>Bets</dt><dd>$5 – $1,000</dd><dt>Decks</dt><dd>6</dd><dt>Dealer soft 17</dt><dd>Stands</dd><dt>Blackjack pays</dt><dd>3:2</dd><dt>Double after split</dt><dd>Yes</dd><dt>Resplit aces</dt><dd>No</dd><dt>Surrender</dt><dd>None</dd><dt>Max split hands</dt><dd>4</dd><dt>Penetration</dt><dd>75%</dd></dl><div class="sect">House edge</div><div class="big">0.40%</div>`;
+  } },
+  guest: { title: 'Bobbie Ainsworth · Tourist', w: 290, h: 250, tabs: [['Overview','overview'],['Thoughts','guests']], body(tab) {
+    if (tab === 0) return `<div class="row"><span class="pill good">Mood 100</span><span class="pill dim">Playing slots</span></div><div class="sect">Bankroll</div><dl class="kv"><dt>Wallet</dt><dd>$164</dd><dt>Net tonight</dt><dd class="pos">+$20</dd><dt>Players club</dt><dd>Not a member</dd></dl><div class="sect">Thinking</div><div>💰 Jackpot! I’m on fire!</div>`;
+    return `<div>💰 Jackpot! I’m on fire!</div><div style="color:var(--dim);margin-top:6px">Comps: drink, meal or match play from the Club window.</div>`;
+  } },
+  fin: { title: 'Finances', w: 400, h: 360, tabs: [['Today','overview'],['Chart','stats'],['By game','tables']], body(tab) {
+    if (tab === 0) return `<table class="t"><tr><th></th><th class="n">Today</th><th class="n">Yesterday</th></tr>
+      <tr><td>Gaming win</td><td class="n">$738</td><td class="n">$340</td></tr><tr><td>Food &amp; drink</td><td class="n">$0</td><td class="n">$2.50</td></tr>
+      <tr><td>Wages</td><td class="n neg">−$32</td><td class="n neg">−$168</td></tr><tr><td>Upkeep</td><td class="n">$0</td><td class="n neg">−$1,306</td></tr>
+      <tr><td><b>Profit</b></td><td class="n pos"><b>+$706</b></td><td class="n neg"><b>−$1,131</b></td></tr></table>
+      <div class="sect">Gaming</div><dl class="kv"><dt>Handle today</dt><dd>$10,470</dd><dt>Hold</dt><dd>7.0%</dd><dt>Handle yesterday</dt><dd>$18,728</dd><dt>Theo win yesterday</dt><dd>$734</dd></dl>`;
+    if (tab === 1) return `<div class="sect" style="margin-top:0">Profit by hour · day 1 12:00 → day 2 03:00</div>${finChart(370, 150, 'profit')}<div style="color:var(--dim);font-size:.9em">The 23:00 drop is the nightly upkeep bill ($1,306).</div>`;
+    return `<table class="t"><tr><th>Game</th><th class="n">#</th><th class="n">Handle</th><th class="n">Win</th><th class="n">Hold</th></tr>
+      <tr><td>Slot Machine</td><td class="n">48</td><td class="n">$2,780</td><td class="n pos">$390</td><td class="n">14.0%</td></tr>
+      <tr><td>Blackjack</td><td class="n">4</td><td class="n">$1,128</td><td class="n neg">−$136</td><td class="n">−12.1%</td></tr>
+      <tr><td>Roulette</td><td class="n">1</td><td class="n">$0</td><td class="n">$0</td><td class="n">–</td></tr><tr><td>Craps</td><td class="n">1</td><td class="n">$0</td><td class="n">$0</td><td class="n">–</td></tr></table>
+      <div style="color:var(--dim);margin-top:6px">Roulette and craps have no dealer on the graveyard shift.</div>`;
+  } },
+  rating: { title: 'Rating · 93', w: 360, h: 390, tabs: [['Breakdown','rating'],['Reputation','stats']], body(tab) {
+    if (tab === 0) return D.terms.map(([n, v, b, tip]) => `<div class="term"><span>${n}</span><span class="tb"><i style="width:${b ? Math.round(v / b * 100) : 0}%"></i></span><span class="tv">${b ? `${v} / ${b}` : v}</span><span class="tip">${tip}</span></div>`).join('');
+    return `<div class="big">57.6</div><div style="color:var(--dim)">Unremarkable · +6.4 today</div><p>Reputation moves slowly with the rating. It sets how many guests come each day.</p>`;
+  } },
+  guests: { title: 'Guests · 96 on the floor', w: 470, h: 380, tabs: [['Thoughts','guests'],['List','overview'],['Over the day','stats']], body(tab) {
+    if (tab === 0) return `<table class="t"><tr><th></th><th>Thought</th><th class="n">Guests</th><th class="n">Trend</th></tr>${D.thoughts.map(([g, t, c, tr]) => `<tr><td>${g}</td><td>${t}</td><td class="n">${c}</td><td class="n">${tr}</td></tr>`).join('')}</table><div style="color:var(--dim);margin-top:6px">Last 4 hours. Click a row to see who thinks it.</div>`;
+    if (tab === 1) return `<table class="t"><tr><th>Name</th><th>Type</th><th>Doing</th><th class="n">Mood</th><th class="n">Wallet</th><th class="n">Net</th></tr>${D.guestRows.map(([n, a, s, h, w, net]) => `<tr><td>${n}</td><td>${a}</td><td>${s}</td><td class="n">${h}</td><td class="n">$${w}</td><td class="n ${net >= 0 ? 'pos' : 'neg'}">${net >= 0 ? '+' : '−'}$${Math.abs(net)}</td></tr>`).join('')}</table>`;
+    return `<div class="sect" style="margin-top:0">Guests on the floor by hour</div>${finChart(440, 160, 'guests')}`;
+  } },
+  staff: { title: 'Staff · 9', w: 470, h: 330, tabs: [['Roster','staff'],['Wages','fin']], body(tab) {
+    if (tab === 0) return `<table class="t"><tr><th>ID</th><th>Role</th><th>Now</th><th class="n">Skill</th><th class="n">Morale</th><th class="n">Fatigue</th><th>Shift</th></tr>${D.staff.map(([id, r, s, sk, m, f, sh]) => `<tr><td>${id}</td><td>${r}</td><td>${s}</td><td class="n">${sk}</td><td class="n">${m}</td><td class="n">${f}</td><td>${sh}</td></tr>`).join('')}</table>`;
+    return `<dl class="kv"><dt>Dealer</dt><dd>$4/h</dd><dt>Janitor</dt><dd>$2/h</dd><dt>Security</dt><dd>$3/h</dd></dl>`;
+  } },
+  club: { title: 'Players Club', w: 320, h: 200, tabs: [['Members','club']], body() { return `<div class="big">0</div><div style="color:var(--dim)">members on the floor right now. Members show here with their tier and comps.</div>`; } },
+  prices: { title: 'Prices', w: 360, h: 260, tabs: [['Menu','prices']], body() { return `<table class="t"><tr><th>Where</th><th>Item</th><th class="n">Price</th><th class="n">Cost</th><th class="n">Rip-off over</th></tr>${D.prices.map(([w, i, p, c, r]) => `<tr><td>${w}</td><td>${i}</td><td class="n">${money(p, 2)}</td><td class="n">${money(c, 2)}</td><td class="n">${money(r, 2)}</td></tr>`).join('')}</table>`; } },
+  events: { title: 'Events & Marketing', w: 470, h: 330, tabs: [['Run one','events']], body() { return `<table class="t"><tr><th>Event</th><th class="n">Cost</th><th>Runs</th><th>Expect</th></tr>${D.events.map(([n, k, c, r, e]) => `<tr><td>${n}<br><span style="color:var(--dim);font-size:.85em">${k}</span></td><td class="n">${c == null ? '–' : money(c)}</td><td>${r}</td><td>${e}</td></tr>`).join('')}</table>`; } },
+  settings: { title: 'Settings', w: 340, h: 300, tabs: [['Display','settings'],['Sound','events']], body(tab) {
+    if (tab === 0) return `<div class="setrow"><span>Graphics</span><span class="seg" style="justify-self:start"><button aria-pressed="true">High</button><button aria-pressed="false">Low</button></span><span></span></div>
+      <div class="setrow"><label for="scaleR">UI scale</label><input id="scaleR" class="slider" type="range" min="80" max="125" step="5" value="${Math.round(S.u * 100)}"><output>${Math.round(S.u * 100)}%</output></div>
+      <div style="color:var(--dim)">UI scale is saved with your settings. Try it: the whole interface rescales.</div>`;
+    return ['Master','Music','Effects','Ambience'].map((n, i) => `<div class="setrow"><label for="vol${i}">${n}</label><input id="vol${i}" class="slider" type="range" value="${[80, 50, 70, 60][i]}"><output>${[80, 50, 70, 60][i]}</output></div>`).join('');
+  } },
+};
+
+function openWin(id) {
+  const ex = S.wins.find((w) => w.id === id);
+  if (ex) { ex.z = ++S.z; render(); return; }
+  const def = WIN[id]; const R = regions();
+  let p = S.pos[id];
+  if (!p) {
+    // Cascade inside the free area: right of the info strip, left of the goals/news column.
+    const n = S.wins.length; const maxX = R.uw - 290 - 24 - def.w;
+    p = { x: Math.max(R.left + 8, Math.min(maxX, 300 + n * 28)), y: R.top + 4 + n * 28 };
+  }
+  S.wins.push({ id, tab: 0, pinned: false, z: ++S.z, x: p.x, y: p.y });
+  render();
+}
+function winsHtml() {
+  const R = regions();
+  const maxY = R.uh - R.bottom; const front = Math.max(0, ...S.wins.map((w) => w.z));
+  return S.wins.map((w) => {
+    const def = WIN[w.id]; const h = Math.min(def.h, maxY - R.top);
+    w.x = Math.max(0, Math.min(R.uw - def.w, w.x)); w.y = Math.max(R.top, Math.min(maxY - h, w.y));
+    return `<div class="win ${w.z === front ? 'front' : ''}" data-win="${w.id}" style="left:${w.x}px;top:${w.y}px;width:${def.w}px;height:${h}px;z-index:${w.z}">
+      <div class="wtitle" data-drag="${w.id}"><span class="t">${def.title}</span><button class="${w.pinned ? 'pinned' : ''}" data-pin="${w.id}" title="${w.pinned ? 'Unpin' : 'Pin (stays when you click the floor)'}">${ic('pin')}</button><button data-close="${w.id}" title="Close">${ic('close')}</button></div>
+      <div class="wbody"><div class="wcol" style="${S.v === 'c' ? 'display:contents' : ''}">${def.tabs.length > 1 || S.v === 'c' ? `<div class="wtabs">${def.tabs.map(([l, i], k) => `<button class="${k === w.tab ? 'on' : ''}" data-tab="${w.id}:${k}" title="${l}">${ic(i)}<span class="lbl">${l}</span></button>`).join('')}</div>` : ''}
+      ${S.v === 'c' ? '' : `<div class="wcontent">${def.body(w.tab)}</div>`}</div>${S.v === 'c' ? `<div class="wcontent">${def.body(w.tab)}</div>` : ''}</div></div>`;
+  }).join('');
+}
+
+function render() {
+  const inf = info();
+  ui.innerHTML = topbar() + (S.toast ? `<div class="panel toast">${ic('staff')}<span>${S.toast}</span></div>` : '') + goals() + (S.v !== 'c' ? inf.strip : '') + inf.legend + dock() + toolhint() + `<div class="winlayer" id="wl"></div>`;
+  fitRegions();
+  if (S.newsOpen) {
+    ui.insertAdjacentHTML('beforeend', newshist());
+    const nh = $('.newshist', ui); const g = $('.goals', ui); const R0 = regions();
+    nh.style.left = 'auto'; nh.style.right = '8px'; nh.style.width = '290px';
+    nh.style.top = g.offsetTop + g.offsetHeight + 8 + 'px';
+    nh.style.maxHeight = R0.uh - R0.bottom - (g.offsetTop + g.offsetHeight + 8) + 'px'; nh.style.overflow = 'auto';
+  }
+  const wl = $('#wl', ui); wl.style.top = '0px'; wl.style.bottom = '0px'; wl.innerHTML = winsHtml();
+  const heat = $('#heat'); heat.className = 'heat' + (S.info ? ' on ' + S.info : '');
+  $('#hotBJ').classList.toggle('sel', S.wins.some((w) => w.id === 'bj'));
+  if (S.phone) ui.insertAdjacentHTML('beforeend', `<div class="phone"><div class="panel"><h3>Best on a computer</h3><p>Casino Tycoon is built for a mouse and a screen at least 1280 pixels wide. You can look around here, but building and managing need a desktop browser.</p><button class="pbtn" data-phone>Look around anyway</button></div></div>`);
+  const sl = $('#scaleR', ui); if (sl) sl.addEventListener('input', () => { setScale(sl.value / 100); });
+}
+
+function layout() {
+  screen.className = 'screen v-' + S.v;
+  screen.style.width = S.w + 'px'; screen.style.height = S.h + 'px';
+  ui.style.width = S.w / S.u + 'px'; ui.style.height = S.h / S.u + 'px'; ui.style.transform = `scale(${S.u})`;
+  const avail = wrap.clientWidth;
+  const k = S.fit ? Math.min(1, avail / S.w) : 1;
+  screen.style.transform = `scale(${k})`;
+  sizer.style.width = S.fit ? '100%' : S.w + 'px'; sizer.style.height = S.h * k + 'px';
+  wrap.classList.toggle('actual', !S.fit);
+  $('#vnote').innerHTML = NOTES[S.v];
+  render();
+  // Windows the player never dragged re-cascade for the new screen; dragged ones keep their spot (clamped).
+  const keep = S.wins; S.wins = [];
+  for (const w of keep) { if (S.pos[w.id]) S.wins.push(w); else { openWin(w.id); Object.assign(S.wins.at(-1), { tab: w.tab, pinned: w.pinned }); } }
+  render();
+}
+function setScale(u) { S.u = u; for (const b of document.querySelectorAll('#segU button')) b.setAttribute('aria-pressed', String(Number(b.dataset.u) === u)); layout(); }
+function seg(id, attr, fn) { document.getElementById(id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; for (const x of b.parentElement.children) x.setAttribute('aria-pressed', String(x === b)); fn(b.dataset[attr]); }); }
+seg('segV', 'v', (v) => { S.v = v; layout(); });
+seg('segS', 's', (s) => { const [w, h] = s.split('x').map(Number); S.w = w; S.h = h; layout(); });
+seg('segU', 'u', (u) => setScale(Number(u)));
+seg('segF', 'f', (f) => { S.fit = f === 'fit'; layout(); });
+$('#btnAll').addEventListener('click', () => { S.tray = S.tray || 'slots'; S.newsOpen = true; S.goalsMin = false; for (const id of ['bj', 'fin', 'rating']) if (!S.wins.some((w) => w.id === id)) openWin(id); render(); });
+$('#btnPhone').addEventListener('click', () => { S.phone = !S.phone; render(); });
+$('#hotBJ').addEventListener('click', () => openWin('bj'));
+$('#hotG').addEventListener('click', () => openWin('guest'));
+screen.addEventListener('click', (e) => { if (e.target === screen) { S.wins = S.wins.filter((w) => w.pinned); S.sel = null; render(); } });
+
+ui.addEventListener('click', (e) => {
+  const t = e.target.closest('button,[data-news]'); if (!t) return;
+  const d = t.dataset;
+  if (d.open) openWin(d.open);
+  else if (d.news !== undefined) { S.newsOpen = !S.newsOpen; render(); }
+  else if (d.goals !== undefined) { S.goalsMin = !S.goalsMin; render(); }
+  else if (d.tray) { S.tray = S.tray === d.tray ? null : d.tray; S.sel = null; render(); }
+  else if (d.card !== undefined) { if (t.getAttribute('aria-disabled') === 'true') return; const key = S.tray + d.card; S.sel = S.sel === key ? null : key; render(); }
+  else if (d.info) { S.info = S.info === d.info ? null : d.info; render(); }
+  else if (d.close) { S.wins = S.wins.filter((w) => w.id !== d.close); render(); }
+  else if (d.pin) { const w = S.wins.find((x) => x.id === d.pin); w.pinned = !w.pinned; render(); }
+  else if (d.tab) { const [id, k] = d.tab.split(':'); const w = S.wins.find((x) => x.id === id); w.tab = Number(k); w.z = ++S.z; render(); }
+  else if (d.phone !== undefined) { S.phone = false; render(); }
+});
+ui.addEventListener('pointerdown', (e) => {
+  const winEl = e.target.closest('.win'); if (winEl) { const w = S.wins.find((x) => x.id === winEl.dataset.win); if (w && w.z !== S.z) { w.z = ++S.z; for (const el of ui.querySelectorAll('.win')) el.classList.toggle('front', el === winEl); winEl.style.zIndex = w.z; } }
+  const bar = e.target.closest('[data-drag]'); if (!bar || e.target.closest('button')) return;
+  const w = S.wins.find((x) => x.id === bar.dataset.drag); const el = bar.parentElement;
+  const k = (screen.getBoundingClientRect().width / S.w) * S.u; const sx = e.clientX, sy = e.clientY, ox = w.x, oy = w.y;
+  const R = regions(); const def = WIN[w.id];
+  bar.setPointerCapture(e.pointerId);
+  const mv = (ev) => { w.x = Math.max(0, Math.min(R.uw - def.w, ox + (ev.clientX - sx) / k)); w.y = Math.max(R.top, Math.min(R.uh - R.bottom - el.offsetHeight, oy + (ev.clientY - sy) / k)); el.style.left = w.x + 'px'; el.style.top = w.y + 'px'; };
+  const up = () => { S.pos[w.id] = { x: w.x, y: w.y }; bar.removeEventListener('pointermove', mv); bar.removeEventListener('pointerup', up); };
+  bar.addEventListener('pointermove', mv); bar.addEventListener('pointerup', up);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.target.matches('input')) return; const k = e.key.toLowerCase();
+  if (k === 'm' || k === 't' || k === 'a') { const v = { m: 'mood', t: 'traffic', a: 'appeal' }[k]; S.info = S.info === v ? null : v; render(); }
+  else if (k === 'p') openWin('fin'); else if (k === 'h') openWin('staff'); else if (k === 'g') openWin('guests');
+  else if (k === 'escape') { S.sel = null; S.newsOpen = false; render(); }
+});
+setTimeout(() => { S.toast = null; render(); }, 6000);
+window.addEventListener('resize', layout);
+S.wins = []; layout(); openWin('bj'); openWin('fin');
+})();
+</script>

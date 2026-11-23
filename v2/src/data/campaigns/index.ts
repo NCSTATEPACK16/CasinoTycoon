@@ -116,7 +116,10 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     id: 'neon-nights',
     name: 'Neon Nights',
     tagline: 'A strip-corner lease and impatient backers. Scale it fast.',
-    startingCash: 3500,
+    // B6: $3500 → $4000. Fair food prices (the rip-off line now follows the
+    // default menu price, not the stall's own) cut the margin this goal was
+    // tuned on; 14 seeds: greedy 13/14 at $4000, doing nothing 0/14.
+    startingCash: 4000,
     goalDailyProfit: 1000,
     dayLimit: 11,
     goalWindowDays: 3,
@@ -125,7 +128,8 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     // borrows, and a loan costs 1.5–2.5% a day, so the goals stand.
     loanLimit: 1750,
     unlockAfter: 'lucky-strike',
-    unlocks: ['craps-table', 'sic-bo'],
+    // B6: the fountain is the first prestige piece a career earns.
+    unlocks: ['craps-table', 'sic-bo', 'fountain'],
   },
   {
     id: 'high-roller',
@@ -143,7 +147,8 @@ export const CAMPAIGNS: readonly CampaignDef[] = [
     // B4: a bank loan of up to half the starting stake; the greedy probe never
     // borrows, and a loan costs 1.5–2.5% a day, so the goals stand.
     loanLimit: 2500,
-    allowedObjects: ['blackjack-table', 'toilet', 'food-stall', 'plant'],
+    // B6: a members' club takes statues and lamps, as it takes plants.
+    allowedObjects: ['blackjack-table', 'toilet', 'food-stall', 'plant', 'statue', 'lamp-post'],
     unlockAfter: 'neon-nights',
     unlocks: ['high-limit-table', 'poker-table'],
   },
@@ -216,18 +221,26 @@ export const CAREER_SCENARIOS: readonly CampaignDef[] = [
     traffic: OPEN_TRAFFIC,
     staffDepth: true,
     medals: { gold: 4, silver: 6 },
+    // B6: 50 → 45 at once. Decor's appeal term replaced the signage sum, so
+    // the rating climbs with what's on the floor, and a small bowling-alley lot
+    // that spends on decor seats fewer guests. 14 seeds, decorating as it
+    // builds: crowd 12/14, grid 13/14, doing nothing 0/14.
     goals: [
-      { kind: 'guests', count: 50 },
+      { kind: 'guests', count: 45 },
       { kind: 'rating', min: 70 },
     ],
   },
   {
     id: 'velvet-rope',
     unlockAfter: 'high-roller',
-    unlocks: ['three-card-poker'],
+    // B6: the stage, and with it the concert (B10's event).
+    unlocks: ['three-card-poker', 'stage'],
     name: 'The Velvet Rope',
     tagline: 'A club for people who expect to be remembered. Remember them.',
-    startingCash: 8000,
+    // B6: $8000 → $10000. A floor that fills (higher rating, more guests)
+    // leaves a thin reserve, and one bad table night forced the high-limit
+    // table's sale. 14 seeds: crowd 12/14, grid 10/14, doing nothing 0/14.
+    startingCash: 10000,
     goalDailyProfit: 0,
     dayLimit: 14,
     goalWindowDays: 1,
@@ -271,6 +284,13 @@ export const CAREER_SCENARIOS: readonly CampaignDef[] = [
       'plant',
       'neon-sign',
       'marquee',
+      // B6: decor and amenities are no dealt tables.
+      'statue',
+      'fountain',
+      'lamp-post',
+      'lounge-seating',
+      'atm',
+      'stage',
     ],
     medals: { gold: 4, silver: 7 },
     goals: [
@@ -315,7 +335,11 @@ export const CAREER_SCENARIOS: readonly CampaignDef[] = [
     staffDepth: true,
     // B10: ads to fill the room the loan bought.
     marketing: ['billboards', 'radio', 'mailers'],
-    startingLoan: { amount: 6000, days: 28 },
+    // B6: $6000 → $5000 owed (the cash in hand is unchanged). With food at
+    // fair prices and decor to buy, a busy floor's margin no longer cleared
+    // $6000 and the profit goal on most crowd runs. 14 seeds: crowd 10/14,
+    // grid 9/14, doing nothing 0/14.
+    startingLoan: { amount: 5000, days: 28 },
     medals: { gold: 8, silver: 11 },
     goals: [{ kind: 'noDebt' }, { kind: 'avgProfit', amount: 700, days: 3 }],
   },
@@ -339,7 +363,11 @@ export const CAREER_SCENARIOS: readonly CampaignDef[] = [
     goals: [
       { kind: 'guests', count: 150 },
       { kind: 'rating', min: 75 },
-      { kind: 'dayProfit', amount: 2500 },
+      // B6: $2500 → $2200. Fair food prices took the top off the best day
+      // (crowd runs that met the other goals peaked at $1,900–2,450). 14 seeds,
+      // decorating as it builds: crowd 11/14, grid 14/14, doing nothing with
+      // every ad booked 0/14.
+      { kind: 'dayProfit', amount: 2200 },
     ],
   },
 ];

@@ -1,0 +1,16 @@
+.loan-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+.loan-form .loan-amount {
+  width: 6rem;
+}
+.loan-list .loan-repay {
+  white-space: nowrap;
+}
+.loan-list .loan-repay input {
+  width: 3.5rem;
+  margin-right: 0.25rem;
+}

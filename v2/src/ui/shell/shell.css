@@ -1,0 +1,101 @@
+/* B15b: the region grid. Regions take no pointer events themselves; what
+   is mounted in them does. Gaps between regions are the only spacing a
+   surface gets from the screen edge. */
+#ui.shell {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    'top top top'
+    'left windows right'
+    'hint hint hint'
+    'dock dock dock';
+  pointer-events: none;
+}
+.region {
+  min-width: 0;
+  min-height: 0;
+  pointer-events: none;
+}
+.region > * {
+  pointer-events: auto;
+}
+.region-top {
+  grid-area: top;
+  z-index: var(--z-floor-ui);
+}
+.region-left,
+.region-right {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  overflow: hidden;
+  z-index: var(--z-floor-ui);
+}
+.region-left {
+  grid-area: left;
+}
+.region-right {
+  grid-area: right;
+  width: 20rem;
+  overflow-y: auto;
+}
+/* A side column with nothing showing gives its width back to the floor. */
+.region-left:not(:has(> :not([hidden]))),
+.region-right:not(:has(> :not([hidden]))) {
+  display: none;
+}
+.region-right > * {
+  flex: none;
+}
+/* The window layer: what floats over the floor between the side columns.
+   Its children place themselves inside it (B15e gives it a manager). */
+.region-windows {
+  grid-area: windows;
+  position: relative;
+  z-index: var(--z-windows);
+}
+.region-toast {
+  grid-area: windows;
+  justify-self: center;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding-top: var(--sp-2);
+  z-index: var(--z-toast);
+}
+.region-hint {
+  grid-area: hint;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-2) var(--sp-2);
+  z-index: var(--z-hint);
+}
+.region-dock {
+  grid-area: dock;
+  z-index: var(--z-floor-ui);
+}
+.region-overlay {
+  grid-area: 1 / 1 / -1 / -1;
+  position: relative;
+  z-index: var(--z-overlay);
+}
+.region-overlay > * {
+  pointer-events: none;
+}
+.region-modal {
+  grid-area: 1 / 1 / -1 / -1;
+  position: relative;
+  z-index: var(--z-modal);
+}
+.region-modal:not(:has(> :not([hidden]))) {
+  display: none;
+}

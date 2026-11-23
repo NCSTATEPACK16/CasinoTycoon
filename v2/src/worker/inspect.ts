@@ -3,6 +3,7 @@
 // panels never reach into sim internals and the tests can call them directly.
 
 import {
+  APPEAL_BALANCE,
   BAR_BALANCE,
   COMPS,
   DEALER_BALANCE,
@@ -21,7 +22,9 @@ import { goalText } from '../data/campaigns/goals';
 import { medalDays } from '../data/score';
 import { getDefaultMenuItem } from '../data/foodMenu';
 import { getObjectDef } from '../data/objects';
+import { appealOf } from '../sim/appeal';
 import type { PatronVisit } from '../sim/patrons';
+import { foodRipoffAbove } from '../sim/entities/FoodStall';
 import { SeatedCasinoGame } from '../sim/entities/machines/SeatedCasinoGame';
 import { casinoFinancials, type CasinoFinancials } from '../sim/economy/financials';
 import { lastBigSix } from '../sim/fx/bigSix';
@@ -288,6 +291,9 @@ export interface RatingReport {
     guards: number;
     dealtTables: number;
     tablesWithoutDealer: number;
+    /** B6: the floor's mean appeal (0–100) and the decor pieces on it. */
+    meanAppeal: number;
+    decorPieces: number;
   };
   reputation: { value: number; label: string; today: number };
 }
@@ -317,7 +323,7 @@ export function ratingReport(world: CasinoWorld): RatingReport {
         best: 0,
         worst: -world.machines.size * r.perBrokenPenalty,
       },
-      { id: 'signage', value: b.signage, best: r.signageBonusCap, worst: 0 },
+      { id: 'signage', value: b.signage, best: APPEAL_BALANCE.ratingMax, worst: 0 },
       { id: 'security', value: b.security, best: SECURITY_BALANCE.bonusCap, worst: 0 },
       { id: 'dealers', value: b.dealers, best: DEALER_BALANCE.dealerBonusCap, worst: 0 },
       { id: 'rage', value: b.rage, best: 0, worst: -RAGE_BALANCE.maxRatingPenalty },
@@ -332,6 +338,8 @@ export function ratingReport(world: CasinoWorld): RatingReport {
       guards,
       dealtTables: Math.min(tables, dealers),
       tablesWithoutDealer: Math.max(0, tables - dealers),
+      meanAppeal: world.appeal.mean,
+      decorPieces: world.state.allObjects().filter((o) => appealOf(o.defId) !== null).length,
     },
     reputation: {
       value: world.reputation.value,
@@ -459,7 +467,7 @@ export function priceList(world: CasinoWorld): PricedObject[] {
         cost: m.baseCost,
         min: m.baseCost * FOOD_BALANCE.priceFloorFactor,
         max: m.baseCost * FOOD_BALANCE.priceCeilFactor,
-        ripoffAbove: m.baseCost * FOOD_BALANCE.ripoffMultiplier,
+        ripoffAbove: foodRipoffAbove(m),
         onSale: m.isUnlocked,
       })),
       priceIndex: stall.priceIndex,

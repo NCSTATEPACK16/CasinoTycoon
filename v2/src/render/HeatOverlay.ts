@@ -1,4 +1,4 @@
-// B5 (Track B): the mood and traffic heat maps, painted over the floor.
+// B5 (Track B): the mood and traffic heat maps, painted over the floor; B6 adds appeal.
 //
 // One plane the size of the lot, a hair above the carpet, textured by a
 // cols×rows DataTexture with one texel per cell, so the whole overlay is a
@@ -9,7 +9,7 @@
 
 import * as THREE from 'three';
 
-export type HeatKind = 'mood' | 'traffic';
+export type HeatKind = 'mood' | 'traffic' | 'appeal';
 
 /** Height above the floor: just over the zone tint (0.03–0.035). */
 const Y = 0.045;
@@ -28,6 +28,15 @@ const TRAFFIC_STOPS: [number, [number, number, number]][] = [
   [0, [52, 152, 219]],
   [0.5, [241, 196, 15]],
   [1, [231, 76, 60]],
+];
+
+/** Appeal 0–100 (B6): dull plum where plain, through violet to gold where
+ *  the decor and the floor make a spot a pleasure to stand in. */
+const APPEAL_STOPS: [number, [number, number, number]][] = [
+  [0, [70, 52, 96]],
+  [30, [142, 68, 173]],
+  [60, [230, 126, 34]],
+  [100, [241, 196, 15]],
 ];
 
 function ramp(stops: [number, [number, number, number]][], v: number): [number, number, number] {
@@ -49,7 +58,7 @@ function ramp(stops: [number, [number, number, number]][], v: number): [number, 
 
 /** The colour a cell gets, for the legend and the tests. */
 export function heatColor(kind: HeatKind, v: number): [number, number, number] {
-  return ramp(kind === 'mood' ? MOOD_STOPS : TRAFFIC_STOPS, v);
+  return ramp(kind === 'mood' ? MOOD_STOPS : kind === 'appeal' ? APPEAL_STOPS : TRAFFIC_STOPS, v);
 }
 
 export class HeatOverlay {
@@ -78,7 +87,7 @@ export class HeatOverlay {
   }
 
   /**
-   * Paint a map: row-major values, one per cell (mood 0–100 or traffic 0–1),
+   * Paint a map: row-major values, one per cell (mood or appeal 0–100, traffic 0–1),
    * −1 for "nothing to say". Traffic's alpha also rises with the value, so a
    * quiet tile is a faint wash and a corridor glows.
    */
@@ -112,7 +121,12 @@ export class HeatOverlay {
         data[o] = R;
         data[o + 1] = G;
         data[o + 2] = B;
-        const a = kind === 'traffic' ? ALPHA * (0.35 + 0.65 * v) : ALPHA;
+        const a =
+          kind === 'traffic'
+            ? ALPHA * (0.35 + 0.65 * v)
+            : kind === 'appeal'
+              ? ALPHA * (0.3 + 0.7 * Math.min(1, v / 100))
+              : ALPHA;
         data[o + 3] = Math.round(a * 255);
       }
     this.texture.needsUpdate = true;

@@ -3,6 +3,7 @@
 // out at midnight, and a way to pay it down early. Built once and patched:
 // the once-a-second poll must never swap a button out from under a press.
 
+import './LoansPanel.css';
 import type { LoansView } from '../../worker/finance';
 import { button, el, money, pct } from '../dom';
 

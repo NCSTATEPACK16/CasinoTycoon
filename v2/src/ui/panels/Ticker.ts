@@ -1,7 +1,12 @@
-// The news ticker: one line at a time above the palette, coloured by
-// severity, with a history drawer behind the News button. A line that
-// happened somewhere is clickable and takes the camera there.
+// The news line (B15c): one line at a time in the top bar, coloured by
+// severity, with a count of unread lines and today's conditions folded into
+// one chip. The News button, the chip, or a line with no place on the floor
+// opens the history drawer (today's conditions first); a line that happened
+// somewhere takes the camera there instead.
 
+import './Ticker.css';
+import { getObjectDef } from '../../data/objects';
+import type { BigWinEvent } from '../../render/fx/Celebrations';
 import type { SimEvent } from '../../shared/contracts';
 import { button, el, escapeHtml } from '../dom';
 import { NewsQueue, type NewsItem, type NewsPlace } from './newsQueue';
@@ -16,6 +21,7 @@ export class Ticker {
   private queue = new NewsQueue();
   private line = el('div', 'news-line');
   private more = el('span', 'news-more');
+  private today = el('button', 'news-today');
   private toggleBtn: HTMLButtonElement;
   private list = el('ol');
   private current: NewsItem | null = null;
@@ -23,6 +29,8 @@ export class Ticker {
   /** History lines the player hasn't seen in the drawer yet. */
   private unread = 0;
   onLocate: (at: NewsPlace) => void = () => {};
+  /** The drawer opened or closed (the goals fold away while it is open). */
+  onHistory: (open: boolean) => void = () => {};
 
   constructor() {
     this.toggleBtn = button('News', () => this.toggleHistory(), 'news-btn');
@@ -32,13 +40,35 @@ export class Ticker {
     this.line.onclick = () => {
       const at = this.current?.at;
       if (at) this.onLocate(at);
+      else this.toggleHistory();
     };
-    this.root.append(this.toggleBtn, this.line, this.more);
-    const head = el('div', 'news-history-head', '<b>News</b>');
+    this.today.hidden = true;
+    this.today.onclick = () => this.toggleHistory(true);
+    this.root.append(this.toggleBtn, this.today, this.line, this.more);
+    const head = el(
+      'div',
+      'news-history-head',
+      `<b>News</b> <span class="dim">· today's conditions first</span>`,
+    );
     head.append(button('✕', () => this.toggleHistory(false), 'small'));
     this.historyRoot.append(head, this.list);
     this.historyRoot.hidden = true;
     window.setInterval(() => this.step(), STEP_MS);
+  }
+
+  /** Put a block (today's conditions) at the top of the drawer. */
+  mountInHistory(node: HTMLElement): void {
+    this.historyRoot.insertBefore(node, this.list);
+  }
+
+  /** Today's conditions and booked events, folded into one chip. */
+  setToday(names: readonly string[]): void {
+    this.today.hidden = names.length === 0;
+    const text = names.length
+      ? `Today <b>${names.length}</b> <span>${escapeHtml(names[0]!)}${names.length > 1 ? ' …' : ''}</span>`
+      : '';
+    if (this.today.innerHTML !== text) this.today.innerHTML = text;
+    this.today.title = names.length ? `Today: ${names.join(', ')}` : '';
   }
 
   get historyOpen(): boolean {
@@ -62,7 +92,9 @@ export class Ticker {
   }
 
   toggleHistory(open = !this.historyOpen): void {
+    const was = this.historyOpen;
     this.historyRoot.hidden = !open;
+    if (was !== open) this.onHistory(open);
     if (open) {
       this.unread = 0;
       this.renderHistory();
@@ -80,7 +112,7 @@ export class Ticker {
       if (cur) {
         this.line.className = `news-line sev-${cur.severity}${cur.at ? ' located' : ''}`;
         this.line.innerHTML = lineHtml(cur);
-        this.line.title = cur.at ? 'Click to see where' : '';
+        this.line.title = cur.at ? 'Click to see where' : 'Click for the news history';
       }
     }
     const n = this.queue.pending;
@@ -115,6 +147,21 @@ export class Ticker {
       this.list.append(li);
     }
   }
+}
+
+/** A12's big win as a news line: "Big win! $2,500 on a Slot Machine". It
+ *  happened somewhere, so a click takes the camera there. */
+export function bigWinTicker(e: BigWinEvent): TickerEvent {
+  const name = getObjectDef(e.defId)?.name;
+  const amount = `$${Math.round(e.amount).toLocaleString('en-US')}`;
+  return {
+    type: 'ticker',
+    text: name ? `Big win! ${amount} on a ${name}` : `Big win! ${amount}`,
+    severity: 'info',
+    x: e.x,
+    z: e.z,
+    objectId: e.objectId,
+  };
 }
 
 function place(e: TickerEvent): NewsPlace {

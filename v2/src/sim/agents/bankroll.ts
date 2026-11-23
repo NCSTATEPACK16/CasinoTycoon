@@ -59,8 +59,13 @@ export type StopReason = 'stopLoss' | 'winGoal' | null;
 /** Measured on gambling results only (`sessionNet` = Σ payout − wager), not
  *  on the wallet: a cash advance, a comp or a sandwich is neither a win nor a
  *  loss, and must not end a session. Broke is a separate, wallet-based rule. */
-export function stopReason(p: BankrollProfile, sessionNet: number): StopReason {
-  if (-sessionNet >= p.bankroll * p.stopLoss) return 'stopLoss';
+export function stopReason(
+  p: BankrollProfile,
+  sessionNet: number,
+  /** B6: an appealing floor stretches the stop-loss (APPEAL_BALANCE.linger). */
+  lossStretch = 1,
+): StopReason {
+  if (-sessionNet >= p.bankroll * p.stopLoss * lossStretch) return 'stopLoss';
   if (sessionNet >= p.bankroll * p.winGoal) return 'winGoal';
   return null;
 }

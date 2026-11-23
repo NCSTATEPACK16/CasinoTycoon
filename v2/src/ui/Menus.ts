@@ -2,6 +2,7 @@
 // the win/lose card. Saves live on the main thread (workers have no
 // localStorage): the worker hands over world JSON and takes it back.
 
+import './Menus.css';
 import type { SimClient } from '../client/SimClient';
 import { MEDAL_GLYPH, type Medal } from '../data/score';
 import {

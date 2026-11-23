@@ -5,6 +5,7 @@ import {
   PENNY_SLOT_BALANCE,
   VIDEO_POKER_BALANCE,
   pennySlotExpectedRtp,
+  APPEAL_BALANCE,
 } from '../data/balance';
 import { getObjectDef, OBJECT_CATALOG } from '../data/objects';
 import { createMachine } from './entities/machines/factory';
@@ -77,12 +78,13 @@ describe('Tier 1 catalogue entries', () => {
     // 1) — that is the point of the object, which earns in arrivals rather than
     // in takings. So the claim is now two claims: the draw games are exactly
     // these two, and pachinko is the smaller of them.
+    // B6: the bonus became appeal (APPEAL_BALANCE.items), with the same order.
     const withBonus = OBJECT_CATALOG.filter(
-      (d) => d.category === 'game' && (d.ratingBonus ?? 0) > 0,
+      (d) => d.category === 'game' && (APPEAL_BALANCE.items[d.id]?.strength ?? 0) > 0,
     );
     expect(withBonus.map((d) => d.id)).toEqual(['pachinko', 'bingo-hall']);
-    expect(getObjectDef('pachinko')!.ratingBonus).toBeLessThan(
-      getObjectDef('bingo-hall')!.ratingBonus!,
+    expect(APPEAL_BALANCE.items.pachinko!.strength).toBeLessThan(
+      APPEAL_BALANCE.items['bingo-hall']!.strength,
     );
   });
 });

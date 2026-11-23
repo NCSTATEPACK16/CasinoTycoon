@@ -1,0 +1,140 @@
+.menus {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(
+    circle at 50% 30%,
+    color-mix(in srgb, var(--c-panel-2) 70%, transparent),
+    var(--c-scrim)
+  );
+}
+.menus[hidden] {
+  display: none;
+}
+.menu-card {
+  width: min(45rem, calc(100% - 2rem));
+  max-height: calc(100% - 3rem);
+  overflow-y: auto;
+  padding: var(--sp-5) 1.75rem;
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-2);
+  backdrop-filter: var(--blur);
+  box-shadow: var(--shadow-3);
+}
+.title h1 {
+  margin: 0;
+  font-size: var(--fs-hero);
+  letter-spacing: 0.02em;
+  color: var(--c-accent);
+  text-shadow: 0 0 1.5rem color-mix(in srgb, var(--c-accent) 45%, transparent);
+}
+.title h2 {
+  margin: 0 0 1rem;
+  font-weight: 400;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  font-size: var(--fs-base);
+  color: var(--c-dim);
+}
+.menu-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 0;
+}
+.scenario-list,
+.slot-list {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+button.scenario,
+button.slot {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  padding: 0.75rem 0.875rem;
+}
+button.scenario small,
+button.slot small {
+  color: var(--c-text);
+  opacity: 0.85;
+}
+.career-summary {
+  margin: -0.25rem 0 0.5rem;
+}
+.scenario-list.career button.scenario {
+  position: relative;
+  padding-left: 2.875rem;
+}
+.scenario-list.career .medal {
+  position: absolute;
+  left: 0.75rem;
+  top: 0.75rem;
+  font-size: var(--fs-2xl);
+  line-height: 1;
+}
+.scenario-list.career .medal.none {
+  color: var(--c-dim);
+  font-size: var(--fs-xl);
+  left: 1rem;
+}
+.scenario-list.career .goals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.625rem;
+  font-size: var(--fs-s);
+  color: var(--c-accent);
+}
+.scenario-list.career .goals span::before {
+  content: '◆ ';
+  opacity: 0.6;
+}
+button.scenario.locked {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.medal-big {
+  font-size: 4rem;
+  line-height: 1;
+  text-align: center;
+  filter: drop-shadow(0 0 1.125rem color-mix(in srgb, var(--c-accent) 50%, transparent));
+}
+.menu-card > h1.good,
+.menu-card > h1.bad {
+  text-align: center;
+}
+.end-goals {
+  list-style: none;
+  padding: 0;
+  margin: 0.625rem 0;
+  display: grid;
+  gap: 0.25rem;
+}
+.end-goals li.met {
+  color: var(--c-good-soft);
+}
+.end-goals li:not(.met) {
+  color: var(--c-bad-soft);
+}
+.unlocks {
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--r-2);
+  background: color-mix(in srgb, var(--c-accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c-accent) 40%, transparent);
+}
+.first-lead {
+  max-width: 28.75rem;
+  margin: 0 auto 0.75rem;
+  text-align: center;
+}
+.first-more {
+  margin-top: 0.875rem;
+}
+.first-more > summary {
+  cursor: pointer;
+  text-align: center;
+  color: var(--c-dim);
+}

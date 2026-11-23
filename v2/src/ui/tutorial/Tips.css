@@ -1,0 +1,15 @@
+.tip {
+  max-width: min(32.5rem, 100%);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--c-panel);
+  border: 1px solid color-mix(in srgb, var(--c-accent) 50%, transparent);
+  border-radius: var(--r-2);
+  backdrop-filter: var(--blur);
+  font-size: var(--fs-m);
+}
+.tip[hidden] {
+  display: none;
+}

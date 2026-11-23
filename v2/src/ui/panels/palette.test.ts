@@ -15,8 +15,23 @@ describe('palette tabs', () => {
     expect(byTab.get('tables')).toEqual(
       expect.arrayContaining(['blackjack-table', 'roulette-table', 'craps-table', 'big-six-wheel']),
     );
-    expect(byTab.get('services')).toEqual(['toilet', 'food-stall', 'bar', 'cage']);
-    expect(byTab.get('decor')).toEqual(['plant', 'neon-sign', 'marquee']);
+    expect(byTab.get('services')).toEqual([
+      'toilet',
+      'food-stall',
+      'bar',
+      'cage',
+      'lounge-seating',
+      'atm',
+    ]);
+    expect(byTab.get('decor')).toEqual([
+      'plant',
+      'neon-sign',
+      'marquee',
+      'statue',
+      'fountain',
+      'lamp-post',
+      'stage',
+    ]);
   });
 
   it('every restricted campaign says why, in the player’s words', () => {

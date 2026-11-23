@@ -6,6 +6,7 @@
 // finds or follows a guest. Rows are keyed by id and patched in place, never
 // rebuilt by the poll, so a Find or Follow press always lands.
 
+import './GuestsPanel.css';
 import type { GuestRow, ThoughtLine, ThoughtSummary } from '../../worker/feedback';
 import { button, el, escapeHtml, money } from '../dom';
 

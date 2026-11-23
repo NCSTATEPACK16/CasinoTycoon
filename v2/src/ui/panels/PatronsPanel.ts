@@ -3,6 +3,7 @@
 // comp buttons and a way to find them. Black-tier patrons want looking after;
 // the roster says so, and says who was neglected last time.
 
+import './PatronsPanel.css';
 import type { PatronView } from '../../worker/inspect';
 import { button, el, escapeHtml, money } from '../dom';
 import { compButtons, compStatus, type CompKind } from './comps';

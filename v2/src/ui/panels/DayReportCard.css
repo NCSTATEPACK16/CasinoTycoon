@@ -1,0 +1,63 @@
+.report-card {
+  width: min(45rem, calc(100% - 2rem));
+}
+.report-top {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.125rem, 1fr));
+  gap: 0.625rem;
+  margin: 0.75rem 0;
+}
+.report-top > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0.5rem 0.625rem;
+  background: var(--c-inset);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-2);
+}
+.report-top b {
+  font-size: var(--fs-xl);
+}
+.report-profit b {
+  font-size: var(--fs-2xl);
+}
+.report-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17.5rem, 1fr));
+  gap: 0.375rem 1.5rem;
+}
+.report-grid h4 {
+  margin: 0.375rem 0;
+  color: var(--c-accent);
+  font-size: var(--fs-base);
+}
+.report-pnl td:last-child {
+  text-align: right;
+}
+.report-pnl tr.total td {
+  border-top: 1px solid var(--c-line);
+  font-weight: 600;
+}
+.report-notes > div {
+  margin: 0.25rem 0;
+  font-size: var(--fs-m);
+}
+.report-notes .dim {
+  margin-right: 0.375rem;
+}
+.report-notes ul {
+  margin: 0.375rem 0 0;
+  padding-left: 1.125rem;
+  font-size: var(--fs-m);
+}
+.report-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.report-foot label {
+  margin-right: auto;
+}

@@ -1,7 +1,8 @@
 // Eye-level prompts ("E — Inspect Blackjack Table") plus the crosshair and
 // the mode hint shown while the avatar has the camera.
 
-import './tools.css';
+import './InteractPrompt.css';
+import { regionIn } from '../shell/Shell';
 import type { CameraMode } from '../../camera/CameraDirector';
 
 const HINTS: Record<CameraMode, string> = {
@@ -21,7 +22,9 @@ export class InteractPrompt {
     this.box = div('interact-prompt');
     this.hint = div('mode-hint');
     this.cross = div('crosshair');
-    root.append(this.box, this.hint, this.cross);
+    regionIn(root, 'hint').append(this.box);
+    regionIn(root, 'toast').append(this.hint);
+    regionIn(root, 'overlay').append(this.cross);
   }
 
   set(lines: [key: string, label: string][] | null): void {

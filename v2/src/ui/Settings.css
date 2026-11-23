@@ -1,0 +1,51 @@
+.settings-gear {
+  font-size: var(--fs-l);
+  line-height: 1;
+  padding: 0.5rem 0.625rem;
+}
+
+/* B15f: the content of the Settings window (the window manager draws the
+   frame, the title and the tabs). */
+.settings-panel {
+  display: grid;
+  gap: var(--sp-3);
+}
+.st-group[hidden] {
+  display: none;
+}
+.st-group h4 {
+  margin: 0 0 0.375rem;
+  color: var(--c-accent);
+  font-size: var(--fs-m);
+  font-weight: 600;
+}
+.st-row {
+  display: grid;
+  grid-template-columns: 4.75rem minmax(0, 1fr) 2.625rem;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--fs-m);
+  padding: 0.1875rem 0;
+}
+.st-row input[type='range'] {
+  accent-color: var(--c-accent);
+  width: 100%;
+  min-width: 0;
+}
+.st-row .st-val,
+.st-row .dim {
+  text-align: right;
+  color: var(--c-dim);
+  white-space: nowrap;
+}
+.st-row.st-mute {
+  grid-template-columns: auto 1fr;
+}
+.st-row select {
+  min-width: 0;
+  max-width: 100%;
+}
+.st-row .dim.small {
+  white-space: normal;
+  line-height: 1.15;
+}

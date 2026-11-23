@@ -1,0 +1,14 @@
+.comp-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.25rem;
+}
+.comp-row button small {
+  color: var(--c-accent);
+  margin-left: 0.25rem;
+}
+.comp-row button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

@@ -54,7 +54,82 @@ export const RATING_BALANCE = {
   cleanlinessMax: 15,
   perMessPenalty: 3,
   perBrokenPenalty: 5,
-  signageBonusCap: 10,
+} as const;
+
+// B6: appeal (sim/appeal.ts). Decor and fine floors make nearby cells
+// appealing, 0..cellCap: guests standing there drift happier, games there draw
+// more players, and the floor's mean appeal is the rating's decor term (which
+// replaced the old signage sum and its flat +10 cap).
+//
+// A source gives `strength` on its footprint and falls off linearly to nothing
+// `radius` cells from its edge. Shares at a cell add up, plus the floor's
+// prestige, then saturate (cellCap · (1 − e^(−sum/cellCap))), so a second
+// fountain beside the first adds less. The rating term saturates the same way
+// over the floor's mean: ratingMax · (1 − e^(−mean/ratingScale)). [design guess]
+export const APPEAL_BALANCE = {
+  cellCap: 100,
+  /** Up to about +10 rating for a well-decorated floor. */
+  ratingMax: 10,
+  /** Mean appeal at which the decor term reaches 63% of ratingMax. A floor
+   *  one piece of decor per ~40 cells sits near 6–8; wall-to-wall decor adds
+   *  little past that. */
+  ratingScale: 6,
+  /** Happiness a guest gains per tick standing at appeal cellCap (scaled
+   *  linearly below it): 3 an hour at full appeal, 1 at a typical 33. */
+  happinessPerTickAtCap: 0.06,
+  /** Guests linger where it is pleasant. At full appeal a guest plays on to
+   *  this much past their stop-loss (×1.2), and open play's planned home
+   *  time slides later by this many ticks per tick (a quarter as long again
+   *  at full appeal). Both scale linearly with the appeal where they stand. */
+  lossStretchAtCap: 0.6,
+  lingerTicksPerTickAtCap: 0.25,
+  /** A game on fully appealing cells scores up to this much more with
+   *  guests choosing what to play (0.25 → ×1.25). */
+  gameWeight: 0.25,
+  /** What a floor finish adds to the cells it covers. Carpet and tile are
+   *  the plain default; wood and marble are worth paying for. */
+  floorPrestige: {
+    none: 0,
+    'carpet-red': 0,
+    'carpet-blue': 0,
+    tile: 0,
+    wood: 4,
+    marble: 8,
+  },
+  /** Each source: strength on its footprint, radius in cells. The two games
+   *  that used to carry a ratingBonus (pachinko's noise, bingo's hall) keep a
+   *  small appeal in its place. */
+  items: {
+    plant: { strength: 12, radius: 2.5 },
+    'lamp-post': { strength: 16, radius: 3 },
+    'neon-sign': { strength: 22, radius: 3.5 },
+    marquee: { strength: 32, radius: 4.5 },
+    statue: { strength: 34, radius: 4 },
+    fountain: { strength: 48, radius: 6 },
+    stage: { strength: 24, radius: 5 },
+    pachinko: { strength: 8, radius: 3 },
+    'bingo-hall': { strength: 22, radius: 4 },
+  } as Record<string, { strength: number; radius: number }>,
+} as const;
+
+// B6: lounge seating, a rest stop. Energy runs down about 1 an hour, so a
+// guest a dozen hours into a long night sits a while, gets it all back and
+// leaves the sofa happier. (Guests arrive fresh: drawing a tired arrival
+// would shift every guest's later decisions and re-roll the whole career.)
+// Staff take their breaks here too (restsStaff; STAFF_DEPTH's fatigue rules).
+export const LOUNGE_BALANCE = {
+  /** Energy below which the sofa starts to call. */
+  tiredBelow: 88,
+  restTicks: 40,
+  happinessOnRest: 5,
+} as const;
+
+// B6: the ATM. The cage's top-up without the cashier: smaller, dearer per
+// dollar, always open. Same once-a-session rule and wallet trigger as the
+// cage (CASHIER_BALANCE.walletThreshold); a staffed cage is preferred.
+export const ATM_BALANCE = {
+  advanceAmount: 30,
+  fee: 4,
 } as const;
 
 // Ambient-only staff: no job-queue behavior, just floor presence for a
@@ -509,7 +584,9 @@ export const MESS_BALANCE = {
 export const FOOD_BALANCE = {
   priceFloorFactor: 0.5,
   priceCeilFactor: 6,
-  ripoffMultiplier: 3,
+  // B6: an item is a rip-off past PRICE_BALANCE.ripoffIndex × its default
+  // price (the bar's rule). The old rule (3× cost) already caught the default
+  // soda and fries, so every untouched stall soured those buyers.
   happinessOnRipoff: -6,
 } as const;
 

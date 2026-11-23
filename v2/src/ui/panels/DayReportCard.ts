@@ -4,6 +4,7 @@
 // midnight unless the player turns that off (a per-browser preference), and
 // from the Finances tab at any time. It never pauses the game.
 
+import './DayReportCard.css';
 import type { DayReport } from '../../worker/finance';
 import { button, el, escapeHtml, money, pct } from '../dom';
 

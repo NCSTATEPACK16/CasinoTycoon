@@ -1,5 +1,4 @@
-import './style.css';
-import './ui/ui.css';
+import { Shell } from './ui/shell/Shell';
 import { GameAudio, audio } from './audio';
 import { AmbienceFeed } from './audio/AmbienceFeed';
 import { SimClient } from './client/SimClient';
@@ -9,10 +8,12 @@ import type { PickHit } from './input/Picker';
 import type { SoundName } from './audio/sounds';
 import { Stage } from './render/Stage';
 import { Anim } from './shared/contracts';
+import { Dock } from './ui/dock/Dock';
 import { Hud } from './ui/Hud';
 import { Menus } from './ui/Menus';
 import { Settings } from './ui/Settings';
-import { SidePanel } from './ui/SidePanel';
+import { Desk } from './ui/windows/Desk';
+import { PhoneNotice } from './ui/PhoneNotice';
 import { feltPoint } from './ui/play/feltPoint';
 import { TablePlay } from './ui/TablePlay';
 import { HeatOverlay } from './render/HeatOverlay';
@@ -29,18 +30,25 @@ import { guestPosition, locate } from './ui/panels/locate';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#view')!;
 const ui = document.querySelector<HTMLElement>('#ui')!;
+// B15b: the regions every surface mounts into. Built before the controls,
+// which hand their tool UI the same root.
+const shell = new Shell(ui);
 
 const sim = new SimClient();
 const stage = new Stage(canvas);
 const controls = new PlayerControls({ canvas, ui, stage, sim });
 const { god, build } = controls;
 const hud = new Hud(ui, sim, build);
-const panel = new SidePanel(sim);
 const table = new TablePlay(sim);
 const menus = new Menus(sim);
 const help = new HelpOverlay();
 const report = new DayReportCard();
-ui.append(panel.root, table.root, help.root, report.root, menus.root);
+shell.mount('windows', table.root);
+// B15e: the Manage and inspect windows, in the window layer.
+const panel = new Desk(sim, shell.region('windows'));
+shell.mount('modal', help.root, report.root, menus.root);
+// B15f: narrow or touch-only screens get a "best on a computer" notice.
+shell.mount('modal', new PhoneNotice().root);
 const showReport = () =>
   void sim
     .command<DayReport>({ type: 'dayReport' })
@@ -53,12 +61,16 @@ const tips = new Tips();
 tutorial.watch(sim);
 tutorial.onExit = () => void menus.title();
 hud.mountBelowBar(tutorial.root);
-ui.append(tips.root);
+// B15c: Opening Night's steps own the goal chip while it runs.
+hud.goalSource = () =>
+  tutorial.isActive ? { name: 'Opening Night', count: tutorial.progress } : null;
+hud.onGoals = () => (tutorial.isActive ? tutorial.toggleFolded() : hud.toggleGoals());
+shell.mount('hint', tips.root);
 // B5: the mood/traffic heat map over the floor, and following a guest.
 const heat = new HeatOverlay();
 stage.scene.add(heat.object);
 const heatControl = new HeatControl(sim, heat);
-ui.append(heatControl.root);
+shell.mount('left', heatControl.root);
 // A12: thought bubbles for the hovered/selected guest and in the Mood view.
 const thoughtFeed = new ThoughtFeed(() => sim.command<GuestRow[]>({ type: 'guestList' }), stage.thoughts);
 stage.thoughtFocus = { focus: new Set(), moodView: false };
@@ -67,15 +79,10 @@ const syncThoughts = () => {
   void thoughtFeed.poll();
 };
 thoughtFeed.start();
-{
-  // HeatControl (Track B) has no change hook yet; observe its set() (request in 10-alive-2.md).
-  const setHeat = heatControl.set.bind(heatControl);
-  heatControl.set = (kind) => {
-    setHeat(kind);
-    thoughtFeed.moodView = kind === 'mood';
-    syncThoughts();
-  };
-}
+heatControl.onChange = (kind) => {
+  thoughtFeed.moodView = kind === 'mood';
+  syncThoughts();
+};
 controls.picker.addEventListener('hover', (ev) => {
   const id = (ev as CustomEvent<PickHit>).detail.agentId;
   if (id === thoughtFeed.hovered) return;
@@ -90,15 +97,20 @@ panel.onFollowGuest = (agentId, name) => {
 panel.onReport = showReport;
 controls.onMessage = (t) => hud.say(t);
 const settings = new Settings(audio, stage);
-settings.mount(ui);
+settings.mount(ui, panel.wm);
 audio.unlockOn(window);
 const gameAudio = new GameAudio(audio, sim);
-gameAudio.watchPanels([panel.root, table.root, menus.root, settings.root]);
+gameAudio.watchPanels([table.root, menus.root]);
+panel.wm.onCreate = (root) => gameAudio.watchPanels([root]);
 gameAudio.watchClicks(ui);
 stage.fx.sound = (name, at, delay, rate) => audio.play(name as SoundName, { at, delay, rate });
 const ambience = new AmbienceFeed(audio);
 hud.ticker.onLocate = (at) => {
   if (!locate(at, { sim, controls, stage, panel })) hud.say('Stand up from the table first (F)');
+};
+// A12: a big-win celebration also goes on the news line, click to go there.
+stage.onRenderEvent = (e) => {
+  if (e.type === 'bigWin') hud.bigWin(e);
 };
 
 // ---------- sim → screen ----------
@@ -161,8 +173,21 @@ setInterval(() => {
 
 // ---------- management UI ----------
 
-hud.menu.finances.onclick = () => panel.toggle('finances');
-hud.menu.staff.onclick = () => panel.toggle('staff');
+// B15d: the dock's Manage group opens the management panels.
+const dock = Dock.for(ui);
+for (const [tab, label, key] of [
+  ['finances', 'Finances', 'P'],
+  ['staff', 'Staff', 'H'],
+  ['rating', 'Rating', ''],
+  ['guests', 'Guests', 'G'],
+  ['patrons', 'Club', 'C'],
+  ['prices', 'Prices', ''],
+  ['events', 'Events', ''],
+] as const)
+  dock.addManage(tab, `${label}${key ? ` <small>${key}</small>` : ''}`, label, () =>
+    tab === 'rating' ? hud.onRating() : panel.toggle(tab),
+  );
+panel.onWindows = (open) => dock.markManage(open);
 hud.menu.save.onclick = () => void menus.saveMenu((t) => hud.say(t));
 hud.menu.load.onclick = () => {
   hud.pause();
@@ -176,6 +201,8 @@ hud.onRating = () => {
   panel.toggle('rating');
   tutorial.noteRating();
 };
+hud.onFinances = () => panel.toggle('finances');
+hud.onGuests = () => panel.toggle('guests');
 panel.onMessage = (t) => hud.say(t);
 panel.onLocateGuest = (agentId) => {
   const at = guestPosition(sim.curr, agentId);
@@ -197,6 +224,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyG') panel.toggle('guests');
   if (e.code === 'KeyM') heatControl.toggle('mood');
   if (e.code === 'KeyT') heatControl.toggle('traffic');
+  if (e.code === 'KeyL') heatControl.toggle('appeal');
   if (e.code === 'KeyZ') stage.showZoneOverlay((zonesOn = !zonesOn));
 });
 let zonesOn = false;
@@ -206,7 +234,7 @@ panel.onSell = (id) =>
     .command<number>({ type: 'sell', objectId: id })
     .then((refund) => {
       hud.say(`Sold for $${Math.round(refund).toLocaleString()}`);
-      panel.close();
+      panel.forget(id);
     })
     .catch((err: Error) => hud.say(err.message));
 panel.onClose = () => {
