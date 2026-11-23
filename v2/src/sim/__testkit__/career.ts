@@ -318,6 +318,7 @@ export const CAREER_PLANS: Record<string, CareerPlan> = {
   'the-strip': {
     ladder: ['blackjack-table', 'roulette-table', 'craps-table', 'slot-machine', 'penny-slots'],
     reserve: 1000,
-    decor: { per: 4, items: ['lamp-post', 'plant'] },
+    // B6: a rating goal, so a piece of decor with every game.
+    decor: { per: 1, items: ['lamp-post', 'plant'] },
   },
 };

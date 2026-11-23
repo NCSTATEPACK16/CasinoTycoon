@@ -363,7 +363,11 @@ export const CAREER_SCENARIOS: readonly CampaignDef[] = [
     goals: [
       { kind: 'guests', count: 150 },
       { kind: 'rating', min: 75 },
-      { kind: 'dayProfit', amount: 2500 },
+      // B6: $2500 → $2200. Fair food prices took the top off the best day
+      // (crowd runs that met the other goals peaked at $1,900–2,450). 14 seeds,
+      // decorating as it builds: crowd 11/14, grid 14/14, doing nothing with
+      // every ad booked 0/14.
+      { kind: 'dayProfit', amount: 2200 },
     ],
   },
 ];
