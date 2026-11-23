@@ -22,7 +22,28 @@ export const objectUniforms = {
   uStripRect: { value: new THREE.Vector4() },
   uStripGrid: { value: new THREE.Vector2(1, 1) },
   uSheets: { value: Array.from({ length: 8 }, () => new THREE.Vector4(3, 16, 1, 0)) },
+  // Fountain water (A10): the 'water' tile's rect; SurfaceFlag.Scroll surfaces scroll through it.
+  uWaterRect: { value: new THREE.Vector4() },
+  // Bloom fix (A8): the brightest emissive channel is capped here (linear, pre-ACES).
+  uEmitCap: { value: 1.6 },
 };
+
+/** Water: two copies of the seamless water tile drifting apart, so it ripples. */
+const WATER_FRAGMENT = /* glsl */ `
+  uniform vec4 uWaterRect;
+  vec4 waterTap(vec2 loc, vec2 gx, vec2 gy) {
+    vec2 f = fract(loc);
+    return textureGrad(map, vec2(mix(uWaterRect.x, uWaterRect.z, f.x), mix(uWaterRect.y, uWaterRect.w, f.y)), gx, gy);
+  }
+  vec4 waterColor(vec2 uv) {
+    vec2 size = uWaterRect.zw - uWaterRect.xy;
+    vec2 loc = (uv - uWaterRect.xy) / size * 2.0;
+    vec2 gx = dFdx(uv) * 2.0;
+    vec2 gy = dFdy(uv) * 2.0;
+    vec4 a = waterTap(loc + vec2(uTime * 0.045, uTime * 0.03), gx, gy);
+    vec4 b = waterTap(loc * 1.37 + vec2(-uTime * 0.035, uTime * 0.05), gx * 1.37, gy * 1.37);
+    return vec4(min(a.rgb, b.rgb) * 0.6 + max(a.rgb, b.rgb) * 0.5, 1.0);
+  }`;
 
 /** The reel surfaces' colour: the decal's frame, and inside its window the
  *  instance's reels scrolled through the atlas strips (see fx/reels.ts). */
@@ -143,15 +164,17 @@ function patch(
       '#include <common>',
       `#include <common>
       uniform float uTime;
+      uniform float uEmitCap;
       varying vec4 vPbr;
       varying vec4 vState;
       varying float vChaseX;`,
     )
-    .replace('#include <map_pars_fragment>', `#include <map_pars_fragment>\n${REEL_FRAGMENT}`)
+    .replace('#include <map_pars_fragment>', `#include <map_pars_fragment>\n${REEL_FRAGMENT}\n${WATER_FRAGMENT}`)
     .replace(
       '#include <map_fragment>',
       `#ifdef USE_MAP
-        vec4 sampledDiffuseColor = mod(floor(vPbr.w / 8.0), 2.0) == 1.0 ? reelColor(vMapUv) : texture2D(map, vMapUv);
+        vec4 sampledDiffuseColor = mod(floor(vPbr.w / 8.0), 2.0) == 1.0 ? reelColor(vMapUv)
+          : mod(floor(vPbr.w / 16.0), 2.0) == 1.0 ? waterColor(vMapUv) : texture2D(map, vMapUv);
         diffuseColor *= sampledDiffuseColor;
       #endif`,
     )
@@ -163,7 +186,7 @@ function patch(
       // Broken machines go dull grey; selection/hover lifts the whole asset.
       float lum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(lum * 0.5), vState.y);
-      diffuseColor.rgb += vState.z * 0.12;`,
+      diffuseColor.rgb += mod(vState.z, 2.0) * 0.12;`,
     )
     .replace(
       '#include <emissivemap_fragment>',
@@ -174,10 +197,28 @@ function patch(
         float flash = mod(flags, 2.0) == 1.0 ? exp(-max(0.0, uTime - vState.x) * 1.6) * step(vState.x, uTime) : 0.0;
         // Win flash: a hard strobe that decays, on toppers and bulbs.
         emit *= 1.0 + flash * (2.5 + 2.5 * step(0.5, fract(uTime * 7.0)));
-        if (mod(floor(flags / 4.0), 2.0) == 1.0)
-          emit *= 0.35 + 0.65 * step(0.5, fract(vChaseX * 3.0 - uTime * 2.5));
+        // A12: an empty machine runs its attract lights: the chase bulbs sweep
+        // and the topper breathes. A played machine holds its bulbs steady. Neither
+        // is a win flash: that stays the strobe above, fired only by a real payout.
+        bool idle = floor(vState.z / 2.0 + 0.01) >= 1.0;
+        bool chase = mod(floor(flags / 4.0), 2.0) == 1.0;
+        if (chase && idle)
+          emit *= 0.3 + 0.7 * step(0.55, fract(vChaseX * 2.2 - uTime * 1.6));
+        else if (idle && mod(flags, 2.0) == 1.0)
+          emit *= 0.8 + 0.2 * sin(uTime * 2.1 + vChaseX * 0.7);
         emit *= 1.0 - vState.y * 0.95;
-        totalEmissiveRadiance += diffuseColor.rgb * (emit + reelGlow);
+        // Bloom fix (A8): emitters right in front of the lens read as white-hot
+        // bars, so fade them a little up close, then cap the brightest channel.
+        // The cap keeps the hue (a yellow strip stays yellow under ACES) and
+        // still clears the bloom threshold; a win flash may go past it.
+        emit *= mix(0.55, 1.0, smoothstep(0.8, 4.5, length(vViewPosition)));
+        vec3 glow = diffuseColor.rgb * (emit + reelGlow);
+        float peak = max(max(glow.r, glow.g), glow.b);
+        float cap = uEmitCap * (1.0 + flash * 1.5);
+        totalEmissiveRadiance += glow * min(1.0, cap / max(peak, 1e-4));
+        // A12: a broken machine is dark apart from a blinking red fault light on its bulbs.
+        if (chase && vState.y > 0.9)
+          totalEmissiveRadiance += vec3(1.5, 0.08, 0.04) * step(0.5, fract(uTime * 1.1 + vChaseX * 0.05));
       }`,
     );
 }

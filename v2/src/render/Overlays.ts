@@ -19,6 +19,14 @@ const ZONE_COLORS: Record<(typeof ZONES)[number], number> = {
   backOfHouse: 0x95a5a6,
 };
 
+/** A tool's eased ghost pose: footprint origin (fractional cells), lift and squash. */
+export interface GhostPose {
+  x: number;
+  z: number;
+  lift: number;
+  squash: number;
+}
+
 function hologram(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: { uColor: { value: new THREE.Color(0x2ecc71) }, uTime: { value: 0 } },
@@ -86,7 +94,7 @@ export class Overlays {
   }
 
   /** Show the real asset as a hologram at a cell, or hide with defId = null. */
-  showGhost(defId: string | null, col = 0, row = 0, rot: Rotation = 0, valid = true): void {
+  showGhost(defId: string | null, col = 0, row = 0, rot: Rotation = 0, valid = true, pose?: GhostPose): void {
     if (!defId) {
       this.ghost.visible = this.ghostPad.visible = false;
       return;
@@ -104,10 +112,15 @@ export class Overlays {
     const fw = odd ? h : w;
     const fh = odd ? w : h;
     // Hover lift: the ghost floats a little until it's placed (RCT-style).
-    const lift = 0.08 + Math.sin(this.now * 5) * 0.03;
+    // A tool's eased pose (cell-to-cell glide, hop and landing squash) wins.
+    const lift = pose ? pose.lift : 0.08 + Math.sin(this.now * 5) * 0.03;
+    const gx = pose ? pose.x : col;
+    const gz = pose ? pose.z : row;
+    const sq = pose?.squash ?? 0;
     this.ghost.matrixAutoUpdate = false;
     this.ghost.matrix
-      .makeTranslation(col + fw / 2, lift, row + fh / 2)
+      .makeTranslation(gx + fw / 2, lift, gz + fh / 2)
+      .multiply(new THREE.Matrix4().makeScale(1 + sq * 0.5, 1 - sq, 1 + sq * 0.5))
       .multiply(new THREE.Matrix4().makeRotationY((-rot * Math.PI) / 2))
       .multiply(new THREE.Matrix4().makeTranslation(-w / 2, 0, -h / 2));
     this.ghost.matrixWorldNeedsUpdate = true;

@@ -7,13 +7,14 @@
 // - crowd:  distant walla, growing with the guest count.
 // - murmur: close conversation, the detail you only hear at eye level.
 // - music:  a low lounge bed, louder by the bar and the food court.
+// - fountain: water splashing, only close to a fountain (A10).
 //
 // From the god view the room is quieter and wider: everything drops and a
 // low-pass takes the edge off, as if heard from the gallery. Paused, it all
 // ducks so the sim's stillness reads.
 
-export type Bed = 'slots' | 'crowd' | 'murmur' | 'music';
-export const BEDS: readonly Bed[] = ['slots', 'crowd', 'murmur', 'music'];
+export type Bed = 'slots' | 'crowd' | 'murmur' | 'music' | 'fountain';
+export const BEDS: readonly Bed[] = ['slots', 'crowd', 'murmur', 'music', 'fountain'];
 
 /** The looped file for each bed (public/audio, credits in assets/CREDITS.md). */
 export const BED_FILES: Record<Bed, string> = {
@@ -21,6 +22,7 @@ export const BED_FILES: Record<Bed, string> = {
   crowd: 'amb-crowd',
   murmur: 'amb-murmur',
   music: 'music-lounge',
+  fountain: 'amb-fountain',
 };
 
 /** What is around the ears, distance-weighted (see AmbienceFeed.surroundings). */
@@ -31,6 +33,8 @@ export interface Surroundings {
   tables: number;
   /** The bar, food stalls and food-court floor. */
   lounge: number;
+  /** Fountains within FOUNTAIN_M, weighted by closeness (0 = none, 1 = at the rim). */
+  fountain?: number;
 }
 
 export interface AmbienceInput {
@@ -60,6 +64,15 @@ const CUTOFF_GOD = 2500;
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
+/** A fountain is heard within this distance of the ears (metres), nearer than the room's beds. */
+export const FOUNTAIN_M = 9;
+
+/** Weight of one fountain at distance d: squared falloff, so it swells as you walk up. */
+export function fountainWeight(d: number): number {
+  const t = clamp01(1 - d / FOUNTAIN_M);
+  return t * t;
+}
+
 /** 0 at eye level, 1 in the high god view. */
 export function heightFactor(camY: number): number {
   return clamp01((camY - EYE_Y) / (GOD_Y - EYE_Y));
@@ -85,6 +98,8 @@ export function ambienceMix(i: AmbienceInput): AmbienceMix {
     crowd: 0.7 * dens * (1 + 0.3 * lounge) * level,
     murmur: 0.6 * dens * (1 - h) * (0.6 + 0.8 * lounge) * level,
     music: i.music ? (0.1 + 0.25 * lounge) * level : 0,
+    // Heard up close; from the god view a fountain is a detail, so it fades with height.
+    fountain: 0.55 * clamp01(i.near.fountain ?? 0) * (1 - 0.85 * h) * level,
     cutoff: Math.exp(Math.log(CUTOFF_EYE) + (Math.log(CUTOFF_GOD) - Math.log(CUTOFF_EYE)) * h),
   };
 }

@@ -25,3 +25,6 @@ __pycache__/
 
 # v2 build output
 v2/dist/
+
+# Poly Haven 1k originals (re-downloadable; the 512 px copies in v2/assets/textures/ ship)
+v2/assets/textures/src/

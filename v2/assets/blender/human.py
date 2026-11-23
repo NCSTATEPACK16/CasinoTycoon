@@ -5,7 +5,9 @@
 Writes:
   assets/sources/human.blend      rig + mesh + one action per clip
   assets/models/human.vat.bin     per LOD: uint16 indices, uint8 regions,
-                                  float16 RGBA rows (F position rows, then F normal rows)
+                                  uint8 parts, uint16 RGBA rows (one per frame:
+                                  xyz = position quantised to the LOD's bounds,
+                                  w = octahedral normal, 8 + 8 bits)
   assets/models/human.vat.json    layout + clip table
 
 Each body part is rigidly bound to one bone (chunky stylised parts overlap at
@@ -14,6 +16,12 @@ function per frame, written to the pose bones and keyframed, and the evaluated
 (armature-deformed) mesh is read back for the bake — the VAT is exactly what
 the rig shows. Regions index the outfit palette in src/render/Crowd.ts:
   0 skin  1 hair  2 top  3 bottom  4 shoes  5 accent  6 forearm  7 eyes
+  8 vest/apron  9 mouth  10 hat
+
+Variety (A9) is one superset mesh: every hairstyle, hat, garment and both
+body builds are in it, each vertex tagged with a part id (PARTS below). A
+per-agent bitmask in the shader collapses the parts that agent doesn't wear,
+so all variants share one VAT.
 """
 
 import json
@@ -52,7 +60,18 @@ for side, sx in (('L', 1), ('R', -1)):
     )
 ORDER = list(JOINTS)  # parents precede children by construction
 
-SKIN, HAIR, TOP, BOTTOM, SHOES, ACCENT, FOREARM, EYES = range(8)
+SKIN, HAIR, TOP, BOTTOM, SHOES, ACCENT, FOREARM, EYES, VEST, MOUTH, HAT = range(11)
+NREG = 11
+
+# Part ids. 0 = always drawn; n > 0 is drawn when bit n-1 of the agent's style
+# mask is set. Same table as PART in src/render/Crowd.ts.
+PARTS = [
+    'male', 'female',
+    'hairCap', 'hairLong', 'hairBun', 'hairPony', 'hairCurly',
+    'skirt', 'jacket', 'vestM', 'vestF', 'bowtie', 'tie', 'bibM', 'bibF', 'apron',
+    'fedora', 'cap', 'cowboy',
+]
+P = {name: i + 1 for i, name in enumerate(PARTS)}
 
 
 # ---------- mesh ----------
@@ -106,34 +125,104 @@ def build_body(detail):
     """Returns a joined mesh object; detail 0 = LOD0, 1 = LOD1."""
     seg = 10 if detail == 0 else 6
     sph = (12, 8) if detail == 0 else (7, 5)
-    pieces = []  # (bm, region, joint)
+    pieces = []  # (bm, region, joint, part)
+    lo = detail > 0
 
-    def piece(region, joint, fn):
+    def piece(region, joint, fn, part=0):
         bm = bmesh.new()
         fn(bm)
-        pieces.append((bm, region, joint))
+        pieces.append((bm, region, joint, part))
 
-    # Pelvis / trousers top.
-    piece(BOTTOM, 'root', lambda bm: ring_loft(bm, [(0, 0.005, 0.86, 0.15, 0.1), (0, 0, 0.96, 0.155, 0.105), (0, 0, 1.06, 0.145, 0.1)], seg))
-    # Lower torso and chest (one silhouette, two bones so the spine can bend).
-    piece(TOP, 'spine', lambda bm: ring_loft(bm, [(0, 0, 1.03, 0.148, 0.102), (0, 0, 1.15, 0.15, 0.1), (0, 0, 1.27, 0.16, 0.105)], seg))
+    # Male build: pelvis / trousers top, lower torso and chest (one silhouette,
+    # two bones so the spine can bend).
+    M, F = P['male'], P['female']
+    piece(BOTTOM, 'root', lambda bm: ring_loft(bm, [(0, 0.005, 0.86, 0.15, 0.1), (0, 0, 0.96, 0.155, 0.105), (0, 0, 1.06, 0.145, 0.1)], seg), M)
+    piece(TOP, 'spine', lambda bm: ring_loft(bm, [(0, 0, 1.03, 0.148, 0.102), (0, 0, 1.15, 0.15, 0.1), (0, 0, 1.27, 0.16, 0.105)], seg), M)
     piece(
         TOP,
         'chest',
         lambda bm: ring_loft(
             bm, [(0, 0, 1.25, 0.16, 0.106), (0, -0.005, 1.34, 0.18, 0.115), (0, 0, 1.42, 0.19, 0.105), (0, 0.005, 1.47, 0.12, 0.08)], seg
         ),
+        M,
     )
-    # Tie / bowtie / lapel stripe on the chest front (-Y).
-    piece(ACCENT, 'chest', lambda bm: ring_loft(bm, [(0, -0.112, 1.2, 0.022, 0.008), (0, -0.118, 1.33, 0.026, 0.008), (0, -0.108, 1.44, 0.02, 0.008)], 4))
+    # Female build: fuller hips, a narrow waist, a bust, narrower shoulders.
+    # A real mesh, replacing the old negative-scale squash in the shader.
+    piece(BOTTOM, 'root', lambda bm: ring_loft(bm, [(0, 0.008, 0.85, 0.165, 0.112), (0, 0.004, 0.95, 0.172, 0.115), (0, 0, 1.06, 0.135, 0.095)], seg), F)
+    piece(TOP, 'spine', lambda bm: ring_loft(bm, [(0, 0, 1.03, 0.138, 0.096), (0, 0, 1.13, 0.125, 0.088), (0, 0, 1.27, 0.145, 0.1)], seg), F)
+    piece(
+        TOP,
+        'chest',
+        lambda bm: ring_loft(
+            bm, [(0, 0, 1.25, 0.145, 0.1), (0, -0.008, 1.34, 0.158, 0.11), (0, 0, 1.42, 0.172, 0.1), (0, 0.005, 1.47, 0.11, 0.075)], seg
+        ),
+        F,
+    )
+    for sx in (1, -1):
+        piece(TOP, 'chest', lambda bm, sx=sx: ellipsoid(bm, (0.058 * sx, -0.075, 1.33), (0.058, 0.05, 0.055), *((8, 6) if not lo else (5, 4))), F)
+    # Garments over the torso.
+    # Tie (men's suits) on the chest front (-Y).
+    piece(ACCENT, 'chest', lambda bm: ring_loft(bm, [(0, -0.112, 1.2, 0.022, 0.008), (0, -0.118, 1.33, 0.026, 0.008), (0, -0.108, 1.44, 0.02, 0.008)], 4), P['tie'])
+    # Jacket hem: the coat flares over the trousers' top, both builds.
+    piece(TOP, 'root', lambda bm: ring_loft(bm, [(0, 0, 1.08, 0.16, 0.11), (0, 0.004, 0.95, 0.178, 0.122), (0, 0.008, 0.84, 0.185, 0.128)], seg, cap0=False), P['jacket'])
+    # Waistcoat: a shell over the torso, one per build so it hugs both.
+    for part, (w0, w1, w2, d) in ((P['vestM'], (0.156, 0.168, 0.188, 0.113)), (P['vestF'], (0.145, 0.15, 0.17, 0.124))):
+        piece(VEST, 'spine', lambda bm, w0=w0, w1=w1, d=d: ring_loft(bm, [(0, 0, 1.0, w0, 0.11), (0, 0, 1.15, w1 - 0.012, d - 0.008), (0, 0, 1.27, w1, d)], seg), part)
+        piece(VEST, 'chest', lambda bm, w1=w1, w2=w2, d=d: ring_loft(bm, [(0, 0, 1.25, w1, d), (0, -0.008, 1.34, w2 - 0.004, d + 0.006), (0, 0, 1.4, w2, d - 0.004)], seg), part)
+    # Bow tie at the collar.
+    for sx in (1, -1):
+        piece(ACCENT, 'chest', lambda bm, sx=sx: ellipsoid(bm, (0.022 * sx, -0.084, 1.445), (0.024, 0.012, 0.016), 6, 4), P['bowtie'])
+    # Overall bib and straps (bottom colour), one per build.
+    for part, y in ((P['bibM'], -0.118), (P['bibF'], -0.136)):
+        def bib(bm, y=y):
+            for (x0, x1, z0, z1, yy) in ((-0.1, 0.1, 1.05, 1.3, y), (0.07, 0.1, 1.3, 1.46, y + 0.02), (-0.1, -0.07, 1.3, 1.46, y + 0.02)):
+                out = bmesh.ops.create_cube(bm, size=1.0)
+                for v in out['verts']:
+                    v.co = Vector(((x0 + x1) / 2 + v.co.x * (x1 - x0), yy + v.co.y * 0.012, (z0 + z1) / 2 + v.co.z * (z1 - z0)))
+        piece(BOTTOM, 'chest', bib, part)
+    # Apron: a flat panel from the waist to the knee.
+    def apron(bm):
+        out = bmesh.ops.create_cube(bm, size=1.0)
+        for v in out['verts']:
+            v.co = Vector((v.co.x * 0.3, -0.125 + v.co.y * 0.012, 0.83 + v.co.z * 0.42))
+    piece(VEST, 'root', apron, P['apron'])
+    # Skirt: a short flare at the hips plus a flared tube over each thigh, so it
+    # swings with the legs when walking and lies over the lap when seated.
+    piece(BOTTOM, 'root', lambda bm: ring_loft(bm, [(0, 0, 1.0, 0.16, 0.115), (0, 0.005, 0.9, 0.2, 0.15)], seg, cap0=False), P['skirt'])
     piece(SKIN, 'neck', lambda bm: ring_loft(bm, [(0, 0, 1.44, 0.05, 0.05), (0, 0, 1.56, 0.048, 0.048)], max(5, seg // 2)))
     # Head: big and round for readability from the god cam.
     piece(SKIN, 'head', lambda bm: ellipsoid(bm, (0, -0.01, 1.64), (0.105, 0.112, 0.125), *sph))
     piece(SKIN, 'head', lambda bm: ellipsoid(bm, (0, -0.118, 1.625), (0.018, 0.022, 0.026), 6, 4))  # nose
-    piece(HAIR, 'head', lambda bm: ellipsoid(bm, (0, 0.012, 1.685), (0.112, 0.118, 0.1), *sph))
+    hs = (8, 6) if not lo else (6, 4)
+    hseg = 8 if not lo else 6
+    cap = ((0, 0.012, 1.685), (0.112, 0.118, 0.1))
+    # Hairstyles: a shared cap plus a style's extra mass (none set = bald;
+    # the cap alone = short; curly replaces the cap).
+    piece(HAIR, 'head', lambda bm: ellipsoid(bm, *cap, *sph), P['hairCap'])
+    piece(HAIR, 'head', lambda bm: ellipsoid(bm, (0, 0.045, 1.57), (0.118, 0.075, 0.14), *hs), P['hairLong'])
+    piece(HAIR, 'head', lambda bm: ellipsoid(bm, (0, 0.085, 1.73), (0.055, 0.05, 0.05), *hs), P['hairBun'])
+    piece(HAIR, 'head', lambda bm: limb(bm, (0, 0.115, 1.69), (0, 0.15, 1.47), 0.04, 0.022, 6 if not lo else 4, 3 if not lo else 1), P['hairPony'])
+    piece(HAIR, 'head', lambda bm: ellipsoid(bm, (0, 0.01, 1.675), (0.138, 0.142, 0.122), *((10, 7) if not lo else (7, 5))), P['hairCurly'])
+    # Hats (hat colour).
+    def brim(bm, r, z, lift):
+        # A closed, thin annulus; lift raises the rim (a cowboy hat's curl).
+        ring_loft(bm, [(0, 0.012, z - 0.006, 0.09, 0.095), (0, 0.012, z - 0.006 + lift, r, r), (0, 0.012, z + 0.006 + lift, r, r), (0, 0.012, z + 0.006, 0.09, 0.095)], seg, cap0=False, cap1=False)
+    piece(HAT, 'head', lambda bm: brim(bm, 0.17, 1.735, 0.0), P['fedora'])
+    piece(HAT, 'head', lambda bm: ring_loft(bm, [(0, 0.012, 1.73, 0.105, 0.11), (0, 0.012, 1.8, 0.1, 0.105), (0, 0.012, 1.84, 0.085, 0.09)], hseg, cap0=False), P['fedora'])
+    piece(HAT, 'head', lambda bm: ellipsoid(bm, (0, 0.012, 1.7), (0.118, 0.125, 0.1), *hs), P['cap'])
+    def visor(bm):
+        out = bmesh.ops.create_cube(bm, size=1.0)
+        for v in out['verts']:
+            v.co = Vector((v.co.x * 0.16, -0.14 + v.co.y * 0.09, 1.69 + v.co.z * 0.012 - (0.012 if v.co.y < 0 else 0)))
+    piece(HAT, 'head', visor, P['cap'])
+    piece(HAT, 'head', lambda bm: brim(bm, 0.23, 1.74, 0.035), P['cowboy'])
+    piece(HAT, 'head', lambda bm: ring_loft(bm, [(0, 0.012, 1.73, 0.108, 0.112), (0, 0.012, 1.82, 0.1, 0.1), (0, 0.012, 1.87, 0.075, 0.085)], hseg, cap0=False), P['cowboy'])
     if detail == 0:
+        # A simple face: eyes, brows (hair colour) and a mouth.
         for sx in (1, -1):
             piece(EYES, 'head', lambda bm, sx=sx: ellipsoid(bm, (0.04 * sx, -0.108, 1.655), (0.016, 0.01, 0.02), 6, 4))
+            piece(HAIR, 'head', lambda bm, sx=sx: ellipsoid(bm, (0.042 * sx, -0.109, 1.69), (0.024, 0.007, 0.0065), 6, 3))
+        piece(MOUTH, 'head', lambda bm: ellipsoid(bm, (0, -0.109, 1.584), (0.026, 0.008, 0.0075), 8, 3))
     for side, sx in (('L', 1), ('R', -1)):
         sh = JOINTS[f'shoulder.{side}'][0]
         el = JOINTS[f'elbow.{side}'][0]
@@ -146,6 +235,7 @@ def build_body(detail):
         piece(FOREARM, f'elbow.{side}', lambda bm, a=el, b=wr: limb(bm, a, b, 0.043, 0.035, lseg))
         piece(SKIN, f'wrist.{side}', lambda bm, w=wr: ellipsoid(bm, (w[0], w[1] - 0.005, w[2] - 0.055), (0.03, 0.04, 0.062), 8 if detail == 0 else 5, 5 if detail == 0 else 4))
         piece(BOTTOM, f'hip.{side}', lambda bm, a=hp, b=kn: limb(bm, a, b, 0.078, 0.06, lseg))
+        piece(BOTTOM, f'hip.{side}', lambda bm, a=hp, b=kn, sx=sx: limb(bm, (a[0] + 0.01 * sx, a[1], a[2] - 0.02), (b[0] + 0.03 * sx, b[1], b[2] + 0.12), 0.1, 0.125, lseg, 2), P['skirt'])
         piece(BOTTOM, f'knee.{side}', lambda bm, a=kn, b=an: limb(bm, a, b, 0.058, 0.044, lseg))
 
         def shoe(bm, a=an):
@@ -160,9 +250,12 @@ def build_body(detail):
         piece(SHOES, f'ankle.{side}', shoe)
 
     objs = []
-    mats = [common.mat(f'region_{r}', color=0xFFFFFF) for r in range(8)]
-    for i, (bm, region, joint) in enumerate(pieces):
+    mats = [common.mat(f'region_{r}', color=0xFFFFFF) for r in range(NREG)]
+    for i, (bm, region, joint, part) in enumerate(pieces):
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+        layer = bm.verts.layers.int.new('part')
+        for v in bm.verts:
+            v[layer] = part
         me = bpy.data.meshes.new(f'p{i}')
         bm.to_mesh(me)
         bm.free()
@@ -329,6 +422,53 @@ def pose(clip, t):
         # Right hand rubs the back of the neck.
         p['shoulder.R'] = R(-150, 30)
         p['elbow.R'] = R(-115 + 8 * s)
+    elif clip == 'press':
+        # Slots: seated, left hand on the deck, right hand slapping the spin
+        # button twice a cycle, a glance up at the reels between presses.
+        sit_base(p)
+        p['spine'] = R(8)
+        hit = max(0.0, math.sin(4 * math.pi * t)) ** 3
+        p['head'] = R(4 - 8 * (1 - hit), 6 * s)
+        p['shoulder.L'] = R(-48, -10)
+        p['elbow.L'] = R(-48)
+        p['shoulder.R'] = R(-58 + 10 * hit, 6)
+        p['elbow.R'] = R(-52 + 22 * hit)
+        p['wrist.R'] = R(25 * hit)
+    elif clip == 'chips':
+        # Seated table: reach forward to set a stack of chips on the felt, back
+        # to the rail, a tap of the cards.
+        sit_base(p)
+        reach = max(0.0, math.sin(2 * math.pi * t)) ** 2
+        tap = max(0.0, -math.sin(2 * math.pi * t)) ** 2
+        p['spine'] = R(8 + 6 * reach)
+        p['head'] = R(14)
+        p['shoulder.L'] = R(-40 - 6 * tap, -8)
+        p['elbow.L'] = R(-58 + 10 * tap)
+        p['shoulder.R'] = R(-45 - 30 * reach, 6 + 6 * reach)
+        p['elbow.R'] = R(-55 + 40 * reach)
+        p['wrist.R'] = R(-10 * reach)
+    elif clip == 'spin':
+        # Croupier: lean over the wheel, the right arm sweeping round to spin the
+        # wheel head, the left hand flicking the ball.
+        p['spine'] = R(10)
+        p['chest'] = R(10, 0, 18 * s)
+        p['head'] = R(22, 0, 10 * s)
+        p['shoulder.R'] = R(-60 - 10 * c, 18 + 26 * s)
+        p['elbow.R'] = R(-25 - 15 * max(0.0, s))
+        flick = max(0.0, math.sin(2 * math.pi * t - 1.2)) ** 4
+        p['shoulder.L'] = R(-45 - 20 * flick, -10 - 10 * flick)
+        p['elbow.L'] = R(-50 + 30 * flick)
+        p['wrist.L'] = R(-30 * flick)
+    elif clip == 'clap':
+        # Standing applause: hands meet in front of the chest twice a cycle.
+        clapv = 0.5 + 0.5 * math.cos(4 * math.pi * t)
+        p['root_off'] = (0, 0, 0.01 * clapv)
+        p['chest'] = R(-3)
+        p['head'] = R(-6, 8 * s)
+        for side, k in (('L', 1), ('R', -1)):
+            p[f'shoulder.{side}'] = R(-62, 24 * k * (1 - clapv) - 4 * k)
+            p[f'elbow.{side}'] = R(-70)
+            p[f'wrist.{side}'] = R(0, 0, 0)
     elif clip == 'eat':
         lift = 0.5 - 0.5 * math.cos(2 * math.pi * t)
         lift = lift**2
@@ -340,16 +480,23 @@ def pose(clip, t):
     return p
 
 
-CLIPS = [  # name, seconds, loop — order = Anim ids (Idle..Eat), then 'deal', 'standplay'
-    ('idle', 2.0, True),
-    ('walk', 1.0, True),
-    ('sit', 2.0, True),
-    ('play', 1.5, True),
-    ('cheer', 1.0, True),
-    ('sad', 2.0, True),
-    ('eat', 2.5, True),
-    ('deal', 2.0, True),
-    ('standplay', 2.0, True),
+# name, seconds, loop, bake fps. Order = Anim ids (Idle..Eat), then 'deal',
+# 'standplay', then A9's four. Slow, smooth loops bake at 12 fps (the shader
+# interpolates between frames) to keep the VAT under its 10 MB budget.
+CLIPS = [
+    ('idle', 2.0, True, 12),
+    ('walk', 1.0, True, 20),
+    ('sit', 2.0, True, 12),
+    ('play', 1.5, True, 20),
+    ('cheer', 1.0, True, 20),
+    ('sad', 2.0, True, 12),
+    ('eat', 2.5, True, 12),
+    ('deal', 2.0, True, 12),
+    ('standplay', 2.0, True, 12),
+    ('press', 1.0, True, 20),
+    ('chips', 1.5, True, 12),
+    ('spin', 1.5, True, 12),
+    ('clap', 1.0, True, 20),
 ]
 
 
@@ -393,8 +540,8 @@ def main():
     clip_table = []
     frame = 0
     arm.animation_data_create()
-    for name, secs, loop in CLIPS:
-        n = max(2, round(secs * FPS))
+    for name, secs, loop, fps in CLIPS:
+        n = max(2, round(secs * fps))
         act = bpy.data.actions.new(name)
         act.use_fake_user = True
         arm.animation_data.action = act
@@ -418,13 +565,13 @@ def main():
                 # Blender (x, y, z) with front -Y  →  three (x, z, -y) with front +z.
                 L['pos'].append(np.stack([co[:, 0], co[:, 2], -co[:, 1]], axis=1))
                 L['nrm'].append(np.stack([no[:, 0], no[:, 2], -no[:, 1]], axis=1))
-        clip_table.append({'name': name, 'start': frame, 'frames': n, 'fps': FPS, 'loop': loop})
+        clip_table.append({'name': name, 'start': frame, 'frames': n, 'fps': fps, 'loop': loop})
         frame += n
 
     os.makedirs(common.MODELS, exist_ok=True)
     os.makedirs(common.SOURCES, exist_ok=True)
     blob = bytearray()
-    meta = {'clips': clip_table, 'frames': frame, 'lods': []}
+    meta = {'clips': clip_table, 'frames': frame, 'format': 'u16-oct', 'parts': PARTS, 'lods': []}
     for L in lod_data:
         me = L['obj'].data
         me.calc_loop_triangles()
@@ -437,13 +584,34 @@ def main():
         for poly in me.polygons:
             for vi in poly.vertices:
                 regions[vi] = poly.material_index
+        parts = np.empty(len(me.vertices), dtype=np.int32)
+        me.attributes['part'].data.foreach_get('value', parts)
+        parts = parts.astype(np.uint8)
         pos = np.stack(L['pos'])  # F × V × 3
         nrm = np.stack(L['nrm'])
         F, V = pos.shape[0], pos.shape[1]
-        tex = np.zeros((2 * F, V, 4), dtype=np.float16)
-        tex[:F, :, :3] = pos
-        tex[F:, :, :3] = nrm
-        entry = {'vertexCount': V, 'indexCount': int(idx.size), 'width': V, 'height': 2 * F}
+        # One row per frame: position quantised to 16 bits inside the LOD's
+        # bounds (~0.04 mm steps), normal octahedral-encoded into 8 + 8 bits.
+        lo_b = pos.reshape(-1, 3).min(axis=0) - 1e-4
+        hi_b = pos.reshape(-1, 3).max(axis=0) + 1e-4
+        q = np.round((pos - lo_b) / (hi_b - lo_b) * 65535).clip(0, 65535).astype(np.uint16)
+        n = nrm / np.maximum(np.abs(nrm).sum(axis=2, keepdims=True), 1e-9)
+        ox, oy, oz = n[..., 0], n[..., 1], n[..., 2]
+        wx = np.where(oz >= 0, ox, (1 - np.abs(oy)) * np.sign(ox + 1e-12))
+        wy = np.where(oz >= 0, oy, (1 - np.abs(ox)) * np.sign(oy + 1e-12))
+        u8 = np.round((wx * 0.5 + 0.5) * 255).clip(0, 255).astype(np.uint16)
+        v8 = np.round((wy * 0.5 + 0.5) * 255).clip(0, 255).astype(np.uint16)
+        tex = np.zeros((F, V, 4), dtype=np.uint16)
+        tex[..., :3] = q
+        tex[..., 3] = (u8 << 8) | v8
+        entry = {
+            'vertexCount': V,
+            'indexCount': int(idx.size),
+            'width': V,
+            'height': F,
+            'boundsMin': [float(x) for x in lo_b],
+            'boundsMax': [float(x) for x in hi_b],
+        }
 
         def put(arr, key):
             while len(blob) % 4:
@@ -453,9 +621,10 @@ def main():
 
         put(idx, 'indexOffset')
         put(regions, 'regionOffset')
+        put(parts, 'partOffset')
         put(tex, 'vatOffset')
         meta['lods'].append(entry)
-        print(f"LOD {L['obj'].name}: {V} verts, {idx.size // 3} tris, VAT {V}x{2 * F}")
+        print(f"LOD {L['obj'].name}: {V} verts, {idx.size // 3} tris, VAT {V}x{F}")
     with open(os.path.join(common.MODELS, 'human.vat.bin'), 'wb') as fh:
         fh.write(blob)
     with open(os.path.join(common.MODELS, 'human.vat.json'), 'w') as fh:

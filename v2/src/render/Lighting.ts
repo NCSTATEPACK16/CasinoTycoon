@@ -2,7 +2,10 @@
 // Poly Haven HDRI (dancing_hall, CC0) for image-based light and reflections
 // on brass and glass, a warm key "sun" whose orthographic shadow camera is
 // re-fitted each frame to the ground footprint of the view, and a hemisphere
-// fill. Warm practical light comes from emissive surfaces plus bloom.
+// fill. Warm practical light comes from emissive surfaces plus bloom, the
+// baked light pools and, on High, real point lights (Practicals.ts, A8).
+// Evening mood (A8): the key and fill are dimmed and warmed so the casino's
+// own fixtures, not the sky, read as what lights the room.
 
 import * as THREE from 'three';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
@@ -37,15 +40,15 @@ export class Lighting {
   ) {
     scene.background = new THREE.Color(0x0c0912);
     scene.fog = new THREE.Fog(0x0c0912, 90, 220);
-    this.hemi = new THREE.HemisphereLight(0xffe9cc, 0x40263a, 0.55);
-    this.sun = new THREE.DirectionalLight(0xfff0d8, 2.3);
+    this.hemi = new THREE.HemisphereLight(0xffdcb0, 0x3a1e30, 0.26);
+    this.sun = new THREE.DirectionalLight(0xffd6a0, 1.1);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(4096, 4096);
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.03;
     this.sun.shadow.radius = 3;
     scene.add(this.hemi, this.sun, this.sun.target);
-    scene.environmentIntensity = 0.45;
+    scene.environmentIntensity = 0.3;
     const pmrem = new THREE.PMREMGenerator(renderer);
     new HDRLoader().load(hdrUrl, (tex) => {
       tex.mapping = THREE.EquirectangularReflectionMapping;

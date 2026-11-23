@@ -29,6 +29,14 @@ const STAFF_KIND: Record<string, AgentKind> = {
   janitor: AgentKind.Janitor,
   security: AgentKind.Security,
 };
+/** Which uniform a generic staff member wears (A9): the agent's variant slot. */
+const STAFF_VARIANT: Record<string, number> = {
+  bartender: 1,
+  waitress: 2,
+  cashier: 3,
+  pitBoss: 4,
+  mechanic: 5,
+};
 
 function occupants(m: CasinoGame | undefined): number {
   if (!m) return 0;
@@ -93,7 +101,7 @@ export class SnapshotBuilder {
       if (s.state === 'carried' || s.state === 'off') continue;
       const p = s.renderPose();
       const kind = STAFF_KIND[s.kind] ?? AgentKind.Staff;
-      this.write(i++, p.x, p.z, p.heading, s.anim, kind, 0, 1, idNum(s.id));
+      this.write(i++, p.x, p.z, p.heading, s.anim, kind, STAFF_VARIANT[s.kind] ?? 0, 1, idNum(s.id));
     }
 
     const snap: Snapshot = {

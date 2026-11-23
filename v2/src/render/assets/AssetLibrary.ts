@@ -8,6 +8,7 @@
 //   material '<name>[__flash][__chase][__variant]'  or  'decal_<key>[__…]'
 //   COLOR_0 = baked ambient occlusion (grey)
 //   empties 'seat_<n>' = where a player sits/stands (logged for catalog.ts)
+//   empties 'light_<n>' = a practical light, extras { color, radius } (decor.py)
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -18,6 +19,7 @@ import { DecalAtlas } from './Atlas';
 import { GeoBuilder } from './GeoBuilder';
 import { REEL_DECALS, SurfaceFlag, type Surface } from './Palette';
 import { buildProcedural, type Lod } from './procedural';
+import { DECOR_FOOTPRINTS } from './decor';
 
 const GLB_URLS = import.meta.glob('../../../assets/models/*.glb', {
   query: '?url',
@@ -45,8 +47,18 @@ export interface Asset {
   final: boolean;
   /** Seat empties read from the GLB, cell-local metres. */
   seats: { x: number; z: number; facing: number }[];
+  /** Practical lights (light_<n> empties), cell-local metres; colour sRGB hex. For A8. */
+  lights: AssetLight[];
   /** Bumped when lods are replaced, so pools know to swap geometry. */
   version: number;
+}
+
+export interface AssetLight {
+  x: number;
+  y: number;
+  z: number;
+  color: number;
+  radius: number;
 }
 
 export class AssetLibrary {
@@ -55,6 +67,10 @@ export class AssetLibrary {
   private loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
   /** Fired when a GLB finishes and replaces a stand-in. */
   onUpdate: (asset: Asset) => void = () => {};
+
+  constructor() {
+    if (typeof document !== 'undefined') void this.atlas.loadImages();
+  }
 
   /** Synchronous: returns the asset now (stand-in if the GLB is pending). */
   get(key: string): Asset {
@@ -73,6 +89,7 @@ export class AssetLibrary {
       variantRows: 1,
       final: procedural || !url,
       seats: [],
+      lights: [],
       version: 0,
     };
     if (key === 'proc:neon') this.useVariant(a, 'neonWords');
@@ -116,7 +133,20 @@ export class AssetLibrary {
     root.updateMatrixWorld(true);
     const builders = [0, 1, 2].map(() => new GeoBuilder(this.atlas));
     const seats: Asset['seats'] = [];
+    const lights: AssetLight[] = [];
     root.traverse((o) => {
+      if (/^light_\d+/.test(o.name) && !(o as THREE.Mesh).isMesh) {
+        const p = new THREE.Vector3().setFromMatrixPosition(o.matrixWorld);
+        const ud = o.userData as { color?: number; radius?: number };
+        lights.push({
+          x: round(p.x),
+          y: round(p.y),
+          z: round(p.z),
+          color: ud.color ?? 0xffe2b0,
+          radius: ud.radius ?? 4,
+        });
+        return;
+      }
       const seat = /^seat_?\d*/i.exec(o.name);
       if (seat && !(o as THREE.Mesh).isMesh) {
         const p = new THREE.Vector3().setFromMatrixPosition(o.matrixWorld);
@@ -156,6 +186,7 @@ export class AssetLibrary {
     });
     if (builders[0]!.empty) return null;
     a.seats = seats;
+    a.lights = lights;
     const l0 = builders[0]!.build();
     const l1 = builders[1]!.empty ? l0 : builders[1]!.build();
     const l2 = builders[2]!.empty ? l1 : builders[2]!.build();
@@ -188,6 +219,7 @@ function surfaceOf(m: THREE.MeshStandardMaterial): Surface {
   if (name.includes('__flash')) flags |= SurfaceFlag.Flash;
   if (name.includes('__chase')) flags |= SurfaceFlag.Chase;
   if (name.includes('__variant')) flags |= SurfaceFlag.Variant;
+  if (name.includes('__scroll')) flags |= SurfaceFlag.Scroll;
   const decal = /^decal_([A-Za-z0-9]+)/.exec(name)?.[1];
   const e = m.emissive ?? new THREE.Color(0);
   const emit = Math.max(e.r, e.g, e.b) * (m.emissiveIntensity ?? 1);
@@ -209,7 +241,9 @@ function footprintFor(key: string): { w: number; h: number; height: number; colo
   for (const [defId, d3] of Object.entries(OBJECT_3D)) {
     if (d3.asset !== key) continue;
     const def = getObjectDef(defId);
-    return { w: def?.footprint.w ?? 1, h: def?.footprint.h ?? 1, height: d3.height, color: d3.color };
+    // Decor art can land before Track B's defs (B6): fall back to the agreed footprint.
+    const fp = def?.footprint ?? DECOR_FOOTPRINTS[defId] ?? { w: 1, h: 1 };
+    return { w: fp.w, h: fp.h, height: d3.height, color: d3.color };
   }
   return { w: 1, h: 1, height: 1, color: 0x888888 };
 }

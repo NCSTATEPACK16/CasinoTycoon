@@ -256,14 +256,14 @@ export const OBJECT_3D: Record<string, Object3DDef> = {
   plant: { asset: 'proc:plant', height: 1.4, color: 0x27ae60, zones: [] },
   'neon-sign': { asset: 'proc:neon', height: 2.2, color: 0xff2e88, zones: [], glow: 0xff2e88 },
   marquee: { asset: 'proc:marquee', height: 3.0, color: 0xf4d03f, zones: [], glow: 0xffe08a },
-  // B6's pre-agreed decor. Track A's A10 art (origin/v2-alive-2) has these
-  // heights, colours, glows and seats; until it merges they draw as boxes.
-  // On merge keep A's asset/height/color/glow/seats and B's zones.
-  statue: { asset: 'proc:box', height: 2.6, color: 0x8a5a2e, zones: [] },
-  fountain: { asset: 'proc:box', height: 2.1, color: 0x6fc3d6, zones: [] },
-  'lamp-post': { asset: 'proc:box', height: 3.1, color: 0xd9a441, zones: [], glow: 0xffd9a0 },
+  // Pre-agreed decor (NEXT-SESSION.md): Track A's art (A10, assets/blender/decor.py).
+  // Track B adds the data/objects.ts defs and owns `zones` (B6); on merge keep these
+  // asset/height/color/glow/seats and B's zones.
+  statue: { asset: 'statue', height: 2.6, color: 0x8a5a2e, zones: [] },
+  fountain: { asset: 'fountain', height: 2.1, color: 0x6fc3d6, zones: [] },
+  'lamp-post': { asset: 'lamp-post', height: 3.1, color: 0xd9a441, zones: [], glow: 0xffd9a0 },
   'lounge-seating': {
-    asset: 'proc:box',
+    asset: 'lounge-seating',
     height: 0.9,
     color: 0x7d0c22,
     zones: [],
@@ -273,14 +273,14 @@ export const OBJECT_3D: Record<string, Object3DDef> = {
     ],
   },
   atm: {
-    asset: 'proc:box',
+    asset: 'atm',
     height: 1.7,
     color: 0x3a3f4b,
     zones: [],
     glow: 0x7fd8ff,
     seats: [{ x: 0.5, z: 1.12, facing: Math.PI }],
   },
-  stage: { asset: 'proc:box', height: 3.3, color: 0x6b3a1e, zones: [], glow: 0xffe7b8 },
+  stage: { asset: 'stage', height: 3.3, color: 0x6b3a1e, zones: [], glow: 0xffe7b8 },
 };
 
 export function get3D(defId: string): Object3DDef {

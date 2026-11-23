@@ -41,3 +41,20 @@ freesound page was checked and states "Creative Commons 0".
 | `sfx-coin-hopper` | slot machine payout | jack126guy | https://freesound.org/people/jack126guy/sounds/361346/ | CC0 | mono |
 | `sfx-bell` | bell ding 1 | 5ro4 | https://freesound.org/people/5ro4/sounds/611113/ | CC0 | mono |
 | `sfx-bigsix-spin` | prize wheel | tony_bear | https://freesound.org/people/tony_bear/sounds/274007/ | CC0 | one spin, 4.2–9.7 s, 0.3 s fade-out, mono |
+
+## Textures (`v2/assets/textures/`)
+
+### Track A part 2 batch (downloaded 2026-11-04, approved by the user)
+
+Poly Haven texture sets, licence CC0. The 1k JPG diffuse, normal (OpenGL) and roughness maps were
+downloaded to `v2/assets/textures/src/` (git-ignored; re-downloadable from each page) and resized
+to 512 px JPEG (quality 82) with `sips`; only the 512 px copies ship. Files are named
+`<id>_{diff,nor_gl,rough}_512.jpg`.
+
+| Set | Author | Source | Licence | Used for |
+|---|---|---|---|---|
+| `marble_01` | Rob Tuytel | https://polyhaven.com/a/marble_01 | CC0 | statue plinth, ATM trim, stage front |
+| `velour_velvet` | colormass, Rico Cilliers | https://polyhaven.com/a/velour_velvet | CC0 | lounge sofa, stage curtain |
+| `clean_asphalt` | Dimitrios Savva | https://polyhaven.com/a/clean_asphalt | CC0 | street (A11) |
+| `concrete_pavers` | Amal Kumar | https://polyhaven.com/a/concrete_pavers | CC0 | sidewalk (A11) |
+| `beige_wall_001` | Dimitrios Savva, Rico Cilliers | https://polyhaven.com/a/beige_wall_001 | CC0 | facade (A11) |
