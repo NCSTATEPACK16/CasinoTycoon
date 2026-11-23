@@ -6,7 +6,6 @@
 
 import * as THREE from 'three';
 import { getObjectDef } from '../../data/objects';
-import { get3D } from '../../shared/catalog';
 import type { Rotation } from '../../shared/contracts';
 import { money } from '../../ui/tools/CursorTag';
 import type { PickHit } from '../Picker';
@@ -24,8 +23,6 @@ const REASONS: Record<string, string> = {
 };
 const HOVER_Y = 0.1;
 const LIFT_Y = 0.35;
-const OK = 0x2ecc71;
-const BAD = 0xe74c3c;
 
 export class PlaceTool implements Tool {
   readonly id = 'place';
@@ -58,12 +55,11 @@ export class PlaceTool implements Tool {
 
   activate(): void {
     this.shown = false;
-    this.ctx.stage.ghost.visible = false;
+    this.ctx.stage.showGhost(null);
   }
 
   deactivate(): void {
-    this.ctx.stage.ghost.visible = false;
-    this.ctx.stage.ghost.scale.set(1, 1, 1);
+    this.ctx.stage.showGhost(null);
     this.ctx.tag.hide();
     this.row = null;
   }
@@ -73,7 +69,7 @@ export class PlaceTool implements Tool {
     else if (hit.point) this.lastClient = { x: hit.clientX, y: hit.clientY };
     if (!hit.point) {
       this.cell = null;
-      this.ctx.stage.ghost.visible = false;
+      this.ctx.stage.showGhost(null);
       this.ctx.tag.hide();
       return;
     }
@@ -111,10 +107,7 @@ export class PlaceTool implements Tool {
   }
 
   update(dt: number): void {
-    const g = this.ctx.stage.ghost;
     if (!this.cell) return;
-    const { w, h } = this.size;
-    const d3 = get3D(this.defId);
     if (!this.shown) {
       // First appearance: start at the target, no slide in from the origin.
       this.pos.set(this.cell.col, 0, this.cell.row);
@@ -123,19 +116,15 @@ export class PlaceTool implements Tool {
     this.pos.lerp(new THREE.Vector3(this.cell.col, 0, this.cell.row), dampFactor(28, dt));
     this.lift = damp(this.lift, HOVER_Y, 9, dt);
     this.squash = damp(this.squash, 0, 14, dt);
-    g.visible = true;
-    g.position.set(this.pos.x, this.lift, this.pos.z);
-    // The placeholder ghost is a unit box anchored at its min corner; Session 1's
-    // ghost reads defId/rot from userData to swap in the model.
-    g.scale.set(
-      w * (1 + this.squash * 0.5),
-      d3.height * (1 - this.squash),
-      h * (1 + this.squash * 0.5),
-    );
-    g.userData.defId = this.defId;
-    g.userData.rot = this.rot;
-    const mat = (g as THREE.Mesh).material as THREE.MeshBasicMaterial | undefined;
-    mat?.color?.setHex(this.check === null || this.check.ok ? OK : BAD);
+    // A11: the real asset as a hologram (Overlays), tinted by the sim's
+    // canPlace, gliding and hopping with the eased pose above.
+    const ok = this.check === null || this.check.ok;
+    this.ctx.stage.showGhost(this.defId, this.cell.col, this.cell.row, this.rot, ok, {
+      x: this.pos.x,
+      z: this.pos.z,
+      lift: this.lift,
+      squash: this.squash,
+    });
   }
 
   private moveTo(origin: Cell): void {

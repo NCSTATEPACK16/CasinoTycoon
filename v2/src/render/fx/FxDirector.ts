@@ -83,6 +83,8 @@ export class FxDirector {
   /** Sim speed, from the HUD: spins run shorter at 2× and 4×. */
   speed = 1;
   sound: FxSound = () => {};
+  /** A big win was revealed (A12): Stage starts the beacon, confetti and cheers. */
+  onBigWin: (objectId: string, fx: RoundFx, at: { x: number; y: number; z: number }) => void = () => {};
   /** Rounds shown, per kind; read by playtests. */
   readonly stats = { shown: {} as Record<string, number>, dropped: 0, revealed: 0 };
   /** The round each object is showing (or last showed); read by playtests. */
@@ -414,6 +416,7 @@ export class FxDirector {
       if (big) {
         this.sound('jackpot', at);
         this.sound('hopper', at, 0.25);
+        this.onBigWin(id, fx, at);
       } else this.sound(fx.returned > fx.wagered ? 'bell' : 'coin', at);
     });
   }

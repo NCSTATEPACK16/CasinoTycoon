@@ -18,6 +18,7 @@ import type { Avatar } from '../input/avatar/Avatar';
 import { AVATAR_HEIGHT } from '../input/avatar/collision';
 import { damp, hermite, smootherstep } from './blend';
 import { GOD_FOV, type GodCamera } from './GodCamera';
+import { armAllowance } from './arm';
 
 export type CameraMode = 'god' | 'third' | 'first' | 'seat';
 
@@ -50,7 +51,6 @@ const SEAT_SIDE = 0.38;
 const SEAT_AIM = 0.6;
 const SEAT_PAN = 0.25;
 const ARM_LENGTH = 3.4;
-const ARM_MIN = 0.7;
 const ARM_PIVOT_Y = 1.5;
 const ARM_CLEARANCE = 0.25;
 const LOOK_SENS = 0.0022;
@@ -292,17 +292,7 @@ export class CameraDirector {
         const dz = Math.cos(this.armYaw);
         // Spring arm: pull in at once when a wall comes between camera and
         // avatar, ease back out when it clears.
-        const free = a.collision.raycastWalls(
-          a.pos.x,
-          a.pos.z,
-          dx,
-          dz,
-          ARM_LENGTH * cp + ARM_CLEARANCE,
-        );
-        const allowed = Math.max(
-          ARM_MIN,
-          Math.min(ARM_LENGTH, (free - ARM_CLEARANCE) / Math.max(cp, 0.2)),
-        );
+        const allowed = armAllowance(a.collision, a.pos.x, a.pos.z, dx, dz, ARM_LENGTH, cp, ARM_CLEARANCE);
         this.armLen = allowed < this.armLen ? allowed : damp(this.armLen, allowed, 3, dt);
         const pivotY = ARM_PIVOT_Y;
         out.position.set(

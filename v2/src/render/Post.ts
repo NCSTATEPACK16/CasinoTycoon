@@ -70,7 +70,10 @@ export class Post {
   setQuality(q: Quality): void {
     // SSAO only on High; Medium/Low rely on the AO baked into the assets.
     this.ao.enabled = q === 'high';
+    // Low: a quarter-resolution, four-level bloom (A8); the glow is shorter but
+    // the bulbs and neon still halo. High/Medium keep half resolution, 8 levels.
     this.bloom.mipmapBlurPass.levels = q === 'low' ? 4 : 8;
+    this.bloom.resolution.scale = q === 'low' ? 0.25 : 0.5;
   }
 
   setSize(w: number, h: number): void {
