@@ -13,7 +13,7 @@ Branch: `v2-tycoon-3` (shared with B15; no separate `v2-decor` branch). Shared r
 
 ## Task
 
-- [ ] **B6. Decor and amenities with real effects.**
+- [x] **B6. Decor and amenities with real effects.** Done 2026-11-23; evidence in [11-ui-b15.md](11-ui-b15.md).
   - **An appeal-radius system.** Decor raises nearby guests' happiness and nearby games' appeal, with diminishing returns (a second fountain next to the first adds less). Put the maths in one pure module under `src/data/` or `src/sim/`, with the radius, falloff and cap as named constants in `data/balance.ts`.
   - **Floor types gain prestige** (marble and wood count for more than tile; the effect is on the guests standing on or walking across them and on the rating's decor/"signage" terms, your call, but it must show in the Rating tab).
   - **The six pre-agreed items** (footprints, prices and effect sizes are yours; the footprints below are fixed so Track A's art meets them):
