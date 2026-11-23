@@ -221,8 +221,12 @@ export const CAREER_SCENARIOS: readonly CampaignDef[] = [
     traffic: OPEN_TRAFFIC,
     staffDepth: true,
     medals: { gold: 4, silver: 6 },
+    // B6: 50 → 45 at once. Decor's appeal term replaced the signage sum, so
+    // the rating climbs with what's on the floor, and a small bowling-alley lot
+    // that spends on decor seats fewer guests. 14 seeds, decorating as it
+    // builds: crowd 12/14, grid 13/14, doing nothing 0/14.
     goals: [
-      { kind: 'guests', count: 50 },
+      { kind: 'guests', count: 45 },
       { kind: 'rating', min: 70 },
     ],
   },

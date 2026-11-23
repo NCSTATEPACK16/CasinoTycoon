@@ -276,7 +276,8 @@ export const CAREER_PLANS: Record<string, CareerPlan> = {
   'lucky-strike': {
     ladder: ['blackjack-table', 'slot-machine', 'roulette-table', 'penny-slots'],
     reserve: 300,
-    decor: { per: 4, items: ['lamp-post', 'plant'] },
+    // B6: a rating goal, so a piece of decor with every game (not every fourth).
+    decor: { per: 1, items: ['lamp-post', 'plant'] },
   },
   'velvet-rope': {
     ladder: ['blackjack-table', 'roulette-table', 'craps-table', 'slot-machine'],
