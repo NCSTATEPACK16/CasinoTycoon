@@ -3,8 +3,9 @@
 // no slot. B15f: the settings are a window (Sound, Graphics, Interface tabs)
 // that the window manager places, drags and pins like the others. Volumes
 // persist through the audio engine; the tier and the UI scale persist here.
-// The graphics row is a placeholder for Track A's A8 (Auto/High/Low, Auto
-// starting at stage.suggestedQuality()), which lands through origin/v2.1.
+// The graphics choice is A8's Auto / High / Low: Auto starts at the tier the
+// stage suggests for this GPU and may shed one when frames run long; High and
+// Low stay put. Medium is a tier Auto can reach, not a choice in the menu.
 
 import './Settings.css';
 import type { AudioEngine } from '../audio/AudioEngine';
@@ -23,18 +24,18 @@ import {
   saveUiScale,
 } from './shell/uiScale';
 
-export type QualityChoice = 'auto' | Quality;
+export type QualityChoice = 'auto' | 'high' | 'low';
 export const QUALITY_KEY = 'v2-graphics-quality';
 const CHOICES: { value: QualityChoice; label: string }[] = [
   { value: 'auto', label: 'Auto' },
   { value: 'high', label: 'High' },
-  { value: 'medium', label: 'Medium' },
   { value: 'low', label: 'Low' },
 ];
 
 export function loadQualityChoice(storage: Pick<Storage, 'getItem'> | null): QualityChoice {
   try {
     const v = storage?.getItem(QUALITY_KEY);
+    // A stored 'medium' (the old menu) reads as Auto.
     if (CHOICES.some((c) => c.value === v)) return v as QualityChoice;
   } catch {
     // Storage blocked: fall through to Auto.
@@ -53,13 +54,14 @@ export function saveQualityChoice(
   }
 }
 
-/** Auto starts at High and sheds tiers when frames run long; a fixed tier stays put. */
+/** Auto starts at the stage's suggested tier and sheds tiers when frames run
+ *  long; a fixed tier stays put. */
 export function applyQuality(
-  stage: Pick<Stage, 'setQuality' | 'dynamicResolution'>,
+  stage: Pick<Stage, 'setQuality' | 'dynamicResolution' | 'suggestedQuality'>,
   q: QualityChoice,
 ): void {
   stage.dynamicResolution = q === 'auto';
-  stage.setQuality(q === 'auto' ? 'high' : q);
+  stage.setQuality(q === 'auto' ? stage.suggestedQuality() : q);
 }
 
 function storage(): Storage | null {

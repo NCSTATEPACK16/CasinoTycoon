@@ -79,15 +79,10 @@ const syncThoughts = () => {
   void thoughtFeed.poll();
 };
 thoughtFeed.start();
-{
-  // HeatControl (Track B) has no change hook yet; observe its set() (request in 10-alive-2.md).
-  const setHeat = heatControl.set.bind(heatControl);
-  heatControl.set = (kind) => {
-    setHeat(kind);
-    thoughtFeed.moodView = kind === 'mood';
-    syncThoughts();
-  };
-}
+heatControl.onChange = (kind) => {
+  thoughtFeed.moodView = kind === 'mood';
+  syncThoughts();
+};
 controls.picker.addEventListener('hover', (ev) => {
   const id = (ev as CustomEvent<PickHit>).detail.agentId;
   if (id === thoughtFeed.hovered) return;
@@ -112,6 +107,10 @@ stage.fx.sound = (name, at, delay, rate) => audio.play(name as SoundName, { at, 
 const ambience = new AmbienceFeed(audio);
 hud.ticker.onLocate = (at) => {
   if (!locate(at, { sim, controls, stage, panel })) hud.say('Stand up from the table first (F)');
+};
+// A12: a big-win celebration also goes on the news line, click to go there.
+stage.onRenderEvent = (e) => {
+  if (e.type === 'bigWin') hud.bigWin(e);
 };
 
 // ---------- sim → screen ----------

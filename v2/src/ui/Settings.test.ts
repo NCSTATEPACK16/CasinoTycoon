@@ -9,9 +9,12 @@ describe('graphics quality choice', () => {
       setItem: (k: string, v: string) => void m.set(k, v),
     };
     expect(loadQualityChoice(st)).toBe('auto');
-    saveQualityChoice(st, 'medium');
-    expect(m.get(QUALITY_KEY)).toBe('medium');
-    expect(loadQualityChoice(st)).toBe('medium');
+    saveQualityChoice(st, 'low');
+    expect(m.get(QUALITY_KEY)).toBe('low');
+    expect(loadQualityChoice(st)).toBe('low');
+    // The old menu's Medium reads as Auto (A8: Auto / High / Low).
+    m.set(QUALITY_KEY, 'medium');
+    expect(loadQualityChoice(st)).toBe('auto');
     m.set(QUALITY_KEY, 'ultra');
     expect(loadQualityChoice(st)).toBe('auto');
   });
@@ -30,13 +33,22 @@ describe('graphics quality choice', () => {
     expect(loadQualityChoice(null)).toBe('auto');
   });
 
-  it('Auto starts High with stepping on; a fixed tier turns stepping off', () => {
+  it('Auto starts at the suggested tier with stepping on; a fixed tier turns stepping off', () => {
     const calls: string[] = [];
-    const stage = { dynamicResolution: false, setQuality: (q: string) => void calls.push(q) };
+    let suggested: 'high' | 'low' = 'low';
+    const stage = {
+      dynamicResolution: false,
+      setQuality: (q: string) => void calls.push(q),
+      suggestedQuality: () => suggested,
+    };
     applyQuality(stage, 'auto');
     expect(stage.dynamicResolution).toBe(true);
+    suggested = 'high';
+    applyQuality(stage, 'auto');
     applyQuality(stage, 'low');
     expect(stage.dynamicResolution).toBe(false);
-    expect(calls).toEqual(['high', 'low']);
+    applyQuality(stage, 'high');
+    expect(stage.dynamicResolution).toBe(false);
+    expect(calls).toEqual(['low', 'high', 'low', 'high']);
   });
 });

@@ -17,7 +17,8 @@ import { Dock } from './dock/Dock';
 import { ConditionsBanner } from './panels/ConditionsBanner';
 import { GoalPanel } from './panels/GoalPanel';
 import { Palette } from './panels/Palette';
-import { Ticker } from './panels/Ticker';
+import type { BigWinEvent } from '../render/fx/Celebrations';
+import { Ticker, bigWinTicker } from './panels/Ticker';
 import { regionIn } from './shell/Shell';
 
 const money = (n: number) => `${n < 0 ? '-' : ''}$${Math.abs(Math.round(n)).toLocaleString()}`;
@@ -261,6 +262,11 @@ export class Hud {
 
   events(evs: SimEvent[]): void {
     for (const e of evs) if (e.type === 'ticker') this.ticker.add(e, this.day, this.hour);
+  }
+
+  /** A12: a celebration the renderer played goes on the news line too. */
+  bigWin(e: BigWinEvent): void {
+    this.ticker.add(bigWinTicker(e), this.day, this.hour);
   }
 
   say(text: string): void {

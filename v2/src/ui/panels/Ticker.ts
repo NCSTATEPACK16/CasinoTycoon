@@ -5,6 +5,8 @@
 // somewhere takes the camera there instead.
 
 import './Ticker.css';
+import { getObjectDef } from '../../data/objects';
+import type { BigWinEvent } from '../../render/fx/Celebrations';
 import type { SimEvent } from '../../shared/contracts';
 import { button, el, escapeHtml } from '../dom';
 import { NewsQueue, type NewsItem, type NewsPlace } from './newsQueue';
@@ -145,6 +147,21 @@ export class Ticker {
       this.list.append(li);
     }
   }
+}
+
+/** A12's big win as a news line: "Big win! $2,500 on a Slot Machine". It
+ *  happened somewhere, so a click takes the camera there. */
+export function bigWinTicker(e: BigWinEvent): TickerEvent {
+  const name = getObjectDef(e.defId)?.name;
+  const amount = `$${Math.round(e.amount).toLocaleString('en-US')}`;
+  return {
+    type: 'ticker',
+    text: name ? `Big win! ${amount} on a ${name}` : `Big win! ${amount}`,
+    severity: 'info',
+    x: e.x,
+    z: e.z,
+    objectId: e.objectId,
+  };
 }
 
 function place(e: TickerEvent): NewsPlace {

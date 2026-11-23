@@ -59,6 +59,11 @@ export class PlaceTool implements Tool {
   }
 
   deactivate(): void {
+    // B16: forget the cell and void any canPlace still in flight, or its
+    // answer would land after Escape and put the price tag (and, via update,
+    // the ghost) back on screen.
+    this.cell = null;
+    this.seq++;
     this.ctx.stage.showGhost(null);
     this.ctx.tag.hide();
     this.row = null;

@@ -52,6 +52,9 @@ export class HeatControl {
   private timer = 0;
   private buttons = new Map<HeatKind, HTMLButtonElement>();
   private legend = el('div', 'heat-legend');
+  /** Fired from set() whenever the view changes (null: off). A12's thought
+   *  bubbles listen for the Mood view. */
+  onChange: (kind: HeatKind | null) => void = () => {};
 
   constructor(
     private sim: SimClient,
@@ -89,6 +92,7 @@ export class HeatControl {
     window.clearInterval(this.timer);
     this.overlay.setVisible(false);
     this.legend.hidden = kind === null;
+    this.onChange(kind);
     if (!kind) return;
     const l = LEGEND[kind];
     const top = l.ends.at(-1)!;
